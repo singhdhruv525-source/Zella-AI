@@ -32,40 +32,76 @@ const str = (v: unknown) => (typeof v === "string" && v ? v : null);
 const ref = (v: unknown) => (typeof v === "string" ? v : v && typeof v === "object" && typeof (v as { id?: unknown }).id === "string" ? (v as { id: string }).id : null);
 
 type Json = Record<string, unknown>;
-export type Mapped = { args: Json } | { ignore: string } | { invalid: string };
+// args: hand to zella_process_billing_event. ignore: not used (200, nothing stored). quarantine: signed by Stripe but
+// not something Zella Voice may apply (wrong account or mode, amounts that don't add up, missing fields): stored as
+// type "quarantined" with the reason, applied never, answered 200 so Stripe doesn't retry it for days (C-5).
+export type Mapped = { args: Json } | { ignore: string } | { quarantine: string };
+// What this endpoint accepts (security audit 18 Nov 2026, M13; docs/PAYMENTS_ARCHITECTURE.md C-3, C-4): events of
+// one mode (test or live) and one Stripe account, in one currency.
+export type Binding = { livemode: boolean; account: string | null; currency: string };
+
+const periodOf = (o: Json) => ((o.lines as Json | undefined)?.data as Json[] | undefined)?.[0]?.period as Json | undefined;
+const planOf = (o: Json) => {
+  const price = (((o.items as Json | undefined)?.data as Json[] | undefined)?.[0]?.price ?? {}) as Json;
+  const key = str(price.lookup_key) ?? str((price.metadata as Json | undefined)?.zella_plan);
+  return key && /^[a-z0-9_-]{1,60}$/i.test(key) ? key : null;
+};
 
 // One provider event -> the arguments of zella_process_billing_event (without provider and event id).
-export function mapEvent(ev: Json): Mapped {
+export function mapEvent(ev: Json, bind: Binding): Mapped {
   const o = ((ev.data as Json | undefined)?.object ?? {}) as Json;
   const created = iso(ev.created);
   const base = { p_event_created: created };
+  // the binding check comes before anything is read from the object
+  if (ev.livemode !== bind.livemode) return { quarantine: `livemode ${String(ev.livemode)} on a ${bind.livemode ? "live" : "test"} endpoint` };
+  const account = str(ev.account);
+  if (account !== bind.account && !(account === null && bind.account !== null)) return { quarantine: "another Stripe account" };
   switch (ev.type) {
-    case "invoice.payment_succeeded":
-    case "invoice.payment_failed": {
-      const ok = ev.type === "invoice.payment_succeeded";
-      const amount = minor(ok ? o.amount_paid : o.amount_due);
-      const currency = cur(o.currency);
-      const payment = ref(o.payment_intent) ?? str(o.id);
-      if (amount === null || !currency || !payment) return { invalid: "missing amount, currency or payment" };
-      const period = ((o.lines as Json | undefined)?.data as Json[] | undefined)?.[0]?.period as Json | undefined;
-      return { args: { ...base, p_type: ok ? "payment_succeeded" : "payment_failed", p_external_subscription_id: ref(o.subscription),
-        p_amount_minor: amount, p_currency: currency, p_external_payment_id: payment,
-        p_period_start: iso(period?.start), p_period_end: iso(period?.end),
-        p_reason: ok ? null : "The card was declined or the payment could not be completed" } };
+    // a paid period is granted only by a paid invoice, and only when its amounts add up (C-3, C-4)
+    case "invoice.paid": {
+      const paid = minor(o.amount_paid), due = minor(o.amount_due), remaining = minor(o.amount_remaining), currency = cur(o.currency);
+      const payment = ref(o.payment_intent) ?? ref(o.charge) ?? str(o.id);
+      if (paid === null || due === null || !currency || !payment || !ref(o.subscription)) return { quarantine: "missing amount, currency, payment or subscription" };
+      if (currency !== bind.currency) return { quarantine: `currency ${currency}` };
+      if (o.status !== "paid" || o.paid === false || paid !== due || (remaining !== null && remaining !== 0)) return { quarantine: "the invoice is not fully paid" };
+      if (paid === 0) return { ignore: "an invoice of 0 pays for nothing" };
+      const period = periodOf(o);
+      return { args: { ...base, p_type: "payment_succeeded", p_external_subscription_id: ref(o.subscription),
+        p_amount_minor: paid, p_currency: currency, p_external_payment_id: payment,
+        p_period_start: iso(period?.start), p_period_end: iso(period?.end), p_reason: str(o.billing_reason)?.slice(0, 60) ?? null } };
     }
+    // invoice.paid is the grant; this one arrives alongside it and is not applied a second time
+    case "invoice.payment_succeeded": return { ignore: "granted by invoice.paid" };
+    case "invoice.payment_failed": {
+      const amount = minor(o.amount_due), currency = cur(o.currency), payment = ref(o.payment_intent) ?? str(o.id);
+      if (amount === null || !currency || !payment) return { quarantine: "missing amount, currency or payment" };
+      if (currency !== bind.currency) return { quarantine: `currency ${currency}` };
+      // past due: the subscription is marked by the failed payment; nothing is granted
+      return { args: { ...base, p_type: "payment_failed", p_external_subscription_id: ref(o.subscription),
+        p_amount_minor: amount, p_currency: currency, p_external_payment_id: payment,
+        p_reason: "The card was declined or the payment could not be completed" } };
+    }
+    // the first payment is granted by its invoice.paid, never by the session (which only says the form was finished)
+    case "checkout.session.completed": return { ignore: "granted by invoice.paid" };
     case "customer.subscription.deleted":
-      if (!str(o.id)) return { invalid: "missing subscription" };
+      if (!str(o.id)) return { quarantine: "missing subscription" };
       return { args: { ...base, p_type: "subscription_cancelled", p_external_subscription_id: str(o.id) } };
-    case "customer.subscription.updated":
-      if (o.status !== "active") return { ignore: `subscription status ${String(o.status)}` };
-      if (!str(o.id)) return { invalid: "missing subscription" };
-      return { args: { ...base, p_type: "subscription_renewed", p_external_subscription_id: str(o.id),
-        p_period_start: iso(o.current_period_start), p_period_end: iso(o.current_period_end) } };
+    case "customer.subscription.updated": {
+      // a status alone grants nothing (C-3): no period is ever opened from this event
+      if (!str(o.id)) return { quarantine: "missing subscription" };
+      if (o.status === "incomplete_expired" || o.status === "canceled") return { args: { ...base, p_type: "subscription_cancelled", p_external_subscription_id: str(o.id) } };
+      // a plan change or downgrade changes the plan only; what it costs comes with the next paid invoice
+      const prev = ((ev.data as Json | undefined)?.previous_attributes ?? {}) as Json;
+      const plan = planOf(o);
+      if ("items" in prev && plan) return { args: { ...base, p_type: "plan_changed", p_external_subscription_id: str(o.id), p_plan_slug: plan } };
+      // past_due and unpaid arrive with invoice.payment_failed, which records them; active comes with invoice.paid
+      return { ignore: `subscription status ${String(o.status)}` };
+    }
     case "charge.refunded": {
       const payment = ref(o.payment_intent);
       const refunded = minor(o.amount_refunded);
-      if (!payment || refunded === null) return { invalid: "missing payment or refunded amount" };
-      // a full refund reverses the payment; a partial one is recorded against it
+      if (!payment || refunded === null) return { quarantine: "missing payment or refunded amount" };
+      // a full refund reverses the payment; a partial one is recorded against it (a Dashboard refund alerts Zella Voice in the database)
       const full = o.refunded === true || (minor(o.amount) !== null && refunded >= (o.amount as number));
       return { args: { ...base, p_type: full ? "payment_reversed" : "payment_refunded_partial", p_external_payment_id: payment,
         p_refund_minor: refunded, p_reason: full ? "Refund" : "Partial refund" } };
@@ -73,7 +109,7 @@ export function mapEvent(ev: Json): Mapped {
     case "charge.dispute.created":
     case "charge.dispute.closed": {
       const payment = ref(o.payment_intent);
-      if (!payment) return { invalid: "missing payment" };
+      if (!payment) return { quarantine: "missing payment" };
       if (ev.type === "charge.dispute.created") return { args: { ...base, p_type: "payment_disputed", p_external_payment_id: payment, p_reason: "Dispute opened" } };
       if (o.status === "lost") return { args: { ...base, p_type: "payment_reversed", p_external_payment_id: payment, p_refund_minor: minor(o.amount), p_reason: "Dispute lost" } };
       if (o.status === "won") return { args: { ...base, p_type: "dispute_won", p_external_payment_id: payment, p_reason: "Dispute won" } };

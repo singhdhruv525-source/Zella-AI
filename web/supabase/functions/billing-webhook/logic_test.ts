@@ -24,50 +24,75 @@ Deno.test("signature: valid, wrong secret, old, missing, tampered body", async (
   assertEquals(await verifySignature(raw, `${good.split(",")[0]},v1=deadbeef,${good.split(",")[1]}`, "whsec_test", now), true);
 });
 
-const inv = (type: string, obj: Record<string, unknown>) => ({ id: "evt", type, created: 1_800_000_000, data: { object: obj } });
+const B = { livemode: false, account: null, currency: "usd" };
+const inv = (type: string, obj: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ id: "evt", type, created: 1_800_000_000, livemode: false, data: { object: obj }, ...extra });
+const PAID = { id: "in_1", status: "paid", paid: true, amount_paid: 4900, amount_due: 4900, amount_remaining: 0, currency: "usd", payment_intent: "pi_1", subscription: "sub_1",
+  billing_reason: "subscription_cycle", lines: { data: [{ period: { start: 1_800_000_000, end: 1_802_592_000 } }] } };
 
-Deno.test("amounts stay in integer minor units for every currency (no /100)", () => {
-  for (const [currency, amount] of [["usd", 1999], ["jpy", 1500], ["kwd", 1234], ["USD", 0]] as const) {
-    const m = mapEvent(inv("invoice.payment_succeeded", { amount_paid: amount, currency, payment_intent: "pi_1", subscription: "sub_1" }));
-    assertEquals("args" in m && m.args.p_amount_minor, amount, currency);
-    assertEquals("args" in m && m.args.p_currency, currency.toLowerCase());
-  }
-  const m = mapEvent(inv("invoice.payment_succeeded", { amount_paid: 1999, currency: "usd", payment_intent: "pi_1", subscription: "sub_1" }));
+Deno.test("a paid period comes only from invoice.paid, in integer minor units", () => {
+  const m = mapEvent(inv("invoice.paid", PAID), B);
+  assertEquals("args" in m && [m.args.p_type, m.args.p_amount_minor, m.args.p_currency, m.args.p_external_payment_id, m.args.p_period_end, m.args.p_reason],
+    ["payment_succeeded", 4900, "usd", "pi_1", "2027-02-14T08:00:00.000Z", "subscription_cycle"]);
   assertEquals("args" in m && m.args.p_event_created, "2027-01-15T08:00:00.000Z");
+  // the same payment also arrives as invoice.payment_succeeded and checkout.session.completed: neither grants again
+  assertEquals("ignore" in mapEvent(inv("invoice.payment_succeeded", PAID), B), true);
+  assertEquals("ignore" in mapEvent(inv("checkout.session.completed", { mode: "subscription", payment_status: "paid", subscription: "sub_1" }), B), true);
 });
 
-Deno.test("bad amounts and currencies are refused, not guessed", () => {
-  for (const obj of [{ amount_paid: 19.99, currency: "usd", payment_intent: "pi" }, { amount_paid: -1, currency: "usd", payment_intent: "pi" },
-    { amount_paid: 100, currency: "dollars", payment_intent: "pi" }, { amount_paid: 100, currency: "usd" }]) {
-    assertEquals("invalid" in mapEvent(inv("invoice.payment_succeeded", obj)), true, JSON.stringify(obj));
+Deno.test("a status alone never grants a period (C-3)", () => {
+  for (const status of ["active", "trialing", "past_due", "unpaid", "incomplete"]) {
+    const m = mapEvent(inv("customer.subscription.updated", { id: "sub_1", status, current_period_start: 1, current_period_end: 2 }), B);
+    assertEquals("ignore" in m, true, status);
+  }
+  for (const status of ["canceled", "incomplete_expired"]) {
+    const m = mapEvent(inv("customer.subscription.updated", { id: "sub_1", status }), B);
+    assertEquals("args" in m && m.args.p_type, "subscription_cancelled", status);
   }
 });
 
-Deno.test("payment_intent may arrive expanded as an object", () => {
-  const m = mapEvent(inv("invoice.payment_failed", { amount_due: 500, currency: "eur", payment_intent: { id: "pi_x" }, subscription: { id: "sub_x" } }));
+Deno.test("a plan change or downgrade changes the plan only", () => {
+  const m = mapEvent(inv("customer.subscription.updated", { id: "sub_1", status: "active", items: { data: [{ price: { lookup_key: "base" } }] } },
+    { data: { object: { id: "sub_1", status: "active", items: { data: [{ price: { lookup_key: "base" } }] } }, previous_attributes: { items: {} } } }), B);
+  assertEquals("args" in m && [m.args.p_type, m.args.p_plan_slug, m.args.p_period_start], ["plan_changed", "base", undefined]);
+});
+
+Deno.test("binding: wrong mode, wrong account, wrong currency or amounts that don't add up are quarantined (C-4)", () => {
+  assertEquals("quarantine" in mapEvent(inv("invoice.paid", PAID, { livemode: true }), B), true);
+  assertEquals("quarantine" in mapEvent(inv("invoice.paid", PAID, { account: "acct_other" }), B), true);
+  assertEquals("quarantine" in mapEvent(inv("invoice.paid", PAID, { account: "acct_other" }), { ...B, account: "acct_ours" }), true);
+  assertEquals("args" in mapEvent(inv("invoice.paid", PAID, { account: "acct_ours" }), { ...B, account: "acct_ours" }), true);
+  assertEquals("args" in mapEvent(inv("invoice.paid", PAID), { ...B, account: "acct_ours" }), true);   // direct account events carry no account
+  for (const bad of [{ currency: "eur" }, { amount_paid: 4000 }, { amount_remaining: 900 }, { status: "open" }, { paid: false }, { amount_paid: 49.5, amount_due: 49.5 },
+    { amount_paid: -1, amount_due: -1 }, { payment_intent: null, charge: null, id: null }, { subscription: null }]) {
+    assertEquals("quarantine" in mapEvent(inv("invoice.paid", { ...PAID, ...bad }), B), true, JSON.stringify(bad));
+  }
+  assertEquals("ignore" in mapEvent(inv("invoice.paid", { ...PAID, amount_paid: 0, amount_due: 0 }), B), true);
+});
+
+Deno.test("payment_intent may arrive expanded as an object; a failed payment is recorded", () => {
+  const m = mapEvent(inv("invoice.payment_failed", { amount_due: 500, currency: "usd", payment_intent: { id: "pi_x" }, subscription: { id: "sub_x" } }), B);
   assertEquals("args" in m && [m.args.p_type, m.args.p_external_payment_id, m.args.p_external_subscription_id], ["payment_failed", "pi_x", "sub_x"]);
 });
 
 Deno.test("refunds: full reverses, partial is recorded as partial", () => {
-  const full = mapEvent(inv("charge.refunded", { payment_intent: "pi_1", amount: 5000, amount_refunded: 5000, refunded: true }));
-  const part = mapEvent(inv("charge.refunded", { payment_intent: "pi_1", amount: 5000, amount_refunded: 1000, refunded: false }));
+  const full = mapEvent(inv("charge.refunded", { payment_intent: "pi_1", amount: 5000, amount_refunded: 5000, refunded: true }), B);
+  const part = mapEvent(inv("charge.refunded", { payment_intent: "pi_1", amount: 5000, amount_refunded: 1000, refunded: false }), B);
   assertEquals("args" in full && [full.args.p_type, full.args.p_refund_minor], ["payment_reversed", 5000]);
   assertEquals("args" in part && [part.args.p_type, part.args.p_refund_minor], ["payment_refunded_partial", 1000]);
 });
 
 Deno.test("disputes: opened is not a refund; lost reverses; won clears", () => {
-  const opened = mapEvent(inv("charge.dispute.created", { payment_intent: "pi_1", amount: 5000, status: "needs_response" }));
-  const lost = mapEvent(inv("charge.dispute.closed", { payment_intent: "pi_1", amount: 5000, status: "lost" }));
-  const won = mapEvent(inv("charge.dispute.closed", { payment_intent: "pi_1", amount: 5000, status: "won" }));
+  const opened = mapEvent(inv("charge.dispute.created", { payment_intent: "pi_1", amount: 5000, status: "needs_response" }), B);
+  const lost = mapEvent(inv("charge.dispute.closed", { payment_intent: "pi_1", amount: 5000, status: "lost" }), B);
+  const won = mapEvent(inv("charge.dispute.closed", { payment_intent: "pi_1", amount: 5000, status: "won" }), B);
   assertEquals("args" in opened && opened.args.p_type, "payment_disputed");
   assertEquals("args" in lost && lost.args.p_type, "payment_reversed");
   assertEquals("args" in won && won.args.p_type, "dispute_won");
 });
 
-Deno.test("subscription events; unknown events ignored", () => {
-  assertEquals(mapEvent(inv("customer.subscription.deleted", { id: "sub_1" })), { args: { p_event_created: "2027-01-15T08:00:00.000Z", p_type: "subscription_cancelled", p_external_subscription_id: "sub_1" } });
-  assertEquals("ignore" in mapEvent(inv("customer.subscription.updated", { id: "sub_1", status: "past_due" })), true);
-  assertEquals("ignore" in mapEvent(inv("customer.created", {})), true);
+Deno.test("subscription deleted; unknown events ignored", () => {
+  assertEquals(mapEvent(inv("customer.subscription.deleted", { id: "sub_1" }), B), { args: { p_event_created: "2027-01-15T08:00:00.000Z", p_type: "subscription_cancelled", p_external_subscription_id: "sub_1" } });
+  assertEquals("ignore" in mapEvent(inv("customer.created", {}), B), true);
 });
 
 Deno.test("HTTP answers: waiting is 200 (Zella Voice retries itself), failure is 500 (provider retries)", () => {
@@ -75,8 +100,8 @@ Deno.test("HTTP answers: waiting is 200 (Zella Voice retries itself), failure is
     [200, 200, 200, 200, 500, 500]);
 });
 
-Deno.test("subscription RPC args require a subscription id", () => {
+Deno.test("subscription events without a subscription id are quarantined", () => {
   for (const type of ["customer.subscription.deleted", "customer.subscription.updated"]) {
-    assertEquals("invalid" in mapEvent(inv(type, { status: "active" })), true);
+    assertEquals("quarantine" in mapEvent(inv(type, { status: "active" }), B), true);
   }
 });

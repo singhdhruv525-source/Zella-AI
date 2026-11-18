@@ -1181,6 +1181,16 @@ step 2 and step 3 work in PR #59 (built and tested on the isolated database, not
 | C-7 | No outbox, money ledger, idempotency-key, quarantine or provider-account tables; no Stripe API calls | §4, §8, §8.1 | — (nothing calls Stripe yet) |
 | C-8 | A refund made directly in the Stripe Dashboard arrives only as `charge.refunded` | every refund needs the owner's approval (`REQ-BIL-45`); a Dashboard refund is recorded, matched to an approved request if one exists, otherwise alerted and audited | a refund outside the approval rule goes unnoticed |
 
+**Security audit fixes (18 Nov 2026, M13, branch `claude/security-fixes`, not deployed):** the webhook now grants a paid
+period only from `invoice.paid` with `status: paid`, `amount_paid = amount_due`, nothing remaining, more than 0, in the
+endpoint's currency (`invoice.payment_succeeded` and `checkout.session.completed` no longer grant: C-2, C-3 partly);
+`customer.subscription.updated` never opens a period (canceled or `incomplete_expired` cancels; a price change is a
+`plan_changed`; `past_due` and `unpaid` come through `invoice.payment_failed`); every event must match the endpoint's
+mode (`STRIPE_LIVEMODE`, required) and account (`STRIPE_ACCOUNT_ID`, optional), otherwise it is stored as `quarantined`
+(never applied; unmatched after 7 days it alerts) and answered 200, never 422 (C-5). Still open: the amount is not yet
+compared with the stored invoice or plan price, and grants still happen in the request (C-1, rest of C-4, C-6 to C-8):
+step 4.
+
 **Until step 4 is built and its tests pass, `STRIPE_WEBHOOK_SECRET` stays unset**, so the old webhook can't process
 anything. Step 4 replaces the webhook's mapping with the §6.0b pipeline, adds the §4 tables with the §9 database rules,
 and keeps everything listed as "already follows".

@@ -1,16 +1,21 @@
 // Zella Voice - billing webhook (Stripe-style events). Checks the provider's signature, turns the event into a plain type and
 // hands it to the database (zella_process_billing_event, sql/zella_billing_hardening.sql), which applies each event
 // once, keeps events it can't match yet and applies them later, and never moves a subscription or payment backwards.
-// Stays switched off (503) until STRIPE_WEBHOOK_SECRET is set. Deploy the SQL first.
+// Stays switched off (503) until STRIPE_WEBHOOK_SECRET and STRIPE_LIVEMODE ("true" or "false") are set. Optional:
+// STRIPE_ACCOUNT_ID (events from any other account are quarantined), STRIPE_CURRENCY (default usd). Deploy the SQL first.
+// Security audit 18 Nov 2026 (M13): a paid period comes only from invoice.paid whose amounts add up; events that are
+// signed but can't be applied are stored as "quarantined" and answered 200, never 422.
 // verify_jwt is off because the provider cannot send a login token; the signature is the proof instead.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { httpStatusFor, mapEvent, verifySignature } from "./logic.ts";
+import { type Binding, httpStatusFor, mapEvent, verifySignature } from "./logic.ts";
 
 export async function handle(req: Request): Promise<Response> {
   if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
   const secret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
   const serverKey = Deno.env.get("ZELLA_SERVER_SECRET_KEY");
-  if (!secret || !serverKey) return new Response("billing webhook not configured", { status: 503 });
+  const mode = Deno.env.get("STRIPE_LIVEMODE");
+  if (!secret || !serverKey || (mode !== "true" && mode !== "false")) return new Response("billing webhook not configured", { status: 503 });
+  const bind: Binding = { livemode: mode === "true", account: Deno.env.get("STRIPE_ACCOUNT_ID") || null, currency: (Deno.env.get("STRIPE_CURRENCY") || "usd").toLowerCase() };
   const limit = 500_000;
   if (Number(req.headers.get("content-length")) > limit) return new Response("too large", { status: 413 });
   let raw = "";
@@ -36,17 +41,18 @@ export async function handle(req: Request): Promise<Response> {
   try { ev = JSON.parse(raw); } catch { return new Response("bad json", { status: 400 }); }
   if (typeof ev?.id !== "string" || typeof ev?.type !== "string") return new Response("bad event", { status: 400 });
 
-  const mapped = mapEvent(ev);
+  const mapped = mapEvent(ev, bind);
   if ("ignore" in mapped) return new Response("ignored", { status: 200 });   // an event Zella Voice does not use
-  if ("invalid" in mapped) {
-    console.error("billing event not understood", ev.type, mapped.invalid);
-    return new Response("unprocessable", { status: 422 });
-  }
+  // signed, but not something Zella Voice may apply: kept for review (the database stores it and applies nothing)
+  const args = "quarantine" in mapped
+    ? { p_type: "quarantined", p_reason: `${String(ev.type).slice(0, 60)}: ${mapped.quarantine}`.slice(0, 300) }
+    : mapped.args;
+  if ("quarantine" in mapped) console.error("billing event quarantined", String(ev.type).slice(0, 60), mapped.quarantine);
 
   const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/rest/v1/rpc/zella_process_billing_event`, {
     method: "POST", signal: AbortSignal.timeout(10_000),
     headers: { "Content-Type": "application/json", apikey: serverKey, Authorization: `Bearer ${serverKey}` },
-    body: JSON.stringify({ p_provider: "stripe", p_event_id: ev.id, ...mapped.args }),
+    body: JSON.stringify({ p_provider: "stripe", p_event_id: ev.id, ...args }),
   }).catch(() => null);
   if (!res?.ok) return new Response("error", { status: 500 });   // the provider retries
   let out: unknown;
