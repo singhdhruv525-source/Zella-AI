@@ -289,3 +289,10 @@ test("review fixes 10: division after a function value, nested conditional arms"
   assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : admin.from("tasks"); q.eq("action", "not.audit");`)), []);
   assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : audit; q.eq("action", "a.unknown");`)).map((n) => n.startsWith("?")), [true]);
 });
+
+test("review fixes 11: a conditional nested in a conditional's first arm, nullish arms", async () => {
+  assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? (a ? b ? admin.from("jobs") : admin.from("tasks") : audit) : admin.from("jobs"); q.eq("action", "a.inner");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? a ? admin.from("jobs") : admin.from("audit_logs") : admin.from("tasks"); q.eq("action", "a.first");`)), ["a.first"]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? a ? admin.from("jobs") : admin.from("tasks") : admin.from("jobs"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`const q = cached ?? admin.from("jobs"); q.eq("action", "a.nullish");`)).map((n) => n.startsWith("?")), [true]);
+});
