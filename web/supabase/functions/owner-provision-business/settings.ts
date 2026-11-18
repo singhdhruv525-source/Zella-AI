@@ -32,7 +32,7 @@ export const PERMISSIONS: Record<string, string> = {
   business_suspend: "businesses.lifecycle", business_reactivate: "businesses.lifecycle", business_cancel: "businesses.lifecycle",
   business_undo_cancel: "businesses.lifecycle",
   audit_logs: "audit.view", industry_save: "platform.configure", industry_create: "platform.configure",
-  admins_list: "security.view", admin_invite: "admins.manage", admin_update: "admins.manage",
+  admins_list: "security.view", admin_invite: "admins.manage", admin_update: "admins.manage", admin_sessions_end: "admins.manage",
   tickets_list: "support.manage", ticket_create: "support.manage", ticket_update: "support.manage",
   plans_list: "billing.view", plan_save: "plans.manage", platform_setting_save: "platform.configure",
   // settings actions (this file)

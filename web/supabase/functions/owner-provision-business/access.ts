@@ -16,7 +16,7 @@ export function endsSessions(before: Access, after: Access) {
 }
 
 export const SESSIONS_NOT_ENDED =
-  "The change is saved, but their devices could not be signed out. They are refused on their next action; try again to sign them out everywhere.";
+  "The change is saved, but their devices could not be signed out. They are refused on their next action; use Sign out everywhere to try again.";
 
 // Returns how many sessions ended, or null with a warning when the database couldn't do it (for example before
 // sql/zella_admin_sessions.sql is applied). The role change itself is never undone.
@@ -106,7 +106,13 @@ const day = (v: unknown) => {
 // The filters from a request, checked; anything malformed is refused, never silently widened.
 export function auditFilters(fields: Json, InputError: new (m: string, s?: number) => Error): AuditFilters {
   const f: AuditFilters = {};
-  const str = (k: string) => (typeof fields[k] === "string" ? (fields[k] as string).trim() : "");
+  // left out (undefined or null) means no filter; anything else that isn't text is refused, never read as "no filter"
+  const str = (k: string) => {
+    const v = fields[k];
+    if (v === undefined || v === null) return "";
+    if (typeof v !== "string") throw new InputError("A filter is not valid");
+    return v.trim();
+  };
   const id = (k: string, label: string) => { const v = str(k); if (!v) return undefined; if (!UUID.test(v)) throw new InputError(`${label} is not valid`); return v; };
   f.businessId = id("businessId", "The business");
   f.actorId = id("actorId", "The person");
@@ -157,12 +163,12 @@ export function applyAuditFilters(query: any, f: AuditFilters, cursor: { at: str
   return q;
 }
 
-// One CSV cell. Text a spreadsheet would run as a formula (starting with = + - @, a tab or a return) gets a leading
-// apostrophe, so an export opened in a spreadsheet never runs anything.
+// One CSV cell. Text a spreadsheet would run as a formula (starting with = + - @, their full width forms, a tab or a
+// return) gets a leading apostrophe, so an export opened in a spreadsheet never runs anything.
 export function csvCell(v: unknown): string {
   if (v === null || v === undefined) return "";
   let t = typeof v === "object" ? JSON.stringify(v) : String(v);
-  if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+  if (/^[=+\-@\t\r\uFF1D\uFF0B\uFF0D\uFF20]/.test(t)) t = `'${t}`;
   return /[",\r\n]/.test(t) || t !== t.trim() ? `"${t.replace(/"/g, '""')}"` : t;
 }
 export const csvRow = (cells: unknown[]) => cells.map(csvCell).join(",");
@@ -222,7 +228,8 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
       let truncated = false;
       if (rows.length >= AUDIT_EXPORT_MAX_ROWS) {
         const last = rows[rows.length - 1];
-        const { data } = await applyAuditFilters(admin.from("audit_logs").select("id"), filters, { at: last.created_at, id: last.id }).limit(1);
+        const { data, error } = await applyAuditFilters(admin.from("audit_logs").select("id"), filters, { at: last.created_at, id: last.id }).limit(1);
+        if (error) throw error;   // never call the file complete when the check didn't run
         truncated = (data ?? []).length > 0;
       }
       const actorIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))].slice(0, 500) as string[];
@@ -253,6 +260,11 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
     // Removing one needs another left: every admin keeps two step sign in (ACC-01).
     me_mfa_remove: async () => {
       const factorId = requireId(fields.factorId, "authenticator");
+      // Supabase Auth doesn't keep the last factor itself, so removals for one person run one at a time: the count and
+      // the delete can't interleave with a second removal (the database's zella_rate_limit is atomic).
+      const { data: turn, error: turnError } = await admin.rpc("zella_rate_limit", { p_key: `mfa_remove:${userId}`, p_max: 1, p_window_seconds: 15 });
+      if (turnError) throw turnError;
+      if (turn !== true) throw new InputError("Another change to your authenticators is in progress. Try again in a moment.", 409);
       const factors = await verifiedFactors();
       const factor = factors.find((f) => f.id === factorId);
       if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
@@ -318,14 +330,25 @@ function instant(y: number, m: number, d: number, hhmm: string, tz: string) {
   return guess - zoned(first, tz).offset;
 }
 
-// Business hours between two instants, in hours (0 when the end is not after the start). At most 400 days are read.
+// Business hours between two instants, in hours (0 when the end is not after the start). The first and last weeks are
+// read day by day; whole weeks in between add one week's business hours each (the hours are wall clock times, so a
+// week holds the same business hours whatever the clocks do overnight). Exact for any length, in bounded work.
 export function businessHoursBetween(fromIso: string, toIso: string, hours: SupportHours): number {
   const from = Date.parse(fromIso), to = Date.parse(toIso);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return 0;
+  const [sh, sm] = hours.start.split(":").map(Number), [eh, em] = hours.end.split(":").map(Number);
+  const weekMs = hours.days.length * ((eh * 60 + em) - (sh * 60 + sm)) * 60_000;
   let total = 0;
   let { y, m, d } = zoned(from, hours.timezone);
-  for (let i = 0; i < 400; i++) {
-    const noon = Date.UTC(y, m - 1, d, 12);
+  for (let i = 0; i < 40; i++) {
+    let noon = Date.UTC(y, m - 1, d, 12);
+    // after the first day, jump over whole weeks that end at least a week before the end
+    const weeks = i > 0 ? Math.floor((to - noon) / (7 * 86_400_000)) - 1 : 0;
+    if (weeks > 0) {
+      total += weeks * weekMs;
+      noon += weeks * 7 * 86_400_000;
+      const at = new Date(noon); y = at.getUTCFullYear(); m = at.getUTCMonth() + 1; d = at.getUTCDate();
+    }
     const wd = ((new Date(noon).getUTCDay() + 6) % 7) + 1;
     const open = instant(y, m, d, hours.start, hours.timezone), close = instant(y, m, d, hours.end, hours.timezone);
     if (open >= to) break;

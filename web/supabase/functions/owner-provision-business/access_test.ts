@@ -44,7 +44,12 @@ const F1 = "11111111-1111-1111-1111-111111111111", F2 = "22222222-2222-2222-2222
 // a fake server client: the factors of each user, and every admin call made
 function authFake(factors: Record<string, { id: string; status: string; friendly_name?: string }[]>, opts: { updateError?: string } = {}) {
   const calls: unknown[] = [];
-  const admin = { auth: { admin: {
+  const turns = new Map<string, number>();   // zella_rate_limit: at most p_max calls per key in the window
+  const admin = { rpc: async (fn: string, a: { p_key: string; p_max: number }) => {
+    if (fn !== "zella_rate_limit") return { data: null, error: { message: "unexpected rpc" } };
+    const n = (turns.get(a.p_key) ?? 0) + 1; turns.set(a.p_key, n);
+    return { data: n <= a.p_max, error: null };
+  }, auth: { admin: {
     mfa: {
       listFactors: async ({ userId }: { userId: string }) => { calls.push(["list", userId]); return { data: { factors: factors[userId] ?? [] }, error: null }; },
       deleteFactor: async (a: { userId: string; id: string }) => { calls.push(["delete", a.userId, a.id]); return { data: { id: a.id }, error: null }; },
@@ -78,11 +83,16 @@ Deno.test("me_mfa_remove refuses the last authenticator and someone else's, on t
   const e = await accessHandlers(one.admin, { factorId: F1 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
   assertEquals((e as InputError).status, 409);
   assertEquals(one.calls.some((c) => (c as unknown[])[0] === "delete"), false);
-  const two = authFake({ me: [{ id: F1, status: "verified" }, { id: F2, status: "verified", friendly_name: "Old phone" }], other: [{ id: F3, status: "verified" }] });
-  const other = await accessHandlers(two.admin, { factorId: F3 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
+  const factors = () => ({ me: [{ id: F1, status: "verified" }, { id: F2, status: "verified", friendly_name: "Old phone" }], other: [{ id: F3, status: "verified" }] });
+  const other = await accessHandlers(authFake(factors()).admin, { factorId: F3 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
   assertEquals((other as InputError).status, 404);
+  const two = authFake(factors());
   assertEquals(await accessHandlers(two.admin, { factorId: F2 }, "me", kit).handlers.me_mfa_remove(), { factorId: F2, friendlyName: "Old phone", left: 1 });
   assertEquals(two.calls.filter((c) => (c as unknown[])[0] === "delete"), [["delete", "me", F2]]);
+  // a second removal at the same moment waits its turn: refused, nothing deleted, so the last one can't go too
+  const again = await accessHandlers(two.admin, { factorId: F1 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
+  assertEquals((again as InputError).status, 409);
+  assertEquals(two.calls.filter((c) => (c as unknown[])[0] === "delete").length, 1);
   assertEquals(accessHandlers(two.admin, {}, "me", kit).audited.me_mfa_remove({ factorId: F2, friendlyName: "Old phone", left: 1 }),
     { action: "admin.mfa_removed", entity_type: "mfa_factor", entity_id: F2, old_data: { friendly_name: "Old phone" }, new_data: { left: 1 } });
 });
@@ -183,7 +193,7 @@ Deno.test("filters and the cursor become the query: newest first, ties ordered b
 
 Deno.test("CSV cells: formulas are defused, quotes and line breaks are quoted, objects become JSON", () => {
   assertEquals(csvCell("plain"), "plain");
-  for (const f of ["=SUM(A1)", "+1", "-2", "@cmd", "\tx", "\rx"]) assertEquals(csvCell(f).replace(/^"|"$/g, "").startsWith("'"), true, f);
+  for (const f of ["=SUM(A1)", "+1", "-2", "@cmd", "\tx", "\rx", "\uFF1DSUM(A1)", "\uFF0B1", "\uFF0D2", "\uFF20cmd"]) assertEquals(csvCell(f).replace(/^"|"$/g, "").startsWith("'"), true, f);
   assertEquals(csvCell("=1+1"), "'=1+1");
   assertEquals(csvCell('say "hi", ok'), '"say ""hi"", ok"');
   assertEquals(csvCell("two\nlines"), '"two\nlines"');
@@ -200,11 +210,18 @@ function exportFake(n: number) {
   const admin = {
     from: () => {
       let after: string | null = null, lim = 1000;
+      const where: [string, unknown][] = [];
       const q: Record<string, unknown> = {};
-      for (const m of ["select", "order", "eq", "ilike", "gte", "lt"]) q[m] = () => q;
+      for (const m of ["select", "order", "ilike", "gte", "lt"]) q[m] = () => q;
+      q.eq = (k: string, v: unknown) => { where.push([k, v]); return q; };   // filters really filter
       q.or = (s: string) => { after = /id\.lt\.([0-9a-f-]{36})/.exec(s)?.[1] ?? null; return q; };
       q.limit = (l: number) => { lim = l; return q; };
-      q.then = (res: (v: unknown) => void) => { reads++; const start = after ? all.findIndex((r) => r.id === after) + 1 : 0; res({ data: all.slice(start, start + lim), error: null }); };
+      q.then = (res: (v: unknown) => void) => {
+        reads++;
+        const rows = all.filter((r) => where.every(([k, v]) => (r as Record<string, unknown>)[k] === v));
+        const start = after ? rows.findIndex((r) => r.id === after) + 1 : 0;
+        res({ data: rows.slice(start, start + lim), error: null });
+      };
       return q;
     },
     auth: { admin: { getUserById: async () => ({ data: { user: null } }) } },
@@ -221,18 +238,23 @@ Deno.test("audit export: owner and super admin only, by default", async () => {
 });
 
 Deno.test("audit export: every row once, defused, capped at 10,000 and said so, and audited without the file", async () => {
+  // the action filter: only the 1,250 admin.updated rows, each exactly once and in order
   const small = (await accessHandlers(exportFake(2500).admin, { auditAction: "admin.updated" }, "me", kit, "zella_owner").handlers.audit_export()) as { csv: string; rows: number; truncated: boolean; filters: unknown };
-  assertEquals([small.rows, small.truncated], [2500, false]);
+  assertEquals([small.rows, small.truncated], [1250, false]);
   const lines = small.csv.trimEnd().split("\r\n");
-  assertEquals(lines.length, 2501);
-  assertEquals(new Set(lines.slice(1).map((l) => l.split(",")[2])).size, 2);     // the action names column
-  assertEquals(lines.some((l) => /,=evil/.test(l)), false);
-  assertEquals(lines.some((l) => l.includes(",'=evil()")), true);
+  assertEquals(lines.length, 1251);
+  assertEquals(new Set(lines.slice(1).map((l) => l.split(",")[2])), new Set(["admin.updated"]));     // the action names column
+  // the After column holds each row's own number: every matching row appears once, in order (1, 3, 5, ... 2499)
+  assertEquals(lines.slice(1).map((l) => JSON.parse(l.split(",").slice(-1)[0].replace(/^"|"$/g, "").replace(/""/g, '"')).n), Array.from({ length: 1250 }, (_, k) => 2 * k + 1));
+  // no filter: formulas in cells are defused
+  const all = (await accessHandlers(exportFake(4).admin, {}, "me", kit, "zella_owner").handlers.audit_export()) as { csv: string };
+  assertEquals(all.csv.split("\r\n").some((l) => /,=evil/.test(l)), false);
+  assertEquals(all.csv.split("\r\n").some((l) => l.includes(",'=evil()")), true);
   assertEquals(AUDIT_EXPORT_MAX_ROWS, 10_000);
   const big = (await accessHandlers(exportFake(10_050).admin, {}, "me", kit, "super_admin").handlers.audit_export()) as { rows: number; truncated: boolean };
   assertEquals([big.rows, big.truncated], [10_000, true]);
   const entry = accessHandlers(exportFake(1).admin, {}, "me", kit, "zella_owner").audited.audit_export(small as unknown as Record<string, unknown>);
-  assertEquals(entry, { action: "audit.exported", entity_type: "audit_logs", new_data: { filters: { auditAction: "admin.updated" }, rows: 2500, truncated: false } });
+  assertEquals(entry, { action: "audit.exported", entity_type: "audit_logs", new_data: { filters: { auditAction: "admin.updated" }, rows: 1250, truncated: false } });
   assertEquals(actionText("admin.updated"), "Changed platform admin access");
 });
 
@@ -249,6 +271,11 @@ Deno.test("business hours: weekdays 9 to 5 in New York, across nights, weekends 
   assertEquals(businessHoursBetween("2026-10-30T13:00:00Z", "2026-11-02T15:00:00Z", H), 9);
   assertEquals(businessHoursBetween("2026-11-16T18:00:00Z", "2026-11-16T14:00:00Z", H), 0);
   assertEquals(businessHoursBetween("bad", "2026-11-16T14:00:00Z", H), 0);
+  // long spans are exact, not cut off: whole weeks are 40 hours each, whatever the clocks did in between
+  assertEquals(businessHoursBetween("2024-11-18T14:00:00Z", "2026-11-16T14:00:00Z", H), 104 * 40);   // Monday 9:00 to Monday 9:00, 104 weeks
+  assertEquals(businessHoursBetween("2024-11-18T14:00:00Z", "2026-11-16T18:00:00Z", H), 104 * 40 + 4);
+  const London = { ...H, timezone: "Europe/London", days: [1, 2, 3, 4, 5, 6] };
+  assertEquals(businessHoursBetween("2025-01-06T09:00:00Z", "2025-12-29T09:00:00Z", London), 51 * 48);   // through both clock changes
 });
 
 Deno.test("the setting is read safely, and overdue means no first reply after 4 business hours", () => {

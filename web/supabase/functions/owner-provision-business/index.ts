@@ -1142,8 +1142,9 @@ type AuditEntry = {
 
 type AuditContext = { userId: string; ip: string | null; userAgent: string | null };
 
-// Audit failures are logged but never block the admin's action.
-async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry) {
+// Audit failures are logged but never block the admin's action (except an audit log export, below). Returns whether
+// the row was written.
+async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry): Promise<boolean> {
   const { error } = await admin.from("audit_logs").insert({
     ...entry,
     user_id: ctx.userId,
@@ -1151,6 +1152,7 @@ async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: Audit
     user_agent: ctx.userAgent,
   });
   if (error) console.error("Audit log write failed", error);
+  return !error;
 }
 
 function requestContext(req: Request, userId: string): AuditContext {
@@ -1258,6 +1260,12 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     entity_type: "platform_admin",
     entity_id: r.targetUserId,
     new_data: { email: r.email, role: r.role, invitation_sent: r.invited },
+  }),
+  admin_sessions_end: (_fields, r) => ({
+    action: "admin.sessions_ended",
+    entity_type: "platform_admin",
+    entity_id: r.targetUserId,
+    new_data: { sessions_ended: r.sessionsEnded },
   }),
   admin_update: (_fields, r) => ({
     action: "admin.updated",
@@ -1618,8 +1626,11 @@ async function auditLogList(admin: SupabaseClient, fields: Json, role: string | 
     if (listError) throw listError;
     if (adminsError) throw adminsError;
     businesses = list ?? [];
-    const emails = await resolveUsers(admin, (admins ?? []).map((a) => a.user_id));
-    people = Object.entries(emails).map(([id, email]) => ({ id, email })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
+    // every admin, resolved 100 at a time (resolveUsers reads at most 100), so nobody is left out of the person filter
+    const ids = [...new Set((admins ?? []).map((a) => a.user_id))];
+    const emails: Record<string, string | null> = {};
+    for (let i = 0; i < ids.length; i += 100) Object.assign(emails, await resolveUsers(admin, ids.slice(i, i + 100)));
+    people = ids.map((id) => ({ id, email: emails[id] ?? null })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
   }
 
   return {
@@ -2123,11 +2134,17 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
     if ((count ?? 0) <= 1) throw new InputError("Zella Voice must keep at least one active owner", 409);
   }
 
-  const { error } = await admin
+  // Only from the state read above: if another owner changed this admin meanwhile, nothing is saved, so the sessions
+  // below are ended for the change that actually committed, never for one that didn't.
+  const { data: saved, error } = await admin
     .from("platform_admins")
     .update({ role, is_active: isActive })
-    .eq("user_id", targetId);
+    .eq("user_id", targetId)
+    .eq("role", current.role)
+    .eq("is_active", current.is_active)
+    .select("user_id");
   if (error) throw error;
+  if (!saved?.length) throw new InputError("Their access was changed by someone else just now. Reload and try again.", 409);
 
   // ACC-18: a removed admin, or one given another role, is signed out on every device.
   const sessions = await endSessionsAfterChange(admin, targetId, current, { role, is_active: isActive });
@@ -2138,6 +2155,23 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
     after: { role, is_active: isActive },
     ...sessions,
   };
+}
+
+// ACC-18: signs an admin out on every device again, for when ending their sessions failed after an access change was
+// saved (admin_update's sessionsWarning). Owners only, never their own account; audited.
+async function adminEndSessions(admin: SupabaseClient, fields: Json, userId: string) {
+  await requireOwner(admin, userId);
+  const targetId = requireId(fields.userId, "admin");
+  if (targetId === userId) throw new InputError("Use Sign out other devices in your own account security instead.", 409);
+  const { data: target, error } = await admin.from("platform_admins").select("user_id").eq("user_id", targetId).maybeSingle();
+  if (error) throw error;
+  if (!target) throw new InputError("Admin not found", 404);
+  const { data, error: endError } = await admin.rpc("zella_end_user_sessions", { p_user_id: targetId });
+  if (endError || typeof data !== "number") {
+    console.error("Ending an admin's sessions failed", endError?.message ?? data);
+    throw new InputError("Their devices could not be signed out. Try again in a moment.", 503);
+  }
+  return { targetUserId: targetId, sessionsEnded: data };
 }
 
 // ---------------------------------------------------------------------------
@@ -2228,25 +2262,37 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
     return q;
   };
   let ticketsResult = await listQuery(true);
-  if (ticketsResult.error && /first_response_at/.test(ticketsResult.error.message ?? "")) ticketsResult = await listQuery(false);
+  let withFirstResponse = true;
+  if (ticketsResult.error && /first_response_at/.test(ticketsResult.error.message ?? "")) { ticketsResult = await listQuery(false); withFirstResponse = false; }
   const [businessesResult, adminsResult, hoursResult, grantsResult] = await Promise.all([
     admin.from("businesses").select("id, name").order("name"),
     admin.from("platform_admins").select("user_id, role").eq("is_active", true),
     admin.from("platform_settings").select("value").eq("key", "support_business_hours").maybeSingle(),
     admin.from("platform_role_permissions").select("role").eq("permission", "support.manage"),
   ]);
-  const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error;
+  // a failed read of the hours or of the role grants is an error, never "the default hours" or "nobody can be assigned"
+  const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error ?? hoursResult.error ?? grantsResult.error;
   if (queryError) throw queryError;
 
   const hours = supportHours(hoursResult.data?.value);
   // deno-lint-ignore no-explicit-any
   let tickets = (ticketsResult.data ?? []) as any[];
+  // Overdue: every ticket still waiting for a first reply is read (1000 at a time), not only the newest 500, so an
+  // older overdue ticket is never left out; the newest 500 of the overdue ones are shown.
+  if (fields.overdue === true && withFirstResponse) tickets = await waitingTickets(admin, fields, `${cols}, first_response_at`);
+  const messages = await ticketMessages(admin, tickets.map((t) => t.id));
+  // The time of the first reply comes from the replies read above when the ticket row was read just before one was
+  // added, so a ticket never shows a reply next to "No reply yet".
+  for (const t of tickets) {
+    if (t.first_response_at || !withFirstResponse) continue;
+    const firstZella = (messages.get(t.id) ?? []).find((m) => m.author_side === "zella");
+    if (firstZella) t.first_response_at = firstZella.created_at;
+  }
   const timing = new Map(tickets.map((t) => [t.id, ticketTiming(t, hours)]));
-  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue);
+  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue).slice(0, 500);
   // only people who may work tickets can be assigned one (OPS-27)
   const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);
   const adminIds = (adminsResult.data ?? []).filter((a) => supportRoles.has(a.role)).map((a) => a.user_id);
-  const messages = await ticketMessages(admin, tickets.map((t) => t.id));
   // Internal notes live in support_ticket_notes, which only the server can read (OPS-06). Before that table exists
   // (sql/zella_support_notes.sql not applied yet) they are still read from metadata, as before.
   const notesByTicket = await ticketNotes(admin, tickets);
@@ -2284,17 +2330,53 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   };
 }
 
+// Every ticket still waiting for its first reply (not resolved or closed), with the list's status and business
+// filters, newest first, read 1000 at a time after a (created_at, id) cursor.
+async function waitingTickets(admin: SupabaseClient, fields: Json, columns: string) {
+  // deno-lint-ignore no-explicit-any
+  const out: any[] = [];
+  let after: { created_at: string; id: string } | null = null;
+  for (;;) {
+    let q = admin.from("support_tickets").select(columns).is("first_response_at", null).not("status", "in", "(resolved,closed)")
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1000);
+    const status = text(fields.status, 20);
+    if (status) q = q.eq("status", oneOf(status, TICKET_STATUSES, "open"));
+    const businessId = text(fields.businessId, 64);
+    if (businessId) q = q.eq("business_id", requireId(businessId, "business"));
+    if (after) q = q.or(`created_at.lt."${after.created_at}",and(created_at.eq."${after.created_at}",id.lt.${after.id})`);
+    const { data, error } = await q;
+    if (error) throw error;
+    // deno-lint-ignore no-explicit-any
+    const page = (data ?? []) as any[];
+    out.push(...page);
+    if (page.length < 1000) return out;
+    after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
+  }
+}
+
 type TicketNote = { body: string; author_id: string | null; created_at: string };
 type TicketMessage = { body: string; author_id: string | null; author_side: string; created_at: string };
 
 // Replies the business sees (support_ticket_messages, sql/zella_support_replies.sql); none before it is applied.
+// Every message, read 1000 at a time after a (created_at, id) cursor, so no conversation is cut off.
 async function ticketMessages(admin: SupabaseClient, ids: string[]) {
   const out = new Map<string, TicketMessage[]>();
   for (let i = 0; i < ids.length; i += 200) {
-    const { data, error } = await admin.from("support_ticket_messages").select("ticket_id, body, author_id, author_side, created_at")
-      .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).limit(5000);
-    if (error) { if (missingTable(error)) return out; throw error; }
-    for (const m of data ?? []) out.set(m.ticket_id, [...(out.get(m.ticket_id) ?? []), m]);
+    let after: { created_at: string; id: string } | null = null;
+    for (;;) {
+      let q = admin.from("support_ticket_messages").select("id, ticket_id, body, author_id, author_side, created_at")
+        .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1000);
+      if (after) q = q.or(`created_at.gt."${after.created_at}",and(created_at.eq."${after.created_at}",id.gt.${after.id})`);
+      const { data, error } = await q;
+      if (error) { if (missingTable(error)) return out; throw error; }
+      const page = data ?? [];
+      for (const m of page) {
+        const list = out.get(m.ticket_id);
+        if (list) list.push(m); else out.set(m.ticket_id, [m]);
+      }
+      if (page.length < 1000) break;
+      after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
+    }
   }
   return out;
 }
@@ -2395,10 +2477,17 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     const assignee = text(fields.assignedTo, 64) || null;
     if (assignee) {
       requireId(assignee, "assignee");
-      const { data: isAdmin, error } = await admin
-        .from("platform_admins").select("user_id").eq("user_id", assignee).eq("is_active", true).maybeSingle();
+      // the same rule as the picker in tickets_list: an active admin whose role may work tickets (OPS-27)
+      const { data: target, error } = await admin
+        .from("platform_admins").select("user_id, role").eq("user_id", assignee).eq("is_active", true).maybeSingle();
       if (error) throw error;
-      if (!isAdmin) throw new InputError("Tickets can only be assigned to active platform admins");
+      if (!target) throw new InputError("Tickets can only be assigned to active platform admins");
+      if (!["zella_owner", "super_admin"].includes(target.role)) {
+        const { data: grant, error: grantError } = await admin.from("platform_role_permissions").select("role")
+          .eq("role", target.role).eq("permission", "support.manage").maybeSingle();
+        if (grantError) throw grantError;
+        if (!grant) throw new InputError("Tickets can only be assigned to admins whose role can work support tickets");
+      }
     }
     if (assignee !== ticket.assigned_to) {
       update.assigned_to = assignee;
@@ -2406,16 +2495,7 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     }
   }
 
-  // OPS-25: a reply the business sees; first_response_at and the opener's notice are set in the database
   const reply = text(fields.reply, 4000);
-  if (reply) {
-    const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
-    if (replyError) {
-      if (/zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")) throw new InputError("Replies to the business need the latest database update (sql/zella_support_replies.sql).", 503);
-      throw replyError;
-    }
-    changes.reply_added = true;
-  }
 
   const note = text(fields.note, 4000);
   if (note) {
@@ -2431,10 +2511,25 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     changes.note_added = true;
   }
 
-  if (Object.keys(changes).length === 0) return { ticketId, businessId: ticket.business_id, changes };
+  if (Object.keys(changes).length === 0 && !reply) return { ticketId, businessId: ticket.business_id, changes };
 
-  const { error } = await admin.from("support_tickets").update(update).eq("id", ticketId);
-  if (error) throw error;
+  // The ticket's own changes (status, priority, assignee, a note) are saved first, and only when there are any: a reply
+  // alone needs no write here...
+  if (Object.keys(changes).length > 0) {
+    const { error } = await admin.from("support_tickets").update(update).eq("id", ticketId);
+    if (error) throw error;
+  }
+
+  // ...and the reply the business sees goes last (OPS-25; first_response_at and the opener's notice are set in the
+  // database), so nothing after it can fail and leave a published reply unaudited or tempt a resend.
+  if (reply) {
+    const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
+    if (replyError) {
+      if (/zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")) throw new InputError("Replies to the business need the latest database update (sql/zella_support_replies.sql).", 503);
+      throw replyError;
+    }
+    changes.reply_added = true;
+  }
 
   return { ticketId, businessId: ticket.business_id, changes };
 }
@@ -3278,6 +3373,7 @@ Deno.serve(withCors(async (req: Request) => {
       admins_list: () => adminsList(adminClient, user.id),
       admin_invite: () => adminInvite(adminClient, fields, user.id),
       admin_update: () => adminUpdate(adminClient, fields, user.id),
+      admin_sessions_end: () => adminEndSessions(adminClient, fields, user.id),
       integrations_overview: () => integrationsOverview(adminClient),
       tickets_list: () => ticketsList(adminClient, fields),
       ticket_create: () => ticketCreate(adminClient, fields, user.id),
@@ -3316,7 +3412,11 @@ Deno.serve(withCors(async (req: Request) => {
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
       if (entry && !unchanged) {
-        await writeAudit(adminClient, requestContext(req, user.id), entry);
+        const recorded = await writeAudit(adminClient, requestContext(req, user.id), entry);
+        // ACC-12: an export of the audit log is handed over only once the export itself is on record
+        if (!recorded && action === "audit_export") {
+          return respond({ error: "The export could not be recorded in the audit log, so it was not downloaded. Try again." }, 503);
+        }
       }
 
       return respond(result);

@@ -8,6 +8,7 @@
     "admin.mfa_removed": "Admin removed an authenticator app",
     "admin.password_changed": "Admin changed their password",
     "admin.reactivated": "Reactivated platform admin",
+    "admin.sessions_ended": "Signed a platform admin out on every device",
     "admin.updated": "Changed platform admin access",
     "ai_receptionist.updated": "Updated AI receptionist",
     "approval_approved": "Approved a staff request",
