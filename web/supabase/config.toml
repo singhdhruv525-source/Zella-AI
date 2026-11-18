@@ -469,6 +469,12 @@ entrypoint = "./functions/billing-webhook/index.ts"
 # Files on records: checks each upload's contents for its uploader, and server-only cleanup. Checks the caller itself:
 # "check" passes the member's sign-in to the database (which verifies it and their permissions); "cleanup" accepts only
 # the server key, which is not a JWT, so the gateway's sign-in check must stay off.
+# Deletes queued calls at Vapi (sql/zella_privacy_retention.sql): accepts only the server key, which is not a JWT.
+[functions.provider-deletions]
+enabled = true
+verify_jwt = false
+import_map = "./functions/provider-deletions/deno.json"
+entrypoint = "./functions/provider-deletions/index.ts"
 [functions.record-files]
 enabled = true
 verify_jwt = false

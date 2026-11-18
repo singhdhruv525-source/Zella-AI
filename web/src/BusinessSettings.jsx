@@ -877,7 +877,9 @@ function Privacy({ w, onOpenPerson, onNotice }) {
     <>
       <Card title="Your data">
         <Facts rows={[["Recordings and transcripts", "Managers and above"], ["Customer data requests", "Logged and handled below, within 30 days"], ["Erasing a customer", "Needs a second owner or admin when you have two"],
-          ["If you cancel", "Records kept 90 days, then the Zella Voice team removes them"]]} />
+          ["Call recordings and transcripts", "Deleted automatically 90 days after the call"],
+          ["If you cancel", "Records kept 90 days, then the Zella Voice team removes them"],
+          ["If you delete your account", "Frozen at once, then deleted 30 days after Zella Voice confirms, unless you cancel"]]} />
       </Card>
       {roleIn(w, DATA_RIGHTS_ROLES) ? <DataRightsList workspace={w} onOpenPerson={onOpenPerson} onNotice={onNotice} /> : <p className="zs-muted">Managers and above handle customer data requests.</p>}
       <LegalDocs w={w} />

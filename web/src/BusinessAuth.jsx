@@ -73,6 +73,7 @@ function AuthCard({ eyebrow, title, description, children }) {
           <h1>{title}</h1>
           {description && <p className="ba-auth-description">{description}</p>}
           {children}
+          <p className="ba-auth-legal"><a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a></p>
         </section>
     </main>
   );
