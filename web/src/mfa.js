@@ -72,7 +72,14 @@ export async function finishMfaEnrollment(factorId, code) {
   const { data: role, error: roleError } = await supabase.rpc("zella_admin_role").then((r) => r, (e) => ({ error: e }));
   const admin = roleError ? null : Boolean(role);
   if (admin !== false) keepPending(owner, factorId, admin);
-  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: clean });
+  let error;
+  try {
+    ({ error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: clean }));
+  } catch (thrown) {
+    // no answer at all: it may have turned the authenticator on
+    markMaybeOn(owner, factorId);
+    throw thrown;
+  }
   if (error) {
     // A refused code turned nothing on, but an earlier attempt that ended without a clear answer may have: the id is
     // dropped only when no attempt for it may have turned it on. Any other failure is remembered as such an attempt.

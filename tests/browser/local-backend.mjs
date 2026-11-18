@@ -265,10 +265,12 @@ async function rpc(name, args, claims, head, object) {
   return { status: 200, json: value, head };
 }
 
-async function userRow(id) {
+// strict: a failed read throws (status 500) instead of reading as "no such user"
+async function userRow(id, { strict = false } = {}) {
   const r = await asCaller({ role: "service_role" }, `select row_to_json(u) from (select id, email, email_confirmed_at, last_sign_in_at, created_at, raw_user_meta_data, raw_app_meta_data,
       (select coalesce(json_agg(json_build_object('id', f.id, 'status', f.status, 'factor_type', f.factor_type, 'friendly_name', f.friendly_name)), '[]') from auth.mfa_factors f where f.user_id = u.id) factors
     from auth.users u where id = ${lit(id)}) u`, { preRequest: false, system: true });
+  if (r.error && strict) throw Object.assign(new Error("user read failed"), { status: 500 });
   if (r.error || !r.text) return null;
   const u = JSON.parse(r.text);
   return { id: u.id, aud: "authenticated", role: "authenticated", email: u.email, email_confirmed_at: u.email_confirmed_at, confirmed_at: u.email_confirmed_at,
@@ -392,10 +394,13 @@ async function auth(req, url, claims, body) {
     if (verb === "challenge") return { status: 200, json: { id: crypto.randomUUID(), type: "totp", expires_at: Math.floor(Date.now() / 1000) + 300 } };
     if (verb === "verify") {
       if (String(body?.code ?? "") !== "123456") return { status: 422, json: { code: 422, msg: "Invalid TOTP code entered", error_code: "mfa_verification_failed" } };
-      const user = await userRow(claims.sub);
-      if (!user) return { status: 401, json: { code: 401, msg: "User not found", error_code: "user_not_found" } };
+      const READ_FAILED = { status: 500, json: { code: 500, msg: "The account could not be read", error_code: "unexpected_failure" } };
+      const NO_USER = { status: 401, json: { code: 401, msg: "User not found", error_code: "user_not_found" } };
       const sid = claims.session_id ?? null;
       if (!sid) {   // a token without a session: a new session, as before
+        const user = await userRow(claims.sub, { strict: true }).catch(() => "error");
+        if (user === "error") return READ_FAILED;
+        if (!user) return NO_USER;
         const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
         if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
         const s = await session({ ...user, factors: (user.factors ?? []).map((f) => (f.id === factorId ? { ...f, status: "verified" } : f)) }, "aal2", Math.floor(Date.now() / 1000)).catch(() => "error");
@@ -406,19 +411,26 @@ async function auth(req, url, claims, body) {
       // older refresh tokens end here, so none of them can bring back the level from before the code.
       return inTurn(sid, async () => {
         // read in the session's turn, so an earlier verification on this session is already in it
-        const current = await userRow(claims.sub);
-        if (!current) return { status: 401, json: { code: 401, msg: "User not found", error_code: "user_not_found" } };
+        const current = await userRow(claims.sub, { strict: true }).catch(() => "error");
+        if (current === "error") return READ_FAILED;
+        if (!current) return NO_USER;
         // the session row is locked first, so it can't end between the two changes
         const v = await asCaller({ role: "service_role" }, `with live as (select id from auth.sessions where id = ${lit(sid)} and user_id = ${lit(claims.sub)} for update),
-          f as (update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} and exists (select 1 from live) returning id),
+          f as (update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} and exists (select 1 from live)
+                returning id, status, factor_type, friendly_name),
           s as (update auth.sessions set aal = 'aal2', refreshed_at = now(), updated_at = now() where id in (select id from live) and exists (select 1 from f) returning id)
-          select (select count(*) from live) || ':' || (select count(*) from f) || (select count(*) from s)`, sys);
+          -- the person's factors as this statement leaves them: the others as read now, and this one from the update
+          select json_build_object('state', (select count(*) from live) || ':' || (select count(*) from f) || (select count(*) from s),
+            'factors', (select coalesce(json_agg(json_build_object('id', x.id, 'status', x.status, 'factor_type', x.factor_type, 'friendly_name', x.friendly_name)), '[]')
+              from (select id, status, factor_type, friendly_name from auth.mfa_factors where user_id = ${lit(claims.sub)} and id <> ${lit(factorId)}
+                    union all select id, status, factor_type, friendly_name from f) x))`, sys);
         if (v.error) return { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } };
-        if (v.text.startsWith("0:")) return { status: 401, json: { code: 401, msg: "Session not found", error_code: "session_not_found" } };
-        if (v.text !== "1:11") return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
+        const out = JSON.parse(v.text);
+        if (out.state.startsWith("0:")) return { status: 401, json: { code: 401, msg: "Session not found", error_code: "session_not_found" } };
+        if (out.state !== "1:11") return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
         for (const [token, held] of REFRESH) if (held.sid === sid) REFRESH.delete(token);
-        // the user in the answer as it is now: this factor verified (it was read before the change)
-        const now = { ...current, factors: (current.factors ?? []).map((f) => (f.id === factorId ? { ...f, status: "verified" } : f)) };
+        // the user in the answer with the factors the verification left (changes from other sessions included)
+        const now = { ...current, factors: out.factors };
         return { status: 200, json: issue(now, "aal2", Math.floor(Date.now() / 1000), sid) };
       });
     }

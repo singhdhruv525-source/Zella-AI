@@ -166,6 +166,9 @@ function MfaCard({ required: requiredByPage = false }) {
   // the role is read again just before the dialog opens (access may have changed while the page was open), so the
   // dialog asks for a code exactly when the removal will need one; Remove stays off while it is read
   const removeOpener = useRef(null);   // the Remove button that opened the dialog, to take focus back when it closes
+  // after a removal that button's row is gone: focus goes to this note instead, which stays in the card
+  const removedNote = useRef(null);
+  const [removedText, setRemovedText] = useState("");
   const openRemove = async (f, count, button) => {
     removeOpener.current = button;
     if (requiredByPage) { setRemoving(f); return; }
@@ -189,6 +192,7 @@ function MfaCard({ required: requiredByPage = false }) {
   };
   return (
     <Card title="Two step sign in" sub="After your password, enter a code from an authenticator app (Google Authenticator, 1Password, Authy and similar).">
+      <p ref={removedNote} tabIndex={-1} role="status" className="zs-muted" style={removedText ? undefined : { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{removedText}</p>
       <LoadState state={state}>{(s) => (
         <>
           <Facts rows={[["Status", s.enrolled ? "On" : "Off"], ["This session", s.level === "aal2" ? "Verified with a code" : "Password only"]]} />
@@ -230,7 +234,7 @@ function MfaCard({ required: requiredByPage = false }) {
       )}</LoadState>
       {removing && <Confirm title={required ? "Remove this authenticator?" : "Remove two step sign in?"} danger confirmLabel="Remove"
         onClose={() => { setRemoving(null); setRemoveCode(""); setTimeout(() => { if (removeOpener.current?.isConnected) removeOpener.current.focus(); }, 0); }}
-        onConfirm={async () => { await removeMfaFactor(removing.id, { admin: required, code: removeCode }); setRemoveCode(""); state.reload(); }}>
+        onConfirm={async () => { await removeMfaFactor(removing.id, { admin: required, code: removeCode }); setRemoveCode(""); removeOpener.current = removedNote.current; setRemovedText("Authenticator removed."); state.reload(); }}>
         {required ? (
           <>
             <p>Your other authenticator app keeps working. Enter a code from the authenticator app you sign in with to confirm.</p>

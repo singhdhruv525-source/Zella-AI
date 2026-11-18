@@ -89,13 +89,14 @@ export function labelKeys(body) {
     // on to the next property: past this one's value, to the next comma at this level (strings and regular
     // expression literals are skipped whole, so brackets or commas inside them count for nothing)
     let depth = 0, quote = null, prev = ":";
+    const braces = [];   // for each open brace: "block" (after ) or =>, a function or statement body) or "object"
     for (; i < src.length; i++) {
       const c = src[i];
       if (quote) { if (c === "\\") { i++; continue; } if (c === quote) quote = null; continue; }
       if (c === "'" || c === '"' || c === "`") { quote = c; prev = c; continue; }
       // a regular expression literal, through its closing slash: only where a value starts (after ( , = : [ ! & | ? {);
       // after a value (a name, a number, ) ] or }) a slash divides
-      if (c === "/" && "(,=:[!&|?{".includes(prev)) {
+      if (c === "/" && "(,=:[!&|?{;".includes(prev)) {
         let cls = false;
         for (i++; i < src.length && src[i] !== "\n"; i++) {
           if (src[i] === "\\") { i++; continue; }
@@ -104,7 +105,9 @@ export function labelKeys(body) {
         prev = "/";
         continue;
       }
+      if (c === "{") braces.push(prev === ")" || prev === ">" ? "block" : "object");
       if (!/\s/.test(c)) prev = c;
+      if (c === "}" && braces.pop() === "block") prev = ";";   // after a block a statement starts: a slash is a regex
       if ("([{".includes(c)) depth++;
       else if (")]}".includes(c)) depth--;
       else if (c === "," && depth <= 0) { i++; break; }

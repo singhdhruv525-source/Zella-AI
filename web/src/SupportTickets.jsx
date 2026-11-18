@@ -64,9 +64,12 @@ export default function SupportTickets({ onOpenBusiness }) {
   const loadRef = useRef(load);
   const overdueRef = useRef(overdueTab);
   useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
+  // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
+  // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.
+  const createRefresh = useRef(false);
   useEffect(() => {
     if (!openWhenListed) return;
-    if (overdueTab) { setStatusFilter("active"); return; }   // switched to Waiting too long meanwhile: back to the regular list
+    if (overdueTab && createRefresh.current) { createRefresh.current = false; setStatusFilter("active"); return; }
     if (!loading && data && data.overdueOnly === false && (data.tickets ?? []).some((t) => t.id === openWhenListed)) {
       setSelectedId(openWhenListed);
       setOpenWhenListed(null);
@@ -119,7 +122,7 @@ export default function SupportTickets({ onOpenBusiness }) {
       // long, show the regular list, which reads it; otherwise read the regular list again. Then open it there.
       setOpenWhenListed(result.ticketId);
       if (overdueRef.current) setStatusFilter("active");
-      else await loadRef.current();
+      else { createRefresh.current = true; await loadRef.current(); createRefresh.current = false; }
     } catch (err) {
       setError(friendlyError(err));
     } finally {

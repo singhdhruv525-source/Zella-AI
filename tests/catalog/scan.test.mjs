@@ -273,3 +273,10 @@ test("review fixes 8: division after an object, comments before a filter call, p
   assert.deepEqual(names(n8nAlertKinds(`function f() { return ("zella_platform_alert", { p_kind: "sample_kind" }); }`)), []);
   assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", { p_kind: "real_kind" });`)), ["real_kind"]);
 });
+
+test("review fixes 9: a regex after a block, a wrapped conditional", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": (() => { if (false) {} /[(]/.test("x"); return "One"; })(), "gone.label": "Gone",\n  "b.two": { valueOf() { return 6; } } / 2, "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : fallback); q.eq("action", "a.wrapped");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : admin.from("tasks")); q.eq("action", "not.audit");`)), []);
+});

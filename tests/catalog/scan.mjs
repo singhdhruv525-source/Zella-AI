@@ -553,6 +553,16 @@ export function queryTable(src, masked, at, depth = 0) {
 // The tables a conditional right hand side can give: each arm of a ? b : c, or of a && b / a || b, read on its own;
 // an arm with no .from(...) that isn't the name itself followed back is unknown (null).
 function armTables(rhs, mrhs, head, follow) {
+  // (cond ? a : b): read inside the brackets that wrap the whole right hand side
+  for (;;) {
+    const a = mrhs.search(/\S/), b = mrhs.length - 1 - [...mrhs].reverse().join("").search(/\S/);
+    if (a < 0 || mrhs[a] !== "(" || mrhs[b] !== ")") break;
+    let d = 0, closes = -1;
+    for (let i = a; i <= b; i++) { if (mrhs[i] === "(") d++; else if (mrhs[i] === ")") { d--; if (d === 0) { closes = i; break; } } }
+    if (closes !== b) break;
+    const inner = (s) => " ".repeat(a + 1) + s.slice(a + 1, b) + " ".repeat(s.length - b);
+    rhs = inner(rhs); mrhs = inner(mrhs);
+  }
   const arms = [];
   let d = 0, q = -1, colon = -1, start = 0;
   for (let i = 0; i < mrhs.length; i++) {

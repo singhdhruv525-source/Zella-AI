@@ -2335,7 +2335,10 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   }
   // without first_response_at (sql/zella_support_replies.sql not applied) a ticket's first reply and lateness are
   // unknown: null, never "no reply" or "overdue"
-  const timing = new Map(tickets.map((t) => [t.id, withFirstResponse ? ticketTiming(t, hours, nowIso) : { ...ticketTiming(t, hours, nowIso), firstResponseHours: null, overdue: null }]));
+  // the overdue list keeps the moment it was chosen at; any other list takes its ages now, after the replies were
+  // read, so an age is never shorter than a first reply time read with it
+  const ageAt = fields.overdue === true ? nowIso : new Date().toISOString();
+  const timing = new Map(tickets.map((t) => [t.id, withFirstResponse ? ticketTiming(t, hours, ageAt) : { ...ticketTiming(t, hours, ageAt), firstResponseHours: null, overdue: null }]));
   if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue === true);
   // only people who may work tickets can be assigned one (OPS-27)
   const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);
