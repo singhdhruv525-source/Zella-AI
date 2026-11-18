@@ -537,7 +537,10 @@ export function queryTable(src, masked, at, depth = 0) {
       const rhsStart = a.index + a[0].length;
       const rhs = src.slice(rhsStart, rhsStart + exprAfter(src, rhsStart).length);
       const mrhs = maskStrings(rhs);
-      if (/[?]|&&|\|\|/.test(mrhs)) return armTables(rhs, mrhs, head, (at) => queryTable(src, masked, rhsStart + at, depth + 1));
+      if (/[?]|&&|\|\|/.test(mrhs)) {
+        const split = armTables(rhs, mrhs, head, (at) => queryTable(src, masked, rhsStart + at, depth + 1));
+        if (split) return split;
+      }
       const froms = [...rhs.matchAll(/\.from\(\s*["']([a-z_]+)["']\s*\)/g)].map((f) => f[1]);
       if (froms.length) return froms.length === 1 ? froms : [null];
       // q = q.order(...): follow that q back in turn
@@ -575,8 +578,13 @@ function armTables(rhs, mrhs, head, follow) {
   }
   if (q >= 0 && colon > q) arms.push([q + 1, colon], [colon + 1, mrhs.length]);
   else arms.push([start, mrhs.length]);
+  if (arms.length === 1) return null;   // nothing to split here
   return arms.flatMap(([a, b]) => {
     const arm = rhs.slice(a, b);
+    // an arm that is itself a conditional (bracketed or not) is split the same way
+    const pad = (s) => " ".repeat(a) + s.slice(a, b) + " ".repeat(rhs.length - b);
+    const nested = /[?]|&&|\|\|/.test(mrhs.slice(a, b)) ? armTables(pad(rhs), pad(mrhs), head, follow) : null;
+    if (nested) return nested;
     const froms = [...arm.matchAll(/\.from\(\s*["']([a-z_]+)["']\s*\)/g)].map((f) => f[1]);
     if (froms.length === 1) return froms;
     const lead = /^\s*/.exec(arm)[0].length;

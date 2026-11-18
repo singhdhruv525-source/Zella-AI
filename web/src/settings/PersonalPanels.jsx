@@ -225,7 +225,19 @@ function MfaCard({ required: requiredByPage = false }) {
               <div className="zs-savebar">
                 <span className="zs-savebar-state" />
                 <button type="button" className="zs-btn" onClick={() => { setSetup(null); setCode(""); }} disabled={busy}>Cancel</button>
-                <button type="button" className="zs-btn primary" disabled={busy} onClick={() => step(async () => { await finishMfaEnrollment(setup.factorId, code); setSetup(null); setCode(""); state.reload(); })}>Turn on</button>
+                <button type="button" className="zs-btn primary" disabled={busy} onClick={() => step(async () => {
+                  try { await finishMfaEnrollment(setup.factorId, code); }
+                  catch (err) {
+                    // the check may have turned it on without an answer: read the status again, and if it is on, close the set up
+                    if (err?.maybeOn) {
+                      state.reload();
+                      const now = await mfaStatus().catch(() => null);
+                      if (now?.factors?.some((f) => f.id === setup.factorId)) { setSetup(null); setCode(""); return; }
+                    }
+                    throw err;
+                  }
+                  setSetup(null); setCode(""); state.reload();
+                })}>Turn on</button>
               </div>
             </div>
           )}

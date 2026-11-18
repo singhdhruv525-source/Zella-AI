@@ -280,3 +280,12 @@ test("review fixes 9: a regex after a block, a wrapped conditional", async () =>
   assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : fallback); q.eq("action", "a.wrapped");`)).map((n) => n.startsWith("?")), [true]);
   assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : admin.from("tasks")); q.eq("action", "not.audit");`)), []);
 });
+
+test("review fixes 10: division after a function value, nested conditional arms", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": function () {} / 2, "gone.label": "Gone",\n  "b.two": (() => { if (false) {} /[(]/.test("x"); return "B"; })(), "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : (useTasks ? admin.from("tasks") : audit); q.eq("action", "a.nested");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : (useTasks ? admin.from("tasks") : admin.from("audit_logs")); q.eq("action", "a.deep");`)), ["a.deep"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : admin.from("tasks"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : audit; q.eq("action", "a.unknown");`)).map((n) => n.startsWith("?")), [true]);
+});

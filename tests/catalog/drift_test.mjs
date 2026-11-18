@@ -89,7 +89,12 @@ export function labelKeys(body) {
     // on to the next property: past this one's value, to the next comma at this level (strings and regular
     // expression literals are skipped whole, so brackets or commas inside them count for nothing)
     let depth = 0, quote = null, prev = ":";
-    const braces = [];   // for each open brace: "block" (after ) or =>, a function or statement body) or "object"
+    // For each open brace: "statement" when it is the body of if / for / while / switch / catch / with (after their
+    // brackets) or of else / do / try / finally: a slash after it starts a regex. Any other brace (an object, a
+    // function or arrow body inside a value) ends a value: a slash after it divides.
+    const braces = [];
+    const parens = [];   // where each open bracket started, to read the word before it
+    let lastParen = -1, word = "";
     for (; i < src.length; i++) {
       const c = src[i];
       if (quote) { if (c === "\\") { i++; continue; } if (c === quote) quote = null; continue; }
@@ -105,9 +110,16 @@ export function labelKeys(body) {
         prev = "/";
         continue;
       }
-      if (c === "{") braces.push(prev === ")" || prev === ">" ? "block" : "object");
+      if (c === "(") parens.push(i);
+      if (c === ")") lastParen = parens.pop() ?? -1;
+      if (c === "{") {
+        const before = prev === ")" && lastParen >= 0 ? /([A-Za-z_$][\w$]*)\s*$/.exec(src.slice(Math.max(0, lastParen - 20), lastParen))?.[1] : null;
+        const statement = (before && /^(?:if|for|while|switch|catch|with)$/.test(before)) || (/^[\w$]$/.test(prev) && /^(?:else|do|try|finally)$/.test(word));
+        braces.push(statement ? "statement" : "value");
+      }
+      if (/[\w$]/.test(c)) word = /[\w$]/.test(prev) ? word + c : c;
       if (!/\s/.test(c)) prev = c;
-      if (c === "}" && braces.pop() === "block") prev = ";";   // after a block a statement starts: a slash is a regex
+      if (c === "}" && braces.pop() === "statement") prev = ";";   // after a statement block a slash starts a regex
       if ("([{".includes(c)) depth++;
       else if (")]}".includes(c)) depth--;
       else if (c === "," && depth <= 0) { i++; break; }

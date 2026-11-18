@@ -37,12 +37,14 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
     // a ticket that has waited three days without a reply is overdue; the request just opened isn't yet
     const overdue = `Overdue fixture ${tag} ${Date.now().toString(36)}`;
     const filler = `Filler ${tag} ${Date.now().toString(36)}`;
-    let overdueId = null, fillerIds = [];
-    try {   // the fixtures go by their ids, whichever were created, even when an insert or a wait below fails
-      overdueId = k.sql(`insert into public.support_tickets (business_id, subject, status, priority, category, created_at) values ('${BIZ}', '${overdue}', 'open', 'normal', 'issue', now() - interval '3 days') returning id`);
+    // the ids are chosen here, before the inserts, so the clean up knows them whatever an insert or a wait does
+    const { randomUUID } = require("crypto");
+    const overdueId = randomUUID(), fillerIds = Array.from({ length: 500 }, () => randomUUID());
+    try {
+      k.sql(`insert into public.support_tickets (id, business_id, subject, status, priority, category, created_at) values ('${overdueId}', '${BIZ}', '${overdue}', 'open', 'normal', 'issue', now() - interval '3 days')`);
       // 500 newer resolved tickets put it outside the regular list (the newest 500), so only the server's overdue read
       // can find it
-      fillerIds = k.sql(`insert into public.support_tickets (business_id, subject, status, priority, category, created_at, resolved_at) select '${BIZ}', '${filler} ' || g, 'resolved', 'normal', 'issue', now() - interval '1 hour', now() from generate_series(1, 500) g returning id`).split("\n").filter(Boolean);
+      k.sql(`insert into public.support_tickets (id, business_id, subject, status, priority, category, created_at, resolved_at) select f.id, '${BIZ}', '${filler} ' || f.n, 'resolved', 'normal', 'issue', now() - interval '1 hour', now() from unnest('{${fillerIds.join(",")}}'::uuid[]) with ordinality f(id, n)`);
       await p.reload(); await p.waitForSelector(`text=${subject}`);
       await p.click('button[role="tab"]:has-text("All")');
       await p.waitForSelector(`text=${filler} 1`);
@@ -52,8 +54,7 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
       k.check(`${tag}: Waiting too long shows the overdue ticket from the server and not the new one`, await p.isVisible(`text=${overdue}`) && !(await p.isVisible(`text=${subject}`)));
     } finally {
       // only the rows this run inserted, by id
-      const ids = [overdueId, ...fillerIds].filter(Boolean);
-      if (ids.length) k.sql(`delete from public.support_tickets where id = any ('{${ids.join(",")}}'::uuid[])`);
+      k.sql(`delete from public.support_tickets where business_id = '${BIZ}' and id = any ('{${[overdueId, ...fillerIds].join(",")}}'::uuid[])`);
     }
     await p.click('button[role="tab"]:has-text("Open & in progress")');
     await p.click(`button:has-text("${subject}")`);

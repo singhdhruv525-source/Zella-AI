@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../../supabase";
 import { friendly, orThrow } from "../../BusinessShared";
 import { Banner, Card, Empty, Field, LoadState, useAsync, when } from "../SettingsKit";
@@ -6,37 +6,47 @@ import { Banner, Card, Empty, Field, LoadState, useAsync, when } from "../Settin
 // OPS-25: a support request's conversation with Zella Voice, as the business sees it (support_ticket_messages; the
 // team's internal notes are never here). Owners, admins and managers can answer; the database checks that too.
 // onAnswered: called after an answer is saved, so the request list shows a reopened request as open again.
-// request id -> { text, id, confirmed } of the last answer sent from this page: its reference is kept until the
-// composer showing it sees it confirmed or the text is edited, so a resend of the same text is always the same answer
+// request id -> { text, id } of the last answer sent from this page and not yet confirmed: a thread reopened before the
+// answer is confirmed restores it with its id, so sending it again is the same answer (the server returns the saved one)
 const UNCONFIRMED = new Map();
+// request id -> the open threads of that request, each told when an answer to it is saved (whichever thread sent it)
+const OPEN = new Map();
+const tell = (ticketId, sent) => { for (const fn of OPEN.get(ticketId) ?? []) fn(sent); };
 
 export default function TicketThread({ ticket, businessName, canReply, onClose, onAnswered }) {
   const state = useAsync(() => supabase.from("support_ticket_messages").select("id, body, author_side, created_at").eq("ticket_id", ticket.id)
     .order("created_at", { ascending: true }).then(orThrow), [ticket.id]);
-  // an answer not yet confirmed comes back to send again (a confirmed one is already in the conversation)
-  const [text, setText] = useState(() => { const u = UNCONFIRMED.get(ticket.id); return u && !u.confirmed ? u.text : ""; });
+  // this composer's answer and its id: a restored one keeps the id it was sent with; a new draft gets a new id when it
+  // is sent, even with the same text as an earlier answer; the id is cleared once this composer sees it saved
+  const [text, setText] = useState(() => UNCONFIRMED.get(ticket.id)?.text ?? "");
+  const submission = useRef(UNCONFIRMED.get(ticket.id) ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  // one id per answer: sending the same answer again (after a lost response) saves it once; a new answer gets a new id.
-  // Kept per request outside the thread (UNCONFIRMED), so closing and reopening it keeps an unconfirmed answer's id.
-  const ref = { get current() { return UNCONFIRMED.get(ticket.id) ?? { text: null, id: null }; }, set current(v) { if (v.id) UNCONFIRMED.set(ticket.id, v); else UNCONFIRMED.delete(ticket.id); } };
+  const reload = state.reload;
+  useEffect(() => {
+    const fn = (sent) => {
+      reload();
+      setText((current) => (current === sent.text ? "" : current));   // clear only what was sent
+      if (submission.current?.id === sent.id) submission.current = null;
+    };
+    const set = OPEN.get(ticket.id) ?? new Set();
+    set.add(fn); OPEN.set(ticket.id, set);
+    return () => { set.delete(fn); if (!set.size) OPEN.delete(ticket.id); };
+  }, [ticket.id, reload]);
   async function send() {
     const sent = text;
-    // the same text as the last answer sent for this request (confirmed or not) is the same answer: same reference,
-    // so the server returns the saved one; edited text is a new answer
-    if (ref.current.text !== sent) ref.current = { text: sent, id: crypto.randomUUID() };
+    if (submission.current?.text !== sent) submission.current = { text: sent, id: crypto.randomUUID() };
+    const mine = submission.current;
+    UNCONFIRMED.set(ticket.id, mine);
     setBusy(true);
     setError("");
-    const sentRef = ref.current.id;
-    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: sent, p_ref: sentRef });
+    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: sent, p_ref: mine.id });
     setBusy(false);
     if (e) { setError(/NOT_ALLOWED/.test(e.message) ? "Only owners, admins and managers can answer support requests." : friendly(e)); return; }
-    // only the reference this answer was sent with: a newer answer's (after a reopen) stays for its own retry. It is
-    // marked confirmed, not forgotten, so a reopened composer still showing this text resends it as the same answer.
-    const held = UNCONFIRMED.get(ticket.id);
-    if (held?.id === sentRef) UNCONFIRMED.set(ticket.id, { ...held, confirmed: true });
-    setText((current) => (current === sent ? "" : current));   // clear only what was sent
-    state.reload();
+    // saved: no longer needed for a retry (unless a newer answer took its place), and every open thread of this
+    // request shows it, also one reopened while this was on its way
+    if (UNCONFIRMED.get(ticket.id)?.id === mine.id) UNCONFIRMED.delete(ticket.id);
+    tell(ticket.id, mine);
     onAnswered?.();
   }
   return (

@@ -76,16 +76,16 @@ export async function finishMfaEnrollment(factorId, code) {
   try {
     ({ error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: clean }));
   } catch (thrown) {
-    // no answer at all: it may have turned the authenticator on
+    // no answer at all: it may have turned the authenticator on (the card then reads the status again)
     markMaybeOn(owner, factorId);
-    throw thrown;
+    throw Object.assign(thrown instanceof Error ? thrown : new Error(String(thrown)), { maybeOn: true });
   }
   if (error) {
     // A refused code turned nothing on, but an earlier attempt that ended without a clear answer may have: the id is
     // dropped only when no attempt for it may have turned it on. Any other failure is remembered as such an attempt.
     if (!/invalid|expired/i.test(error.message)) markMaybeOn(owner, factorId);
     else if (!pending().some((p) => p.factorId === factorId && p.userId === owner && p.maybeOn)) dropPending(owner, factorId);
-    throw new Error(/invalid|expired/i.test(error.message) ? "That code didn't work. Try the newest one." : error.message);
+    throw Object.assign(new Error(/invalid|expired/i.test(error.message) ? "That code didn't work. Try the newest one." : error.message), { maybeOn: !/invalid|expired/i.test(error.message) });
   }
   if (admin !== false) await recordAdminMfaAdded(factorId, owner);
 }
