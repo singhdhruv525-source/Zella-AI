@@ -886,11 +886,13 @@ const websiteCrawler = wf('Zella Voice - Website Crawler', [
   rpcNode('Claim work', [240, 200], 'zella_website_claim', '={{ JSON.stringify({ p_limit: 6 }) }}'),
   code('Plan', [480, 200], 'website-plan.js'),
   ifBool('Safe to read', [720, 200], '={{ !$json.skip }}'),
+  // the page is read by the website-fetch edge function: it resolves the name and refuses private and metadata
+  // addresses before it connects (security audit 18 Nov 2026, M9); n8n never fetches the owner's address itself
   node('Fetch page', 'n8n-nodes-base.httpRequest', 4.2, [960, 100], {
-    method: 'GET', url: '={{ $json.url }}', authentication: 'none',
-    sendHeaders: true, headerParameters: { parameters: [{ name: 'User-Agent', value: 'ZellaBot/1.0 (reads pages its owner approved)' }, { name: 'Accept', value: 'text/html,application/xhtml+xml,application/xml;q=0.9' }] },
-    options: { timeout: 15000, redirect: { redirect: { followRedirects: false } }, response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } } },
-  }, { onError: 'continueRegularOutput' }),
+    method: 'POST', url: `${SUPABASE}/functions/v1/website-fetch`, authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ url: $json.url, host: $json.host }) }}',
+    options: { timeout: 20000, response: { response: { neverError: true, responseFormat: 'json' } } },
+  }, { credentials: SUPABASE_CRED, onError: 'continueRegularOutput' }),
   code('Parse', [1200, 100], 'website-parse.js'),
   ifBool('Is sitemap', [1440, 100], "={{ $json.mode === 'discover' }}"),
   rpcNode('Record sitemap', [1680, 0], 'zella_website_record_discovery', '={{ JSON.stringify($json.rpc) }}', { full: true }),

@@ -476,7 +476,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Shopify | Order status for the receptionist, read-only scopes | Built |
 | Google Ads lead forms | Leads into the CRM | Built |
 | Meta (Facebook, Instagram, WhatsApp) | Leads and messages | Built, off |
-| Website crawler | Reads the business's website for knowledge suggestions | Built, off (`website_crawl_live`) |
+| Website crawler | Reads the business's website for knowledge suggestions. Pages are read by the `website-fetch` edge function, which resolves the name and refuses private, loopback, link local, metadata and CGNAT addresses before it connects; wildcard DNS names such as nip.io are refused | Built, off (`website_crawl_live`); the new reader is not deployed |
 | Vapi | Voice calls | Built; real-call authentication open |
 | Telnyx | Texts and phone numbers | Built, off |
 | Resend | Email | Built, off |

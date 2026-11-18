@@ -469,6 +469,13 @@ entrypoint = "./functions/billing-webhook/index.ts"
 # Files on records: checks each upload's contents for its uploader, and server-only cleanup. Checks the caller itself:
 # "check" passes the member's sign-in to the database (which verifies it and their permissions); "cleanup" accepts only
 # the server key, which is not a JWT, so the gateway's sign-in check must stay off.
+# The website reader for the n8n crawler (security audit 18 Nov 2026, M9): accepts only the server key, which is not a
+# JWT, so the gateway's sign-in check must stay off. It checks every resolved address before it connects.
+[functions.website-fetch]
+enabled = true
+verify_jwt = false
+import_map = "./functions/website-fetch/deno.json"
+entrypoint = "./functions/website-fetch/index.ts"
 [functions.record-files]
 enabled = true
 verify_jwt = false
