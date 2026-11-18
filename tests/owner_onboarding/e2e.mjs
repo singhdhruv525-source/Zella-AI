@@ -132,6 +132,7 @@ expect("2. done, checked from the auth records", [sec.json.state?.current_step, 
 // Looks right sends the fingerprint of the details shown (data_hash), as the screens do
 const seen = async (k) => (await state()).details.sections.find((x) => x.key === k).data_hash;
 expect("3. Looks right without what was shown is refused", code(await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: "business", p_decision: "looks_right" })), "INVALID_INPUT");
+expect("3. and with a null fingerprint", code(await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: "business", p_decision: "looks_right", p_seen_hash: null })), "INVALID_INPUT");
 for (const s of ["business", "hours_services", "receptionist_phone"]) await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: s, p_decision: "looks_right", p_seen_hash: await seen(s) });
 const change = await rpc("zella_owner_onboarding_section", owner, { p_business_id: BIZ, p_section: "team", p_decision: "change", p_note: "Add Maya, she started this week." });
 expect("3. Change with a note", change.json.state.details.sections.find((x) => x.key === "team").status, "change_requested");

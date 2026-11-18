@@ -76,6 +76,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
   const session = { user: { id: "00000000-0000-4000-8000-000000000001", email: "owner@maplestreet.example.test" } };
 
   const currentStep = () => ORDER.find((k) => !st.done.includes(k)) ?? "done";
+  const planVersion = () => st.plan_version ?? 2;   // the version Zella Voice saved last (adminSavePlan makes a new one)
   const identityOut = () => {
     const can = ["needed", "try_again"].includes(st.identity.status);
     const have = new Set(st.identity.documents.filter((d) => d.status !== "rejected").map((d) => d.kind));
@@ -103,8 +104,8 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       security: security(),
       details: { sections, all_looks_right: sections.every((s) => s.status === "looks_right") },
       identity: identityOut(),
-      plan: { available: true, accepted: st.plan.accepted_version === 2, accepted_version: st.plan.accepted_version, accepted_at: st.plan.accepted_at,
-        current: { version: 2, tier: "pro", billing_interval: "monthly", price_cents: 24900, setup_fee_cents: 0, currency: "USD", minutes: 1000, texts: 1500,
+      plan: { available: true, accepted: st.plan.accepted_version === planVersion(), accepted_version: st.plan.accepted_version, accepted_at: st.plan.accepted_at,
+        current: { version: planVersion(), tier: "pro", billing_interval: "monthly", price_cents: 24900, setup_fee_cents: 0, currency: "USD", minutes: 1000, texts: 1500,
           emails: 5000, team_seats: 5, phone_numbers: 1, locations: 1, languages: ["en", "es"], trial_enabled: false, overage_cents_per_minute: null } },
       payment: paymentOut(),
       go_live: { ready: false, live: false, checks: [
@@ -159,8 +160,9 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       if (ORDER.indexOf(step) >= 2) needsCode();
       if (step === "details" && Object.values(st.sections).some((s) => s.status !== "looks_right")) throw dbError("SECTIONS_NOT_CONFIRMED", Object.keys(st.sections).filter((k) => st.sections[k].status !== "looks_right").join(","));
       if (step === "identity" && st.identity.status !== "verified") throw dbError("IDENTITY_NOT_VERIFIED");
-      if (step === "plan" && st.plan.accepted_version !== 2) throw dbError("PLAN_CHANGED");
+      if (step === "plan" && st.plan.accepted_version !== planVersion()) throw dbError("PLAN_CHANGED");
       if (step === "payment" && !st.payment_confirmed && paymentOut().required !== false) throw dbError("PAYMENT_NOT_CONFIRMED");
+      if ((step === "payment" || step === "done") && st.plan.accepted_version !== planVersion()) throw dbError("PLAN_CHANGED");
       complete(step);
       if (step === "done") st.completed_at = now();
       return { changed: true, state: stateOut() };
@@ -186,10 +188,17 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     }),
     acceptPlan: (id, version) => db(() => {
       owner(id); needsCode();
-      if (currentStep() !== "plan") throw dbError(st.done.includes("plan") ? "INVALID_INPUT" : "STEP_LOCKED");
-      if (version !== 2) throw dbError("PLAN_CHANGED");
-      const changed = st.plan.accepted_version !== 2;
-      st.plan = { accepted_version: 2, accepted_at: now() };
+      if (st.done.includes("plan")) {   // a new version saved after acceptance (contract version 3): accept it, same step
+        if (st.plan.accepted_version === version) return { changed: false, state: stateOut() };
+        if (st.completed_at) throw dbError("STEP_CLOSED");
+        if (version !== planVersion()) throw dbError("PLAN_CHANGED");
+        st.plan = { accepted_version: version, accepted_at: now() };
+        return { changed: true, state: stateOut() };
+      }
+      if (currentStep() !== "plan") throw dbError("STEP_LOCKED");
+      if (version !== planVersion()) throw dbError("PLAN_CHANGED");
+      const changed = st.plan.accepted_version !== version;
+      st.plan = { accepted_version: version, accepted_at: now() };
       complete("plan");
       return { changed, state: stateOut() };
     }),
@@ -234,6 +243,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     },
     adminChangeDone: (section, note = "Changed as asked.") => { const s = st.sections[section]; if (s?.status === "change_requested") { s.status = "updated"; s.admin_note = note; save(); } },
     confirmPayment: () => { st.payment_confirmed = true; save(); },
+    adminSavePlan: () => { st.plan_version = planVersion() + 1; save(); },
     reset: () => { st = initialState(scenario); save(); },
   };
   if (typeof window !== "undefined") window.__zellaOnboardingFake = api;

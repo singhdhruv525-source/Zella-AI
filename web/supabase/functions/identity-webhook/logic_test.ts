@@ -54,7 +54,9 @@ Deno.test("Persona shaped events become a provider neutral event", () => {
   assertEquals((persona.parseEvent(ev(undefined, "inquiry.approved")) as { event: { outcome: string } }).event.outcome, "approved");
   assertEquals(persona.parseEvent({ data: { attributes: {} } }), { invalid: "missing event id" });
   assertEquals(persona.parseEvent(null), { invalid: "missing event id" });
-  assertEquals((persona.parseEvent({ data: { id: "evt_x" } }) as { event: { reference: unknown } }).event.reference, null);
+  assertEquals(persona.parseEvent({ data: { id: "evt_x", attributes: { name: "inquiry.declined", payload: { data: { attributes: { status: "declined", "reference-id": "a".repeat(32) } } } } } }),
+    { invalid: "missing inquiry id" }, "a declined event that names no inquiry can't be counted once");
+  assertEquals((persona.parseEvent({ data: { id: "evt_x", attributes: { payload: { data: { id: "inq_9" } } } } }) as { event: { reference: unknown } }).event.reference, null);
 });
 
 Deno.test("the database's answer decides what the provider sees", () => {

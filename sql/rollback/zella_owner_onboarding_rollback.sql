@@ -8,7 +8,7 @@ begin;
 do $$
 declare a record; s text; n bigint := 0;
   mine constant jsonb := jsonb_build_object(
-    'public.zella_activation_report(uuid)', '5c21d8905ce14b1b7c9032194ac044f0',
+    'public.zella_activation_report(uuid)', '20d3c8c4b5ddebd1d89db877e22a8a74',
     'public.zella_request_activation(uuid)', '41ab61c937ec1fd0b05b7fbd91b8353f');
 begin
   if to_regclass('public.zella_function_archive') is null

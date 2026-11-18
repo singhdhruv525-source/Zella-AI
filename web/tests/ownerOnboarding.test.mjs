@@ -372,6 +372,9 @@ test("details answers: a delayed reply and a delayed read again never apply an o
   // a failed read is reported, never silent
   const q2 = createAnswerQueue({ read: async () => { throw new Error("offline"); }, apply: () => {}, onReadError: (e) => problems.push(e.message) });
   await q2.reread(); assert.deepEqual(problems, ["offline"]);
+  // a read that answers nothing is a failed read too, never a silent stale screen
+  const q3 = createAnswerQueue({ read: async () => null, apply: () => { throw new Error("must not apply"); }, onReadError: (e) => problems.push(e.message) });
+  await q3.reread(); assert.deepEqual(problems, ["offline", "Your setup didn't load."]);
 });
 
 test("a new plan version while payment or the last step is open: the journey shows the plan", () => {
