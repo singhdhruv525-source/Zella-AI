@@ -290,20 +290,69 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await ctx.close(); }
 
   // ---------------- B2-08 Businesses ----------------
-  const BIZ = (name) => ({ businesses: [{ id: "40000000-0000-0000-0000-0000000000b1", name, industry_id: "i1", onboarding_status: "active", is_active: true, invitations: [], created_at: new Date().toISOString() }],
+  // The list comes from businesses_list (paged on the server). dashboard_data is only the fallback for an older server.
+  const BIZ = (name) => ({ rows: [{ id: "40000000-0000-0000-0000-0000000000b1", name, industry_id: "i1", industry_name: "Plumbing", onboarding_status: "active", is_active: true,
+    stage: "live", cancelling: false, setupDone: true, owner: null, plan: { tier: "pro", version: 2, billing_interval: "monthly" }, subscription: { status: "active" },
+    lastCallAt: null, problems: { count: 0, items: [] }, created_at: new Date().toISOString() }],
+    total: 1, page: 0, size: 25, sort: "newest", unavailable: [], industries: [{ id: "i1", name: "Plumbing", is_active: true }],
+    stats: { totalBusinesses: 1, activeWorkspaces: 1, pendingInvitations: 0, withProblems: 0 } });
+  const OLD_BIZ = (name) => ({ businesses: [{ id: "40000000-0000-0000-0000-0000000000b1", name, industry_id: "i1", onboarding_status: "active", is_active: true, invitations: [], created_at: new Date().toISOString() }],
     industries: [{ id: "i1", name: "Plumbing" }], stats: { totalBusinesses: 1, activeWorkspaces: 1, pendingInvitations: 0, provisioningIssues: 0 } });
-  { const { ctx, p } = await open(b, { dashboard_data: () => FAIL500 });
+  const UNKNOWN = { status: 400, json: { error: "Unknown action" } };
+  { const { ctx, p } = await open(b, { businesses_list: () => FAIL500 });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Unable to load businesses");
     check((await statValues(p)).every((x) => x === "Not available"), "B2-08 initial failure: no statistics");
     await ctx.close(); }
-  { const { ctx, p } = await open(b, { dashboard_data: (_b, n) => (n === 2 ? FAIL500 : n === 1 ? { json: BIZ("Old Name Plumbing") } : { json: BIZ("New Name Plumbing") }) });
+  { const { ctx, p, log } = await open(b, { businesses_list: () => FAIL500, dashboard_data: () => ({ json: OLD_BIZ("Should Not Show") }) });
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Unable to load businesses");
+    check(!log.n.dashboard_data && !(await p.isVisible("text=Should Not Show")), "B2-08 a server error never falls back to the older list");
+    await ctx.close(); }
+  { const { ctx, p } = await open(b, { businesses_list: () => ({ json: {} }) });
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Unable to load businesses");
+    check(!(await p.isVisible("text=No businesses yet")), "B2-08 an answer without rows is an error, not an empty list");
+    await ctx.close(); }
+  { const { ctx, p, log } = await open(b, { businesses_list: () => UNKNOWN, dashboard_data: () => ({ json: OLD_BIZ("Older Server Plumbing") }) });
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Older Server Plumbing");
+    check(await p.isVisible("[data-list-mode=legacy]") && (await statValues(p))[0] === "1" && /Not available/.test(await txt(p, ".owner-table")), "B2-08 an older server: the dashboard_data list, labelled, with plans not available");
+    await p.fill(".bl-filters input[type=search]", "nothing like it"); await p.waitForSelector("text=No matching businesses found");
+    check(log.n.businesses_list === 1 && log.n.dashboard_data === 1, `B2-08 an older server: asked once, then filtered in the browser (${log.n.businesses_list}, ${log.n.dashboard_data})`);
+    await ctx.close(); }
+  { const asked = [];
+    const { ctx, p, log } = await open(b, { businesses_list: (body) => { asked.push(body);
+      const name = body.q ? "Searched Biz" : body.problem ? "Problem Biz" : body.page ? "Second Page Biz" : "First Page Biz";
+      return { delay: body.q ? 1500 : 0, json: { ...BIZ(name), total: 60, page: body.page ?? 0 } }; } });
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=First Page Biz");
+    check(/Pro, v2/.test(await txt(p, ".owner-table")) && await p.isVisible(".owner-table button:has-text('View')") && /1 to 25 of 60/.test(await txt(p, ".owner-panel-footer")), "B2-08 plan, View and paging shown");
+    await p.click(".owner-panel-footer button:has-text('Next')"); await p.waitForSelector("text=Second Page Biz");
+    check(log.n.businesses_list === 2 && asked[1]?.page === 1, `B2-08 Next asks the server for page 1 (${JSON.stringify(asked[1])})`);
+    await p.click(".bl-filters [data-filter=problem]"); await p.waitForSelector("text=Problem Biz");
+    check(asked.at(-1)?.problem === true && asked.at(-1)?.page === 0, `B2-08 the problem filter starts again at page 0 (${JSON.stringify(asked.at(-1))})`);
+    await p.fill(".bl-filters input[type=search]", "sam"); await p.waitForFunction(() => document.querySelector(".owner-panel-footer button[aria-label='Next page']")?.disabled);
+    check(await p.isVisible("text=Problem Biz") && await p.isDisabled(".owner-panel-footer button[aria-label='Next page']"),
+      "B2-08 while a new search loads, the pager is off for the earlier result");
+    await p.waitForSelector("text=Searched Biz");
+    check(asked.at(-1)?.q === "sam" && asked.at(-1)?.page === 0 && !asked.some((x) => x.q && x.page !== 0), `B2-08 the search asks the server from page 0 (${JSON.stringify(asked.at(-1))})`);
+    check(!(await p.isDisabled(".owner-panel-footer button[aria-label='Next page']")), "B2-08 the pager is back once the search's own result is shown");
+    await ctx.close(); }
+  { // Rolled back mid session: businesses_list worked, the problem filter is on, then the server no longer knows it.
+    const { ctx, p, log } = await open(b, { businesses_list: (body, n) => (n === 1 ? { json: BIZ("Before Rollback Biz") } : UNKNOWN),
+      dashboard_data: () => ({ json: OLD_BIZ("After Rollback Biz") }) });
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Before Rollback Biz");
+    await p.click(".bl-filters [data-filter=problem]"); await p.waitForSelector("text=After Rollback Biz");
+    await p.waitForTimeout(400);
+    const footer = await txt(p, ".owner-panel-footer");
+    check(await p.isVisible("[data-list-mode=legacy]") && !(await p.isVisible(".bl-filters [data-filter=problem]")) && !/match, of/.test(footer),
+      `B2-08 rollback: the problem filter the older list can't honour is dropped, not left on unseen ("${footer.trim().slice(0, 60)}")`);
+    check(log.n.dashboard_data === 1, `B2-08 rollback: the older list is asked once (${log.n.dashboard_data})`);
+    await ctx.close(); }
+  { const { ctx, p } = await open(b, { businesses_list: (_b, n) => (n === 2 ? FAIL500 : n === 1 ? { json: BIZ("Old Name Plumbing") } : { json: BIZ("New Name Plumbing") }) });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Old Name Plumbing");
-    await p.click(".owner-panel-heading button:has-text('Refresh')"); await p.waitForSelector("[data-load=stale]");
+    await p.click(".owner-page-heading button:has-text('Refresh')"); await p.waitForSelector("[data-load=stale]");
     check(await p.isVisible("text=Old Name Plumbing") && /may be out of date/.test(await txt(p, "[data-load=stale]")) && (await statValues(p))[0] === "1", "B2-08 failed refresh keeps the list, labelled stale");
     await p.click("[data-load=stale] >> text=Retry"); await p.waitForSelector("text=New Name Plumbing");
     check(!(await p.isVisible("[data-load=stale]")), "B2-08 Retry updates the list and clears the warning");
     await ctx.close(); }
-  { const { ctx, p } = await open(b, { dashboard_data: (_b, _n, sub) => (sub === OTHER.id ? { delay: 2500, json: BIZ("Second Account Biz") } : { json: BIZ("First Account Biz") }) });
+  { const { ctx, p } = await open(b, { businesses_list: (_b, _n, sub) => (sub === OTHER.id ? { delay: 2500, json: BIZ("Second Account Biz") } : { json: BIZ("First Account Biz") }) });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=First Account Biz");
     const other = await ctx.newPage(); await other.goto(BASE + "/status").catch(() => {});
     await other.evaluate((t) => { localStorage.setItem("sb-example-auth-token", JSON.stringify(t)); new BroadcastChannel("sb-example-auth-token").postMessage({ event: "SIGNED_IN", session: t }); }, token(OTHER));
@@ -312,27 +361,50 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.waitForSelector("text=Second Account Biz", { timeout: 8000 }).catch(() => {});
     check(await p.isVisible("text=Second Account Biz") && !(await p.isVisible("text=First Account Biz")), "B2-08 account switch: only the second account's businesses are shown");
     await ctx.close(); }
-  { const { ctx, p } = await open(b, { dashboard_data: () => ({ json: BIZ("Signed Out Biz") }) });
+  { const { ctx, p } = await open(b, { businesses_list: () => ({ json: BIZ("Signed Out Biz") }) });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Signed Out Biz");
     await p.click(".owner-signout"); await p.waitForTimeout(600);
     check(!(await p.isVisible("text=Signed Out Biz")) && (await p.$$(".owner-nav-item")).length === 0, "B2-08 sign-out clears the business list");
     await ctx.close(); }
 
   for (const olderFails of [false, true]) {
-    const { ctx, p, log } = await open(b, { dashboard_data: (_b, n) => n === 1 ? { json: BIZ("Initial Biz") } : n === 2
+    const { ctx, p, log } = await open(b, { businesses_list: (_b, n) => n === 1 ? { json: BIZ("Initial Biz") } : n === 2
       ? { delay: 1200, ...(olderFails ? FAIL500 : { json: BIZ("Obsolete Biz") }) }
       : { delay: 2200, json: BIZ("Latest Biz") } });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Initial Biz");
-    await p.click(".owner-panel-heading button:has-text('Refresh')");
-    await p.waitForFunction(() => document.querySelector(".owner-panel-heading")?.textContent.includes("Loading..."));
+    await p.click(".owner-page-heading button:has-text('Refresh')");
+    await p.waitForFunction(() => document.querySelector(".owner-page-heading")?.textContent.includes("Loading..."));
     await p.click(".owner-nav-item:has-text('Overview')");
     await p.click(".owner-nav-item:has-text('Businesses')");
     await p.waitForTimeout(1500);
-    check(log.n.dashboard_data === 3 && await p.isVisible("text=Initial Biz") && !(await p.isVisible("text=Obsolete Biz")) && !(await p.isVisible("[data-load=stale]")) && await p.isDisabled(".owner-panel-heading button:has-text('Loading')"), `B2-08 older ${olderFails ? "error" : "success"} cannot apply state or end newer loading`);
+    check(log.n.businesses_list === 3 && await p.isVisible("text=Initial Biz") && !(await p.isVisible("text=Obsolete Biz")) && !(await p.isVisible("[data-load=stale]")) && await p.isDisabled(".owner-page-heading button:has-text('Loading')"), `B2-08 older ${olderFails ? "error" : "success"} cannot apply state or end newer loading`);
     await p.waitForSelector("text=Latest Biz");
     check(!(await p.isVisible("[data-load=stale]")), "B2-08 latest overlapping request wins");
     await ctx.close();
   }
+
+  // The setup wizard opens only once the industry list is here (it fills industry defaults from it), and a failed list
+  // says so with Retry instead of opening the wizard with no industries.
+  { const { ctx, p } = await open(b, { dashboard_data: (_b, n) => (n === 1 ? { delay: 1500, json: OLD_BIZ("x") } : { json: OLD_BIZ("x") }) });
+    await p.goto(BASE + "/businesses/new"); await p.waitForSelector("[data-wizard=industries-loading]");
+    check(!(await p.isVisible("h1:has-text('Create a business')")), "B2-08 the wizard waits for the industry list");
+    await p.waitForSelector("h1:has-text('Create a business')");
+    check(true, "B2-08 the wizard opens once the industry list is here");
+    await ctx.close(); }
+  { const { ctx, p, log } = await open(b, { dashboard_data: (_b, n) => (n === 1 ? FAIL500 : { json: OLD_BIZ("x") }) });
+    await p.goto(BASE + "/businesses/new"); await p.waitForSelector("[data-wizard=industries-failed]");
+    check(!(await p.isVisible("h1:has-text('Create a business')")) && log.n.dashboard_data === 1, "B2-08 a failed industry list shows the failure, not the wizard");
+    await p.click("[data-wizard=industries-failed] button:has-text('Retry')"); await p.waitForSelector("h1:has-text('Create a business')");
+    check(log.n.dashboard_data === 2, "B2-08 Retry loads the list and opens the wizard");
+    await ctx.close(); }
+  { const { ctx, p } = await open(b, { dashboard_data: () => ({ json: { businesses: [] } }) });
+    await p.goto(BASE + "/businesses/new"); await p.waitForSelector("[data-wizard=industries-failed]");
+    check(!(await p.isVisible("h1:has-text('Create a business')")), "B2-08 an answer without an industry list is a failure, not an empty list");
+    await ctx.close(); }
+  { const { ctx, p } = await open(b, { dashboard_data: () => ({ json: { businesses: [], industries: [] } }) });
+    await p.goto(BASE + "/businesses/new"); await p.waitForSelector("h1:has-text('Create a business')");
+    check(true, "B2-08 an empty industry list is a real answer: the wizard opens");
+    await ctx.close(); }
 
   await b.close();
   console.log(`\n${pass} passed, ${fail} failed`);

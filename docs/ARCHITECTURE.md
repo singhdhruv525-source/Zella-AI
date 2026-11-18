@@ -1724,7 +1724,7 @@ Each item links to its source, and the timeline is filterable by type.
 | ID | Page | Job | Permission |
 |---|---|---|---|
 | REQ-ADM-01 | Overview | platform health and growth KPIs | any |
-| REQ-ADM-02 | Businesses (search, filters by status, detail) | find and support a business; pause/suspend; view readiness, numbers, usage, alerts | `businesses.view/manage` |
+| REQ-ADM-02 | Businesses (search, filters by status, detail) | find and support a business; pause/suspend; view readiness, numbers, usage, alerts. The list is paged, filtered and sorted on the server (`businesses_list`) with exact totals; write buttons show only to roles with the permission the server checks | `businesses.view/manage` |
 | REQ-ADM-03 | **Create Business** | §18.6 | `businesses.manage` |
 | REQ-ADM-04 | Users & platform roles | manage platform staff | Zella Voice owner |
 | REQ-ADM-05 | Plans & offers | define plans and promotions | `plans.manage` |
