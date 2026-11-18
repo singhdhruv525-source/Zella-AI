@@ -58,11 +58,19 @@ export default function SupportTickets({ onOpenBusiness }) {
   useEffect(() => {
     load();
   }, [load]);
+  // a refresh after a change uses the tab shown when it finishes, not the one shown when the change was sent
+  const loadRef = useRef(load);
+  useEffect(() => { loadRef.current = load; }, [load]);
   // reply times are known only once the server says conversations are available (sql/zella_support_replies.sql)
   const timesKnown = data?.conversations === true;
 
-  const tickets = (data?.tickets ?? []).filter((t) =>
-    statusFilter === "all" ? true : statusFilter === "overdue" ? data?.overdueOnly === true && t.overdue === true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
+  // the list shown is only ever the answer for this kind of tab (overdue only, or the regular list); until that answer
+  // arrives the table says loading or the error, never "No tickets here"
+  const listMatches = Boolean(data) && data.overdueOnly === overdueTab;
+  // without reply times (sql/zella_support_replies.sql not applied) the server can't tell which tickets are overdue
+  const overdueUnknown = overdueTab && listMatches && !timesKnown;
+  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).filter((t) =>
+    statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue === true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
   // with the detail panel open the table is narrow: Business moves into each row's second line and Assigned is in the panel
@@ -78,7 +86,7 @@ export default function SupportTickets({ onOpenBusiness }) {
       // the other changes were saved but the reply wasn't: say so, and keep the reply to send again on its own
       if (r?.replyFailed) setError(`The other changes were saved, but the reply wasn't sent: ${r.replyFailed}`);
       else if (payload.reply) setReply((current) => (current === payload.reply ? "" : current));
-      await load();
+      await loadRef.current();
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -94,7 +102,9 @@ export default function SupportTickets({ onOpenBusiness }) {
       const result = await callOwnerFunction("ticket_create", draft);
       setCreating(false);
       setDraft(EMPTY_TICKET);
-      await load();
+      // a new ticket isn't overdue: from Waiting too long, show the regular list, which reads it, and open it there
+      if (overdueTab) setStatusFilter("active");
+      else await load();
       setSelectedId(result.ticketId);
     } catch (err) {
       setError(friendlyError(err));
@@ -169,7 +179,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                   );
                 })}
                 {!tickets.length && (
-                  <tr><td colSpan={detailOpen ? 3 : 5}><div className="op-empty">{loading && !data ? "Loading tickets..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No tickets here."}</div></td></tr>
+                  <tr><td colSpan={detailOpen ? 3 : 5}><div className="op-empty">{overdueUnknown ? "Overdue tracking is unavailable until reply times are recorded (a database update is needed)." : listMatches ? "No tickets here." : loading ? "Loading tickets..." : "Couldn't load this list. Try again with Refresh, or reload the page."}</div></td></tr>
                 )}
               </tbody>
             </table>

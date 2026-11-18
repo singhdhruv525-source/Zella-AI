@@ -74,8 +74,10 @@ const notices = (kind) => Number(k.sql(`select count(*) from public.staff_notifi
     await li2.locator('button:has-text("Resolve")').click();
     await p.click('[role="dialog"] button:has-text("Resolve")');
     await p.waitForSelector("text=Incident resolved and owners told.");
-    // paging
-    await p.waitForSelector('button:has-text("Load more")');
+    // paging: the notice shows before the list reloads, so wait for the reloaded list (the incident shown as Resolved,
+    // Load more enabled again) before adding the fixture, which must not be part of page one
+    await li2.getByText("Resolved", { exact: true }).waitFor();
+    await p.waitForSelector('button:has-text("Load more"):not([disabled])');
     const firstPage = await p.locator(".op-card li").filter({ hasText: "Opened" }).count();
     k.check(`${tag}: 20 incidents first, then Load more`, firstPage === 20, String(firstPage));
     // a new incident opened meanwhile must not shift the next page (it shows after a refresh, not as a repeat)

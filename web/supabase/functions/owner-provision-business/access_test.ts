@@ -42,10 +42,17 @@ class InputError extends Error { constructor(message: string, public status = 40
 const kit = { InputError, requireId: (v: unknown) => { if (typeof v !== "string" || !/^[0-9a-f-]{36}$/.test(v)) throw new InputError("bad id"); return v; } };
 const F1 = "11111111-1111-1111-1111-111111111111", F2 = "22222222-2222-2222-2222-222222222222", F3 = "33333333-3333-3333-3333-333333333333";
 // a fake server client: the factors of each user, and every admin call made
-function authFake(factors: Record<string, { id: string; status: string; friendly_name?: string }[]>, opts: { updateError?: string } = {}) {
+function authFake(factors: Record<string, { id: string; status: string; friendly_name?: string }[]>, opts: { updateError?: string; recorded?: string[] } = {}) {
   const calls: unknown[] = [];
+  // audit_logs reads: the admin.mfa_added entries already written (opts.recorded holds their factor ids)
+  const from = (table: string) => {
+    const f: Record<string, string> = {};
+    const q = { select: () => q, eq: (k: string, v: string) => { f[k] = v; return q; },
+      limit: async () => { calls.push(["read", f.user_id, table, f.entity_id]); return { data: table === "audit_logs" && f.action === "admin.mfa_added" && (opts.recorded ?? []).includes(f.entity_id) ? [{ id: "a1" }] : [], error: null }; } };
+    return q;
+  };
   // zella_remove_mfa_factor as the database does it: refuses the last verified factor and anyone else's
-  const admin = { rpc: async (fn: string, a: { p_user_id: string; p_factor_id: string }) => {
+  const admin = { from, rpc: async (fn: string, a: { p_user_id: string; p_factor_id: string }) => {
     if (fn !== "zella_remove_mfa_factor") return { data: null, error: { message: "unexpected rpc" } };
     calls.push(["remove", a.p_user_id, a.p_factor_id]);
     const mine = (factors[a.p_user_id] ?? []).filter((f) => f.status === "verified");
@@ -71,7 +78,7 @@ Deno.test("the self service actions are for every active admin and only their ow
 Deno.test("me_mfa_added records only a verified authenticator that is really the caller's", async () => {
   const { admin, calls } = authFake({ me: [{ id: F1, status: "verified", friendly_name: "Phone" }, { id: F2, status: "unverified" }], other: [{ id: F3, status: "verified" }] });
   const h = (fields: Record<string, unknown>) => accessHandlers(admin, fields, "me", kit);
-  assertEquals(await h({ factorId: F1 }).handlers.me_mfa_added(), { factorId: F1, friendlyName: "Phone" });
+  assertEquals(await h({ factorId: F1 }).handlers.me_mfa_added(), { factorId: F1, friendlyName: "Phone", alreadyRecorded: false });
   for (const id of [F2, F3]) {                                   // not verified yet; someone else's
     const e = await h({ factorId: id }).handlers.me_mfa_added().catch((x) => x);
     assertEquals([e instanceof InputError, (e as InputError).status], [true, 404]);
@@ -79,7 +86,15 @@ Deno.test("me_mfa_added records only a verified authenticator that is really the
   // the user is always the caller: a userId in the request is ignored
   await h({ factorId: F1, userId: "other" }).handlers.me_mfa_added();
   assertEquals(calls.every((c) => (c as unknown[])[1] === "me"), true);
-  assertEquals(h({}).audited.me_mfa_added({ factorId: F1, friendlyName: "Phone" }), { action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: F1, new_data: { friendly_name: "Phone" } });
+  assertEquals(h({}).audited.me_mfa_added({ factorId: F1, friendlyName: "Phone", alreadyRecorded: false }), { action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: F1, new_data: { friendly_name: "Phone" } });
+});
+
+Deno.test("me_mfa_added is recorded once per authenticator: a retry after a lost answer writes nothing new", async () => {
+  const { admin } = authFake({ me: [{ id: F1, status: "verified", friendly_name: "Phone" }] }, { recorded: [F1] });
+  const h = accessHandlers(admin, { factorId: F1 }, "me", kit);
+  const r = await h.handlers.me_mfa_added();
+  assertEquals(r, { factorId: F1, friendlyName: "Phone", alreadyRecorded: true });
+  assertEquals(h.audited.me_mfa_added(r as Record<string, unknown> as never), null);
 });
 
 Deno.test("me_mfa_remove removes through the locked database function, never the last authenticator or someone else's", async () => {
@@ -97,6 +112,10 @@ Deno.test("me_mfa_remove removes through the locked database function, never the
   const race = authFake(factors());
   const [a, b] = await Promise.all([F1, F2].map((id) => accessHandlers(race.admin, { factorId: id }, "me", kit).handlers.me_mfa_remove().catch((x) => x)));
   assertEquals([a, b].filter((r) => r instanceof InputError && (r as InputError).status === 409).length, 1);
+  // and the other one really went through: it names the authenticator it removed, with one left
+  const done = [a, b].find((r) => !(r instanceof InputError) && !(r instanceof Error)) as { factorId: string; left: number } | undefined;
+  assertEquals([[F1, F2].includes(done?.factorId ?? ""), done?.left], [true, 1]);
+  assertEquals(race.calls.filter((c) => (c as unknown[])[0] === "remove").length, 2);
   assertEquals(accessHandlers(two.admin, {}, "me", kit).audited.me_mfa_remove({ factorId: F2, friendlyName: "Old phone", left: 1 }),
     { action: "admin.mfa_removed", entity_type: "mfa_factor", entity_id: F2, old_data: { friendly_name: "Old phone" }, new_data: { left: 1 } });
 });

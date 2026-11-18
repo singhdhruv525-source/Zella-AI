@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { inventory, ROOT } from "./scan.mjs";
+import { inventory, ROOT, stripJsComments } from "./scan.mjs";
 
 export const CATALOG_PATH = join(ROOT, "web/supabase/functions/_shared/catalog.json");
 
@@ -75,9 +75,30 @@ export function check(found, catalog, extra = {}) {
   return [...new Set(problems)];
 }
 
-// The keys of an object literal's lines: quoted with matching single or double quotes ("a.b": or 'a.b':), or a static
-// computed key (["a.b"]:). A computed key that isn't a plain string isn't a label name and is left out.
-export const labelKeys = (body) => [...body.matchAll(/^\s*(?:(["'])([^"'\n]+)\1|\[\s*(["'])([^"'\n]+)\3\s*\])\s*:/gm)].map((m) => m[2] ?? m[4]);
+// The keys of an object literal's body, at its own level and outside comments: quoted with matching single or double
+// quotes ("a.b": or 'a.b':), or a static computed key (["a.b"]:), wherever a property starts (also after another one
+// on the same line). A computed key that isn't a plain string isn't a label name and is left out.
+export function labelKeys(body) {
+  const src = stripJsComments(body), out = [];
+  const KEY = /\s*(?:(["'])([^"'\n]+)\1|\[\s*(["'])([^"'\n]+)\3\s*\])\s*:/y;
+  let i = 0;
+  while (i < src.length) {
+    KEY.lastIndex = i;
+    const m = KEY.exec(src);
+    if (m) out.push(m[2] ?? m[4]);
+    // on to the next property: past this one's value, to the next comma at this level
+    let depth = 0, quote = null;
+    for (; i < src.length; i++) {
+      const c = src[i];
+      if (quote) { if (c === "\\") { i++; continue; } if (c === quote) quote = null; continue; }
+      if (c === "'" || c === '"' || c === "`") { quote = c; continue; }
+      if ("([{".includes(c)) depth++;
+      else if (")]}".includes(c)) depth--;
+      else if (c === "," && depth <= 0) { i++; break; }
+    }
+  }
+  return out;
+}
 
 export function extras(root = ROOT) {
   const settings = readFileSync(join(root, "web/supabase/functions/owner-provision-business/settings.ts"), "utf8");

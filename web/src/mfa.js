@@ -64,9 +64,13 @@ export async function startMfaEnrollment() {
 export async function finishMfaEnrollment(factorId, code) {
   const clean = String(code ?? "").replace(/\s/g, "");
   if (!/^\d{6}$/.test(clean)) throw new Error("Enter the 6-digit code from your authenticator app.");
+  // the account setting it up, known before the code is checked: if the answer is lost after that, the audit entry
+  // can still be kept for this account and retried
+  const owner = await currentUserId().catch(() => null);
+  if (!owner) throw new Error("Your account couldn't be checked, so the authenticator wasn't turned on. Try again.");
   const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: clean });
   if (error) throw new Error(/invalid|expired/i.test(error.message) ? "That code didn't work. Try the newest one." : error.message);
-  await recordAdminMfaAdded(factorId);
+  await recordAdminMfaAdded(factorId, owner);
 }
 
 // ACC-30: a platform admin's own security changes go through owner-provision-business, which audits them. Errors
@@ -81,10 +85,11 @@ async function adminAction(action, payload = {}) {
   return data;
 }
 
-// After an authenticator is verified: an admin's new authenticator is recorded in the audit log (admin.mfa_added).
-// The authenticator is already on, so a failure never asks for a new set up: the factor id is kept in this browser
-// and recorded again the next time the security settings load (mfaStatus), until it is on record. Each kept id
-// belongs to the account that set it up: only that account's own ids are retried, and another account's stay for it.
+// After an authenticator is verified: an admin's new authenticator is recorded in the audit log (admin.mfa_added,
+// once per authenticator on the server). The authenticator is already on, so a failure never asks for a new set up:
+// the factor id is kept in this browser and recorded again the next time the security settings load (mfaStatus),
+// until it is on record. Each kept id belongs to the account that set it up: only that account's own ids are retried,
+// another account's stay for it, and one is kept when the signed in account changes during the retry.
 // Business members are not admins, so nothing is sent for them.
 const PENDING_KEY = "zella-admin-mfa-added-pending";
 const pending = () => {
@@ -93,12 +98,20 @@ const pending = () => {
 };
 const savePending = (list) => { try { if (list.length) localStorage.setItem(PENDING_KEY, JSON.stringify(list)); else localStorage.removeItem(PENDING_KEY); } catch { /* storage off */ } };
 const currentUserId = async () => (await supabase.auth.getUser())?.data?.user?.id ?? null;
-async function recordAdminMfaAdded(factorId, userId = null) {
-  const owner = userId ?? (await currentUserId().catch(() => null));
+// The entry leaves the list only when the server says it is on record (its answer names the factor; a failed audit
+// write answers 503), or when the account is known not to be an admin, both read while the same account is signed in.
+async function recordAdminMfaAdded(factorId, owner) {
+  const sameAccount = async () => owner && (await currentUserId().catch(() => null)) === owner;
   try {
+    if (!(await sameAccount())) throw new Error("another account is signed in now");
     const { data: role, error } = await supabase.rpc("zella_admin_role");
     if (error) throw error;
-    if (role) await adminAction("me_mfa_added", { factorId });
+    if (role) {
+      const done = await adminAction("me_mfa_added", { factorId });
+      if (done?.factorId !== factorId) throw new Error("the server did not confirm the entry");
+    }
+    // the role (or the answer) was read for this account only if it is still the one signed in
+    if (!(await sameAccount())) throw new Error("another account signed in meanwhile");
     savePending(pending().filter((p) => !(p.factorId === factorId && p.userId === owner)));
     return true;
   } catch (err) {

@@ -227,3 +227,20 @@ test("review fixes 5: quoted names, query receivers, quoted alert keys, computed
   assert.deepEqual(labelKeys(`\n  ["gone.label"]: "Gone",\n  [dynamic]: "x",\n  "a.one": "One",\n`), ["gone.label", "a.one"]);
 });
 
+
+test("review fixes 6: dollar quotes, filter calls only, branch assignments, alert keys past comments, label keys anywhere", async () => {
+  // double quotes inside a dollar quoted string are text, not a quoted name
+  assert.deepEqual(names(sqlExprNames(`case when note = $msg$"\\""$msg$ then 'a.new' else 'a.old' end`)), ["a.new", "a.old"]);
+  // a LIKE pattern that isn't in a filter call is not a query; one in a filter call on an unknown receiver still is
+  assert.deepEqual(tsAuditReads(`const example = "action.like.demo.%";`), []);
+  assert.deepEqual(names(tsAuditReads(`function f(query) { return query.or("action.like.demo.%"); }`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").select("id").or("action.like.a.pre.%")`)), ["a.pre.*"]);
+  // an assignment in a branch can reach the filter: audit_logs if any can, ignored only when all are other tables
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (useJobs) q = admin.from("jobs"); q.eq("action", "a.branch");`)), ["a.branch"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("jobs"); if (x) q = admin.from("tasks"); q.eq("action", "not.audit");`)), []);
+  // a long comment between alert: and the object
+  assert.deepEqual(names(n8nAlertKinds(`const x = { alert: /* ${"a long note ".repeat(12)} */ { p_kind: "new_kind" } };`)), ["new_kind"]);
+  // several static keys on one line, and none from a block comment
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  ["a.one"]: "One", ["gone.label"]: "Gone",\n  /*\n  ["c.comment"]: "C",\n  */\n  "b.x": f("a, b", { "in.side": 1 }),\n`), ["a.one", "gone.label", "b.x"]);
+});

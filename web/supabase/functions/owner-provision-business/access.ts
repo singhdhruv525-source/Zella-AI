@@ -261,11 +261,17 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
       return { csv: lines.join("\r\n") + "\r\n", rows: rows.length, truncated, filename: `zella-voice-audit-log-${stamp}.csv`, filters };
     },
     // The browser has just verified a new authenticator (Supabase Auth); record it once it is really in the list.
+    // Recorded once per authenticator: a retry after a lost answer finds its entry already there and writes nothing.
+    // The answer is a success only once the entry is on record (the request fails with 503 if writing it fails), so
+    // the browser keeps retrying until then.
     me_mfa_added: async () => {
       const factorId = requireId(fields.factorId, "authenticator");
       const factor = (await verifiedFactors()).find((f) => f.id === factorId);
       if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
-      return { factorId, friendlyName: factor.friendly_name ?? null };
+      const { data: seen, error } = await admin.from("audit_logs").select("id")
+        .eq("action", "admin.mfa_added").eq("user_id", userId).eq("entity_id", factorId).limit(1);
+      if (error) throw error;
+      return { factorId, friendlyName: factor.friendly_name ?? null, alreadyRecorded: (seen ?? []).length > 0 };
     },
     // Removing one needs another left: every admin keeps two step sign in (ACC-01).
     me_mfa_remove: async () => {
@@ -298,7 +304,7 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
 
   // Never the password itself, nor anything about it.
   const audited: Record<string, (r: Json) => Json | null> = {
-    me_mfa_added: (r) => ({ action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: r.factorId, new_data: { friendly_name: r.friendlyName } }),
+    me_mfa_added: (r) => r.alreadyRecorded ? null : ({ action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: r.factorId, new_data: { friendly_name: r.friendlyName } }),
     me_mfa_remove: (r) => ({ action: "admin.mfa_removed", entity_type: "mfa_factor", entity_id: r.factorId, old_data: { friendly_name: r.friendlyName }, new_data: { left: r.left } }),
     me_password_change: () => ({ action: "admin.password_changed", entity_type: "user", entity_id: userId }),
     // what was exported and how much, never the file itself

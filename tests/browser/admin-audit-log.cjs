@@ -13,10 +13,12 @@ const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, "../../web/supab
 const OTHER = require("crypto").randomUUID();    // a second record of this run, which the record filter must leave out
 const STARTED = new Date().toISOString();
 const MEMBER = "staff-a@b3.test";
+// the business member's refused call sends this run's own browser name, which the refusal records (user_agent)
+const RUN_AGENT = `lanea-audit-journey ${ENTITY}`;
 // this run's rows only: its fixtures, its exports, and the refusal its business member call records
 const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 'lanea_test' and entity_id in ('${ENTITY}', '${OTHER}'))
   or (action = 'audit.exported' and new_data -> 'filters' ->> 'entityId' = '${ENTITY}')
-  or (action = 'security.admin_refused' and new_data ->> 'action' = 'audit_export' and created_at >= '${STARTED}'
+  or (action = 'security.admin_refused' and user_agent = '${RUN_AGENT}' and created_at >= '${STARTED}'
       and user_id = (select id from auth.users where email = '${MEMBER}'))`);
 
 (async () => {
@@ -53,7 +55,7 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
   // export
   let r = await k.fn(await k.token(READONLY), { action: "audit_export", entityType: "lanea_test" });
   k.check("a read only admin (audit.view, not owner or super admin) can't export", r.status === 403, `${r.status} ${r.body.error}`);
-  r = await k.fn(await k.token(MEMBER), { action: "audit_export" });
+  r = await k.fn(await k.token(MEMBER), { action: "audit_export" }, { "user-agent": RUN_AGENT });
   k.check("a business member can't", r.status === 403, String(r.status));
   r = await k.fn(null, { action: "audit_export" });
   k.check("nor anonymous", r.status === 401, String(r.status));
@@ -81,14 +83,19 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
     const values = await p.locator('label:has-text("Action") select option').evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
     k.check(`${tag}: the Action filter lists every catalog action, each once`, JSON.stringify([...values].sort()) === JSON.stringify(Object.keys(catalog.audit_actions).sort()), `${values.length} options`);
     await p.locator('label:has-text("Person") select').selectOption({ label: READONLY });
+    // the list read with the person and record type filters (no record id yet): this run's other record is in it
+    // (other runs' rows may be too, so its own rows are checked, not a total)
+    const listRead = (want) => p.waitForResponse((res) => { const d = res.request().postData() ?? ""; return res.url().includes("/functions/v1/owner-provision-business") && d.includes('"audit_logs"') && d.includes("lanea_test") && want(d) && res.status() === 200; }).then((res) => res.json());
+    const unfiltered = listRead((d) => !d.includes(ENTITY));
     await p.fill('input[placeholder="for example platform_admin"]', "lanea_test");
-    await p.waitForSelector("text=7 entries shown");   // this person's 5 for the run's record and 2 for the other one
+    const before = (await unfiltered).logs ?? [];
+    k.check(`${tag}: before the record filter, this run's other record is listed`, before.filter((l) => l.entity_id === OTHER).length === 2 && before.filter((l) => l.entity_id === ENTITY).length === 5, `${before.filter((l) => l.entity_id === OTHER).length} other, ${before.filter((l) => l.entity_id === ENTITY).length} this run's`);
     // the record filter: wait for the list read with it, then only this run's record is shown
-    const filtered = p.waitForResponse((res) => res.url().includes("/functions/v1/owner-provision-business") && (res.request().postData() ?? "").includes(ENTITY) && res.status() === 200);
+    const filtered = listRead((d) => d.includes(ENTITY));
     await p.fill('input[placeholder="The record\'s id"]', ENTITY);
-    await filtered;
+    const after = (await filtered).logs ?? [];
     await p.waitForSelector("text=5 entries shown");
-    k.check(`${tag}: person and record filters narrow the list (the other record is left out)`, !(await p.isVisible('[data-load="stale"]')));
+    k.check(`${tag}: person and record filters narrow the list to this run's 5 (the other record is left out)`, after.length === 5 && after.every((l) => l.entity_id === ENTITY) && !(await p.isVisible('[data-load="stale"]')), `${after.length} rows`);
     await p.locator("tbody tr").first().locator('button:has-text("Details")').click().catch(() => {});
     await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `audit-filters-${tag}.png`), fullPage: true });
     const [dl] = await Promise.all([p.waitForEvent("download"), p.click('button:has-text("Export CSV")')]);

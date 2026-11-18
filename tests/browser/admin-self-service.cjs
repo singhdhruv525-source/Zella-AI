@@ -38,6 +38,33 @@ const secondFactor = () => k.sql(`insert into auth.mfa_factors (id, user_id, fac
   k.check("a made up authenticator isn't recorded", r.status === 404, String(r.status));
 
   const browser = await k.chromium.launch();
+  // business settings: the card asks the database whether this is an admin; until it knows, or when it can't tell,
+  // Remove is not offered (an admin would need the code field), and a failed check can be tried again
+  const MEMBER_FACTOR = "f5500000-0000-0000-0000-000000000001";
+  const memberId = k.sql(`select id from auth.users where email = '${MEMBER}'`);
+  k.sql(`insert into auth.mfa_factors (id, user_id, factor_type, status, friendly_name) values ('${MEMBER_FACTOR}', '${memberId}', 'totp', 'verified', 'Member phone') on conflict (id) do nothing`);
+  try {
+    const ctx = await k.context(browser, 1440);
+    const p = await k.page(ctx);
+    await k.signIn(p, MEMBER);
+    let release; const held = new Promise((r) => { release = r; });
+    await p.route("**/rest/v1/rpc/zella_admin_role", async (route) => { await held; await route.fulfill({ status: 500, contentType: "application/json", body: '{"message":"test failure"}' }); });
+    await p.goto(k.APP + "/app/settings/me/security");
+    const remove = p.locator(".zs-savebar", { hasText: "Member phone" }).locator('button:has-text("Remove")');
+    await remove.waitFor();
+    k.check("business settings: while the account check is pending, Remove is not offered", await remove.isDisabled());
+    release();
+    await p.waitForSelector("text=couldn't be checked, so authenticators can't be removed");
+    k.check("business settings: when the account check fails, Remove stays off and the page says so", await remove.isDisabled());
+    await p.unroute("**/rest/v1/rpc/zella_admin_role");
+    await p.locator('.zs-banner, [role="alert"]', { hasText: "couldn't be checked" }).locator('button:has-text("Try again")').click();
+    await p.waitForFunction(() => [...document.querySelectorAll(".zs-savebar")].some((b) => b.textContent.includes("Member phone") && b.querySelector("button.danger-outline:not([disabled])")));
+    k.check("business settings: after Try again, a business member can remove it", await remove.isEnabled() && !(await p.isVisible("text=couldn't be checked")));
+    k.check("business settings: no page errors", p.errors.length === 0, p.errors.join(" | "));
+    await ctx.close();
+  } finally {
+    k.sql(`delete from auth.mfa_factors where id = '${MEMBER_FACTOR}'`);
+  }
   for (const [width, tag] of [[1440, "desktop"], [390, "phone"]]) {
     const ctx = await k.context(browser, width);
     const p = await k.page(ctx);

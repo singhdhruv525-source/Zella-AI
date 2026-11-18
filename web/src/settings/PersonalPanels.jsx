@@ -147,15 +147,22 @@ function PasswordCard({ email, admin = false }) {
 // required: the page says this person is a Zella Voice admin. The card also asks the database, so the same rule as
 // removeMfaFactor (mfa.js) applies on business settings pages too: an admin removes an authenticator with a code,
 // through the server, and can't remove the last one.
+// Until the role is known (or when it can't be read) removing is not offered: an admin without the code field would be
+// refused by removeMfaFactor anyway.
 function MfaCard({ required: requiredByPage = false }) {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState(requiredByPage ? "admin" : "checking");   // "checking" | "admin" | "member" | "error"
+  const [roleTry, setRoleTry] = useState(0);
   useEffect(() => {
-    if (requiredByPage) return undefined;
+    if (requiredByPage) { setRole("admin"); return undefined; }
     let live = true;
-    supabase.rpc("zella_admin_role").then(({ data }) => { if (live) setIsAdmin(Boolean(data)); }, () => {});
+    setRole("checking");
+    supabase.rpc("zella_admin_role").then(
+      ({ data, error }) => { if (live) setRole(error ? "error" : data ? "admin" : "member"); },
+      () => { if (live) setRole("error"); });
     return () => { live = false; };
-  }, [requiredByPage]);
-  const required = requiredByPage || isAdmin;
+  }, [requiredByPage, roleTry]);
+  const required = role === "admin";
+  const roleKnown = role === "admin" || role === "member";
   const state = useAsync(mfaStatus, []);
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState("");
@@ -179,9 +186,15 @@ function MfaCard({ required: requiredByPage = false }) {
               {/* every Zella Voice admin needs two step sign in (ACC-01): the last authenticator can't be removed here */}
               {required && s.factors.length < 2
                 ? <span className="zs-muted">Required for admins</span>
-                : <button type="button" className="zs-btn danger-outline sm" onClick={() => setRemoving(f)}>Remove</button>}
+                : <button type="button" className="zs-btn danger-outline sm" disabled={!roleKnown} title={roleKnown ? undefined : "Checking your account first"} onClick={() => setRemoving(f)}>Remove</button>}
             </div>
           ))}
+          {role === "error" && (
+            <Banner tone="error">
+              Your account couldn&apos;t be checked, so authenticators can&apos;t be removed right now.{" "}
+              <button type="button" className="zs-link" onClick={() => setRoleTry((n) => n + 1)}>Try again</button>
+            </Banner>
+          )}
           {required && <p className="zs-muted">Every Zella Voice admin needs two step sign in. To change phones, add the new authenticator first, then remove the old one.</p>}
           {(!s.enrolled || (required && s.factors.length < 3)) && !setup && <button type="button" className="zs-btn primary" style={{ marginTop: 12 }} disabled={busy}
             onClick={() => step(async () => setSetup(await startMfaEnrollment()))}>{s.enrolled ? "Add another authenticator app" : "Set up an authenticator app"}</button>}

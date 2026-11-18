@@ -1348,16 +1348,20 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
   }),
 };
 
-// Every row of a query, read in pages of 1000 (the API's row cap) until a short page.
+// Every row of a query, read in pages of 1000 (the API's row cap) by an unchanging key: each page starts after the
+// last key read (page(null) is the first), so a row renamed or added meanwhile can't be read twice or skipped.
 // deno-lint-ignore no-explicit-any
-async function everyRow(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>) {
+async function everyRow(key: string, page: (after: string | null) => PromiseLike<{ data: any[] | null; error: unknown }>) {
   // deno-lint-ignore no-explicit-any
   const out: any[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await page(from, from + 999);
+  let after: string | null = null;
+  for (;;) {
+    const { data, error } = await page(after);
     if (error) throw error;
-    out.push(...(data ?? []));
-    if ((data ?? []).length < 1000) return out;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < 1000) return out;
+    after = String(rows[rows.length - 1][key]);
   }
 }
 
@@ -1632,12 +1636,14 @@ async function auditLogList(admin: SupabaseClient, fields: Json, role: string | 
   let businesses: { id: string; name: string }[] | undefined;
   let people: { id: string; email: string | null }[] | undefined;
   if (!cursor) {
-    // every business and every admin, read 1000 at a time in a fixed order, so the pickers are never cut off
+    // every business and every admin, read 1000 at a time by id, so the pickers are never cut off; sorted by name after
+    const businessRows = admin.from("businesses").select("id, name"), adminRows = admin.from("platform_admins").select("user_id");
     const [list, admins] = await Promise.all([
-      everyRow((from, to) => admin.from("businesses").select("id, name").order("name").order("id").range(from, to)),
-      everyRow((from, to) => admin.from("platform_admins").select("user_id").order("user_id").range(from, to)),
+      everyRow("id", (after) => (after ? businessRows.gt("id", after) : businessRows).order("id").limit(1000)),
+      everyRow("user_id", (after) => (after ? adminRows.gt("user_id", after) : adminRows).order("user_id").limit(1000)),
     ]);
-    businesses = list as { id: string; name: string }[];
+    businesses = (list as { id: string; name: string }[])
+      .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")) || a.id.localeCompare(b.id));
     // every admin, resolved 100 at a time (resolveUsers reads at most 100), so nobody is left out of the person filter
     const ids = [...new Set((admins ?? []).map((a) => a.user_id))];
     const emails: Record<string, string | null> = {};
@@ -2291,11 +2297,11 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   const hours = supportHours(hoursResult.data?.value);
   // deno-lint-ignore no-explicit-any
   let tickets = (ticketsResult.data ?? []) as any[];
-  // Overdue: every ticket still waiting for a first reply is read (1000 at a time), not only the newest 500, and judged
-  // from its times alone; only the newest 500 overdue ones then have their conversations read.
+  // Overdue: the tickets still waiting for a first reply are read 1000 at a time, newest first, and judged from their
+  // times alone as each page arrives; only overdue ones are kept, and reading stops at the newest 500 of them (a ticket
+  // that isn't overdue never hides an older one that is). Only those 500 have their conversations read.
   if (fields.overdue === true && withFirstResponse) {
-    const waiting = await waitingTickets(admin, fields, `${cols}, first_response_at`);
-    tickets = waiting.filter((t) => ticketTiming(t, hours).overdue).slice(0, 500);
+    tickets = await waitingTickets(admin, fields, `${cols}, first_response_at`, (t) => ticketTiming(t, hours).overdue === true, 500);
   }
   const messages = await ticketMessages(admin, tickets.map((t) => t.id));
   // The time of the first reply comes from the replies read above when the ticket row was read just before one was
@@ -2351,9 +2357,10 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   };
 }
 
-// Every ticket still waiting for its first reply (not resolved or closed), with the list's status and business
-// filters, newest first, read 1000 at a time after a (created_at, id) cursor.
-async function waitingTickets(admin: SupabaseClient, fields: Json, columns: string) {
+// The tickets still waiting for their first reply (not resolved or closed) that `keep` accepts, with the list's status
+// and business filters, newest first, read 1000 at a time after a (created_at, id) cursor, up to `max` of them.
+// deno-lint-ignore no-explicit-any
+async function waitingTickets(admin: SupabaseClient, fields: Json, columns: string, keep: (t: any) => boolean, max: number) {
   // deno-lint-ignore no-explicit-any
   const out: any[] = [];
   let after: { created_at: string; id: string } | null = null;
@@ -2369,7 +2376,7 @@ async function waitingTickets(admin: SupabaseClient, fields: Json, columns: stri
     if (error) throw error;
     // deno-lint-ignore no-explicit-any
     const page = (data ?? []) as any[];
-    out.push(...page);
+    for (const t of page) { if (keep(t)) out.push(t); if (out.length >= max) return out; }
     if (page.length < 1000) return out;
     after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
   }
@@ -3444,6 +3451,10 @@ Deno.serve(withCors(async (req: Request) => {
         // ACC-12: an export of the audit log is handed over only once the export itself is on record
         if (!recorded && action === "audit_export") {
           return respond({ error: "The export could not be recorded in the audit log, so it was not downloaded. Try again." }, 503);
+        }
+        // ACC-30: a new authenticator counts as recorded only once its entry is written, so the browser keeps it to retry
+        if (!recorded && action === "me_mfa_added") {
+          return respond({ error: "The new authenticator could not be recorded in the audit log yet. It is tried again later." }, 503);
         }
       }
 

@@ -101,6 +101,11 @@ export function caseResults(t) {
     const c = t[i];
     if (quote) { if (c === "'") quote = false; continue; }
     if (ident) { if (c === '"') { if (t[i + 1] === '"') i++; else ident = false; } continue; }   // "end" as a name, "" inside
+    // a dollar quoted string ($$...$$, $tag$...$tag$) is text up to its own closing tag, double quotes included
+    if (c === "$" && !(i > 0 && /[A-Za-z0-9_]/.test(t[i - 1]))) {
+      const tag = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(t.slice(i, i + 64));
+      if (tag) { const close = t.indexOf(tag[0], i + tag[0].length); i = close < 0 ? t.length : close + tag[0].length - 1; continue; }
+    }
     if (c === "'") { quote = true; continue; }
     if (c === '"') { ident = true; continue; }
     if (c === "(") { paren++; continue; }
@@ -455,9 +460,18 @@ export function tsAuditReads(raw) {
     if (table === "audit_logs") for (const n of names) out.push({ ...n, line: lineAt(src, m.index) });
   }
   for (const m of src.matchAll(/action\.like\.([a-z_.]*)%/g)) {
-    // the filter sits in a string given to .or(...) / .filter(...): the query is that call's receiver
-    const call = Math.max(src.lastIndexOf(".or(", m.index), src.lastIndexOf(".filter(", m.index));
-    const table = queryTable(src, masked, call >= 0 ? call : m.index);
+    // only a pattern inside the arguments of an .or(...) / .filter(...) call is a filter (a string anywhere else is not
+    // a query); the query is that call's receiver
+    let d = 0, open = -1;
+    for (let i = m.index - 1; i >= 0; i--) {
+      const c = masked[i];
+      if (c === ")" || c === "]" || c === "}") d++;
+      else if (c === "(" || c === "[" || c === "{") { if (d === 0) { if (c === "(") open = i; break; } d--; }
+    }
+    const callee = open >= 0 ? /\.(or|filter)\s*$/.exec(masked.slice(Math.max(0, open - 12), open)) : null;
+    if (!callee) continue;
+    const call = open - callee[0].length;
+    const table = queryTable(src, masked, call);
     if (table === null) out.push({ name: `action filter at line ${lineAt(src, m.index)}`, unresolved: true, line: lineAt(src, m.index) });
     else if (table === "audit_logs") out.push({ name: m[1], prefix: true, line: lineAt(src, m.index) });
   }
@@ -465,7 +479,7 @@ export function tsAuditReads(raw) {
 }
 
 // The table a query builder call at `at` belongs to: follows the call chain back to its start (admin.from("t")...)
-// and, when the chain starts at a name, that name's latest assignment (q = admin.from("t")..., q = q.eq(...)).
+// and, when the chain starts at a name, every assignment of that name before it (q = admin.from("t")..., q = q.eq(...)).
 // Returns the table, or null when it can't be worked out (a parameter, a call result).
 export function queryTable(src, masked, at, depth = 0) {
   if (depth > 5) return null;
@@ -495,14 +509,20 @@ export function queryTable(src, masked, at, depth = 0) {
     const assigns = [...masked.slice(0, j + 1).matchAll(new RegExp(`(?:\\b(?:let|const|var)\\s+)?\\b${head}\\s*=(?!=)\\s*`, "g"))]
       .filter((x) => x.index + x[0].length < j + 1);
     if (!assigns.length) return null;
-    const a = assigns[assigns.length - 1];
-    const rhsStart = a.index + a[0].length;
-    const rhs = src.slice(rhsStart, rhsStart + exprAfter(src, rhsStart).length);
-    const f = rhs.match(/\.from\(\s*["']([a-z_]+)["']\s*\)/);
-    if (f) return f[1];
-    // q = q.order(...): follow that q back in turn
-    if (new RegExp(`^\\s*${head}\\s*\\.`).test(rhs)) return queryTable(src, masked, rhsStart + rhs.indexOf("."), depth + 1);
-    return null;
+    // every assignment before here can reach this call (one may sit in a branch): audit_logs if any of them is,
+    // unknown if any can't be told, otherwise the table they name
+    const tables = assigns.map((a) => {
+      const rhsStart = a.index + a[0].length;
+      const rhs = src.slice(rhsStart, rhsStart + exprAfter(src, rhsStart).length);
+      const f = rhs.match(/\.from\(\s*["']([a-z_]+)["']\s*\)/);
+      if (f) return f[1];
+      // q = q.order(...): follow that q back in turn
+      if (new RegExp(`^\\s*${head}\\s*\\.`).test(rhs)) return queryTable(src, masked, rhsStart + rhs.indexOf("."), depth + 1);
+      return null;
+    });
+    if (tables.includes("audit_logs")) return "audit_logs";
+    if (tables.includes(null)) return null;
+    return tables[tables.length - 1];
   }
 }
 
@@ -537,8 +557,17 @@ export function n8nAlertKinds(raw) {
       else if (c === "{" || c === "(" || c === "[") { if (depth === 0) { open = i; break; } depth--; }
     }
     if (open < 0 || masked[open] !== "{") continue;
-    const lead = src.slice(Math.max(0, open - 80), open);
-    if (/(?:\balert|(["'])alert\1)\s*:\s*$/.test(lead) || (/["']zella_platform_alert["']\s*,\s*$/.test(lead))) out.push({ name: m[2], line: lineAt(src, m.index) });
+    // what comes before the brace, past any spaces and comments (comments are spaces here): alert: or "alert":, or
+    // "zella_platform_alert", as the first argument
+    let k = open - 1;
+    const back = () => { while (k >= 0 && /\s/.test(src[k])) k--; };
+    back();
+    const sep = src[k--];
+    back();
+    let word = "";
+    if (src[k] === '"' || src[k] === "'") { const q = src[k]; const s = src.lastIndexOf(q, k - 1); word = s >= 0 ? q + src.slice(s + 1, k) + q : ""; }
+    else { let s = k; while (s >= 0 && /[\w$]/.test(src[s])) s--; word = src.slice(s + 1, k + 1); }
+    if ((sep === ":" && /^(?:alert|"alert"|'alert')$/.test(word)) || (sep === "," && /^["']zella_platform_alert["']$/.test(word))) out.push({ name: m[2], line: lineAt(src, m.index) });
   }
   return out;
 }

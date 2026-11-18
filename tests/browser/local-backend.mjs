@@ -282,9 +282,19 @@ async function userRow(id) {
 // session row to still exist, so ending a session (zella_end_user_sessions, zella_revoke_my_other_sessions) stops
 // its refresh; an access token already issued keeps working until it expires, as with Supabase.
 const REFRESH = new Map();   // refresh token -> { id, aal, totpAt, sid }
+// One change at a time per session (a refresh, a verified code), in the order they arrive, so a refresh that started
+// before a code was verified can't write the older level back after it.
+const TURNS = new Map();     // session id -> the last queued change
+function inTurn(sid, work) {
+  if (!sid) return work();
+  const run = (TURNS.get(sid) ?? Promise.resolve()).then(work, work);
+  const tail = run.catch(() => {});
+  TURNS.set(sid, tail);
+  tail.then(() => { if (TURNS.get(sid) === tail) TURNS.delete(sid); });
+  return run;
+}
 // Returns null when a session given by id no longer exists for that person (it was ended): no token is issued then.
 async function session(user, aal = "aal1", totpAt = null, sid = null) {
-  const now = Math.floor(Date.now() / 1000), exp = now + 3600;
   const sessionId = sid ?? crypto.randomUUID();
   const sys = { preRequest: false, system: true };
   const w = sid
@@ -293,12 +303,18 @@ async function session(user, aal = "aal1", totpAt = null, sid = null) {
     : await asCaller({ role: "service_role" }, `insert into auth.sessions (id, user_id, aal, created_at, updated_at) values (${lit(sessionId)}, ${lit(user.id)}, ${lit(aal)}, now(), now()) returning id`, sys);
   if (w.error) throw Object.assign(new Error("session write failed"), { status: 500 });
   if (!w.text) return null;
+  return issue(user, aal, totpAt, sessionId);
+}
+// the tokens for a session row already written
+function issue(user, aal, totpAt, sessionId) {
+  const now = Math.floor(Date.now() / 1000), exp = now + 3600;
   const amr = [...(totpAt ? [{ method: "totp", timestamp: totpAt }] : []), { method: "password", timestamp: now }];
   const claims = { sub: user.id, email: user.email, role: "authenticated", aud: "authenticated", aal, amr, exp, session_id: sessionId };
   const refresh = `rt_${crypto.randomUUID().replace(/-/g, "")}`;
   REFRESH.set(refresh, { id: user.id, aal, totpAt, sid: sessionId });
   return { access_token: sign(claims), refresh_token: refresh, token_type: "bearer", expires_in: 3600, expires_at: exp, user };
 }
+const SESSION_NOT_FOUND = { status: 400, json: { error: "invalid_grant", error_description: "Session not found", msg: "Session not found", code: "session_not_found" } };
 const INVALID_GRANT = { status: 400, json: { error: "invalid_grant", error_description: "Invalid login credentials", msg: "Invalid login credentials", code: "invalid_credentials" } };
 
 async function auth(req, url, claims, body) {
@@ -319,13 +335,27 @@ async function auth(req, url, claims, body) {
       if (Number(f.text) > 0) aal = "aal2";
     }
     if (url.searchParams.get("grant_type") === "refresh_token") {
-      // only a token this stand in issued, used once, for a session that still exists
-      const held = REFRESH.get(String(body?.refresh_token ?? ""));
-      if (!held) return INVALID_GRANT;
-      REFRESH.delete(String(body.refresh_token));
-      const live = await asCaller({ role: "service_role" }, `select count(*) from auth.sessions where id = ${lit(held.sid)} and user_id = ${lit(held.id)}`, { preRequest: false, system: true });
-      if (live.error || Number(live.text) !== 1) return { status: 400, json: { error: "invalid_grant", error_description: "Session not found", msg: "Session not found", code: "session_not_found" } };
-      ({ id, aal, totpAt, sid } = held);
+      // only a token this stand in issued, used once, for a session that still exists; in the session's turn, so a code
+      // verified meanwhile (which ends the older tokens) comes first or after, never in between
+      const token = String(body?.refresh_token ?? "");
+      const first = REFRESH.get(token);
+      if (!first) return INVALID_GRANT;
+      return inTurn(first.sid, async () => {
+        const held = REFRESH.get(token);
+        if (!held) return INVALID_GRANT;   // used, or ended by a verified code, while waiting for the turn
+        const live = await asCaller({ role: "service_role" }, `select count(*) from auth.sessions where id = ${lit(held.sid)} and user_id = ${lit(held.id)}`, { preRequest: false, system: true });
+        if (live.error) return { status: 500, json: { code: 500, msg: "The session could not be read", error_code: "unexpected_failure" } };   // the token stays usable
+        if (Number(live.text) !== 1) { REFRESH.delete(token); return SESSION_NOT_FOUND; }
+        const user = await userRow(held.id);
+        if (!user) return INVALID_GRANT;
+        const s = await session(user, held.aal, held.totpAt, held.sid).catch(() => "error");
+        // a failed write issued nothing, so the token stays usable for a retry
+        if (s === "error") return { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } };
+        REFRESH.delete(token);
+        if (!s) return SESSION_NOT_FOUND;
+        await asCaller({ role: "service_role" }, `update auth.users set last_sign_in_at = now() where id = ${lit(held.id)}`, { preRequest: false, system: true });
+        return { status: 200, json: s };
+      });
     }
     const user = id && (await userRow(id));
     if (!user) return INVALID_GRANT;
@@ -362,13 +392,30 @@ async function auth(req, url, claims, body) {
     if (verb === "challenge") return { status: 200, json: { id: crypto.randomUUID(), type: "totp", expires_at: Math.floor(Date.now() / 1000) + 300 } };
     if (verb === "verify") {
       if (String(body?.code ?? "") !== "123456") return { status: 422, json: { code: 422, msg: "Invalid TOTP code entered", error_code: "mfa_verification_failed" } };
-      const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
-      if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
       const user = await userRow(claims.sub);
-      // the same session, now verified with a code at this moment (refused if that session was ended)
-      const s = await session(user, "aal2", Math.floor(Date.now() / 1000), claims.session_id ?? null).catch(() => "error");
-      if (s === "error") return { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } };
-      return s ? { status: 200, json: s } : { status: 401, json: { code: 401, msg: "Session not found", error_code: "session_not_found" } };
+      if (!user) return { status: 401, json: { code: 401, msg: "User not found", error_code: "user_not_found" } };
+      const sid = claims.session_id ?? null;
+      if (!sid) {   // a token without a session: a new session, as before
+        const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
+        if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
+        const s = await session(user, "aal2", Math.floor(Date.now() / 1000)).catch(() => "error");
+        return s === "error" ? { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } } : { status: 200, json: s };
+      }
+      // the same session, now verified with a code: the factor and the session change together in one statement,
+      // and only while that session still exists (an ended one changes nothing). In the session's turn; the session's
+      // older refresh tokens end here, so none of them can bring back the level from before the code.
+      return inTurn(sid, async () => {
+        // the session row is locked first, so it can't end between the two changes
+        const v = await asCaller({ role: "service_role" }, `with live as (select id from auth.sessions where id = ${lit(sid)} and user_id = ${lit(claims.sub)} for update),
+          f as (update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} and exists (select 1 from live) returning id),
+          s as (update auth.sessions set aal = 'aal2', refreshed_at = now(), updated_at = now() where id in (select id from live) and exists (select 1 from f) returning id)
+          select (select count(*) from live) || ':' || (select count(*) from f) || (select count(*) from s)`, sys);
+        if (v.error) return { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } };
+        if (v.text.startsWith("0:")) return { status: 401, json: { code: 401, msg: "Session not found", error_code: "session_not_found" } };
+        if (v.text !== "1:11") return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
+        for (const [token, held] of REFRESH) if (held.sid === sid) REFRESH.delete(token);
+        return { status: 200, json: issue(user, "aal2", Math.floor(Date.now() / 1000), sid) };
+      });
     }
     return { status: 200, json: { all: [], totp: [], phone: [] } };
   }
