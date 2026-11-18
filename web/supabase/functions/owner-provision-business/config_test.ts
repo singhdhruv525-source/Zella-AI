@@ -217,14 +217,42 @@ Deno.test("a sensitivity change whose audit row can't be written is undone, and 
   assertEquals(writes.length, 1);
 });
 
-Deno.test("a sensitivity change is refused when someone changed the industry since it was read", async () => {
-  const admin = { from: () => {
-    const q = { select: () => q, eq: () => q,
-      maybeSingle: () => Promise.resolve({ data: { id: "ind", name: "Dental", sensitive: true, sensitive_changed_at: "2026-11-18T20:00:00.000Z" }, error: null }),
-      update: () => { const u = { eq: () => u, is: () => u, select: () => Promise.resolve({ data: [], error: null }) }; return u; } };
-    return q;
-  } } as unknown as SupabaseClient;
-  const h = configHandlers(admin, { industryId: "ind", reason: "Reviewed", sensitive: false, confirm: true }, kit, "zella_owner");
-  const err = await assertRejects(() => h.handlers.industry_set_sensitive(), InputError);
+Deno.test("a sensitivity change is written only if the version it read is still the stored one", async () => {
+  // a stateful stand in for the industries row: the update matches only when its version filter equals the stored one
+  const fake = (changedInBetween: boolean) => {
+    const row = { sensitive: true, sensitive_changed_at: "2026-11-18T20:00:00.000Z" as string | null };
+    const admin = { from: () => {
+      const q = { select: () => q, eq: () => q,
+        maybeSingle: () => {
+          const read = { id: "ind", name: "Dental", ...row };
+          if (changedInBetween) row.sensitive_changed_at = "2026-11-18T20:05:00.000Z";   // another owner saved meanwhile
+          return Promise.resolve({ data: read, error: null });
+        },
+        update: (v: Record<string, unknown>) => {
+          const filters: Record<string, unknown> = {};
+          const u = {
+            eq: (k: string, x: unknown) => { filters[k] = x; return u; },
+            is: (k: string, x: unknown) => { filters[k] = x; return u; },
+            select: () => {
+              const hit = filters.sensitive_changed_at === row.sensitive_changed_at;
+              if (hit) Object.assign(row, v);
+              return Promise.resolve({ data: hit ? [{ id: "ind" }] : [], error: null });
+            },
+          };
+          return u;
+        } };
+      return q;
+    } } as unknown as SupabaseClient;
+    return { row, admin };
+  };
+  const fields = { industryId: "ind", reason: "Reviewed", sensitive: false, confirm: true };
+  const stale = fake(true);
+  const err = await assertRejects(() => configHandlers(stale.admin, fields, kit, "zella_owner").handlers.industry_set_sensitive(), InputError);
   assertEquals((err as InputError).status, 409);
+  assertEquals(stale.row.sensitive, true);                       // the newer change is left as it is
+  const fresh = fake(false);
+  const r = await configHandlers(fresh.admin, fields, kit, "zella_owner").handlers.industry_set_sensitive() as Record<string, unknown>;
+  assertEquals(fresh.row.sensitive, false);
+  assertEquals(fresh.row.sensitive_changed_at, r.version);
+  assertEquals(r.previousVersion, "2026-11-18T20:00:00.000Z");
 });
