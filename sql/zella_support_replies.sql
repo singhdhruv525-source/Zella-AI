@@ -27,8 +27,11 @@ begin
      or to_regprocedure('public.zella_platform_alert(text,text,text,text,uuid,text,jsonb)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
-  if to_regclass('public.support_ticket_messages') is not null and not exists (
-       select 1 from information_schema.columns where table_schema = 'public' and table_name = 'support_ticket_messages' and column_name = 'author_side') then
+  -- a table already there must be exactly this file's (same columns and types), or nothing is installed against it
+  if to_regclass('public.support_ticket_messages') is not null and (
+       select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns
+        where table_schema = 'public' and table_name = 'support_ticket_messages')
+     is distinct from 'author_id uuid, author_side text, body text, business_id uuid, created_at timestamp with time zone, id uuid, ticket_id uuid' then
     raise exception 'VERSION_MISMATCH: a different support_ticket_messages table already exists';
   end if;
   for f in select * from (values

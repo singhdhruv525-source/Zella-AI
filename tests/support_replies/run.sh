@@ -11,6 +11,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zla_support}; TEMPLATE=${TEMPLATE:-zprod3}
 . "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+# this suite drops and recreates DB: only a database named for this suite, and never the template
+[[ "$DB" =~ ^z[a-z0-9_]*support[a-z0-9_]*$ ]] && [ "$DB" != "$TEMPLATE" ] || { echo "REFUSED: DB must be this suite's own database (z...support...), not '$DB'" >&2; exit 1; }
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
@@ -48,8 +50,8 @@ first=$(q "select first_response_at from public.support_tickets where id = '$T1'
 [ -n "$first" ] && [ "$(q "select status from public.support_tickets where id = '$T1'")" = "in_progress" ] && ok "first_response_at is set and an open ticket moves to in progress" || bad "first response: $first"
 sleep 1; as service_role "" "select public.zella_admin_ticket_reply(''$T1'', ''$ZA'', ''Second'')::text" > /dev/null
 [ "$(q "select first_response_at from public.support_tickets where id = '$T1'")" = "$first" ] && ok "a second reply doesn't move first_response_at" || bad "first response moved"
-n=$(q "select count(*) || ':' || min(delivery_status) || ':' || min(sms_status) || ':' || min(user_id::text) from public.staff_notifications where kind = 'support_reply' and entity_id = '$T1'")
-[ "$n" = "2:skipped:skipped:$O1" ] && ok "the opener is told in the app, never by email or text ($n)" || bad "notifications: $n"
+n=$(q "select count(*) || ':' || count(*) filter (where user_id = '$O1' and delivery_status = 'skipped' and sms_status = 'skipped') from public.staff_notifications where kind = 'support_reply' and entity_id = '$T1'")
+[ "$n" = "2:2" ] && ok "the opener is told in the app, never by email or text ($n)" || bad "notifications: $n"
 r=$(as service_role "" "select public.zella_admin_ticket_reply(''$T1'', ''$ZA'', ''   '')::text")
 [[ "$r" == *"BAD_INPUT"* ]] && ok "an empty reply is refused" || bad "empty: $r"
 
@@ -82,24 +84,32 @@ as authenticated "$O1" "select public.zella_business_ticket_reply(''$T1'', ''Sti
 [ "$(q "select status || ':' || coalesce(resolved_at::text, 'none') from public.support_tickets where id = '$T1'")" = "open:none" ] && ok "an answer reopens a resolved ticket" || bad "reopen"
 
 alert() { q "select count(*) from public.platform_alerts where kind = '$1' and business_id = '$B1'"; }
-for kind in cancellation plan_change feedback; do as authenticated "$O1" "select public.zella_business_request(''$B1'', ''$kind'', ''Request $kind'', ''details'', ''{}''::jsonb)::text" > /dev/null; done
+for kind in cancellation plan_change; do as authenticated "$O1" "select public.zella_business_request(''$B1'', ''$kind'', ''Request $kind'', ''details'', ''{}''::jsonb)::text" > /dev/null; done
 as authenticated "$O1" "select public.zella_business_request(''$B1'', ''issue'', ''Phones down'', ''details'', ''{\"urgent\": \"true\"}''::jsonb)::text" > /dev/null
-as authenticated "$O1" "select public.zella_business_request(''$B1'', ''issue'', ''Small thing'', ''details'', ''{}''::jsonb)::text" > /dev/null
+TF=$(as authenticated "$O1" "select public.zella_business_request(''$B1'', ''feedback'', ''Request feedback'', ''details'', ''{}''::jsonb)::text")
+TI=$(as authenticated "$O1" "select public.zella_business_request(''$B1'', ''issue'', ''Small thing'', ''details'', ''{}''::jsonb)::text")
+[[ "$TF" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] && [[ "$TI" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] && ok "feedback and an ordinary issue are created as tickets" || bad "feedback or issue not created: $TF $TI"
 [ "$(alert support_cancellation_request):$(alert support_plan_change_request):$(alert support_urgent_ticket)" = "1:1:1" ] && ok "alerts for a cancellation, a plan change and an urgent issue" || bad "alerts: $(alert support_cancellation_request):$(alert support_plan_change_request):$(alert support_urgent_ticket)"
-[ "$(q "select count(*) from public.platform_alerts where business_id = '$B1' and kind like 'support_%'")" = "3" ] && ok "and none for feedback or an ordinary issue" || bad "extra alerts"
+[ "$(q "select count(*) from public.platform_alerts where business_id = '$B1' and kind like 'support_%'")" = "3" ] && [ "$(q "select count(*) from public.platform_alerts where meta ->> 'ticket_id' in ('$TF', '$TI') or dedupe_key in ('$TF', '$TI')")" = "0" ] && ok "and none for feedback or an ordinary issue" || bad "extra alerts"
 [ "$(q "select value ->> 'timezone' from public.platform_settings where key = 'support_business_hours'")" = "America/New_York" ] && ok "business hours setting: Monday to Friday 9 to 5, New York" || bad "setting"
 
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 [[ "$out" == *"DRIFT"* ]] && [ -n "$(q "select to_regclass('public.support_ticket_messages')")" ] && ok "the rollback refuses while replies exist" || bad "rollback with replies: $out"
-o1=$(PGOPTIONS="-c zella.drop_support_messages=yes" "${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1); e2=$?
-[ $e1 -eq 0 ] && [ $e2 -eq 0 ] && ok "with the flag, the rollback runs, and again without it once nothing is left" || bad "rollback: $o1 $o2"
-left=$(q "select coalesce(to_regclass('public.support_ticket_messages')::text, '') || coalesce(to_regprocedure('public.zella_business_ticket_reply(uuid,text)')::text, '') || (select count(*) from information_schema.columns where table_name = 'support_tickets' and column_name = 'first_response_at')::text || (select count(*) from pg_trigger where tgname = 'zella_support_ticket_alert')::text || (select count(*) from public.platform_settings where key = 'support_business_hours')::text")
-[ "$left" = "000" ] && ok "rollback removes the table, functions, column, trigger and setting" || bad "left: $left"
+q "delete from public.support_ticket_messages" > /dev/null   # test replies only; the rollback never deletes replies itself
+o1=$("${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1); e2=$?
+[ $e1 -eq 0 ] && [ $e2 -eq 0 ] && ok "once there are no replies, the rollback runs, and again once nothing is left" || bad "rollback: $o1 $o2"
+left=$(q "select coalesce(to_regclass('public.support_ticket_messages')::text, '') || coalesce(to_regprocedure('public.zella_business_ticket_reply(uuid,text)')::text, '') || (select count(*) from information_schema.columns where table_name = 'support_tickets' and column_name = 'first_response_at')::text || (select count(*) from pg_trigger where tgname = 'zella_support_ticket_alert')::text")
+[ "$left" = "00" ] && ok "rollback removes the table, functions, column and trigger" || bad "left: $left"
+[ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours'")" = "1" ] && ok "and keeps the business hours setting (it may have been set by someone)" || bad "setting removed"
+q "create table public.support_ticket_messages (id uuid primary key, ticket_id uuid, author_side text, created_at timestamptz)" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
+[[ "$out" == *"VERSION_MISMATCH"* ]] && [ -z "$(q "select to_regprocedure('public.zella_business_ticket_reply(uuid,text)')")" ] && ok "a messages table of another shape stops the file before anything is installed" || bad "other table: $out"
+q "drop table public.support_ticket_messages" > /dev/null
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_business_ticket_reply(p_ticket uuid, p_body text) returns jsonb language sql security definer set search_path = '' as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a changed function stops the file (VERSION_MISMATCH)" || bad "drift not caught: $out"
-out=$(PGOPTIONS="-c zella.drop_support_messages=yes" "${P[@]}" -d $DB -f "$RB" 2>&1)
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 [[ "$out" == *"DRIFT"* ]] && ok "and the rollback (DRIFT)" || bad "rollback drift: $out"
 
 echo

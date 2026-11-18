@@ -10,6 +10,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zla_incidents}; TEMPLATE=${TEMPLATE:-zprod3}
 . "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+# this suite drops and recreates DB: only a database named for this suite, and never the template
+[[ "$DB" =~ ^z[a-z0-9_]*incident[a-z0-9_]*$ ]] && [ "$DB" != "$TEMPLATE" ] || { echo "REFUSED: DB must be this suite's own database (z...incident...), not '$DB'" >&2; exit 1; }
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
@@ -50,9 +52,13 @@ r=$(as "$SA" "select public.zella_open_incident_checked(''Text messages delayed'
 INC=$(q "select id from public.platform_incidents where title = 'Text messages delayed'")
 n0=$(notes)
 r=$(as "$SA" "select public.zella_open_incident_checked(''TEXT MESSAGES delayed!!'', null, false)::text")
-[[ "$r" == *"SIMILAR_OPEN"* && "$r" == *"$INC"* ]] && [ "$(q "select count(*) from public.platform_incidents")" = "1" ] && ok "a second one for the same problem returns SIMILAR_OPEN with the open incident, and opens nothing" || bad "similar: $r"
+[[ "$r" == *"SIMILAR_OPEN"* && "$r" == *"$INC"* ]] && [ "$(q "select count(*) from public.platform_incidents")" = "1" ] && [ "$(notes)" = "$n0" ] && ok "a second one for the same problem returns SIMILAR_OPEN with the open incident, opens nothing and tells no one" || bad "similar: $r ($(notes) vs $n0 notices)"
 r=$(as "$SA" "select public.zella_open_incident_checked(''Text messages delayed in Texas'', null, false) ->> ''code''")
-[ "$r" = "SIMILAR_OPEN" ] && ok "a longer title for the same problem is caught too" || bad "contains: $r"
+[ "$r" = "SIMILAR_OPEN" ] && [ "$(notes)" = "$n0" ] && ok "a longer title for the same problem is caught too, and tells no one" || bad "contains: $r ($(notes) vs $n0 notices)"
+as "$SA" "select public.zella_open_incident_checked(''!!!'', null, true)::text" > /dev/null
+r=$(as "$SA" "select public.zella_open_incident_checked(''Power outage'', null, false)::text")
+[[ "$r" == *'"opened": true'* ]] && ok "an open incident whose title has no words isn't matched against every new title" || bad "empty key: $r"
+q "delete from public.platform_incidents where title in ('!!!', 'Power outage')" > /dev/null
 r=$(as "$SA" "select public.zella_open_incident_checked(''Text messages delayed in Texas'', null, true) ->> ''opened''")
 [ "$r" = "true" ] && ok "Open anyway (force) opens it" || bad "force: $r"
 r=$(as "$SA" "select public.zella_open_incident_checked(''Calendar sync stopped'', null, false) ->> ''opened''")
@@ -61,10 +67,10 @@ r=$(as "$RO" "select public.zella_open_incident_checked(''Anything else'', null,
 [[ "$r" == *"NOT_ALLOWED"* ]] && ok "a read only admin can't open one" || bad "ro open: $r"
 
 n1=$(notes)
-r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Carrier confirmed the delay'', false) ->> ''notified_businesses''")
+r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Carrier confirmed the delay'') ->> ''notified_businesses''")
 [ "$r" = "0" ] && [ "$(notes)" = "$n1" ] && ok "an update is internal by default: no owner is told" || bad "quiet update: $r $(notes) $n1"
 r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Messages are flowing again slowly'', true) ->> ''notified_businesses''")
-[ "${r:-0}" -gt 0 ] && [ "$(notes)" -gt "$n1" ] && ok "with Tell affected businesses, owners are told ($r businesses)" || bad "notify: $r"
+[ "${r:-0}" -gt 0 ] && [ "$(notes)" -gt "$n1" ] && ok "with Tell all active businesses, owners are told ($r businesses)" || bad "notify: $r"
 [ "$(q "select count(*) from public.audit_logs where action = 'platform.incident_updated' and entity_id = '$INC'")" = "2" ] && ok "each update is audited" || bad "update audit"
 r=$(as "$RO" "select public.zella_incident_post_update(''$INC'', ''hello there'', false)::text")
 [[ "$r" == *"NOT_ALLOWED"* ]] && ok "a read only admin can't post updates" || bad "ro post: $r"
@@ -91,9 +97,14 @@ r=$(as "$SA" "select public.zella_incident_edit(''$INC'', ''Too late'', null)::t
 
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 [[ "$out" == *"DRIFT"* ]] && ok "the rollback refuses while updates exist" || bad "rollback with updates: $out"
-o1=$(PGOPTIONS="-c zella.drop_incident_updates=yes" "${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1); e2=$?
-[ $e1 -eq 0 ] && [ $e2 -eq 0 ] && ok "with the flag, the rollback runs, and again once nothing is left" || bad "rollback: $o1 $o2"
-[ -z "$(q "select coalesce(to_regclass('public.platform_incident_updates')::text, '') || coalesce(to_regprocedure('public.zella_open_incident_checked(text,text,boolean)')::text, '')")" ] && ok "rollback removes the table and functions" || bad "left over"
+q "delete from public.platform_incident_updates" > /dev/null   # test updates only; the rollback never deletes updates itself
+o1=$("${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1); e2=$?
+[ $e1 -eq 0 ] && [ $e2 -eq 0 ] && ok "once there are no updates, the rollback runs, and again once nothing is left" || bad "rollback: $o1 $o2"
+v=$(q "select coalesce(to_regclass('public.platform_incident_updates')::text, '') || coalesce(to_regprocedure('public.zella_open_incident_checked(text,text,boolean)')::text, '')") && [ -z "$v" ] && ok "rollback removes the table and functions" || bad "left over"
+q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, notified_businesses integer, created_at timestamptz)" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
+[[ "$out" == *"VERSION_MISMATCH"* ]] && [ -z "$(q "select to_regprocedure('public.zella_incident_post_update(uuid,text,boolean)')")" ] && ok "a timeline table of another shape stops the file before anything is installed" || bad "other table: $out"
+q "drop table public.platform_incident_updates" > /dev/null
 [ -n "$(q "select to_regprocedure('public.zella_open_incident(text,text)')")" ] && ok "zella_open_incident itself is untouched" || bad "open_incident gone"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_incident_edit(p_incident uuid, p_title text, p_detail text default null) returns boolean language sql security definer set search_path = '' as \$f\$ select true \$f\$" > /dev/null

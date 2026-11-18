@@ -149,7 +149,7 @@ const loadIncidents = async (from = 0) => {
 const STATUS_PARTS = [["", "No specific part"], ["phone", "Phone assistant"], ["texts", "Text messages"], ["email", "Email"], ["automations", "Reminders and follow ups"], ["app", "Zella Voice app"]];
 const missingFn = (e) => /does not exist|Could not find the function|PGRST202/i.test(e?.message ?? "");
 
-// OPS-12: an incident's timeline. Updates are internal; owners are told only when "Tell affected businesses" is ticked.
+// OPS-12: an incident's timeline. Updates are internal; owners are told only when "Tell all active businesses" is ticked.
 function IncidentTimeline({ incident, busy, onChanged }) {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
@@ -182,7 +182,7 @@ function IncidentTimeline({ incident, busy, onChanged }) {
       {incident.status === "open" && (
         <span className="inc-post">
           <input className="owner-input" placeholder="What's happening now (for the Zella Voice team)" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} aria-label={`Update for ${incident.title}`} />
-          <label className="inc-check"><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Tell affected businesses</label>
+          <label className="inc-check"><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Tell all active businesses</label>
           <button type="button" className="owner-secondary-button inc-sm" disabled={busy || posting || text.trim().length < 3} onClick={post}>Post update</button>
         </span>
       )}

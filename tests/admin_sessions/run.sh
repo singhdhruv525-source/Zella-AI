@@ -9,6 +9,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zla_sessions}; TEMPLATE=${TEMPLATE:-zprod3}
 . "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+# this suite drops and recreates DB: only a database named for this suite, and never the template
+[[ "$DB" =~ ^z[a-z0-9_]*sessions$ ]] && [ "$DB" != "$TEMPLATE" ] || { echo "REFUSED: DB must be this suite's own database (z..._sessions), not '$DB'" >&2; exit 1; }
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
@@ -29,7 +31,7 @@ q "insert into auth.users (id, email, email_confirmed_at) values ('$A', 'sess-ad
 q "insert into public.platform_admins (user_id, role, is_active) values ('$A', 'support_admin', true)" > /dev/null || exit 1
 sessions
 
-[ -z "$(q "select to_regprocedure('public.zella_end_user_sessions(uuid)')")" ] && ok "before: there is no way to end another person's sessions (the gap)" || bad "before: the function already exists"
+v=$(q "select to_regprocedure('public.zella_end_user_sessions(uuid)')") && [ -z "$v" ] && ok "before: there is no way to end another person's sessions (the gap)" || bad "before: the function already exists"
 
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies" || { bad "applies"; "${P[@]}" -d $DB -f "$MIG" 2>&1 | tail -3; exit 1; }
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again (idempotent)" || bad "second apply"
@@ -58,17 +60,23 @@ a=$(q "select action || ':' || (new_data ->> 'ended') || ':' || (new_data ->> 'k
 [ "$a" = "session.revoked_others:2:$S1" ] && ok "audited as session.revoked_others with the count" || bad "audit: $a"
 r=$(as authenticated "$A" "" "select public.zella_revoke_my_other_sessions()::text")
 [[ "$r" == *"NO_SESSION"* ]] && ok "a token without a session id is refused (NO_SESSION), so it can't end every session" || bad "no session: $r"
+sessions
+r=$(as authenticated "$A" "f3100000-0000-0000-0000-0000000000ff" "select public.zella_revoke_my_other_sessions()::text")
+[[ "$r" == *"NO_SESSION"* ]] && [ "$(count $A)" = "3" ] && ok "a session id that isn't one of theirs is refused (NO_SESSION) and nothing is ended" || bad "unknown session: $r, left $(count $A)"
 r=$(as anon "" "" "select public.zella_revoke_my_other_sessions()::text")
 [[ "$r" == *"permission denied"* ]] && ok "anonymous is refused" || bad "anon others: $r"
 
 "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-[ -z "$(q "select coalesce(to_regprocedure('public.zella_end_user_sessions(uuid)')::text, '') || coalesce(to_regprocedure('public.zella_revoke_my_other_sessions()')::text, '')")" ] && ok "rollback drops both functions" || bad "functions left"
+v=$(q "select coalesce(to_regprocedure('public.zella_end_user_sessions(uuid)')::text, '') || coalesce(to_regprocedure('public.zella_revoke_my_other_sessions()')::text, '')") && [ -z "$v" ] && ok "rollback drops both functions" || bad "functions left"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_end_user_sessions(p_user_id uuid) returns integer language sql security definer set search_path = '' as \$f\$ select 0 \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
 [[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a changed function stops the file (VERSION_MISMATCH)" || bad "drift not caught: $out"
+defs() { q "select coalesce(md5(pg_get_functiondef('public.zella_end_user_sessions(uuid)'::regprocedure)), '-') || ':' || coalesce(md5(pg_get_functiondef('public.zella_revoke_my_other_sessions()'::regprocedure)), '-')"; }
+before=$(defs)
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
-[[ "$out" == *"DRIFT"* ]] && [ -n "$(q "select to_regprocedure('public.zella_revoke_my_other_sessions()')")" ] && ok "and the rollback refuses too (DRIFT), dropping nothing" || bad "rollback drift: $out"
+after=$(defs)
+[[ "$out" == *"DRIFT"* ]] && [ -n "$before" ] && [ "$before" = "$after" ] && ok "and the rollback refuses too (DRIFT), leaving both functions exactly as they were" || bad "rollback drift: $out ($before / $after)"
 
 echo
 [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

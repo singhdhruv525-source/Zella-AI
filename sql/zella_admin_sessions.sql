@@ -21,7 +21,7 @@ begin
   end if;
   for f in select * from (values
       ('public.zella_end_user_sessions(uuid)', '6f2b8fb98e67992744046a81ff295d9f'),
-      ('public.zella_revoke_my_other_sessions()', 'c69e201b64008fc9ecb967b83d537738')) v(sig, want) loop
+      ('public.zella_revoke_my_other_sessions()', 'e3773f5cab852656cc8d834f5a660302')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
@@ -46,6 +46,8 @@ declare v_uid uuid := auth.uid(); v_sid text := auth.jwt() ->> 'session_id'; n i
 begin
   if v_uid is null then raise exception 'NOT_SIGNED_IN'; end if;
   if v_sid is null or v_sid !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then raise exception 'NO_SESSION'; end if;
+  -- the calling session must be one of this person's live sessions, or nothing is ended
+  if not exists (select 1 from auth.sessions where id = v_sid::uuid and user_id = v_uid) then raise exception 'NO_SESSION'; end if;
   delete from auth.sessions where user_id = v_uid and id <> v_sid::uuid;
   get diagnostics n = row_count;
   insert into public.audit_logs (user_id, action, entity_type, new_data)

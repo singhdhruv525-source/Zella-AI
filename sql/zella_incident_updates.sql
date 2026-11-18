@@ -2,8 +2,9 @@
 -- problem (docs/ADMIN_AUDIT_2026-11-16.md OPS-12, OPS-11).
 --   1. platform_incident_updates: a timeline of progress notes on an incident. Internal: read by admins who can see
 --      incidents (businesses.view), written only through zella_incident_post_update.
---   2. zella_incident_post_update(incident, body, notify): support.manage. Business owners are told again ONLY when
---      notify is true ("Tell affected businesses", off by default: routine notes never message owners). Audited as
+--   2. zella_incident_post_update(incident, body, notify): support.manage. The owners of every active business are told
+--      ONLY when notify is true ("Tell all active businesses", off by default: routine notes never message owners).
+--      Incidents don't record which businesses they affect, so the notice goes to all active businesses. Audited as
 --      platform.incident_updated.
 --   3. zella_incident_edit(incident, title, detail): support.manage, open incidents only; audited as
 --      platform.incident_edited with before and after. Nobody is notified.
@@ -24,15 +25,18 @@ begin
      or to_regprocedure('public.zella_notify_owners(uuid,text,text,text,text,text)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing (apply sql/zella_admin_permissions.sql first)';
   end if;
-  if to_regclass('public.platform_incident_updates') is not null and not exists (
-       select 1 from information_schema.columns where table_schema = 'public' and table_name = 'platform_incident_updates' and column_name = 'notified_businesses') then
+  -- a table already there must be exactly this file's (same columns and types), or nothing is installed against it
+  if to_regclass('public.platform_incident_updates') is not null and (
+       select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns
+        where table_schema = 'public' and table_name = 'platform_incident_updates')
+     is distinct from 'body text, created_at timestamp with time zone, created_by uuid, id uuid, incident_id uuid, notified_businesses integer' then
     raise exception 'VERSION_MISMATCH: a different platform_incident_updates table already exists';
   end if;
   for f in select * from (values
       ('public.zella_incident_post_update(uuid,text,boolean)', '1ecc82de3e0ecb6f1538033985357075'),
       ('public.zella_incident_edit(uuid,text,text)', 'e0215d925eed949c81af4ee8d21ac576'),
       ('public.zella_incident_title_key(text)', '4980429f996f03a32006003ada23cad3'),
-      ('public.zella_open_incident_checked(text,text,boolean)', '4e398548b0542d880d50cf8beb377d2a')) v(sig, want) loop
+      ('public.zella_open_incident_checked(text,text,boolean)', '60baa4d2414a8001635ead319ee6b4e2')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
@@ -74,9 +78,11 @@ begin
   if not public.zella_admin_can('support.manage') then raise exception 'NOT_ALLOWED'; end if;
   if length(btrim(coalesce(p_title, ''))) < 3 then raise exception 'TITLE_REQUIRED'; end if;
   if not coalesce(p_force, false) then
+    -- one check at a time, so two admins opening the same problem at once can't both pass the check
+    perform pg_advisory_xact_lock(hashtext('zella_open_incident_checked'));
     select jsonb_agg(jsonb_build_object('id', i.id, 'title', i.title, 'created_at', i.created_at) order by i.created_at desc) into v_similar
       from public.platform_incidents i
-     where i.status = 'open' and length(v_key) > 0
+     where i.status = 'open' and length(v_key) > 0 and length(public.zella_incident_title_key(i.title)) > 0
        and (public.zella_incident_title_key(i.title) = v_key
             or position(v_key in public.zella_incident_title_key(i.title)) > 0
             or position(public.zella_incident_title_key(i.title) in v_key) > 0);

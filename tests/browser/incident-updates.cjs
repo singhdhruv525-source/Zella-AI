@@ -1,4 +1,4 @@
-// OPS-12 and OPS-11: incident updates (internal unless Tell affected businesses is ticked), editing an open incident,
+// OPS-12 and OPS-11: incident updates (internal unless Tell all active businesses is ticked), editing an open incident,
 // the similar open incident warning, dialogs instead of browser prompts (no prefilled public text), and Load more.
 // Real browser against the local stand in over an ISOLATED test database with sql/zella_admin_permissions.sql and
 // sql/zella_incident_updates.sql applied. Desktop (1440x900) and phone (390 wide). Nothing is sent.
@@ -46,10 +46,10 @@ const notices = (kind) => Number(k.sql(`select count(*) from public.staff_notifi
     await p.waitForSelector("text=Update posted. No owner was told.");
     k.check(`${tag}: an update is internal by default`, notices("incident_update") === before);
     await li.locator(`input[aria-label="Update for ${title}"]`).fill("Messages are flowing again");
-    await li.locator("text=Tell affected businesses").click();
+    await li.locator("text=Tell all active businesses").click();
     await li.locator('button:has-text("Post update")').click();
     await p.waitForSelector("text=Update posted and owners told.");
-    k.check(`${tag}: with Tell affected businesses ticked, owners are told`, notices("incident_update") > before, `${before} to ${notices("incident_update")}`);
+    k.check(`${tag}: with Tell all active businesses ticked, owners are told`, notices("incident_update") > before, `${before} to ${notices("incident_update")}`);
     await p.waitForSelector("text=Messages are flowing again");
     // edit
     await li.locator('button:has-text("Edit")').click();
