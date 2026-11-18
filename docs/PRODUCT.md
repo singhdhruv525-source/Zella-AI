@@ -188,6 +188,7 @@ authentication Zella Voice requires (see `docs/MEMORY.md`). Live assistants are 
 | Transfers to a person | Only to numbers this business authorised, using the on-call rota after hours. A failed transfer becomes a callback. | Built |
 | Requests a follow-up | Creates a callback or task instead of promising something it can't do. | Built |
 | Looks up an order (E-commerce) | Shopify order status with assurance levels: what can be said depends on how sure we are the caller is the customer. Lookups are limited per call and caller. | Built |
+| Checks who is calling before sharing or changing a booking | Appointment details only after the caller gives the name on the booking and the date, from the number it was made with. Cancelling or moving needs the booking's 6 character confirmation code, which is in every confirmation and reminder and on the booking in the CRM. Three failed checks in a call and it takes a message instead. A new email or phone for a known caller waits on the customer's page for the team to approve. | Built, not live (`sql/zella_caller_verification.sql` not applied) |
 | Screens spam | Risky callers are scored and screened before tools run. | Built |
 | Records the call | Status updates in order, then an end-of-call report with outcome and summary. | Built |
 
@@ -532,7 +533,6 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |
 | Meta channels in launch scope | Owner and counsel (D-39) |
 | Calendar providers at launch | Owner (D-08) |
-| Caller verification for booking changes by phone | Owner (D-18) |
 | Push notification provider | Owner (D-40) |
 | Self check-in | Later (D-15) |
 | Call recording | Legal review (D-13) |

@@ -181,7 +181,11 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     ]);
     // Texts, emails and record changes come from the server timeline (calls, appointments and the rest are loaded above).
     const tlRes = await supabase.rpc("zella_customer_timeline", { p_business_id: workspace.id, p_customer_id: personId, p_limit: 100 });
+    // Contact changes a caller asked for by phone wait here for the team (optional: none before the update is applied).
+    const pendRes = await supabase.from("customer_pending_changes").select("id, field, new_value, created_at").eq("business_id", workspace.id)
+      .eq("customer_id", personId).eq("status", "pending").order("created_at");
     return {
+      pending: pendRes.error ? [] : pendRes.data ?? [],
       person: row, calls: orThrow(calls), appts: orThrow(appts), convos: orThrow(convos), follows: followRes.error ? [] : (followRes.data ?? []),
       cbs: cbRes.error ? [] : cbRes.data ?? [], tasks: taskRes.error ? [] : taskRes.data ?? [], staff: staffRes.error ? [] : staffRes.data ?? [],
       records: recRes.error ? [] : recRes.data ?? [], recordTypes: typeRes.error ? [] : typeRes.data ?? [], recordsFailed: Boolean(recRes.error),
@@ -240,6 +244,16 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     refresh();
   }
 
+  async function decide(id, approve) {
+    setBusy(true);
+    setError("");
+    const { error: failure } = await supabase.rpc("zella_customer_pending_change_decide", { p_id: id, p_approve: approve });
+    setBusy(false);
+    if (failure) return setError(friendly(failure));
+    onNotice?.(approve ? "Change approved." : "Change rejected.");
+    refresh();
+  }
+
   const person = data?.person;
   const name = person ? personName(person) ?? "Unnamed" : "Loading…";
   const openCalls = (data?.calls ?? []).filter(isOpenEscalation);
@@ -294,6 +308,18 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
               </div>
             )}
             {person.do_not_contact && <div className="ba-banner error">This person asked not to be contacted.</div>}
+            {workspace.role !== "viewer" && data.pending.map((c) => (
+              <div key={c.id} className="ba-banner alert" role="status">
+                <span>
+                  <strong>Check this change.</strong>{" "}
+                  A caller on this number asked to change the {c.field === "email" ? "email" : "phone number"} to {c.new_value} ({timeAgo(c.created_at)}). Nothing has been changed yet.
+                </span>
+                <span className="ba-row-actions">
+                  <button type="button" className="ba-btn primary sm" disabled={busy} onClick={() => decide(c.id, true)}>Approve</button>
+                  <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => decide(c.id, false)}>Reject</button>
+                </span>
+              </div>
+            ))}
 
             <div className="ba-profile-top">
               <div className="ba-avatar">{initials(name)}</div>

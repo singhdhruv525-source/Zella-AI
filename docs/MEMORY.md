@@ -144,6 +144,10 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
+  confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed
+  checks per call; a known caller's new email or phone waits for staff. Built in `sql/zella_caller_verification.sql`
+  (branch `claude/security-fixes`), not applied.
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.

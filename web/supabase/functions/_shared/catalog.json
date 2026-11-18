@@ -90,6 +90,8 @@
     "consent_recorded": "Recorded consent",
     "consent_revoked": "Revoked consent",
     "customer.added": "Added customer",
+    "customer.contact_change_approved": "Approved contact change asked for by phone",
+    "customer.contact_change_rejected": "Rejected contact change asked for by phone",
     "customer.merged": "Merged customers",
     "customer.updated": "Updated customer",
     "customer_data_exported": "Exported customer data",
