@@ -105,6 +105,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 ## 4. Open problems
 
+- **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
+  CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
+  **report only** until a release runs without reports, then rename the header to `Content-Security-Policy`. Live
+  headers not checked yet (this session can't reach app.zellavoice.com): check with `curl -I` after the next deploy.
+
 - **Client IP behind Supabase's gateway (security audit M10, Suspected):** `_shared/client_ip.ts` now uses
   `cf-connecting-ip`, else the last `x-forwarded-for` value, never the caller-written first one (website-lead,
   reschedule-appointment, owner-provision-business audit rows). Not confirmed on the live gateway: deploy a test function
