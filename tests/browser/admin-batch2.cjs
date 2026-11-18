@@ -397,6 +397,14 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.click("[data-wizard=industries-failed] button:has-text('Retry')"); await p.waitForSelector("h1:has-text('Create a business')");
     check(log.n.dashboard_data === 2, "B2-08 Retry loads the list and opens the wizard");
     await ctx.close(); }
+  { const { ctx, p } = await open(b, { dashboard_data: () => ({ json: { businesses: [] } }) });
+    await p.goto(BASE + "/businesses/new"); await p.waitForSelector("[data-wizard=industries-failed]");
+    check(!(await p.isVisible("h1:has-text('Create a business')")), "B2-08 an answer without an industry list is a failure, not an empty list");
+    await ctx.close(); }
+  { const { ctx, p } = await open(b, { dashboard_data: () => ({ json: { businesses: [], industries: [] } }) });
+    await p.goto(BASE + "/businesses/new"); await p.waitForSelector("h1:has-text('Create a business')");
+    check(true, "B2-08 an empty industry list is a real answer: the wizard opens");
+    await ctx.close(); }
 
   await b.close();
   console.log(`\n${pass} passed, ${fail} failed`);

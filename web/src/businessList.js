@@ -62,8 +62,9 @@ export function readList(data) {
 // The fallback: dashboard_data's unpaged list, shaped like businesses_list rows and filtered, sorted and paged here.
 // Plans, problems and last calls are unknown (undefined), so they read "Not available", never "none".
 export function legacyList(data, search, f, page) {
-  if (!data || !Array.isArray(data.businesses)) throw new Error("The server's answer couldn't be read. Try again.");
-  const industries = Array.isArray(data.industries) ? data.industries : [];
+  // as with readList, a missing industry list is unreadable, never "no industries"
+  if (!data || !Array.isArray(data.businesses) || !Array.isArray(data.industries)) throw new Error("The server's answer couldn't be read. Try again.");
+  const industries = data.industries;
   const nameOf = new Map(industries.map((i) => [i.id, i.name]));
   const all = data.businesses.map((b) => {
     const state = businessState(b);

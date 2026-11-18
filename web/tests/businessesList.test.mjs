@@ -120,6 +120,7 @@ test("only an older server's Unknown action falls back; an odd answer is an erro
   assert.throws(() => readList({}), /couldn't be read/);
   assert.throws(() => readList({ rows: [] }), /couldn't be read/);
   assert.throws(() => readList({ rows: [], total: 0 }), /couldn't be read/, "a missing industry list is unreadable, not an empty one");
+  assert.throws(() => legacyList({ businesses: [] }, "", EMPTY_FILTERS, 0), /couldn't be read/, "the older list without industries is unreadable too");
   const ok = readList({ rows: [{ id: "a" }], total: 30, page: 1, industries: [], stats: { totalBusinesses: 30 }, unavailable: ["lastCalls"] });
   assert.deepEqual([ok.mode, ok.total, ok.page, ok.unavailable], ["server", 30, 1, ["lastCalls"]]);
 });

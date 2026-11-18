@@ -124,7 +124,9 @@ export default function OwnerDashboard({ onSignOut }) {
     try {
       const data = await callOwnerFunction("dashboard_data");
       if (epoch !== industryEpoch.current || request !== industryRequest.current) return;
-      setIndustries(Array.isArray(data.industries) ? data.industries : []);
+      // an answer without an industry list can't be read: never treat it as "no industries" (an empty list is real)
+      if (!Array.isArray(data?.industries)) throw new Error("The industry list couldn't be read. Try again.");
+      setIndustries(data.industries);
       setIndustryError("");
       setIndustriesLoaded(true);
     } catch (error) {
