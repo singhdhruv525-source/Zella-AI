@@ -109,10 +109,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 |---|---|---|
 | **Vapi call authentication.** Vapi sends some messages (call status, end-of-call reports) without the Authorization header, so `voice-rules` answers 401. The test assistant was reloaded with the token in every server's headers on 30 Oct. | Open | Owner test-calls the test assistant, then checks `voice-rules` logs. Real assistants need the headers sent from the server side, with approval. |
 | **Edge functions and n8n behind `main`** | Open | Deploy from `main` with approval. |
+| **Call recording is decided by Vapi's default** (16 Nov 2026): Zella Voice's assistant config never sets Vapi's recording option, so whether calls are recorded is left to Vapi's default, although recording must stay off until legal review (D-13, D-27, REQ-VOX-09). | Open, owner | Owner checks the Vapi dashboard now (recording setting on the account and each assistant). A fix on the live call path (setting recording off explicitly in the assistant config) needs its own approval. |
 | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:9123bd8d8797eb6c820594101faae82df3c1e7e1894bae6c11114bfbf409fc5f --> **Owner invitations without the app address** (`docs/ADMIN_AUDIT_2026-11-16.md` BIZ-01). Current invitationResend and the setup-finish send plan reject an unusable ZELLA_APP_URL with 503 before changing state or sending an invitation. <!-- /coderabbit-ai-generated:v1 --> | Open | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:7c407862abe286bb2872c7e7bf19ce759aff5483cd9bb2bd5a75d6dd5933192c --> Verify production deployment and live ZELLA_APP_URL configuration, then confirm the deployed revision refuses before changing state or sending. These remain unresolved. <!-- /coderabbit-ai-generated:v1 --> |
 | **Admin panel audit** (16 Nov 2026): 210 items across every admin page, 16 of them P1, with a page by page section and a build checklist, in `docs/ADMIN_AUDIT_2026-11-16.md`. Evidence: code review, a local browser crawl and visual pass on the isolated database, and read only production checks. | Open | Owner picks the order; the audit suggests one (permissions first, then sign in, invitations and lifecycle). |
 | **Scheduled cancellations** (BIZ-03, 16 Nov 2026): the daily job only marked a business cancelled and left its AI receptionist on and its subscription active; the full cancellation ran only when an admin opened Overview or Businesses. `sql/zella_cancellations_scheduled.sql` makes the scheduled path do the full cancellation, hourly. | Built, not applied | Apply with the owner's approval; it acts only once `zella_jobs_hourly` or `zella_jobs_daily` is switched on. Then remove the page open fallback from owner-provision-business. |
-| **Owner onboarding journey** (owner, 16 Nov 2026): after the admin dashboard work, an owner opens the invitation link, sets a password and two step sign in, checks the details the admin entered step by step, verifies their identity (provider to decide; Persona recommended), sees their plan, pays (Stripe), then goes live. Screens and checklist in `docs/ADMIN_AUDIT_2026-11-16.md`, add on task. | Planned | Owner decides the identity provider, plan choice, first payment and failed check rules; then build after the admin dashboard items. |
+| **Owner onboarding journey** (owner, 16 Nov 2026): after the admin dashboard work, an owner opens the invitation link, sets a password and two step sign in, checks the details the admin entered step by step, verifies their identity (provider to decide; Persona recommended), sees their plan, pays (Stripe), then goes live. Screens and checklist in `docs/ADMIN_AUDIT_2026-11-16.md`, add on task. | Server side built, not applied (16 Nov 2026): `sql/zella_owner_onboarding.sql`, the `owner-onboarding` and `identity-webhook` edge functions, contract `docs/OWNER_ONBOARDING_CONTRACT.md`; tested on the isolated database and the local stand in only. Screens built separately (`claude/owner-onboarding-screens`). | Owner approves the four defaults below (or changes one, a one line change in `zella_onboarding_rules()`), then applies the migration and deploys both functions with the screens. Stripe Checkout and the payment webhook, and the Persona connection, are still to build. Note: once applied, a business that isn't live can't go live until identity is verified and a provider confirmed payment exists. |
 | **Repo build vs production drift.** The isolated build from the repo differs from production in a few places: production is stricter on execute grants for `zella_arrival_window`, `zella_booking_choices` and `zella_capability_on` (server only) and `zella_cross_sell_ideas` (signed in, not anon); `zella_session_proved_email` is security definer in production; production has `zella_audit_privileged_trg` on `platform_admins`; and the repo build keeps an old `zella_calendar_connect(uuid,text,text,text)` that production dropped. | Open | Bring the repo build in line with production (a test-only change to the builder, or a new migration if the repo is right). |
 | Database test scripts outside the isolated test server: most are guarded through `build_full.sh` or `sql/baseline/restore.sh` (checked 13 Nov 2026); `tests/features/run.sh` and the three in `tests/voice-reliability/` now use `tests/lib/zpsql.sh` and the guard (G-10) | Fixed in PR #60 | — |
 | `tests/voice-reliability/run_all.sh` (and `tests/features/run.sh`, which needs its database) is out of date: it checks its build against production's function bodies of 28 Oct, and five have changed since, so it fails on `main` before any test runs | Open | Refresh the snapshot from production (read-only) and the build scripts, or retire the suite in favour of `tests/deploy/run_all.sh` and `tests/calls/run.sh`. |
@@ -151,6 +152,22 @@ most often needed:
   workflow and node names and internal reason codes (only admins see them in n8n; renaming means a re-import).
   The industry "E-commerce" is shown as "Ecommerce".
 
+- **Owner onboarding defaults (16 Nov 2026, taken at the recommended answers until the owner decides; one server
+  constant, `zella_onboarding_rules()` in `sql/zella_owner_onboarding.sql`):** identity by manual upload, checked by
+  Zella Voice in Verification, with a provider neutral receiver ready for Persona and off (`identity_provider` = `none`);
+  the owner accepts the plan Zella Voice set, no switching (`accept_only`); a confirmed payment before going live
+  (`pay_before_live`); after a failed check the owner tries again, and after 2 failed checks Zella Voice reviews it by
+  hand (`retry_then_review`, `identity_attempts` = 2). Only Zella Voice admins with `businesses.view` and the
+  business's owner can read the progress; other team members can't. The owner's calls are database functions (the
+  rules live in the database, NN-6); only the document upload is an edge function, because it needs the server key.
+
+- **Reference fixture (UI-35, owner, 16 Nov 2026):** local test databases may hold production CONFIGURATION, never
+  customer data: `tests/fixtures/reference_config.sql` (industries, modules, configurations, automation defaults,
+  platform templates, platform settings), copied read only by `tests/fixtures/export_reference.mjs`, which refuses
+  anything off its allowlist. Left out: business rows, template authors (`created_by`), settings ending in `_url`,
+  sender address and number, `vapi_` settings and model settings. Every `_live` switch and `n8n_dispatch_enabled` is
+  off in it. Loaded only by `tests/fixtures/load_reference.sh` (isolated server only); checked by `tests/fixtures/run.sh`.
+
 - **Unsubscribe link limits (G-7, 14 Nov 2026):** limits are per link only, never platform-wide or per address (a burst
   of genuine opt-outs after a big email must never be refused), and the limit never stops an opt-out.
 
@@ -167,17 +184,43 @@ most often needed:
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
 
+- **Owner decisions of 16 Nov 2026** (architecture §23.1a, and where each requirement lives):
+  1. **Growth page (REQ-ADM-18, ACC-36): later**, not before launch. `growth.manage` doesn't exist yet and is not
+     listed as an existing permission (`docs/PRODUCT.md`).
+  2. **One platform wide default receptionist script (AI-GLOBAL-PROMPT): later.** Each business keeps its own script.
+  3. **Weekly platform summary report for admins: yes**, being built in `claude/weekly-admin-report`.
+  4. **Billing emails: build now**, held (nothing queued or sent) until Stripe and email are both live (architecture
+     §14.4, `docs/BILLING_EMAILS.md`).
+  5. **Audit history is never deleted with a business (ACC-10):** `audit_logs` keeps its rows with `business_id` set to
+     null, and the row recording the deletion keeps the business id and name (architecture §7, §20, §29). Needs a
+     migration (today the foreign key cascades); not built yet.
+  6. **Production configuration, never customer data, may be copied read only into test fixtures**, through an
+     allowlist of tables and columns (UI-35, architecture §21).
+  7. **Pay before go live applies only once Stripe is live**; until then the go live gate doesn't wait for payment
+     (REQ-LC-14, REQ-BIL-29).
+  8. **No public API, API keys or outgoing webhooks:** already recorded in PR #91 (the bullet below, architecture §36).
+
 - **No public API or outgoing webhooks (owner, 16 Nov 2026):** businesses get the Zella Voice CRM and the connections
   Zella Voice builds, nothing more. Don't build API keys, `/api/v1` endpoints or outgoing webhooks (architecture §36,
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
+
+- **CodeRabbit review routine (owner, 17 Nov 2026):** CodeRabbit reviews a PR in full once, when it opens. Later
+  pushes (merges of main, fixes) are reviewed only when someone comments `@coderabbitai review`, and the author must
+  request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
+  `docs/BACKEND_SCHEMA.md` is not reviewed, because it is generated; every schema change must still regenerate it with
+  `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
+  from the one account. Draft PRs get no review when they open (`drafts: false`): when a draft is marked ready for review, comment
+  `@coderabbitai review` to start the first review.
 
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
 - whether to remove the never-used super-admin account that looks like a typo;
 - the trademark check for "Zella Voice";
-- an Anthropic key for knowledge drafting, when the budget allows.
+- an Anthropic key for knowledge drafting, when the budget allows;
+- for pay before go live, once Stripe is live: whether a business on a trial goes live on its confirmed saved card
+  trial setup (REQ-BIL-12) instead of a first payment.
 
 ## 6. Lessons learnt (don't repeat these)
 

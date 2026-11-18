@@ -15,16 +15,23 @@ Never point any of this at production.
 
 ## Set up (once per machine)
 
-1. Start an isolated Postgres 16, then restore it with the security migrations:
+1. Start an isolated Postgres 16 and build the crawl database. `crawl-db.sh` copies an isolated copy of the
+   production schema (`TEMPLATE`, default `zprod3`; `zfull` from `tests/lib/build_full.sh` also works) and loads the
+   reference configuration into it:
 
    ```bash
-   sql/baseline/restore.sh zella_ui sql/zella_invitation_hardening.sql sql/zella_billing_hardening.sql \
-     sql/zella_mfa_enforcement.sql sql/zella_platform_roles_fix.sql sql/zella_platform_alerts_policy_fix.sql \
-     sql/zella_admin_mfa.sql
+   tests/browser/crawl-db.sh zella_ui
+   # industries=28 modules=280 platform_templates=56 configurations=28 automation_defaults=191 live_switches_on=0
    ```
 
 2. Load the test data:
-   - **Reference data:** industries, industry modules, presets, Zella's own message templates and offer rules. These are configuration rows, not customer data. Copy them read-only from the project, or load them from `sql/zella_industries_seed.sql` and the preset files.
+   - **Reference data** (loaded by step 1): `tests/fixtures/reference_config.sql`, production CONFIGURATION copied
+     read only (UI-35): industries, industry modules, industry configurations, automation defaults, Zella Voice's own
+     message templates (platform templates only, never a business's) and platform settings. No customer data, no
+     links, no sender addresses or numbers, no voice provider ids, no model ids; every `*_live` switch and
+     `n8n_dispatch_enabled` is off. Load it into any other test database with `tests/fixtures/load_reference.sh <db>`
+     (isolated server only; it refuses anything else). To refresh it from production, see the header of
+     `tests/fixtures/export_reference.mjs`; `tests/fixtures/run.sh` checks the result.
    - **Test people:** `admin@zella.test` (zella_owner), `readonly@zella.test` (read_only_admin), `owner@glow.test` (owner of two businesses), `staff@glow.test`, `viewer@glow.test`. Every test password is `Test-pass-1`. These accounts exist only in the isolated database.
 
 3. Start the backend and the functions:
@@ -64,6 +71,7 @@ Never point any of this at production.
 | `wizard-journey.cjs` | The setup wizard: no skipping, unsaved changes (Save / Discard / Stay, focus trap), leaving and reloading, double-click, checkmarks from saved data, server-side finish checks, owner versus staff invitation. |
 | `ui-journeys.cjs` | Template and customer-search scoping across two businesses, appearance save failure and retry, a reload during a pending save, the icon font blocked, automations with live-shaped data. |
 | `admin-mfa-journey.cjs` | Two step sign in for every admin: an admin without an authenticator gets only their own role from the server and nothing from the database, is walked through setting one up (wrong code refused), lands on the dashboard; the only authenticator can't be removed; the next sign in asks for the code. Needs `sql/zella_admin_mfa.sql` in the test database. |
+| `owner-onboarding-journey.cjs` | The owner onboarding journey (`/welcome/setup`), every screen from Welcome to You're all set, against the stand in api (`web/src/onboarding/fakeApi.js`, built in only with `VITE_ONBOARDING_FAKE=1`), which follows `docs/OWNER_ONBOARDING_CONTRACT.md`: focus on each step's heading, the progress bar, Finish later and resuming, Looks right and Change, the identity states, the plan, the payment waiting screen, not ready and failed loads. Screenshots at 390 wide and 1440x900, Classic and Glass. Needs no database; the header of the script has the build and serve commands. |
 | `brand-check.cjs` | Sidebar logo and default theme: expanded, collapsed, frames during the transition, tablet rail, phone drawer, reduced motion, accessible name, saved looks kept. |
 | `probe.cjs <email> <route> "<js>"` | Opens one page and prints a browser expression (for debugging). |
 

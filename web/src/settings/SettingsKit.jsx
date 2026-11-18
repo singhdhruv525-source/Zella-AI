@@ -138,13 +138,15 @@ export function useForm(initial) {
       });
       setStatus({ text: message, error: "" });
     } catch (err) {
+      // A save made of several requests can fail partway: what the server already stored counts as saved.
+      if (err?.acknowledged && typeof err.acknowledged === "object") setSaved((s) => ({ ...s, ...err.acknowledged }));
       setStatus({ text: "", error: err?.message || String(err) });
     } finally {
       setBusy(false);
     }
   }
   const cancel = () => { setValues(saved); setStatus({ text: "", error: "" }); };
-  return { values, setValues, set, dirty, busy, status, save, cancel };
+  return { values, setValues, set, dirty, busy, status, save, cancel, saved };
 }
 
 export function SaveBar({ form, onSave, disabled, label = "Save changes" }) {
@@ -157,6 +159,76 @@ export function SaveBar({ form, onSave, disabled, label = "Save changes" }) {
       </span>
       <button type="button" className="zs-btn" onClick={form.cancel} disabled={!form.dirty || form.busy}>Cancel</button>
       <button type="button" className="zs-btn primary" onClick={onSave} disabled={!form.dirty || form.busy || disabled}>{form.busy ? "Saving…" : label}</button>
+    </div>
+  );
+}
+
+// One setting as a compact row: the label and help on the left, the control on the right. The setting key goes in a
+// "Technical details" disclosure instead of under every label. `unavailable` shows a neutral badge in place of the
+// control (the database update that adds the setting hasn't been applied).
+export function SettingRow({ label, help, technical, unavailable, children }) {
+  return (
+    <div className="zs-row">
+      <div className="zs-row-text">
+        <span className="zs-row-label">{label}</span>
+        {help && <small className="zs-row-help">{help}</small>}
+        {technical && (
+          <details className="zs-tech">
+            <summary>Technical details</summary>
+            <div>{technical}</div>
+          </details>
+        )}
+      </div>
+      <div className="zs-row-control">
+        {unavailable ? <Pill>Not available yet</Pill> : children}
+      </div>
+    </div>
+  );
+}
+
+// How many values in a form differ from what was saved.
+export function changedCount(form) {
+  const saved = form.saved ?? {};
+  return Object.keys(form.values).filter((k) => JSON.stringify(form.values[k]) !== JSON.stringify(saved[k])).length;
+}
+
+// One save bar per section, sticky at the bottom of the card. It appears only once something changed (or to say the
+// save worked or failed): "2 unsaved changes", Discard, Save.
+export function SectionSaveBar({ form, onSave, disabled, label = "Save" }) {
+  const count = changedCount(form);
+  const message = form.status.error || (!form.dirty && form.status.text);
+  if (!form.dirty && !message) return null;
+  return (
+    <div className="zs-sectionbar" role="region" aria-label="Unsaved changes">
+      <span className="zs-sectionbar-state">
+        {form.status.error ? <span className="zs-error-text" role="alert">{form.status.error}</span>
+          : form.dirty ? `${count || 1} unsaved ${count === 1 ? "change" : "changes"}`
+            : <span role="status">{form.status.text}</span>}
+      </span>
+      {form.dirty && (
+        <>
+          <button type="button" className="zs-btn sm" onClick={form.cancel} disabled={form.busy}>Discard</button>
+          <button type="button" className="zs-btn sm primary" onClick={onSave} disabled={form.busy || disabled}>{form.busy ? "Saving…" : label}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Settings that exist in the app but not yet in the database, said once at the top instead of one warning per row.
+export function MissingSettings({ items }) {
+  if (!items?.length) return null;
+  const count = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"][items.length] ?? String(items.length);
+  return (
+    <div className="banner-info zs-missing" role="status">
+      <Icon name="info" />
+      <div>
+        <strong>{count} {items.length === 1 ? "setting is" : "settings are"} waiting for a database update.</strong>
+        <details>
+          <summary>Show which</summary>
+          <ul>{items.map((i) => <li key={i}>{i}</li>)}</ul>
+        </details>
+      </div>
     </div>
   );
 }

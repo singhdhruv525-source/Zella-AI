@@ -594,12 +594,12 @@ isolated database first.
 - [ ] Invoices (Settings, Invoices: need the provider's invoice events and an invoices table) · after Stripe
 - [ ] Refund requests and approvals (Settings, Refunds) · after Stripe
 - [ ] Charging for extra usage (Settings, Usage limits) · after Stripe
-- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build later)
-- [ ] Billing emails that need Stripe (owner, 16 Nov: build later) · after Stripe
+- [ ] Billing emails to businesses that don't need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
+- [ ] Billing emails that need Stripe (owner, 16 Nov: build now, held until Stripe and email are live)
 
 ### AI agents
 - [ ] Last delivery outcome, not ready count and served version per receptionist, with a deliveries drawer (COM-03) · needs approval
-- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · needs approval
+- [ ] A global default prompt that rolls out to businesses without overwriting their own (Settings, AI agent configuration) · later (owner, 16 Nov 2026)
 - [ ] AI testing and evaluation view with a pass rule (Settings, AI testing) · needs approval
 
 ### Voice and numbers
@@ -623,7 +623,7 @@ isolated database first.
 - [ ] Store and show n8n's response per workflow (OPS-17) · needs approval
 - [ ] "Resume all" for a business (OPS-20) · needs approval
 - [ ] Read n8n's own workflow activation and execution status with a server side key (Scheduler page says it isn't built) · needs approval
-- [ ] Webhook delivery logs, and outbound webhooks for businesses (Settings, Webhooks) · needs approval
+- [ ] Webhook delivery logs (Settings, Webhooks) · needs approval. Outbound webhooks for businesses are not planned (owner, 16 Nov 2026; architecture §36)
 
 ### Support
 - [ ] Reply to the business, alerts for urgent, cancellation and plan change tickets, age and first response with an overdue filter (OPS-25) · needs approval
@@ -634,17 +634,17 @@ isolated database first.
 ### Settings
 - [ ] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
-- [ ] Public API keys with scopes, hashing, last used and revocation (Settings, API management) · needs approval
+- Not planned (owner, 16 Nov 2026; architecture §36): public API keys (Settings, API management)
 - [ ] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval
 - [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval
 
 ### New pages
-- [ ] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36)
+- [x] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36): later (owner, 16 Nov 2026), marked in ARCHITECTURE and PRODUCT
 
 ### Tests and tooling
 - [ ] One shared list of alert kinds, audit actions and permissions, with a test that catches drift (PLT-08)
-- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35)
+- [ ] Reference configuration from production in the test fixtures, no customer data (UI-35): allowed by the owner on 16 Nov 2026, read only, through an allowlist
 - [ ] axe-core in the crawl for an accessibility scan of every page (PLT-06)
 
 ## Add on task: owner onboarding journey (after the admin dashboard work)
@@ -675,13 +675,13 @@ S4 Documents needed, S5 Business verified, S6 Your AI receptionist is live) and 
 Open decisions for the owner:
 - [ ] Identity provider: Persona (owner ID and business registration), Stripe Identity (owner ID only, same vendor as payments), or manual upload for now. Recommended: Persona, keeping manual upload as the fallback.
 - [ ] Plan screen: accept the plan the admin set, or let the owner switch between Base and Pro. Recommended: accept only.
-- [ ] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live.
+- [x] First payment: pay before going live, or a free trial with a saved card. Recommended: pay before going live. Owner, 16 Nov 2026: pay before going live, once Stripe is live; until then the go live gate doesn't wait for payment.
 - [ ] Failed check: retry then manual review, or stop and contact support. Recommended: retry then manual review.
 
 Build checklist (each needs the owner's approval before anything goes live; provider accounts and keys are the owner's):
 - [ ] <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:45f9e623d129dbb0dc5ee8d415c4fef76dbccad3d0bd9b2c4c81b6ece0e0575e --> Prerequisites: BIZ-01 production deployment and live public `ZELLA_APP_URL` verified; BIZ-02 post-sign-in acceptance verified on the deployed revision and Resend wording corrected if still inaccurate; two step sign in in onboarding <!-- /coderabbit-ai-generated:v1 -->
-- [ ] Onboarding progress stored per business (which step, when), shown to admins
+- [x] Onboarding progress stored per business (which step, when), shown to admins: `sql/zella_owner_onboarding.sql` (built, not applied) with `zella_admin_onboarding_overview()` and `_progress(id)`; showing it on the business page is BIZ-12's job (fields in `docs/OWNER_ONBOARDING_CONTRACT.md` section 6)
 - [ ] Screens 1, 2, 3, 5 and 7, with progress bar and Finish later, tested on the isolated database
-- [ ] Screen 4 with the identity provider's sandbox, plus a server function that receives the result (signed, one event once) and the manual fallback in Verification
+- [ ] Screen 4 with the identity provider's sandbox, plus a server function that receives the result (signed, one event once) and the manual fallback in Verification. Server side built, not applied: the receiver `identity-webhook` (signed, one event once, off), the manual upload `owner-onboarding` and the Verification fallback; the provider's sandbox isn't connected
 - [ ] Screen 6 once the owner decides the first payment rule and Stripe Checkout and the payment webhook are built
-- [ ] Go live only after verification and the activation checklist pass, plus confirmed payment or saved-card trial setup according to the owner's decision
+- [x] Go live only after verification and the activation checklist pass, plus confirmed payment or saved-card trial setup according to the owner's decision: built, not applied, for the default "pay before going live" (`zella_activation_report` and `zella_request_activation` in `sql/zella_owner_onboarding.sql`); the saved card trial setup isn't built and counts as not confirmed

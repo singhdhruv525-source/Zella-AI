@@ -73,9 +73,29 @@ The public link pages:
 | `/u/<code>` Unsubscribe | Stop emails from that one business. If the link was opened very often in a few minutes, the page can't show the business name for a while, but the Unsubscribe button still works (opt-out always wins). |
 | `/status` | The Zella Voice service status and public incidents. It says "Everything is working" only when every part is checked and working; while any part isn't checked it says "Not every part is checked right now", and reminders and follow ups read Working only while the dispatch job is on and running (`sql/zella_status_honest.sql`, built, not applied). |
 | `/continue-plan` | An owner who scheduled a cancellation keeps their plan, from the email link. |
-| `/welcome` | Accepting an invitation and finishing sign-in from an email link. |
+| `/welcome` | Accepting an invitation and finishing sign-in from an email link. A business owner invited by the Zella Voice team goes on to the onboarding journey (below) when the server has one waiting; everyone else keeps the plain password page. |
+| `/welcome/setup` | The owner onboarding journey (§8.8). Needs the owner's own sign in. |
 
 A malformed private link shows a "this link isn't valid" page, never the admin sign-in.
+
+**Owner onboarding journey** (from the `/welcome` link; contract `docs/OWNER_ONBOARDING_CONTRACT.md`). The server side
+is **built, not applied** (`sql/zella_owner_onboarding.sql`, the `owner-onboarding` and `identity-webhook` edge
+functions; nothing deployed); the screens are being built separately. Progress is saved per business after every
+step, and "Finish later" brings the owner back to the same step.
+
+| # | Step | What the server does now | Status |
+|---|---|---|---|
+| 1 | Welcome | Shows the business name and the steps | Built, not applied |
+| 2 | Password and two step sign in | Done only when the account has a password and a verified authenticator and the session was verified with a code, read from the auth records | Built, not applied |
+| 3 | Check your details | Business, hours and services, team, AI receptionist and phone, each "Looks right" or "Change" with a note. A note reaches Zella Voice as an admin alert; once the change is made the owner checks that section again. A section that changed after "Looks right" asks again | Built, not applied |
+| 4 | Verify your identity | Manual upload: the owner uploads their ID and business registration; Zella Voice checks them in Verification. Shows Documents needed, Checking, Verified, Try again (a rejected document, upload a new copy) or In review (after 2 failed checks Zella Voice reviews it by hand). The owner can't pass until it is verified. A provider (Persona) can be connected later; its receiver is built and off | Partial: manual path built, not applied; provider not connected |
+| 5 | Your plan | Shows the plan Zella Voice saved for the business (price, minutes, texts, emails, seats, numbers); the owner accepts it. No switching | Built, not applied |
+| 6 | Pay or start a trial | Shows "waiting": payments aren't connected (Stripe Checkout isn't built). Opens only after identity is verified | Partial: waiting only |
+| 7 | You're all set | Records the end of the journey; the CRM's go live checks follow | Built, not applied |
+
+Going live now also needs the owner's identity verified and a confirmed first payment, in both the CRM's checklist and
+the server's own go live check (built, not applied). Admins see each business's step through
+`zella_admin_onboarding_overview()` and `zella_admin_onboarding_progress(id)`; the business page doesn't show it yet.
 
 ## 5. Status words used in this document
 
@@ -293,6 +313,31 @@ the same rules; hiding an item is never the protection.
 
 Multi-factor sign-in is enforced on the server for the roles that require it. Every Zella Voice admin must use two step sign in (an authenticator app): an admin without one is walked through setting it up at sign in, can't use any page until then, and can't remove their only authenticator (built, not live: needs the web app, `owner-provision-business` and `sql/zella_admin_mfa.sql`, in that order).
 
+### 8.8 Owner onboarding journey
+
+What a business owner sees after opening their invitation, at `/welcome/setup` (`web/src/onboarding/`). The server
+side is described in `docs/OWNER_ONBOARDING_CONTRACT.md` (built on its own branch, not applied or deployed); the
+screens call only what it lists and the database decides every rule. Every screen has a progress bar (step n of 7),
+Finish later (the owner comes back to the same step, from the email link or from a "Finish setting up" banner in the
+CRM), loading, error, empty and "This step isn't ready yet" states, a phone first layout, the Classic and Glass looks,
+and focus moving to each new step's heading. The CRM banner shows nothing if it fails to load. If the password saves but
+reading the next step fails, trying again (or Carry on now after Finish later) reads the step again without saving the
+password a second time.
+
+| # | Screen | What the owner does | Status |
+|---|---|---|---|
+| 1 | Welcome | Sees their business name and the steps ahead | Screens built (not deployed); need the onboarding database functions |
+| 2 | Password and two step sign in | Chooses a password, then adds an authenticator app (the same set up calls as the admin sign in, through the shared `AuthenticatorSetup` component) | Screens built (not deployed) |
+| 3 | Check your details | Reviews business, hours and services, team, and AI receptionist and phone, one part at a time, with Looks right or Change; Change sends a note to the Zella Voice team, who make the change and send it back to check | Screens built (not deployed) |
+| 4 | Verify your identity | Uploads their photo ID and business registration (manual upload, checked by Zella Voice in Verification); sees Documents needed, Checking, Verified, Try again or In review | Screens built (not deployed); needs the `owner-onboarding` edge function for uploads. No identity provider is chosen (owner decision open); the screen has one place reserved for a provider's widget |
+| 5 | Your plan | Sees the plan, price and allowances exactly as the admin saved them, and accepts it (no switching) | Screens built (not deployed) |
+| 6 | Pay | Sees "Payment opens here soon": payments aren't connected. "Payment received" shows only when the server confirms a payment | Waiting state built; paying needs Stripe Checkout (step 4 of billing) |
+| 7 | You're all set | Sees what happens next (test call, go live checks from the server) and opens their CRM | Screens built (not deployed) |
+
+Tested locally only: unit tests of the step rules (`web/tests/ownerOnboarding.test.mjs`) and a browser walk through
+every screen against a stand in that follows the contract (`tests/browser/owner-onboarding-journey.cjs`). The stand in
+(`web/src/onboarding/fakeApi.js`) is built in only with `VITE_ONBOARDING_FAKE=1` and never ships.
+
 ---
 
 ## 9. Platform admin (Zella Voice staff)
@@ -327,8 +372,9 @@ footer, until the list is scrolled to the end.
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,
 `integrations.manage`, `billing.view/manage`, `plans.manage`, `support.manage`, `security.view/manage`, `audit.view`,
-`analytics.view`, `growth.manage`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
-platform alerts live.
+`analytics.view`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
+platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its `growth.manage` permission come
+later, not before launch (owner, 16 Nov 2026).
 
 ---
 
@@ -465,6 +511,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Item | Waiting on |
 |---|---|
 | Self-service sign-up | Later phase (D-06) |
+| Owner onboarding: Stripe Checkout and the payment webhook (step 6), the identity provider's live connection (step 4) | Build after the owner sets up the Stripe and Persona accounts; the gates and the receiver are built (`sql/zella_owner_onboarding.sql`) |
 | Billing build (plans in the database, usage rules, Billing & Subscription page, Stripe) | Build, in steps (architecture §17); open billing decisions D-45 to D-51 |
 | Two-way AI messaging | Build (architecture §14.3) |
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |

@@ -494,3 +494,19 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/staff-invite/deno.json"
 entrypoint = "./functions/staff-invite/index.ts"
+
+# Owner onboarding, step 4: the owner's new identity document. Checks the owner's own sign in through the database
+# (zella_owner_identity_upload_check) itself, so the gateway check stays off, like staff-invite.
+[functions.owner-onboarding]
+enabled = true
+verify_jwt = false
+import_map = "./functions/owner-onboarding/deno.json"
+entrypoint = "./functions/owner-onboarding/index.ts"
+
+# Identity provider results (Persona later). The provider's signature (IDENTITY_WEBHOOK_SECRET) is the proof; off
+# (503) unless IDENTITY_WEBHOOK_ENABLED is "true" and the database's rule names the provider.
+[functions.identity-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/identity-webhook/deno.json"
+entrypoint = "./functions/identity-webhook/index.ts"
