@@ -274,7 +274,7 @@ the same rules; hiding an item is never the protection.
 
 | Page | What it does | Status |
 |---|---|---|
-| **AI Receptionist > Voice and setup** | Voice, languages, greeting, rules, readiness. | Built |
+| **AI Receptionist > Voice and setup** | Voice, languages, greeting, rules, readiness. Callers always hear that they are speaking with an AI receptionist (added in their language if a custom greeting leaves it out) and, only while recording is on for the business, that the call is recorded; Vapi recording follows the same setting (off) | Built; the disclosure is built, not applied (`sql/zella_call_disclosure.sql`) |
 | **AI Receptionist > Transcripts** | Call transcripts for the roles allowed to see them. | Built |
 | **Call handling rules** | When to transfer, take a message or escalate. | Built |
 | **Knowledge base** | Approved answers, versions and rollback, knowledge gaps to answer, website sources. AI drafting of answers is built, off (`knowledge_ai_live`). | Built |
