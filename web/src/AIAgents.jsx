@@ -225,7 +225,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                     </td>
                     <td className="col-actions">
                       {data?.deliveriesAvailable && (
-                        <button type="button" className="owner-secondary-button op-small ag-action" onClick={() => setDrawer(a)}>
+                        <button type="button" className="owner-secondary-button op-small ag-action" onClick={() => setDrawer({ agent: a, asOf: state.lastOk })}>
                           Calls served
                         </button>
                       )}
@@ -256,7 +256,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         </div>
       </section>
       </>}
-      {drawer && <AgentDeliveries agent={drawer} asOf={state.lastOk} onClose={() => setDrawer(null)} />}
+      {drawer && <AgentDeliveries agent={drawer.agent} asOf={drawer.asOf} onClose={() => setDrawer(null)} />}
     </section>
   );
 }

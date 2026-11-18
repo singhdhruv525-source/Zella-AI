@@ -59,8 +59,8 @@ v=$(as anon "select public.zella_admin_eval_overview()"); [[ "$v" == *"permissio
 v=$(as "$MEMBER" "select count(*) from public.ai_eval_runs"); [[ "$v" == *"permission denied"* || "$v" = 0 ]] && ok "signed in users can't read the runs table directly" || bad "table $v"
 v=$(run "$OWNER" "00000000-0000-0000-0000-000000000000"); [[ "$v" == *BUSINESS_NOT_FOUND* ]] && ok "an unknown business is not found" || bad "unknown $v"
 
+RUNS=$(q "select count(*) from public.ai_eval_runs")   # before the rollback
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_ai_eval_admin_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_ai_eval_admin_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-RUNS=$(q "select count(*) from public.ai_eval_runs")
 [ "$(fp)" = "ai_eval_runs" ] && ok "rollback removes exactly the two functions" || bad "after rollback $(fp)"
 [ "$(q "select count(*) from public.ai_eval_runs")" = "$RUNS" ] && [ "$RUNS" -gt 0 ] && [ "$(q "select relrowsecurity from pg_class where oid = 'public.ai_eval_runs'::regclass")" = t ] \
   && [[ "$(as "$MEMBER" "select count(*) from public.ai_eval_runs")" == *"permission denied"* ]] \

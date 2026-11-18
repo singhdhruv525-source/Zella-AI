@@ -21,7 +21,7 @@ begin
   for a in select definition from public.zella_function_archive where migration = 'zella_industry_data' loop
     execute a.definition;
   end loop;
-  alter table public.industries drop column if exists sensitive, drop column if exists booking_model;
+  alter table public.industries drop column if exists sensitive, drop column if exists booking_model, drop column if exists sensitive_changed_at;
   alter table public.industry_configurations drop column if exists automation_defaults, drop column if exists safety_rules;
   delete from public.zella_function_archive where migration = 'zella_industry_data';
 end $$;

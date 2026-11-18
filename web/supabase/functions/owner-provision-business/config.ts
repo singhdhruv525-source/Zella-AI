@@ -327,7 +327,7 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
     if (typeof fields.sensitive !== "boolean") throw new InputError("Say whether the industry is sensitive");
     const reason = text(fields.reason, 300);
     if (reason.length < 3) throw new InputError("Give a short reason (it goes in the audit log)");
-    const { data, error } = await admin.from("industries").select("id, name, sensitive").eq("id", industryId).maybeSingle();
+    const { data, error } = await admin.from("industries").select("id, name, sensitive, sensitive_changed_at").eq("id", industryId).maybeSingle();
     if (missingColumn(error)) throw new InputError("Industry data isn't switched on yet", 409);
     if (error) throw error;
     if (!data) throw new InputError("Industry not found", 404);
@@ -335,11 +335,18 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
     if (before && !fields.sensitive && fields.confirm !== true) {
       throw new InputError("Turning this off lets staff read call transcripts in this industry. Confirm to continue.", 409);
     }
-    if (before !== fields.sensitive) {
-      const { error: e } = await admin.from("industries").update({ sensitive: fields.sensitive }).eq("id", industryId);
+    // The change carries its own version (sensitive_changed_at), written only if nobody changed it since it was read,
+    // so an undo after a failed audit can only ever take back this change, never a newer one.
+    const previousVersion = (data as Json).sensitive_changed_at ?? null;
+    const version = before !== fields.sensitive ? new Date().toISOString() : null;
+    if (version) {
+      let update = admin.from("industries").update({ sensitive: fields.sensitive, sensitive_changed_at: version }).eq("id", industryId);
+      update = previousVersion === null ? update.is("sensitive_changed_at", null) : update.eq("sensitive_changed_at", previousVersion);
+      const { data: written, error: e } = await update.select("id");
       if (e) throw e;
+      if (!written?.length) throw new InputError("Someone changed this industry at the same time. Reload and try again.", 409);
     }
-    return { industryId, name: (data as Json).name, before, after: fields.sensitive, changed: before !== fields.sensitive, reason };
+    return { industryId, name: (data as Json).name, before, after: fields.sensitive, changed: before !== fields.sensitive, reason, version, previousVersion };
   };
 
   // CFG-05, UI-28: the automations a new business in this industry starts with, from the database. null means the
@@ -386,7 +393,9 @@ export function configHandlers(admin: SupabaseClient, fields: Json, kit: ConfigK
   const undoUnaudited: Record<string, (r: Json) => Promise<void>> = {
     industry_set_sensitive: async (r) => {
       if (!r.changed) return;
-      const { error } = await admin.from("industries").update({ sensitive: r.before }).eq("id", r.industryId).eq("sensitive", r.after);
+      // only while the row still carries this change's version: a newer change is never undone
+      const { error } = await admin.from("industries").update({ sensitive: r.before, sensitive_changed_at: r.previousVersion ?? null })
+        .eq("id", r.industryId).eq("sensitive_changed_at", r.version);
       if (error) throw error;
     },
   };

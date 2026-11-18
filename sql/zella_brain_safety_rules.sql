@@ -2,7 +2,9 @@
 -- part 3). zella_brain_prompt_base had them as a CASE on the industry key (plus two later lines for legal and
 -- healthcare), so a new industry could never get its own. sql/zella_industry_data.sql stored exactly that text per
 -- industry in industry_configurations.safety_rules; this replaces the CASE with a read of that column. Nothing else in
--- the prompt changes, and for every existing industry the rendered prompt is byte identical (tests/brain_safety_rules).
+-- the prompt changes, and for every existing industry the rendered prompt is byte identical (tests/brain_safety_rules)
+-- as long as its safety_rules still hold the text the industry data migration seeded: an edit made in between shows
+-- up in that industry's prompt as soon as this file is applied.
 -- THIS IS THE LIVE CALL PATH: every receptionist's instructions are built by this function, so applying it needs the
 -- owner's explicit approval for this version change, even though the output is identical.
 -- Needs sql/zella_industry_data.sql applied first. The function is archived first and must match production

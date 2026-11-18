@@ -151,7 +151,10 @@ export default function PlansPage({ onOpenBusiness }) {
   useEffect(() => {
     let live = true;
     callOwnerFunction("business_plans_list", { offset, limit: PAGE, search: query })
-      .then((data) => live && setList({ key: listKey, data, error: "" }))
+      // a success without a list of businesses is an error, never "no businesses"
+      .then((data) => live && setList(data && Array.isArray(data.businesses)
+        ? { key: listKey, data, error: "" }
+        : { key: listKey, data: null, error: "Couldn't load this list. Try again with Refresh." }))
       .catch((e) => live && setList({ key: listKey, data: null, error: friendlyError(e) }));
     return () => { live = false; };
   }, [offset, query, listKey]);

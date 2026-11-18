@@ -41,6 +41,9 @@ end $$;
 
 alter table public.industries add column if not exists sensitive boolean not null default true;
 alter table public.industries add column if not exists booking_model text;
+-- when sensitive was last changed through the admin page: the change's own version, so undoing one that couldn't be
+-- audited never overwrites a newer change
+alter table public.industries add column if not exists sensitive_changed_at timestamptz;
 alter table public.industry_configurations add column if not exists automation_defaults jsonb;
 alter table public.industry_configurations add column if not exists safety_rules text;
 do $$
@@ -55,6 +58,7 @@ begin
   end if;
 end $$;
 comment on column public.industries.sensitive is 'Staff never see call transcripts in this industry (M-4). New industries start sensitive.';
+comment on column public.industries.sensitive_changed_at is 'When sensitive was last changed on the admin page (the change''s version, so a failed audit undoes only its own change).';
 comment on column public.industries.booking_model is 'How this industry books: staff_appointment, class, table, stay, consultation, viewing, field_job, none, general.';
 comment on column public.industry_configurations.automation_defaults is 'Automations a new business in this industry starts with; empty means the base set.';
 comment on column public.industry_configurations.safety_rules is 'The receptionist''s industry safety lines (zella_brain_prompt_base).';

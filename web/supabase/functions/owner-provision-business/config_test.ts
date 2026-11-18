@@ -178,8 +178,12 @@ Deno.test("only a Zella Voice owner may change sensitive, and turning it off nee
   const writes: unknown[] = [];
   const admin = { from: () => {
     const q = { select: () => q, eq: () => q,
-      maybeSingle: () => Promise.resolve({ data: { id: "ind", name: "Dental", sensitive: true }, error: null }),
-      update: (v: unknown) => { writes.push(v); return { eq: () => Promise.resolve({ error: null }) }; } };
+      maybeSingle: () => Promise.resolve({ data: { id: "ind", name: "Dental", sensitive: true, sensitive_changed_at: null }, error: null }),
+      update: (v: unknown) => {
+        writes.push(v);
+        const u = { eq: () => u, is: () => u, select: () => Promise.resolve({ data: [{ id: "ind" }], error: null }) };
+        return u;
+      } };
     return q;
   } } as unknown as SupabaseClient;
   const run = (role: string | null, fields: Record<string, unknown>) => configHandlers(admin, { industryId: "ind", reason: "Reviewed", ...fields }, kit, role);
@@ -192,20 +196,35 @@ Deno.test("only a Zella Voice owner may change sensitive, and turning it off nee
   assertEquals(writes, []);
   const h = run("zella_owner", { sensitive: false, confirm: true });
   const r = await h.handlers.industry_set_sensitive() as Record<string, unknown>;
-  assertEquals(writes, [{ sensitive: false }]);
+  assertEquals(writes.length, 1);
+  assertEquals((writes[0] as Record<string, unknown>).sensitive, false);
+  assertEquals(typeof (writes[0] as Record<string, unknown>).sensitive_changed_at, "string");
+  assertEquals(r.previousVersion, null);
   assertEquals((h.audited.industry_set_sensitive(r) as Record<string, unknown>).action, "industry.sensitive_off");
   assertEquals(h.audited.industry_set_sensitive({ ...r, changed: false }), null);
 });
 
-Deno.test("a sensitivity change whose audit row can't be written is undone, and only if it is still the new value", async () => {
+Deno.test("a sensitivity change whose audit row can't be written is undone, and only while the row still carries its version", async () => {
   const writes: unknown[] = [];
   const admin = { from: () => {
     const q = { update: (v: unknown) => { const filters: unknown[] = []; const e = { eq: (k: string, x: unknown) => { filters.push([k, x]); if (filters.length === 2) { writes.push([v, filters]); return Promise.resolve({ error: null }); } return e; } }; return e; } };
     return q;
   } } as unknown as SupabaseClient;
   const h = configHandlers(admin, {}, kit, "zella_owner");
-  await h.undoUnaudited.industry_set_sensitive({ industryId: "ind", before: true, after: false, changed: true });
-  assertEquals(writes, [[{ sensitive: true }, [["id", "ind"], ["sensitive", false]]]]);
-  await h.undoUnaudited.industry_set_sensitive({ industryId: "ind", before: true, after: true, changed: false });
+  await h.undoUnaudited.industry_set_sensitive({ industryId: "ind", before: true, after: false, changed: true, version: "v2", previousVersion: "v1" });
+  assertEquals(writes, [[{ sensitive: true, sensitive_changed_at: "v1" }, [["id", "ind"], ["sensitive_changed_at", "v2"]]]]);
+  await h.undoUnaudited.industry_set_sensitive({ industryId: "ind", before: true, after: true, changed: false, version: null, previousVersion: null });
   assertEquals(writes.length, 1);
+});
+
+Deno.test("a sensitivity change is refused when someone changed the industry since it was read", async () => {
+  const admin = { from: () => {
+    const q = { select: () => q, eq: () => q,
+      maybeSingle: () => Promise.resolve({ data: { id: "ind", name: "Dental", sensitive: true, sensitive_changed_at: "2026-11-18T20:00:00.000Z" }, error: null }),
+      update: () => { const u = { eq: () => u, is: () => u, select: () => Promise.resolve({ data: [], error: null }) }; return u; } };
+    return q;
+  } } as unknown as SupabaseClient;
+  const h = configHandlers(admin, { industryId: "ind", reason: "Reviewed", sensitive: false, confirm: true }, kit, "zella_owner");
+  const err = await assertRejects(() => h.handlers.industry_set_sensitive(), InputError);
+  assertEquals((err as InputError).status, 409);
 });
