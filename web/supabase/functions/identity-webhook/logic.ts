@@ -78,6 +78,8 @@ export const persona: IdentityProvider = {
     const name = str(attrs.name) ?? "";
     const status = str(inquiry.status, 40) ?? name.split(".").pop() ?? "";
     const reference = str(inquiry["reference-id"], 64);
+    // every Persona inquiry event names its inquiry; one that doesn't can't be counted once, so it isn't accepted
+    if (!str(inquiryData.id)) return { invalid: "missing inquiry id" };
     return { event: { eventId, reference, outcome: PERSONA_STATUS[status] ?? "other", occurredAt: iso(attrs["created-at"]), subject: str(inquiryData.id) } };
   },
 };

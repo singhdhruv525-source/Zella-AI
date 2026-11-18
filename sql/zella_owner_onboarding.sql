@@ -37,7 +37,7 @@ do $$
 declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
-    'public.zella_activation_report(uuid)',   jsonb_build_array('65d1ba6e6671bbfe2fc1b2ea304475d8', '5c21d8905ce14b1b7c9032194ac044f0'),
+    'public.zella_activation_report(uuid)',   jsonb_build_array('65d1ba6e6671bbfe2fc1b2ea304475d8', '20d3c8c4b5ddebd1d89db877e22a8a74'),
     'public.zella_request_activation(uuid)',  jsonb_build_array('0db1467ab6c0c6cba7bc300bbb5946f5', '41ab61c937ec1fd0b05b7fbd91b8353f'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regclass('public.business_plans') is null
@@ -774,7 +774,8 @@ begin
   if v_result = 'applied' then
     v_old := o.identity_provider_status;
     update public.owner_onboarding set identity_provider_status = p_outcome, identity_provider_at = coalesce(p_occurred_at, now()),
-           identity_attempts = identity_attempts + case when p_outcome = 'declined' and current_step = 'identity' and not v_counted then 1 else 0 end,
+           -- a declined check is counted once per subject; one without a subject can't be told apart, so it isn't counted
+           identity_attempts = identity_attempts + case when p_outcome = 'declined' and current_step = 'identity' and p_subject is not null and not v_counted then 1 else 0 end,
            updated_at = now()
      where business_id = o.business_id
     returning identity_attempts into v_attempts;
@@ -907,7 +908,7 @@ CREATE OR REPLACE FUNCTION public.zella_activation_report(p_business_id uuid)
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare v_rep jsonb;
+declare v_rep jsonb; v_others jsonb;
 begin
   -- members of the business, and Zella Voice admins who may view businesses (as for onboarding progress)
   if auth.uid() is not null and not public.zella_is_member(p_business_id) and not public.zella_admin_can('businesses.view') then
@@ -915,14 +916,19 @@ begin
   end if;
   -- the same checks as before, plus the owner onboarding gate (zella_activation_checks)
   v_rep := public.zella_activation_checks(p_business_id);
-  -- the owner's identity and payment results are for the owner and those admins only: other members see one check,
-  -- "The owner finished their setup", in their place, so neither result can be told apart (ready is unchanged)
+  -- The owner's identity and payment results are for the owner and those admins. Members who can switch the business
+  -- live (zella_can_manage) see one check, "The owner finished their setup", in their place, because going live waits
+  -- for it; other members see neither result, nor ready (which would tell), only the other checks.
   if auth.uid() is not null and not public.zella_admin_can('businesses.view') and not exists (
        select 1 from public.business_members m where m.business_id = p_business_id and m.user_id = auth.uid() and m.role = 'owner' and m.status = 'active') then
-    v_rep := jsonb_set(v_rep, '{checks}', coalesce((select jsonb_agg(c order by i) from jsonb_array_elements(v_rep -> 'checks') with ordinality x(c, i)
-                                                     where c ->> 'key' not in ('identity', 'payment')), '[]'::jsonb)
-      || jsonb_build_array(jsonb_build_object('key', 'owner_setup', 'label', 'The owner finished their setup',
-           'ok', coalesce((select bool_and((c ->> 'ok')::boolean) from jsonb_array_elements(v_rep -> 'checks') c where c ->> 'key' in ('identity', 'payment')), true))));
+    v_others := coalesce((select jsonb_agg(c order by i) from jsonb_array_elements(v_rep -> 'checks') with ordinality x(c, i)
+                           where c ->> 'key' not in ('identity', 'payment')), '[]'::jsonb);
+    if public.zella_can_manage(p_business_id) then
+      v_rep := jsonb_set(v_rep, '{checks}', v_others || jsonb_build_array(jsonb_build_object('key', 'owner_setup', 'label', 'The owner finished their setup',
+        'ok', coalesce((select bool_and((c ->> 'ok')::boolean) from jsonb_array_elements(v_rep -> 'checks') c where c ->> 'key' in ('identity', 'payment')), true))));
+    else
+      v_rep := jsonb_set(jsonb_set(v_rep, '{checks}', v_others), '{ready}', 'null'::jsonb);
+    end if;
   end if;
   return v_rep;
 end $function$;

@@ -147,10 +147,11 @@ function Journey({ api, email }) {
       onState(res?.state, { advance: !stay });
     } catch (error) {
       const next = afterCompleteError(step, error);
-      // a new plan version was saved while this step was open: read the state and show the plan, which says so
+      // a new plan version was saved while this step was open: read the state and show the plan, which says so. The
+      // error still goes back to the screen, so it never treats the step as finished (the last step would open the CRM).
       if (next === "plan") {
         const fresh = await api.getState(state.business_id).catch(() => null);
-        if (fresh) { setState(fresh); show("plan"); return; }
+        if (fresh) { setState(fresh); show("plan"); }
       }
       // a step that is already further along, or an earlier one reopened: show where the server says we are
       if (next === "reload") reload();

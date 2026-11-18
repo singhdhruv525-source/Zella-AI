@@ -228,6 +228,14 @@ async function journey(browser, variant) {
   if (main) {
     const went = [];
     page.on("framenavigated", (f) => { if (f === page.mainFrame()) went.push(f.url()); });
+    // the Zella Voice team saves a new plan version while the last step is open: Open my CRM shows the plan, not the CRM
+    await hook(page, "adminSavePlan");
+    await page.click("button:has-text('Open my CRM')");
+    await waitHeading(page, "Your plan");
+    check("7 Done: a new plan version shows the plan again, with why, and doesn't open the CRM",
+      (await heading(page)) === "Your plan" && await page.isVisible("text=Your plan was just updated. Please review it again.") && !went.some((u) => /\/app/.test(u)), went.join(", "));
+    await page.click("button:has-text('Accept plan and continue')");
+    await waitHeading(page, "Setup complete");
     await page.click("button:has-text('Open my CRM')");
     await page.waitForURL(/\/app/, { timeout: 10000 }).catch(() => {});
     // the CRM takes ?business= out of the address once it has read it, so check where the button sent us

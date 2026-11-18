@@ -184,8 +184,12 @@ export function createAnswerQueue({ read, apply, onReadError = () => {} }) {
   let latest = 0;
   async function reread() {
     const ticket = ++latest;
-    try { const fresh = await read(); if (ticket === latest && fresh) apply(fresh); }
-    catch (err) { if (ticket === latest) onReadError(err); }
+    try {
+      const fresh = await read();
+      if (ticket !== latest) return;
+      if (!fresh || typeof fresh !== "object") throw new Error("Your setup didn't load.");   // a missing state is a failed read
+      apply(fresh);
+    } catch (err) { if (ticket === latest) onReadError(err); }
   }
   async function answer(send) {
     const ticket = ++latest;
