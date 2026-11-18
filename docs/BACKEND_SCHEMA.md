@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 353 |
 | Columns | 2115 |
 | Views | 1 |
-| Functions | 958 (886 security definer, 26 callable by `anon`) |
+| Functions | 959 (887 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -280,7 +280,7 @@ Zella Voice staff who can use the platform admin, and their platform role.
 - `created_by` → `auth.users` (on delete set null).
 - `user_id` → `auth.users` (on delete cascade).
 - Row security: on; policies: zella_mfa_required (all).
-- Triggers: `zella_audit_privileged_trg`, `zella_keep_an_owner`, `zella_platform_admin_after_trg`, `zella_platform_admin_before_trg`, `zella_platform_admin_email_check`.
+- Triggers: `zella_audit_privileged_trg`, `zella_keep_an_owner`, `zella_keep_an_owner_turn`, `zella_platform_admin_after_trg`, `zella_platform_admin_before_trg`, `zella_platform_admin_email_check`.
 
 ### `platform_role_permissions`
 
@@ -5679,7 +5679,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (189)
+### Smaller groups and older helpers (190)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5760,6 +5760,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_issue_quote(p_customer_id uuid, p_title text, p_expires_in_days integer)` | uuid | yes | signed in |
 | `zella_join_waitlist(p_business_id uuid, p_customer_id uuid, p_title text, p_duration_minutes integer, p_earliest timestamp with time zone, p_latest timestamp with time zone, p_staff_id uuid, p_notes text)` | uuid | yes | signed in |
 | `zella_keep_an_owner_trg()` | trigger | yes | server only |
+| `zella_keep_an_owner_turn_trg()` | trigger | yes | server only |
 | `zella_kick_platform_emails()` | trigger | yes | server only |
 | `zella_language_allowance(p_business_id uuid)` | integer | yes | signed in |
 | `zella_language_catalog()` | jsonb |  | anon, signed in |
