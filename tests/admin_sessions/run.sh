@@ -133,6 +133,13 @@ n=$(q "with u as (update auth.mfa_factors set status = 'verified' where id in ('
 [ "$(mfa_added $FN)" = "0" ] && ok "a business member's isn't (not an admin)" || bad "member recorded"
 n=$(q "with u as (update auth.mfa_factors set status = 'verified', friendly_name = 'Renamed' where id = '$FM' returning 1) select count(*) from u") && [ "$n" = "1" ] || { bad "renaming the fixture authenticator: $n"; exit 1; }
 [ "$(mfa_added $FM)" = "1" ] && ok "and only once: a later change to it writes nothing more" || bad "recorded twice: $(mfa_added $FM)"
+# a function given to another role after the file stops the file and its rollback
+q "grant execute on function public.zella_end_user_sessions(uuid) to authenticated" > /dev/null || bad "grant fixture"
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"can be run by a role this file does not give it to"* ]] && ok "a function given to another role stops the file (VERSION_MISMATCH)" || bad "grant drift not caught by the file: $out"
+out=$("${P[@]}" -d $DB -f "$RB" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"was given to another role"* ]] && [ "$(q "select to_regprocedure('public.zella_end_user_sessions(uuid)') is not null")" = "t" ] && ok "and its rollback (DRIFT), dropping nothing" || bad "grant drift not caught by the rollback: $out"
+q "revoke execute on function public.zella_end_user_sessions(uuid) from authenticated" > /dev/null || bad "grant restore"
 # a function given another owner after the file (its definition text unchanged) stops the file and its rollback
 q "alter function public.zella_admin_mfa_added_trg() owner to service_role" > /dev/null || bad "owner fixture"
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?

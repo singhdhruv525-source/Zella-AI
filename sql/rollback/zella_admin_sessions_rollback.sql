@@ -17,11 +17,25 @@ begin
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'DRIFT: % changed after sql/zella_admin_sessions.sql; roll back by hand', f.sig;
     end if;
-    -- and its owner: a security definer function runs as its owner, which the definition text doesn't show
-    if to_regprocedure(f.sig) is not null and (select pg_get_userbyid(proowner) from pg_proc where oid = to_regprocedure(f.sig)) <> current_user then
+    -- and its owner, the one the file installs under (the owner of public.platform_admins, as for every migration):
+    -- a security definer function runs as its owner, which the definition text doesn't show
+    if to_regprocedure(f.sig) is not null and (select proowner from pg_proc where oid = to_regprocedure(f.sig))
+       <> (select relowner from pg_class where oid = 'public.platform_admins'::regclass) then
       raise exception 'DRIFT: % changed owner after sql/zella_admin_sessions.sql; roll back by hand', f.sig;
     end if;
   end loop;
+  -- and who may run each: only the roles this file gives it to, its owner and the server roles (service_role,
+  -- postgres, supabase_admin); EXECUTE for anyone else (PUBLIC included) is a change this file didn't make
+  if exists (select 1 from (values
+      ('public.zella_end_user_sessions(uuid)', ''), ('public.zella_revoke_my_other_sessions()', 'authenticated'),
+      ('public.zella_remove_mfa_factor(uuid,uuid)', ''), ('public.zella_keep_an_owner_trg()', ''),
+      ('public.zella_keep_an_owner_turn_trg()', ''), ('public.zella_admin_mfa_added_trg()', '')) v(sig, extra)
+      join pg_proc p on p.oid = to_regprocedure(v.sig)
+      cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+      where a.privilege_type = 'EXECUTE' and (a.grantee = 0 or pg_get_userbyid(a.grantee) not in
+        (pg_get_userbyid(p.proowner), 'service_role', 'postgres', 'supabase_admin', v.extra))) then
+    raise exception 'DRIFT: a function of sql/zella_admin_sessions.sql was given to another role since; roll back by hand';
+  end if;
   if exists (select 1 from pg_trigger g where g.tgrelid in (to_regclass('public.platform_admins'), to_regclass('auth.mfa_factors'))
        and g.tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn', 'zella_admin_mfa_added') and not coalesce(
          g.tgenabled = 'O' and g.tgconstraint = 0 and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0 and (

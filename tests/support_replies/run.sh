@@ -158,9 +158,12 @@ run "$RB"
 q "delete from public.platform_settings where key = 'support_business_hours_origin'" > /dev/null
 run "$MIG"; [ $rc -eq 0 ] && ok "applies again after the rollback" || bad "reapply: $out"
 # a replay index that doesn't enforce one answer per ticket and page id stops the file
-q "drop index public.support_ticket_messages_client_ref_idx; create index support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id, client_ref)" > /dev/null
+q "drop index public.support_ticket_messages_client_ref_idx; create index support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id, client_ref) where client_ref is not null" > /dev/null
 run "$MIG"
 refused "support_ticket_messages_client_ref_idx is not the unique index" && ok "a replay index that isn't unique stops the file" || bad "non unique index: $out"
+q "drop index public.support_ticket_messages_client_ref_idx; create unique index support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id) include (client_ref) where client_ref is not null" > /dev/null
+run "$MIG"
+refused "support_ticket_messages_client_ref_idx is not the unique index" && ok "nor one unique on the ticket alone, with the ref only included" || bad "include index: $out"
 q "drop index public.support_ticket_messages_client_ref_idx" > /dev/null
 run "$MIG"; [ $rc -eq 0 ] && [ "$(q "select indisunique from pg_index where indexrelid = 'public.support_ticket_messages_client_ref_idx'::regclass")" = "t" ] && ok "and with it gone the file creates the unique one" || bad "index recreate: $out"
 # an alert trigger changed after the file stops the file and its rollback, and stays exactly as it was: given a

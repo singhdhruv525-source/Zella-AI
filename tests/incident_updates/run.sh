@@ -129,9 +129,12 @@ q "drop table public.platform_incident_updates" > /dev/null
 [ -n "$(q "select to_regprocedure('public.zella_open_incident(text,text)')")" ] && ok "zella_open_incident itself is untouched" || bad "open_incident gone"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 # a replay index that doesn't enforce one update per incident and page id stops the file
-q "drop index public.platform_incident_updates_client_ref_idx; create index platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id, client_ref)" > /dev/null
+q "drop index public.platform_incident_updates_client_ref_idx; create index platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id, client_ref) where client_ref is not null" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
 [ $rc -ne 0 ] && [[ "$out" == *"platform_incident_updates_client_ref_idx is not the unique index"* ]] && ok "a replay index that isn't unique stops the file" || bad "non unique index: $out"
+q "drop index public.platform_incident_updates_client_ref_idx; create unique index platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id) include (client_ref) where client_ref is not null" > /dev/null
+out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); rc=$?
+[ $rc -ne 0 ] && [[ "$out" == *"platform_incident_updates_client_ref_idx is not the unique index"* ]] && ok "nor one unique on the incident alone, with the ref only included" || bad "include index: $out"
 q "drop index public.platform_incident_updates_client_ref_idx" > /dev/null
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && [ "$(q "select indisunique from pg_index where indexrelid = 'public.platform_incident_updates_client_ref_idx'::regclass")" = "t" ] && ok "and with it gone the file creates the unique one" || bad "index recreate"
 q "create or replace function public.zella_incident_edit(p_incident uuid, p_title text, p_detail text default null) returns boolean language sql security definer set search_path = '' as \$f\$ select true \$f\$" > /dev/null
