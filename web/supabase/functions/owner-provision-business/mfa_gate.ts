@@ -42,7 +42,7 @@ export function tokenAal(authorization: string): string {
 // token's amr claim ({ method: "totp", timestamp }); verifying a code again issues a token with a new timestamp.
 // Owner decision taken as the recommended default: a fresh code only, no second owner approval.
 export const FRESH_CODE_MAX_AGE_SECONDS = 300;
-export const FRESH_CODE_ACTIONS = ["admin_invite", "admin_update", "me_mfa_remove", "me_password_change"];
+export const FRESH_CODE_ACTIONS = ["admin_invite", "admin_update", "admin_sessions_end", "me_mfa_remove", "me_password_change"];
 export const FRESH_CODE_MESSAGE = "For this change, enter a new code from your authenticator app.";
 
 // When the caller last entered an authenticator code (seconds since 1970), or null.

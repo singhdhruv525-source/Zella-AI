@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "../../supabase";
 import { friendly, orThrow } from "../../BusinessShared";
 import { Banner, Card, Empty, Field, LoadState, useAsync, when } from "../SettingsKit";
@@ -12,13 +12,17 @@ export default function TicketThread({ ticket, businessName, canReply, onClose, 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // one id per answer: sending the same answer again (after a lost response) saves it once; a new answer gets a new id
+  const ref = useRef({ text: null, id: null });
   async function send() {
     const sent = text;
+    if (ref.current.text !== sent) ref.current = { text: sent, id: crypto.randomUUID() };
     setBusy(true);
     setError("");
-    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: sent });
+    const { error: e } = await supabase.rpc("zella_business_ticket_reply", { p_ticket: ticket.id, p_body: sent, p_ref: ref.current.id });
     setBusy(false);
     if (e) { setError(/NOT_ALLOWED/.test(e.message) ? "Only owners, admins and managers can answer support requests." : friendly(e)); return; }
+    ref.current = { text: null, id: null };
     setText((current) => (current === sent ? "" : current));   // clear only what was sent
     state.reload();
     onAnswered?.();

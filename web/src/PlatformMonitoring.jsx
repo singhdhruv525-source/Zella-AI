@@ -154,37 +154,51 @@ const loadIncidents = async (after = null) => {
 const STATUS_PARTS = [["", "No specific part"], ["phone", "Phone assistant"], ["texts", "Text messages"], ["email", "Email"], ["automations", "Reminders and follow ups"], ["app", "Zella Voice app"]];
 const missingFn = (e) => /does not exist|Could not find the function|PGRST202/i.test(e?.message ?? "");
 
-// OPS-12: an incident's timeline. Updates are internal; owners are told only when "Tell all active businesses" is ticked.
-function IncidentTimeline({ incident, busy, onChanged }) {
+// OPS-12: an incident's timeline, newest UPDATES_PAGE first (shown oldest to newest), Load older reads the ones before
+// the oldest shown with a (created_at, id) cursor. Updates are internal; owners are told only when "Tell all active
+// businesses" is ticked. Whether a post is on its way is kept by the panel per incident (posting), so closing and
+// reopening the timeline can't send the same update twice.
+const UPDATES_PAGE = 50;
+function IncidentTimeline({ incident, busy, onChanged, posting, setPosting }) {
   const [rows, setRows] = useState(null);
-  const [error, setError] = useState("");
+  const [more, setMore] = useState(false);
+  const [readError, setReadError] = useState("");
+  const [postError, setPostError] = useState("");
   const [text, setText] = useState("");
   const [notify, setNotify] = useState(false);
-  const [posting, setPosting] = useState(false);
   const request = useRef(0);   // only the latest read may show its result, so an older one can't hide a new update
-  const load = useCallback(async () => {
+  const read = useCallback(async (before = null) => {
     const mine = ++request.current;
-    const { data, error: e } = await supabase.from("platform_incident_updates").select("id, body, notified_businesses, created_at").eq("incident_id", incident.id).order("created_at", { ascending: true });
+    let q = supabase.from("platform_incident_updates").select("id, body, notified_businesses, created_at").eq("incident_id", incident.id)
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(UPDATES_PAGE);
+    if (before) q = q.or(`created_at.lt."${before.created_at}",and(created_at.eq."${before.created_at}",id.lt.${before.id})`);
+    const { data, error: e } = await q;
     if (mine !== request.current) return;
-    if (e) { setError(missingFn(e) || /platform_incident_updates/.test(e.message) ? "Incident updates need the latest database update (sql/zella_incident_updates.sql)." : say(e)); setRows([]); return; }
-    setError("");
-    setRows(data ?? []);
+    if (e) { setReadError(missingFn(e) || /platform_incident_updates/.test(e.message) ? "Incident updates need the latest database update (sql/zella_incident_updates.sql)." : say(e)); if (!before) setRows([]); return; }
+    setReadError("");   // a read clears only its own error, never a failed post's
+    const page = [...(data ?? [])].reverse();
+    setRows((current) => (before ? [...page, ...(current ?? [])] : page));
+    setMore((data ?? []).length === UPDATES_PAGE);
   }, [incident.id]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { read(); }, [read]);
   async function post() {
-    setPosting(true); setError("");
+    if (posting) return;
+    setPosting(true); setPostError("");
     const { data: r, error: e } = await supabase.rpc("zella_incident_post_update", { p_incident: incident.id, p_body: text, p_notify: notify });
     setPosting(false);
-    if (e) return setError(say(e));   // the text stays, to try again
-    setText(""); setNotify(false); load();
+    if (e) return setPostError(/NOT_OPEN/.test(e.message ?? "") ? "This incident is resolved, so it takes no more updates." : say(e));   // the text stays, to try again
+    setText(""); setNotify(false); read();
     // what the database says happened, not what the box said
     const n = Number(r?.notified_businesses);
     onChanged(!Number.isFinite(n) ? "Update posted." : n > 0 ? `Update posted. The owners of ${n === 1 ? "1 business were" : `${n.toLocaleString()} businesses were`} told in the app.` : "Update posted. No owner was told.");
   }
+  const oldest = rows?.[0];
   return (
     <div className="op-incident-timeline inc-timeline">
-      {error && <span className="owner-form-error" role="alert">{error}</span>}
-      {rows && !rows.length && !error && <span className="inc-update"><EmptyValue label="No updates yet" /></span>}
+      {readError && <span className="owner-form-error" role="alert">{readError}</span>}
+      {postError && <span className="owner-form-error" role="alert">{postError}</span>}
+      {more && oldest && <button type="button" className="inc-link" onClick={() => read({ created_at: oldest.created_at, id: oldest.id })}>Load older updates</button>}
+      {rows && !rows.length && !readError && <span className="inc-update"><EmptyValue label="No updates yet" /></span>}
       {(rows ?? []).map((u) => (
         <span key={u.id} className="inc-update">
           <span className="inc-update-time">{formatDateTime(u.created_at)}{u.notified_businesses ? <>, {told(u.notified_businesses)}</> : ""}</span>
@@ -196,7 +210,7 @@ function IncidentTimeline({ incident, busy, onChanged }) {
           {/* read only while posting, so the text that is cleared afterwards is always the text that was posted */}
           <input className="owner-input" placeholder="What's happening now (for the Zella Voice team)" value={text} maxLength={1000} readOnly={posting} onChange={(e) => setText(e.target.value)} aria-label={`Update for ${incident.title}`} />
           <label className="inc-check"><input type="checkbox" checked={notify} disabled={posting} onChange={(e) => setNotify(e.target.checked)} /> Tell all active businesses</label>
-          <button type="button" className="owner-secondary-button inc-sm" disabled={busy || posting || text.trim().length < 3} onClick={post}>Post update</button>
+          <button type="button" className="owner-secondary-button inc-sm" disabled={busy || posting || text.trim().length < 3} onClick={post}>{posting ? "Posting..." : "Post update"}</button>
         </span>
       )}
     </div>
@@ -212,6 +226,7 @@ export function IncidentsPanel() {
   const [dialog, setDialog] = useState(null);   // { kind: "open" | "publish" | "resolve" | "edit", incident?, similar? }
   const [open, setOpen] = useState({});          // incident id -> timeline shown
   const [edit, setEdit] = useState(null);        // { id, title, detail }
+  const [posting, setPostingFor] = useState({});  // incident id -> an update post is on its way
 
   // Every load gets a number; a reload makes any older load (a page still on its way) stale, and a stale answer or error
   // is dropped, so a page from before a reload is never added to the new list.
@@ -321,8 +336,9 @@ export function IncidentsPanel() {
             <div className="inc-main">
               {edit?.id === i.id ? (
                 <span className="inc-edit">
-                  <input className="owner-input" value={edit.title} maxLength={200} onChange={(e) => setEdit({ ...edit, title: e.target.value })} aria-label="Incident title" />
-                  <input className="owner-input" value={edit.detail} maxLength={1000} placeholder="Details owners will see" onChange={(e) => setEdit({ ...edit, detail: e.target.value })} aria-label="Incident details" />
+                  {/* read only while saving, so the draft that closes is always the one that was saved */}
+                  <input className="owner-input" value={edit.title} maxLength={200} readOnly={busy} onChange={(e) => setEdit({ ...edit, title: e.target.value })} aria-label="Incident title" />
+                  <input className="owner-input" value={edit.detail} maxLength={1000} readOnly={busy} placeholder="Details owners will see" onChange={(e) => setEdit({ ...edit, detail: e.target.value })} aria-label="Incident details" />
                   <span className="inc-edit-actions">
                     <button type="button" className="owner-secondary-button inc-sm" disabled={busy} onClick={() => setEdit(null)}>Cancel</button>
                     <button type="button" className="owner-primary-button inc-sm" disabled={busy || edit.title.trim().length < 3} onClick={saveEdit}>Save</button>
@@ -356,7 +372,8 @@ export function IncidentsPanel() {
                   ? <button type="button" className="inc-link" disabled={busy} onClick={() => publish(i, false).catch((e) => setNotice({ text: "", error: e.message }))}>Remove from status page</button>
                   : <button type="button" className="inc-link" disabled={busy} onClick={() => setDialog({ kind: "publish", incident: i })}>Show on status page</button>)}
               </span>
-              {open[i.id] && <IncidentTimeline incident={i} busy={busy} onChanged={(t) => setNotice({ text: t, error: "" })} />}
+              {open[i.id] && <IncidentTimeline incident={i} busy={busy} onChanged={(t) => setNotice({ text: t, error: "" })}
+                posting={Boolean(posting[i.id])} setPosting={(on) => setPostingFor((p) => ({ ...p, [i.id]: on }))} />}
             </div>
             {i.status === "open" && (
               <div className="inc-resolve">

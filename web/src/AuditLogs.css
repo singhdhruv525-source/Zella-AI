@@ -94,7 +94,8 @@ button.al-truncate { max-width: 100%; text-align: left; }
 
 .al-row.is-open { background: var(--zella-primary-soft); box-shadow: inset 3px 0 0 var(--zella-primary); }
 
-.al-tz { font-style: normal; font-weight: 400; color: var(--zella-text-secondary); }
+.al-tz { font-style: normal; font-weight: 400; color: var(--zella-text-secondary); overflow-wrap: anywhere; }
+.al-f-date > span { white-space: normal; }
 
 /* ---------- Phones: filters fold away, rows become cards ---------- */
 @media (max-width: 600px) {

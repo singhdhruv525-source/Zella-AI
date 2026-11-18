@@ -1348,6 +1348,19 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
   }),
 };
 
+// Every row of a query, read in pages of 1000 (the API's row cap) until a short page.
+// deno-lint-ignore no-explicit-any
+async function everyRow(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>) {
+  // deno-lint-ignore no-explicit-any
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if ((data ?? []).length < 1000) return out;
+  }
+}
+
 async function resolveUsers(admin: SupabaseClient, ids: (string | null)[]) {
   const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))].slice(0, 100);
   const entries = await Promise.all(
@@ -1619,13 +1632,12 @@ async function auditLogList(admin: SupabaseClient, fields: Json, role: string | 
   let businesses: { id: string; name: string }[] | undefined;
   let people: { id: string; email: string | null }[] | undefined;
   if (!cursor) {
-    const [{ data: list, error: listError }, { data: admins, error: adminsError }] = await Promise.all([
-      admin.from("businesses").select("id, name").order("name"),
-      admin.from("platform_admins").select("user_id"),
+    // every business and every admin, read 1000 at a time in a fixed order, so the pickers are never cut off
+    const [list, admins] = await Promise.all([
+      everyRow((from, to) => admin.from("businesses").select("id, name").order("name").order("id").range(from, to)),
+      everyRow((from, to) => admin.from("platform_admins").select("user_id").order("user_id").range(from, to)),
     ]);
-    if (listError) throw listError;
-    if (adminsError) throw adminsError;
-    businesses = list ?? [];
+    businesses = list as { id: string; name: string }[];
     // every admin, resolved 100 at a time (resolveUsers reads at most 100), so nobody is left out of the person filter
     const ids = [...new Set((admins ?? []).map((a) => a.user_id))];
     const emails: Record<string, string | null> = {};
@@ -2106,7 +2118,7 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
   await requireOwner(admin, userId);
 
   const targetId = requireId(fields.userId, "admin");
-  if (targetId === userId) {
+  if (targetId.toLowerCase() === userId.toLowerCase()) {
     throw new InputError("You can't change your own access. Ask another Zella Voice owner.", 409);
   }
 
@@ -2143,6 +2155,8 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
     .eq("role", current.role)
     .eq("is_active", current.is_active)
     .select("user_id");
+  // the database refuses too (sql/zella_admin_sessions.sql), also when two owners remove each other at once
+  if (error && /LAST_OWNER/.test(error.message ?? "")) throw new InputError("Zella Voice must keep at least one active owner", 409);
   if (error) throw error;
   if (!saved?.length) throw new InputError("Their access was changed by someone else just now. Reload and try again.", 409);
 
@@ -2162,7 +2176,7 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
 async function adminEndSessions(admin: SupabaseClient, fields: Json, userId: string) {
   await requireOwner(admin, userId);
   const targetId = requireId(fields.userId, "admin");
-  if (targetId === userId) throw new InputError("Use Sign out other devices in your own account security instead.", 409);
+  if (targetId.toLowerCase() === userId.toLowerCase()) throw new InputError("Use Sign out other devices in your own account security instead.", 409);
   const { data: target, error } = await admin.from("platform_admins").select("user_id").eq("user_id", targetId).maybeSingle();
   if (error) throw error;
   if (!target) throw new InputError("Admin not found", 404);
@@ -2277,9 +2291,12 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
   const hours = supportHours(hoursResult.data?.value);
   // deno-lint-ignore no-explicit-any
   let tickets = (ticketsResult.data ?? []) as any[];
-  // Overdue: every ticket still waiting for a first reply is read (1000 at a time), not only the newest 500, so an
-  // older overdue ticket is never left out; the newest 500 of the overdue ones are shown.
-  if (fields.overdue === true && withFirstResponse) tickets = await waitingTickets(admin, fields, `${cols}, first_response_at`);
+  // Overdue: every ticket still waiting for a first reply is read (1000 at a time), not only the newest 500, and judged
+  // from its times alone; only the newest 500 overdue ones then have their conversations read.
+  if (fields.overdue === true && withFirstResponse) {
+    const waiting = await waitingTickets(admin, fields, `${cols}, first_response_at`);
+    tickets = waiting.filter((t) => ticketTiming(t, hours).overdue).slice(0, 500);
+  }
   const messages = await ticketMessages(admin, tickets.map((t) => t.id));
   // The time of the first reply comes from the replies read above when the ticket row was read just before one was
   // added, so a ticket never shows a reply next to "No reply yet".
@@ -2288,8 +2305,10 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
     const firstZella = (messages.get(t.id) ?? []).find((m) => m.author_side === "zella");
     if (firstZella) t.first_response_at = firstZella.created_at;
   }
-  const timing = new Map(tickets.map((t) => [t.id, ticketTiming(t, hours)]));
-  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue).slice(0, 500);
+  // without first_response_at (sql/zella_support_replies.sql not applied) a ticket's first reply and lateness are
+  // unknown: null, never "no reply" or "overdue"
+  const timing = new Map(tickets.map((t) => [t.id, withFirstResponse ? ticketTiming(t, hours) : { ...ticketTiming(t, hours), firstResponseHours: null, overdue: null }]));
+  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue === true);
   // only people who may work tickets can be assigned one (OPS-27)
   const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);
   const adminIds = (adminsResult.data ?? []).filter((a) => supportRoles.has(a.role)).map((a) => a.user_id);
@@ -2525,12 +2544,17 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
   }
 
   // ...and the reply the business sees goes last (OPS-25; first_response_at and the opener's notice are set in the
-  // database), so nothing after it can fail and leave a published reply unaudited or tempt a resend.
+  // database), so nothing after it can fail and leave a published reply unaudited or tempt a resend. If the reply
+  // fails after other changes were saved, those changes are returned (and audited) with replyFailed, so the page
+  // says exactly what was saved and only the reply is sent again.
   if (reply) {
     const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
     if (replyError) {
-      if (/zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")) throw new InputError("Replies to the business need the latest database update (sql/zella_support_replies.sql).", 503);
-      throw replyError;
+      const why = /zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")
+        ? "Replies to the business need the latest database update (sql/zella_support_replies.sql)." : "The reply could not be sent. Try again.";
+      if (Object.keys(changes).length === 0) throw new InputError(why, /latest database update/.test(why) ? 503 : 500);
+      console.error("Ticket reply failed after other changes were saved", replyError.message);
+      return { ticketId, businessId: ticket.business_id, changes, replyFailed: why };
     }
     changes.reply_added = true;
   }

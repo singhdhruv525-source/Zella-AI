@@ -83,26 +83,35 @@ async function adminAction(action, payload = {}) {
 
 // After an authenticator is verified: an admin's new authenticator is recorded in the audit log (admin.mfa_added).
 // The authenticator is already on, so a failure never asks for a new set up: the factor id is kept in this browser
-// and recorded again the next time the security settings load (mfaStatus), until it is on record. Business members
-// are not admins, so nothing is sent for them.
+// and recorded again the next time the security settings load (mfaStatus), until it is on record. Each kept id
+// belongs to the account that set it up: only that account's own ids are retried, and another account's stay for it.
+// Business members are not admins, so nothing is sent for them.
 const PENDING_KEY = "zella-admin-mfa-added-pending";
-const pending = () => { try { return JSON.parse(localStorage.getItem(PENDING_KEY) ?? "[]").filter((x) => typeof x === "string"); } catch { return []; } };
-const savePending = (ids) => { try { if (ids.length) localStorage.setItem(PENDING_KEY, JSON.stringify(ids)); else localStorage.removeItem(PENDING_KEY); } catch { /* storage off */ } };
-async function recordAdminMfaAdded(factorId) {
+const pending = () => {
+  try { return JSON.parse(localStorage.getItem(PENDING_KEY) ?? "[]").filter((x) => x && typeof x.userId === "string" && typeof x.factorId === "string"); }
+  catch { return []; }
+};
+const savePending = (list) => { try { if (list.length) localStorage.setItem(PENDING_KEY, JSON.stringify(list)); else localStorage.removeItem(PENDING_KEY); } catch { /* storage off */ } };
+const currentUserId = async () => (await supabase.auth.getUser())?.data?.user?.id ?? null;
+async function recordAdminMfaAdded(factorId, userId = null) {
+  const owner = userId ?? (await currentUserId().catch(() => null));
   try {
     const { data: role, error } = await supabase.rpc("zella_admin_role");
     if (error) throw error;
     if (role) await adminAction("me_mfa_added", { factorId });
-    savePending(pending().filter((id) => id !== factorId));
+    savePending(pending().filter((p) => !(p.factorId === factorId && p.userId === owner)));
     return true;
   } catch (err) {
     console.warn("Recording the new authenticator failed; it is tried again later", err?.message);
-    savePending([...new Set([...pending(), factorId])]);
+    if (owner && !pending().some((p) => p.factorId === factorId && p.userId === owner)) savePending([...pending(), { userId: owner, factorId }]);
     return false;
   }
 }
 async function recordPendingMfaAdded() {
-  for (const id of pending()) if (!(await recordAdminMfaAdded(id))) break;
+  const me = await currentUserId().catch(() => null);
+  if (!me) return;
+  // every one of this account's ids is tried, even when an earlier one fails again
+  for (const p of pending().filter((x) => x.userId === me)) await recordAdminMfaAdded(p.factorId, me);
 }
 
 // Business members remove an authenticator straight with Supabase Auth. Admins go through the server, with a new

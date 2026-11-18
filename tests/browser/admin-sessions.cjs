@@ -20,8 +20,10 @@ const count = (uid) => Number(k.sql(`select count(*) from auth.sessions where us
       k.sql(`update public.platform_admins set role = 'read_only_admin', is_active = true where user_id = '${target}'`);
       k.sql(`delete from auth.sessions where user_id in ('${owner}', '${target}')`);
       sessions(target, 2);
-      // a session of theirs signed in through the stand in: its refresh must stop working once they are signed out
+      // a session of theirs signed in through the stand in: its refresh works now, and must stop once they are signed out
       const theirs = await k.signInApi(TARGET);
+      const before = await k.refresh(theirs.refresh_token);
+      k.check(`${tag}: their refresh token works before the change`, before.status === 200 && typeof before.body.refresh_token === "string", String(before.status));
       const ctx = await k.context(browser, width);
       try {
         const p = await k.page(ctx);
@@ -36,27 +38,29 @@ const count = (uid) => Number(k.sql(`select count(*) from auth.sessions where us
         // this run's audit entry is the first one after this moment
         const since = k.sql("select clock_timestamp()::text");
         await p.click('button:has-text("Change role")');
-        await k.freshCode(p);   // ACC-19: a role change needs a new code when the last one is older than 5 minutes
+        // ACC-19: a role change needs a new code when the last one is older than 5 minutes (the stand in's sign in has none)
+        k.check(`${tag}: the change asks for a new authenticator code`, await k.freshCode(p));
         await p.waitForSelector("text=They were signed out on 3 devices.");
         k.check(`${tag}: after the change the page says all 3 devices were signed out`, true);
         k.check(`${tag}: and the database has none of their sessions left`, count(target) === 0, `${count(target)} left`);
-        const audit = k.sql(`select coalesce(string_agg(new_data ->> 'sessions_ended', ','), '') from public.audit_logs where action = 'admin.updated' and entity_id = '${target}' and created_at > '${since}'`);
-        k.check(`${tag}: this change's own admin.updated audit entry records sessions_ended`, audit === "3", audit);
-        const refused = await k.refresh(theirs.refresh_token);
-        k.check(`${tag}: a refresh token issued before the change no longer works`, refused.status === 400, `${refused.status} ${refused.body?.code ?? ""}`);
+        k.check(`${tag}: the role change is saved`, k.sql(`select role from public.platform_admins where user_id = '${target}'`) === "support_admin");
+        const audit = k.sql(`select count(*) || '|' || count(*) filter (where new_data ->> 'sessions_ended' = '3') from public.audit_logs where action = 'admin.updated' and entity_id = '${target}' and created_at > '${since}'`);
+        k.check(`${tag}: exactly one admin.updated entry for this change, recording 3 sessions ended`, audit === "1|1", audit);
+        const refused = await k.refresh(before.body.refresh_token);
+        k.check(`${tag}: a refresh token issued before the change no longer works`, refused.status === 400 && refused.body?.code === "session_not_found", `${refused.status} ${refused.body?.code ?? ""}`);
         await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `users-done-${tag}.png`), fullPage: false });
 
         // sign out other devices, from the owner's own security settings
         sessions(owner, 2);
         const mine = await k.pageSessionId(p);
-        const before = Number(k.sql(`select count(*) from public.audit_logs where action = 'session.revoked_others' and user_id = '${owner}'`));
+        const audBefore = Number(k.sql(`select count(*) from public.audit_logs where action = 'session.revoked_others' and user_id = '${owner}'`));
         await p.goto(k.APP + "/settings/profile/security");
         await p.click('button:has-text("Sign out other devices")');
         await p.click('.zs-dialog button:has-text("Sign out others")');
         await p.waitForSelector("text=This device stays signed in.");
         const after = Number(k.sql(`select count(*) from public.audit_logs where action = 'session.revoked_others' and user_id = '${owner}'`));
         const left = k.sql(`select coalesce(string_agg(id::text, ','), '') from auth.sessions where user_id = '${owner}'`);
-        k.check(`${tag}: sign out other devices goes through the database and is audited`, after === before + 1, `audit ${before}->${after}`);
+        k.check(`${tag}: sign out other devices goes through the database and is audited`, after === audBefore + 1, `audit ${audBefore}->${after}`);
         k.check(`${tag}: this device's session is the only one left`, Boolean(mine) && left === mine, `this ${mine}, left ${left}`);
         await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `security-signed-out-${tag}.png`), fullPage: false });
         k.check(`${tag}: no page errors`, p.errors.length === 0, p.errors.join(" | "));

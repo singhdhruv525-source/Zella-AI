@@ -17,6 +17,8 @@ const notices = (kind) => Number(k.sql(`select count(*) from public.staff_notifi
   for (const [width, tag] of [[1440, "desktop"], [390, "phone"]]) {
     k.sql("delete from public.platform_incidents");
     k.sql(`insert into public.platform_incidents (title, status, created_at, resolved_at) select 'Old incident ' || g, 'resolved', now() - (g || ' days')::interval, now() - (g || ' days')::interval from generate_series(1, 25) g`);
+    // Old incidents 19 and 20 sit on both sides of the first page's end with the same time: the id decides the order
+    k.sql(`update public.platform_incidents set created_at = (select created_at from public.platform_incidents where title = 'Old incident 19') where title = 'Old incident 20'`);
     const ctx = await k.context(browser, width);
     const p = await k.page(ctx);
     let prompts = 0; p.on("dialog", (d) => { prompts++; d.dismiss().catch(() => {}); });
@@ -76,9 +78,15 @@ const notices = (kind) => Number(k.sql(`select count(*) from public.staff_notifi
     await p.waitForSelector('button:has-text("Load more")');
     const firstPage = await p.locator(".op-card li").filter({ hasText: "Opened" }).count();
     k.check(`${tag}: 20 incidents first, then Load more`, firstPage === 20, String(firstPage));
+    // a new incident opened meanwhile must not shift the next page (it shows after a refresh, not as a repeat)
+    k.sql(`insert into public.platform_incidents (title, status, created_at) values ('Opened while paging ${tag}', 'open', now())`);
     await p.click('button:has-text("Load more")');
     await p.waitForSelector("text=Old incident 25");
-    k.check(`${tag}: Load more shows the older ones`, (await p.locator(".op-card li").filter({ hasText: "Opened" }).count()) === 26);
+    const titles = await p.locator(".op-card li .inc-title").allTextContents();
+    const old = titles.filter((t) => /^Old incident \d+$/.test(t));
+    k.check(`${tag}: Load more appends the 6 older ones, each once (the tie at the page end decided by id)`, titles.length === 26 && new Set(titles).size === 26 && old.length === 25 && !titles.some((t) => t.startsWith("Opened while paging")),
+      `${titles.length} rows, ${new Set(titles).size} unique`);
+    k.sql(`delete from public.platform_incidents where title = 'Opened while paging ${tag}'`);
     // open the timeline only if it is closed (the button toggles), then wait for a known update before the screenshot
     const toggle = li2.locator('button[aria-expanded]').first();
     if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();

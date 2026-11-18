@@ -44,7 +44,8 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
     k.sql(`delete from public.support_tickets where subject = '${overdue}'`);
     await p.click('button[role="tab"]:has-text("Open & in progress")');
     await p.click(`button:has-text("${subject}")`);
-    await p.waitForSelector("text=No reply yet");
+    // the detail panel of the ticket just opened says it has no reply yet
+    await p.locator("aside.st-detail").filter({ hasText: subject }).locator("text=No reply yet").waitFor();
     await p.fill('textarea[aria-label="Reply to the business"]', "We are looking at your phone line now.");
     await p.click('button:has-text("Send reply")');
     await p.waitForSelector("text=We are looking at your phone line now.");

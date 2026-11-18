@@ -53,7 +53,8 @@ const secondFactor = () => k.sql(`insert into auth.mfa_factors (id, user_id, fac
     await p.waitForTimeout(500); await p.screenshot({ path: path.join(SHOTS, `remove-confirm-${tag}.png`) });
     await p.click('.zs-dialog button:has-text("Remove")');
     await p.waitForSelector(".zs-dialog", { state: "detached" });
-    k.check(`${tag}: removing one of two authenticators works and is audited`, factors() === 1 && audits("admin.mfa_removed") === removed + 1, `${factors()} left, audit ${audits("admin.mfa_removed")}`);
+    const survivor = k.sql(`select coalesce(string_agg(id::text, ','), '') from auth.mfa_factors where user_id = '${uid()}' and status = 'verified'`);
+    k.check(`${tag}: removing one of two authenticators works, keeps the original one and is audited`, factors() === 1 && survivor === only && audits("admin.mfa_removed") === removed + 1, `${factors()} left (${survivor}, original ${only}), audit ${audits("admin.mfa_removed")}`);
     const last = p.locator(".zs-savebar", { hasText: "Required for admins" });
     await last.waitFor();
     k.check(`${tag}: the last one shows Required for admins and has no Remove button`, (await last.locator('button:has-text("Remove")').count()) === 0

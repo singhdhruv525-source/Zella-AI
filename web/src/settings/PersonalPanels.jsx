@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { passwordProblems } from "../formValidation";
 import { changeAdminPassword, finishMfaEnrollment, mfaStatus, removeMfaFactor, startMfaEnrollment } from "../mfa";
@@ -144,7 +144,18 @@ function PasswordCard({ email, admin = false }) {
   );
 }
 
-function MfaCard({ required = false }) {
+// required: the page says this person is a Zella Voice admin. The card also asks the database, so the same rule as
+// removeMfaFactor (mfa.js) applies on business settings pages too: an admin removes an authenticator with a code,
+// through the server, and can't remove the last one.
+function MfaCard({ required: requiredByPage = false }) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (requiredByPage) return undefined;
+    let live = true;
+    supabase.rpc("zella_admin_role").then(({ data }) => { if (live) setIsAdmin(Boolean(data)); }, () => {});
+    return () => { live = false; };
+  }, [requiredByPage]);
+  const required = requiredByPage || isAdmin;
   const state = useAsync(mfaStatus, []);
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState("");
@@ -246,8 +257,9 @@ function SessionsCard() {
           // signs the other devices out as before, without the audit entry.
           const { data: ended, error: rpcError } = await supabase.rpc("zella_revoke_my_other_sessions");
           if (rpcError) {
-            // only a missing function (PostgREST PGRST202) falls back; any error raised while it ran is shown, so a
-            // sign out is never reported without its audit entry
+            // only PGRST202 (the function is missing, or PostgREST's schema cache hasn't caught up) falls back to
+            // Supabase Auth's own sign out, which works but writes no audit entry; any error raised while the
+            // function ran is shown instead of falling back
             const missing = rpcError.code === "PGRST202" || /Could not find the function/i.test(rpcError.message ?? "");
             if (!missing) throw new Error(/NO_SESSION/.test(rpcError.message ?? "") ? "This device's session couldn't be found. Sign in again, then try once more." : say(rpcError));
             const { error } = await supabase.auth.signOut({ scope: "others" });

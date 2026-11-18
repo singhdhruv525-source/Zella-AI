@@ -12,7 +12,11 @@
 --      holding a lock on that person, so the "another verified one is left" check and the delete can't interleave with
 --      a second removal (ACC-01, ACC-30): LAST_FACTOR when it is the only verified one, NOT_FOUND when it isn't theirs.
 --      owner-provision-business me_mfa_remove uses it; Supabase Auth's own delete has no such rule.
--- All three are new. Each is checked first: it must be absent or exactly this file's version, otherwise the file stops
+--   4. A trigger on platform_admins (zella_keep_an_owner_trg): a change or removal that would leave no active Zella Voice
+--      owner is refused (LAST_OWNER). It locks the other active owners' rows first, so two owners removing each other
+--      at the same moment can't both pass (the second waits, then sees the first change). admin_update keeps its own
+--      check for a clear message; this makes it hold in the database too.
+-- All four are new. Each is checked first: it must be absent or exactly this file's version, otherwise the file stops
 -- with VERSION_MISMATCH. Running the file twice changes nothing.
 -- Rollback: sql/rollback/zella_admin_sessions_rollback.sql (drops both, refusing if either was changed since).
 begin;
@@ -26,7 +30,8 @@ begin
   for f in select * from (values
       ('public.zella_end_user_sessions(uuid)', '6f2b8fb98e67992744046a81ff295d9f'),
       ('public.zella_revoke_my_other_sessions()', 'eaaba33d1c889966f9bc2c3e223f44e9'),
-      ('public.zella_remove_mfa_factor(uuid,uuid)', '7a8c3d352a3c9dbecea8e94c726fede1')) v(sig, want) loop
+      ('public.zella_remove_mfa_factor(uuid,uuid)', '7a8c3d352a3c9dbecea8e94c726fede1'),
+      ('public.zella_keep_an_owner_trg()', '70c818f1d3c5a06094800c067807d32b')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
@@ -80,5 +85,25 @@ begin
 end $$;
 revoke all on function public.zella_remove_mfa_factor(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.zella_remove_mfa_factor(uuid, uuid) to service_role;
+
+create or replace function public.zella_keep_an_owner_trg() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare n integer;
+begin
+  -- only when an active owner stops being one
+  if not (old.role = 'zella_owner' and coalesce(old.is_active, false)) then return coalesce(new, old); end if;
+  if tg_op = 'UPDATE' and new.role = 'zella_owner' and coalesce(new.is_active, false) then return new; end if;
+  -- lock every other active owner (waiting for a change in progress), then count those still active owners
+  select count(*) into n from (
+    select 1 from public.platform_admins
+     where role = 'zella_owner' and coalesce(is_active, false) and user_id <> old.user_id
+     for update) o;
+  if n = 0 then raise exception 'LAST_OWNER' using hint = 'Zella Voice must keep at least one active owner'; end if;
+  return coalesce(new, old);
+end $$;
+revoke all on function public.zella_keep_an_owner_trg() from public, anon, authenticated;
+drop trigger if exists zella_keep_an_owner on public.platform_admins;
+create trigger zella_keep_an_owner before update or delete on public.platform_admins
+  for each row execute function public.zella_keep_an_owner_trg();
 
 commit;

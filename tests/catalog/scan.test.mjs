@@ -213,3 +213,17 @@ test("review fixes 4: drift check uses own catalog entries, refuses run time per
   assert.ok(p.some((x) => x.includes('"toString" is not an audit action')), p.join("\n"));
   assert.deepEqual(labelKeys(`\n  "a.one": "One",\n  'a.stale': "Stale",\n  "a.mixed': "x",\n`), ["a.one", "a.stale"]);
 });
+
+test("review fixes 5: quoted names, query receivers, quoted alert keys, computed label keys", async () => {
+  // a "from" or "end" used as a quoted column name doesn't end the select list or a case
+  assert.deepEqual(names(sqlAuditActions(`insert into audit_logs (x, action) select "from", 'a.after' from t;`)), ["a.after"]);
+  assert.deepEqual(names(sqlExprNames(`case when "end" = 1 then 'a.one' else 'a.two' end`)), ["a.one", "a.two"]);
+  // the receiver decides: a chain, a name bound to a query, and one that can't be told
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs").select("id"); q = q.order("x"); q = q.eq("action", "a.bound");`)), ["a.bound"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("jobs").select("id"); q = q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`function f(query) { return query.eq("action", "a.unknown"); }`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(n8nAlertKinds(`return { json: { "alert": { p_kind: "quoted_kind", p_title: "x" } } };`)), ["quoted_kind"]);
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  ["gone.label"]: "Gone",\n  [dynamic]: "x",\n  "a.one": "One",\n`), ["gone.label", "a.one"]);
+});
+

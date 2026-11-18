@@ -266,7 +266,7 @@ Deno.test("audit export: every row once, defused, capped at 10,000 and said so, 
   assertEquals(actionText("admin.updated"), "Changed platform admin access");
 });
 
-import { businessHoursBetween, SUPPORT_HOURS_DEFAULT, supportHours, ticketTiming } from "./access.ts";
+import { businessHoursBetween, dayStart, SUPPORT_HOURS_DEFAULT, supportHours, ticketTiming } from "./access.ts";
 Deno.test("business hours: weekdays 9 to 5 in New York, across nights, weekends and the clock change", () => {
   const H = SUPPORT_HOURS_DEFAULT;
   // Monday 16 Nov 2026, New York is UTC-5
@@ -284,6 +284,22 @@ Deno.test("business hours: weekdays 9 to 5 in New York, across nights, weekends 
   assertEquals(businessHoursBetween("2024-11-18T14:00:00Z", "2026-11-16T18:00:00Z", H), 104 * 40 + 4);
   const London = { ...H, timezone: "Europe/London", days: [1, 2, 3, 4, 5, 6] };
   assertEquals(businessHoursBetween("2025-01-06T09:00:00Z", "2025-12-29T09:00:00Z", London), 51 * 48);   // through both clock changes
+  // hours that cross the clock change itself (Sundays 01:00 to 04:00 in New York, 8 March 2026 lost 02:00 to 03:00):
+  // a long span counts exactly what its days, one by one, count (elapsed time: that Sunday has 2 hours, not 3)
+  const night = { ...H, days: [7], start: "01:00", end: "04:00" };
+  const from = Date.parse("2026-01-04T00:00:00Z"), to = Date.parse("2026-04-26T12:00:00Z");
+  let byDay = 0;
+  for (let t = from; t < to; t += 86_400_000) byDay += businessHoursBetween(new Date(t).toISOString(), new Date(Math.min(t + 86_400_000, to)).toISOString(), night);
+  assertEquals(businessHoursBetween(new Date(from).toISOString(), new Date(to).toISOString(), night), Math.round(byDay * 100) / 100);
+  assertEquals(businessHoursBetween("2026-03-08T05:00:00Z", "2026-03-08T09:00:00Z", night), 2);
+});
+
+Deno.test("audit days start at the first instant of the local day, also when midnight is skipped", () => {
+  // America/Santiago skipped midnight on 6 September 2026 (23:59 went to 01:00): the day starts at 01:00 local, 04:00Z
+  assertEquals(new Date(dayStart(2026, 9, 6, "America/Santiago")).toISOString(), "2026-09-06T04:00:00.000Z");
+  assertEquals(auditFilters({ from: "2026-09-05", to: "2026-09-05", timeZone: "America/Santiago" }, InputError),
+    { from: "2026-09-05T04:00:00.000Z", to: "2026-09-06T04:00:00.000Z", timeZone: "America/Santiago" });
+  assertEquals(new Date(dayStart(2026, 11, 16, "America/New_York")).toISOString(), "2026-11-16T05:00:00.000Z");
 });
 
 Deno.test("the setting is read safely, and overdue means no first reply after 4 business hours", () => {

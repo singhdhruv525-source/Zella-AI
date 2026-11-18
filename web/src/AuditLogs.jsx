@@ -36,8 +36,9 @@ function relative(value) {
 const EMPTY = { businessId: "", auditAction: "", actorId: "", from: "", to: "", entityType: "", entityId: "" };
 // The From and To days are days in this browser's time zone, the zone the times on the page are shown in; the server
 // filters and exports with the same day bounds.
-const TIME_ZONE = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; } })();
-const withZone = (q) => (q.from || q.to ? { ...q, timeZone: TIME_ZONE } : q);
+// The zone is read at each use, so a change of the computer's zone while the page is open is followed everywhere.
+const zone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch { return "UTC"; } };
+const withZone = (q) => (q.from || q.to ? { ...q, timeZone: zone() } : q);
 
 export default function AuditLogs({ onOpenBusiness }) {
   const [logs, setLogs] = useState([]);
@@ -52,16 +53,17 @@ export default function AuditLogs({ onOpenBusiness }) {
   // the cursor and the rows on screen belong to the filters that produced them (listKey)
   const [cursor, setCursor] = useState(null);
   const [listKey, setListKey] = useState(null);
+  const [listOk, setListOk] = useState(false);   // the last first page read for these filters succeeded
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const key = JSON.stringify(auditQuery(filters));
+  const key = JSON.stringify([auditQuery(filters), zone()]);
   const request = useRef(0);
   const load = useCallback(async (before) => {
     const id = ++request.current;
-    const forKey = JSON.stringify(auditQuery(filters));
+    const forKey = JSON.stringify([auditQuery(filters), zone()]);
     setLoading(true);
     setError("");
     try {
@@ -71,11 +73,15 @@ export default function AuditLogs({ onOpenBusiness }) {
       setLogs((current) => (before ? [...current, ...data.logs] : data.logs));
       setCursor(data.nextCursor ?? null);
       setListKey(forKey);
+      if (!before) setListOk(true);
       if (data.businesses) setBusinesses(data.businesses);
       if (data.people) setPeople(data.people);
       if (!before) setCanExport(Boolean(data.canExport));
     } catch (err) {
-      if (id === request.current) setError(friendlyError(err));
+      if (id !== request.current) return;
+      setError(friendlyError(err));
+      if (!before) setListOk(false);   // the rows on screen stay, marked as from before this failed refresh
+      if (err?.status === 403) setCanExport(false);   // no access now: no Export either, until a first page says so
     } finally {
       if (id === request.current) setLoading(false);
     }
@@ -107,7 +113,7 @@ export default function AuditLogs({ onOpenBusiness }) {
     }
   }
   // the rows on screen were read with other filters (a new list is loading or failed): no paging from them
-  const stale = listKey !== null && listKey !== key;
+  const stale = listKey !== null && (listKey !== key || !listOk);
   const filtered = Object.values(auditQuery(filters)).length > 0;
   const chosen = Object.values(filters).filter(Boolean).length;
 
@@ -159,11 +165,11 @@ export default function AuditLogs({ onOpenBusiness }) {
             </select>
           </label>
           <label className="owner-field al-f-date">
-            <span>From <em className="al-tz">({TIME_ZONE})</em></span>
+            <span>From <em className="al-tz">({zone()})</em></span>
             <input type="date" value={filters.from} onChange={set("from")} max={filters.to || undefined} />
           </label>
           <label className="owner-field al-f-date">
-            <span>To <em className="al-tz">({TIME_ZONE})</em></span>
+            <span>To <em className="al-tz">({zone()})</em></span>
             <input type="date" value={filters.to} onChange={set("to")} min={filters.from || undefined} />
           </label>
           <label className="owner-field al-f-text">
@@ -183,7 +189,7 @@ export default function AuditLogs({ onOpenBusiness }) {
       {notice && <div className="ic-notice op-gap" role="status">{notice}</div>}
       {exportError && <div className="owner-form-error op-gap" role="alert">The export didn't work: {exportError}</div>}
       {error && <div className="owner-form-error op-gap" role="alert">Could not load audit logs: {error}</div>}
-      {stale && logs.length > 0 && <div className="op-muted op-gap" data-load="stale">These entries are for the earlier filters{loading ? "; the new list is loading" : ""}.</div>}
+      {stale && logs.length > 0 && <div className="op-muted op-gap" data-load="stale">{listKey !== key ? "These entries are for the earlier filters" : "These entries are from before the last refresh failed"}{loading ? "; the new list is loading" : ""}.</div>}
 
       <section className="owner-panel">
         <div className="owner-table-wrap" tabIndex={0}>

@@ -8,7 +8,7 @@
 --   3. zella_admin_ticket_reply(ticket, author, body): server only (owner-provision-business ticket_update, which
 --      checks support.manage and audits). Adds the reply, sets first_response_at once, and tells the person who opened
 --      the ticket in the app (staff_notifications, marked skipped for email and text: in app only).
---   4. zella_business_ticket_reply(ticket, body): the business's owner, admins and managers (the same people who may
+--   4. zella_business_ticket_reply(ticket, body, ref): the business's owner, admins and managers (the same people who may
 --      update tickets); reopens a resolved ticket.
 --   5. A trigger raises a platform alert when a business asks to cancel, asks for a plan change, or reports an urgent
 --      issue from Settings (zella_business_request creates those tickets; it is not replaced here).
@@ -35,12 +35,12 @@ begin
   if to_regclass('public.support_ticket_messages') is not null and (
        select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns
         where table_schema = 'public' and table_name = 'support_ticket_messages')
-     is distinct from 'author_id uuid, author_side text, body text, business_id uuid, created_at timestamp with time zone, id uuid, ticket_id uuid' then
+     is distinct from 'author_id uuid, author_side text, body text, business_id uuid, client_ref uuid, created_at timestamp with time zone, id uuid, ticket_id uuid' then
     raise exception 'VERSION_MISMATCH: a different support_ticket_messages table already exists';
   end if;
   for f in select * from (values
       ('public.zella_admin_ticket_reply(uuid,uuid,text)', '4cfcb7b1370b215f3c58ba007890aba8'),
-      ('public.zella_business_ticket_reply(uuid,text)', '74292f8c7c40bb7035c6606a86fc6d89'),
+      ('public.zella_business_ticket_reply(uuid,text,uuid)', 'c16ec58238e133a7b265ae833b114163'),
       ('public.zella_support_ticket_alert_trg()', '7c1e68b078a07f8f175eaf593ec52eb2')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
@@ -55,12 +55,15 @@ create table if not exists public.support_ticket_messages (
   author_id uuid,
   author_side text not null check (author_side in ('zella', 'business')),
   body text not null check (length(btrim(body)) between 1 and 4000),
+  -- the page's own id for an answer, so sending the same answer again (a lost response) saves it once
+  client_ref uuid,
   created_at timestamptz not null default now()
 );
 -- the mark the rollback relies on: this table is this file's (it never drops a table it can't prove it created)
 comment on table public.support_ticket_messages is 'zella_support_replies.sql';
 create index if not exists support_ticket_messages_ticket_idx on public.support_ticket_messages (ticket_id, created_at);
 create index if not exists support_ticket_messages_business_idx on public.support_ticket_messages (business_id);
+create unique index if not exists support_ticket_messages_client_ref_idx on public.support_ticket_messages (ticket_id, client_ref) where client_ref is not null;
 alter table public.support_ticket_messages enable row level security;
 revoke all on table public.support_ticket_messages from public, anon, authenticated;
 grant select on table public.support_ticket_messages to authenticated;
@@ -103,7 +106,7 @@ end $$;
 revoke all on function public.zella_admin_ticket_reply(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function public.zella_admin_ticket_reply(uuid, uuid, text) to service_role;
 
-create or replace function public.zella_business_ticket_reply(p_ticket uuid, p_body text) returns jsonb
+create or replace function public.zella_business_ticket_reply(p_ticket uuid, p_body text, p_ref uuid default null) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare t record; v_id uuid; v_body text := btrim(coalesce(p_body, ''));
 begin
@@ -115,14 +118,19 @@ begin
        and bm.status = 'active' and bm.role = any (array['owner', 'admin', 'manager'])) then
     raise exception 'NOT_ALLOWED';
   end if;
-  insert into public.support_ticket_messages (ticket_id, business_id, author_id, author_side, body)
-  values (t.id, t.business_id, auth.uid(), 'business', v_body) returning id into v_id;
+  -- the same answer sent again (same ref): the one already saved, nothing new
+  if p_ref is not null then
+    select id into v_id from public.support_ticket_messages where ticket_id = t.id and client_ref = p_ref;
+    if found then return jsonb_build_object('message_id', v_id, 'already_saved', true); end if;
+  end if;
+  insert into public.support_ticket_messages (ticket_id, business_id, author_id, author_side, body, client_ref)
+  values (t.id, t.business_id, auth.uid(), 'business', v_body, p_ref) returning id into v_id;
   update public.support_tickets set updated_at = now(), status = case when status in ('resolved', 'closed') then 'open' else status end, resolved_at = case when status in ('resolved', 'closed') then null else resolved_at end
    where id = t.id;
   return jsonb_build_object('message_id', v_id);
 end $$;
-revoke all on function public.zella_business_ticket_reply(uuid, text) from public, anon;
-grant execute on function public.zella_business_ticket_reply(uuid, text) to authenticated;
+revoke all on function public.zella_business_ticket_reply(uuid, text, uuid) from public, anon;
+grant execute on function public.zella_business_ticket_reply(uuid, text, uuid) to authenticated;
 
 create or replace function public.zella_support_ticket_alert_trg() returns trigger
 language plpgsql security definer set search_path = '' as $$

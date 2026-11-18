@@ -71,12 +71,13 @@ export default function UsersAccess() {
     setBusy(true);
     setError("");
     setNotice("");
-    setSessionRetry(null);
     try {
       const result = await callOwnerFunction(action, payload);
       setNotice(success(result));
       // ACC-18: the change is saved but their devices weren't signed out: offer to try that again on its own
+      // it stays until their devices are signed out or the owner dismisses it, whatever else is done meanwhile
       if (result?.sessionsWarning && payload?.userId) setSessionRetry({ userId: payload.userId });
+      if (action === "admin_sessions_end" && typeof result?.sessionsEnded === "number") setSessionRetry(null);
       setConfirm(null);
       setFresh(null);
       onDone?.();
@@ -133,6 +134,7 @@ export default function UsersAccess() {
             onClick={() => run("admin_sessions_end", { userId: sessionRetry.userId }, (r) => signedOutText(r) || "They were signed out on every device.")}>
             Sign out everywhere
           </button>
+          <button type="button" className="owner-secondary-button op-small" disabled={busy} onClick={() => setSessionRetry(null)}>Dismiss</button>
         </div>
       )}
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}

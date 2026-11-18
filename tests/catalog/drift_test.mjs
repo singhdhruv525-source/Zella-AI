@@ -75,8 +75,9 @@ export function check(found, catalog, extra = {}) {
   return [...new Set(problems)];
 }
 
-// The keys of an object literal's lines, quoted with matching single or double quotes ("a.b": or 'a.b':).
-export const labelKeys = (body) => [...body.matchAll(/^\s*(["'])([^"'\n]+)\1\s*:/gm)].map((m) => m[2]);
+// The keys of an object literal's lines: quoted with matching single or double quotes ("a.b": or 'a.b':), or a static
+// computed key (["a.b"]:). A computed key that isn't a plain string isn't a label name and is left out.
+export const labelKeys = (body) => [...body.matchAll(/^\s*(?:(["'])([^"'\n]+)\1|\[\s*(["'])([^"'\n]+)\3\s*\])\s*:/gm)].map((m) => m[2] ?? m[4]);
 
 export function extras(root = ROOT) {
   const settings = readFileSync(join(root, "web/supabase/functions/owner-provision-business/settings.ts"), "utf8");

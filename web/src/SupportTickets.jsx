@@ -38,26 +38,31 @@ export default function SupportTickets({ onOpenBusiness }) {
 
   // only the latest load may show its result, so an older refresh can't replace the list read after a reply
   const request = useRef(0);
+  // Waiting too long asks the server for the overdue tickets themselves (every waiting ticket is judged there), not
+  // a filter of the newest tickets loaded for the other tabs
+  const overdueTab = statusFilter === "overdue";
   const load = useCallback(async () => {
     const mine = ++request.current;
     setLoading(true);
     setError("");
     try {
-      const next = await callOwnerFunction("tickets_list");
-      if (mine === request.current) setData(next);
+      const next = await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {});
+      if (mine === request.current) setData({ ...next, overdueOnly: overdueTab });
     } catch (err) {
       if (mine === request.current) setError(friendlyError(err));
     } finally {
       if (mine === request.current) setLoading(false);
     }
-  }, []);
+  }, [overdueTab]);
 
   useEffect(() => {
     load();
   }, [load]);
+  // reply times are known only once the server says conversations are available (sql/zella_support_replies.sql)
+  const timesKnown = data?.conversations === true;
 
   const tickets = (data?.tickets ?? []).filter((t) =>
-    statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
+    statusFilter === "all" ? true : statusFilter === "overdue" ? data?.overdueOnly === true && t.overdue === true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
   // with the detail panel open the table is narrow: Business moves into each row's second line and Assigned is in the panel
@@ -67,10 +72,12 @@ export default function SupportTickets({ onOpenBusiness }) {
     setBusy(true);
     setError("");
     try {
-      await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
+      const r = await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
       // clear only the text that was sent; anything typed since stays
       if (payload.note) setNote((current) => (current === payload.note ? "" : current));
-      if (payload.reply) setReply((current) => (current === payload.reply ? "" : current));
+      // the other changes were saved but the reply wasn't: say so, and keep the reply to send again on its own
+      if (r?.replyFailed) setError(`The other changes were saved, but the reply wasn't sent: ${r.replyFailed}`);
+      else if (payload.reply) setReply((current) => (current === payload.reply ? "" : current));
       await load();
     } catch (err) {
       setError(friendlyError(err));
@@ -117,7 +124,7 @@ export default function SupportTickets({ onOpenBusiness }) {
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
 
       <div className="ag-filters op-gap" role="tablist">
-        {[["active", "Open & in progress"], ["overdue", `Waiting too long${data ? ` (${data.tickets.filter((t) => t.overdue).length})` : ""}`], ...STATUSES, ["all", "All"]].map(([key, text]) => (
+        {[["active", "Open & in progress"], ["overdue", "Waiting too long"], ...STATUSES, ["all", "All"]].map(([key, text]) => (
           <button key={key} type="button" role="tab" aria-selected={statusFilter === key} className={statusFilter === key ? "active" : ""} onClick={() => setStatusFilter(key)}>
             {text}
           </button>
@@ -148,7 +155,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                       <td>
                         <span className="st-status">
                           <Pill tone={STATUS_TONE[t.status]}>{label(STATUSES, t.status)}</Pill>
-                          {t.overdue && <Pill tone="danger">No reply yet</Pill>}
+                          {timesKnown && t.overdue === true && <Pill tone="danger">No reply yet</Pill>}
                         </span>
                       </td>
                       {!detailOpen && (
@@ -222,9 +229,11 @@ export default function SupportTickets({ onOpenBusiness }) {
 
             {selected.description && <p className="st-description">{selected.description}</p>}
             <p className="op-muted st-response">
-              {selected.firstResponseHours !== null && selected.firstResponseHours !== undefined
+              {!timesKnown
+                ? "Reply times aren't available yet (they need the latest database update)."
+                : selected.firstResponseHours !== null && selected.firstResponseHours !== undefined
                 ? firstReplyText(selected.firstResponseHours)
-                : `No reply yet: open for ${businessHoursText(selected.ageHours) || "under a business hour"}${selected.overdue ? `, past the ${data?.supportHours?.first_response_hours ?? 4} business hour goal` : ""}.`}
+                : `No reply yet: open for ${businessHoursText(selected.ageHours) || "under a business hour"}${selected.overdue === true ? `, past the ${data?.supportHours?.first_response_hours ?? 4} business hour goal` : ""}.`}
             </p>
 
             <div className="st-fields">
@@ -251,7 +260,7 @@ export default function SupportTickets({ onOpenBusiness }) {
 
             <div className="st-notes">
               <h4>Conversation with the business</h4>
-              {data?.conversations === false ? (
+              {data?.conversations !== true ? (
                 <p className="op-muted">Conversations with businesses aren't available yet: they need the latest database update (sql/zella_support_replies.sql).</p>
               ) : selected.messages?.length ? (
                 <ul>
@@ -263,7 +272,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                   ))}
                 </ul>
               ) : <p className="op-muted">No replies yet. The business sees everything in this conversation.</p>}
-              {data?.conversations !== false && (
+              {data?.conversations === true && (
                 <>
                   <textarea className="wiz-textarea" aria-label="Reply to the business" value={reply} maxLength={4000} placeholder="Write a reply the business will see" onChange={(e) => setReply(e.target.value)} />
                   <button type="button" className="owner-primary-button op-gap-top" disabled={busy || !reply.trim() || reply.length > 4000} onClick={() => update({ reply })}>

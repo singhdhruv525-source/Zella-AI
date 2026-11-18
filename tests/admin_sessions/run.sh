@@ -81,7 +81,24 @@ wait
 left=$(q "select count(*) from auth.mfa_factors where user_id = '$A' and status = 'verified'")
 [[ "$second" == *"LAST_FACTOR"* ]] && [ "$left" = "1" ] && ok "two removals at once: one goes through, the other waits and is refused (LAST_FACTOR), one authenticator stays" || bad "concurrent removal: $second, left $left"
 
+# the database keeps an active Zella Voice owner, also when two owners remove each other at the same moment
+O1=f3300000-0000-0000-0000-000000000001; O2=f3300000-0000-0000-0000-000000000002
+q "insert into auth.users (id, email, email_confirmed_at) values ('$O1', 'own1@sessions.test', now()), ('$O2', 'own2@sessions.test', now());
+   update public.platform_admins set is_active = false where role = 'zella_owner';
+   insert into public.platform_admins (user_id, role, is_active) values ('$O1', 'zella_owner', true), ('$O2', 'zella_owner', true)" > /dev/null
+( "${P[@]}" -d $DB -c "begin; update public.platform_admins set role = 'super_admin' where user_id = '$O1'; select pg_sleep(2); commit;" > /dev/null 2>&1 ) &
+sleep 0.7
+second=$( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O2'" 2>&1 )
+wait
+owners=$(q "select count(*) from public.platform_admins where role = 'zella_owner' and is_active")
+[[ "$second" == *"LAST_OWNER"* ]] && [ "$owners" = "1" ] && ok "two owners removed at once: the second waits and is refused (LAST_OWNER), one active owner stays" || bad "concurrent owner removal: $second, owners $owners"
+r=$( "${P[@]}" -d $DB -c "delete from public.platform_admins where user_id = '$O2'" 2>&1 )
+[[ "$r" == *"LAST_OWNER"* ]] && ok "deleting the last active owner is refused too" || bad "delete last owner: $r"
+q "update public.platform_admins set role = 'zella_owner' where user_id = '$O1'" > /dev/null
+r=$( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O2'" 2>&1 ) && ok "with another active owner, an owner can be removed" || bad "removal with two owners: $r"
+
 "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
+[ "$(q "select count(*) from pg_trigger where tgname = 'zella_keep_an_owner'")" = "0" ] && ok "rollback drops the owner trigger" || bad "owner trigger left"
 v=$(q "select coalesce(to_regprocedure('public.zella_end_user_sessions(uuid)')::text, '') || coalesce(to_regprocedure('public.zella_revoke_my_other_sessions()')::text, '') || coalesce(to_regprocedure('public.zella_remove_mfa_factor(uuid,uuid)')::text, '')") && [ -z "$v" ] && ok "rollback drops all three functions" || bad "functions left"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_end_user_sessions(p_user_id uuid) returns integer language sql security definer set search_path = '' as \$f\$ select 0 \$f\$" > /dev/null

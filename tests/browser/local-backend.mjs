@@ -282,11 +282,17 @@ async function userRow(id) {
 // session row to still exist, so ending a session (zella_end_user_sessions, zella_revoke_my_other_sessions) stops
 // its refresh; an access token already issued keeps working until it expires, as with Supabase.
 const REFRESH = new Map();   // refresh token -> { id, aal, totpAt, sid }
+// Returns null when a session given by id no longer exists for that person (it was ended): no token is issued then.
 async function session(user, aal = "aal1", totpAt = null, sid = null) {
   const now = Math.floor(Date.now() / 1000), exp = now + 3600;
   const sessionId = sid ?? crypto.randomUUID();
-  await asCaller({ role: "service_role" }, `insert into auth.sessions (id, user_id, aal, created_at, updated_at) values (${lit(sessionId)}, ${lit(user.id)}, ${lit(aal)}, now(), now())
-    on conflict (id) do update set aal = excluded.aal, refreshed_at = now(), updated_at = now()`, { preRequest: false, system: true });
+  const sys = { preRequest: false, system: true };
+  const w = sid
+    // an existing session (refresh, a new code): only its own row, never recreated once it was ended
+    ? await asCaller({ role: "service_role" }, `update auth.sessions set aal = ${lit(aal)}, refreshed_at = now(), updated_at = now() where id = ${lit(sessionId)} and user_id = ${lit(user.id)} returning id`, sys)
+    : await asCaller({ role: "service_role" }, `insert into auth.sessions (id, user_id, aal, created_at, updated_at) values (${lit(sessionId)}, ${lit(user.id)}, ${lit(aal)}, now(), now()) returning id`, sys);
+  if (w.error) throw Object.assign(new Error("session write failed"), { status: 500 });
+  if (!w.text) return null;
   const amr = [...(totpAt ? [{ method: "totp", timestamp: totpAt }] : []), { method: "password", timestamp: now }];
   const claims = { sub: user.id, email: user.email, role: "authenticated", aud: "authenticated", aal, amr, exp, session_id: sessionId };
   const refresh = `rt_${crypto.randomUUID().replace(/-/g, "")}`;
@@ -324,7 +330,9 @@ async function auth(req, url, claims, body) {
     const user = id && (await userRow(id));
     if (!user) return INVALID_GRANT;
     await asCaller({ role: "service_role" }, `update auth.users set last_sign_in_at = now() where id = ${lit(id)}`, { preRequest: false, system: true });
-    return { status: 200, json: await session(user, aal, totpAt, sid) };
+    const s = await session(user, aal, totpAt, sid).catch(() => "error");
+    if (s === "error") return { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } };
+    return s ? { status: 200, json: s } : { status: 400, json: { error: "invalid_grant", error_description: "Session not found", msg: "Session not found", code: "session_not_found" } };
   }
   if (path === "/user") {
     if (!claims?.sub) return { status: 401, json: { code: 401, msg: "Invalid token", error_code: "bad_jwt" } };
@@ -357,8 +365,10 @@ async function auth(req, url, claims, body) {
       const v = await asCaller({ role: "service_role" }, `update auth.mfa_factors set status = 'verified', updated_at = now() where id = ${lit(factorId)} and user_id = ${lit(claims.sub)} returning id`, sys);
       if (v.error || !v.text) return { status: 404, json: { code: 404, msg: "Factor not found", error_code: "mfa_factor_not_found" } };
       const user = await userRow(claims.sub);
-      // the same session, now verified with a code at this moment
-      return { status: 200, json: await session(user, "aal2", Math.floor(Date.now() / 1000), claims.session_id ?? null) };
+      // the same session, now verified with a code at this moment (refused if that session was ended)
+      const s = await session(user, "aal2", Math.floor(Date.now() / 1000), claims.session_id ?? null).catch(() => "error");
+      if (s === "error") return { status: 500, json: { code: 500, msg: "The session could not be saved", error_code: "unexpected_failure" } };
+      return s ? { status: 200, json: s } : { status: 401, json: { code: 401, msg: "Session not found", error_code: "session_not_found" } };
     }
     return { status: 200, json: { all: [], totp: [], phone: [] } };
   }

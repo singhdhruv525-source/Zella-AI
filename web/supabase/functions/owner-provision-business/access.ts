@@ -139,7 +139,7 @@ export function auditFilters(fields: Json, InputError: new (m: string, s?: numbe
     // the start of that day in the zone; "to" is the whole of that day (up to the start of the next one)
     const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, dd = d.getUTCDate();
     const next = new Date(Date.UTC(y, m - 1, dd + 1));
-    f[k] = new Date(k === "from" ? instant(y, m, dd, "00:00", tz) : instant(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), "00:00", tz)).toISOString();
+    f[k] = new Date(k === "from" ? dayStart(y, m, dd, tz) : dayStart(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), tz)).toISOString();
   }
   if (tzIn && (f.from || f.to)) f.timeZone = tz;
   if (f.from && f.to && f.from >= f.to) throw new InputError("The start date is after the end date");
@@ -342,9 +342,25 @@ function instant(y: number, m: number, d: number, hhmm: string, tz: string) {
   return guess - zoned(first, tz).offset;
 }
 
-// Business hours between two instants, in hours (0 when the end is not after the start). The first and last weeks are
-// read day by day; whole weeks in between add one week's business hours each (the hours are wall clock times, so a
-// week holds the same business hours whatever the clocks do overnight). Exact for any length, in bounded work.
+// The first instant of a local day in a time zone. Midnight can be skipped (the clocks jump from 23:59 to 01:00, as
+// in America/Santiago) or happen twice (they go back over it): the answer is the earliest instant whose local date is
+// that day.
+export function dayStart(y: number, m: number, d: number, tz: string) {
+  const want = y * 10000 + m * 100 + d;
+  const dateOf = (ms: number) => { const z = zoned(ms, tz); return z.y * 10000 + z.m * 100 + z.d; };
+  let t = instant(y, m, d, "00:00", tz);
+  // skipped midnight: the guess is still the day before; step forward to the first minute of the day
+  while (dateOf(t) < want) t += 60_000;
+  // an earlier instant with the same date (midnight twice): step back while the date stays
+  while (dateOf(t - 60_000) === want) t -= 60_000;
+  return t;
+}
+
+// Business hours between two instants, in hours of elapsed time (0 when the end is not after the start). The first and
+// last weeks are read day by day. A whole week in between adds one week's business hours at once only when the
+// time zone's offset is the same at both ends of it and on each of its days (no clock change inside), so it counts
+// exactly what the days would; a week with a clock change is read day by day. Exact for any length, bounded work
+// (a few checks per week).
 export function businessHoursBetween(fromIso: string, toIso: string, hours: SupportHours): number {
   const from = Date.parse(fromIso), to = Date.parse(toIso);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return 0;
@@ -352,14 +368,25 @@ export function businessHoursBetween(fromIso: string, toIso: string, hours: Supp
   const weekMs = hours.days.length * ((eh * 60 + em) - (sh * 60 + sm)) * 60_000;
   let total = 0;
   let { y, m, d } = zoned(from, hours.timezone);
-  for (let i = 0; i < 40; i++) {
-    let noon = Date.UTC(y, m - 1, d, 12);
-    // after the first day, jump over whole weeks that end at least a week before the end
-    const weeks = i > 0 ? Math.floor((to - noon) / (7 * 86_400_000)) - 1 : 0;
-    if (weeks > 0) {
-      total += weeks * weekMs;
-      noon += weeks * 7 * 86_400_000;
-      const at = new Date(noon); y = at.getUTCFullYear(); m = at.getUTCMonth() + 1; d = at.getUTCDate();
+  const DAY = 86_400_000, WEEK = 7 * DAY;
+  // the zone's offset at the local midnight starting each of the week's days and the one after it: all equal means no
+  // clock change anywhere in the week
+  const steady = (yy: number, mm: number, dd: number) => {
+    let first: number | null = null;
+    for (let k = 0; k < 8; k++) {
+      const at = new Date(Date.UTC(yy, mm - 1, dd + k, 12));
+      const o = zoned(instant(at.getUTCFullYear(), at.getUTCMonth() + 1, at.getUTCDate(), "00:00", hours.timezone), hours.timezone).offset;
+      if (first === null) first = o; else if (o !== first) return false;
+    }
+    return true;
+  };
+  for (let i = 0; i < 100_000; i++) {
+    const noon = Date.UTC(y, m - 1, d, 12);
+    // after the first day, a whole week that ends at least a week before the end, with no clock change, at once
+    if (i > 0 && to - noon > 2 * WEEK && steady(y, m, d)) {
+      total += weekMs;
+      const at = new Date(noon + WEEK); y = at.getUTCFullYear(); m = at.getUTCMonth() + 1; d = at.getUTCDate();
+      continue;
     }
     const wd = ((new Date(noon).getUTCDay() + 6) % 7) + 1;
     const open = instant(y, m, d, hours.start, hours.timezone), close = instant(y, m, d, hours.end, hours.timezone);

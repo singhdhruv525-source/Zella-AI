@@ -96,10 +96,13 @@ export function caseResults(t) {
   const word = /\b(case|when|then|else|end)\b/gi;
   let depth = 0, cases = 0, quote = false, start = -1, paren = 0;
   const lower = t.toLowerCase();
+  let ident = false;
   for (let i = 0; i < t.length; i++) {
     const c = t[i];
     if (quote) { if (c === "'") quote = false; continue; }
+    if (ident) { if (c === '"') { if (t[i + 1] === '"') i++; else ident = false; } continue; }   // "end" as a name, "" inside
     if (c === "'") { quote = true; continue; }
+    if (c === '"') { ident = true; continue; }
     if (c === "(") { paren++; continue; }
     if (c === ")") { paren--; continue; }
     word.lastIndex = i;
@@ -201,11 +204,13 @@ export function sqlAuditActions(raw) {
 
 // Where a select list ends: the first from / where / ; outside brackets and quoted text, or -1.
 function outerStop(src, from) {
-  let depth = 0, quote = false;
+  let depth = 0, quote = false, ident = false;
   for (let i = from; i < src.length; i++) {
     const c = src[i];
     if (quote) { if (c === "'") quote = false; continue; }
+    if (ident) { if (c === '"') { if (src[i + 1] === '"') i++; else ident = false; } continue; }   // a "from" column name
     if (c === "'") { quote = true; continue; }
+    if (c === '"') { ident = true; continue; }
     if (c === "(") depth++;
     else if (c === ")") { if (depth === 0) return i; depth--; }
     else if (depth === 0) {
@@ -441,17 +446,64 @@ export function tsAuditActions(raw) {
 export function tsAuditReads(raw) {
   const src = stripJsComments(raw);
   const out = [];
-  // only on a query of audit_logs: the nearest .from(...) before the filter names the table
-  const onAuditLogs = (at) => {
-    const froms = [...src.slice(0, at).matchAll(/\.from\(\s*["']([a-z_]+)["']\s*\)/g)];
-    return froms.length > 0 && froms[froms.length - 1][1] === "audit_logs";
-  };
+  const masked = maskStrings(src);
   for (const m of src.matchAll(/\.(eq|in)\(\s*["']action["']\s*,\s*/g)) {
-    if (!onAuditLogs(m.index)) continue;
-    for (const n of jsExprNames(exprAfter(src, m.index + m[0].length))) out.push({ ...n, line: lineAt(src, m.index) });
+    const names = jsExprNames(exprAfter(src, m.index + m[0].length));
+    if (!names.length) continue;
+    const table = queryTable(src, masked, m.index);
+    if (table === null) { out.push({ name: `action filter at line ${lineAt(src, m.index)}`, unresolved: true, line: lineAt(src, m.index) }); continue; }
+    if (table === "audit_logs") for (const n of names) out.push({ ...n, line: lineAt(src, m.index) });
   }
-  for (const m of src.matchAll(/action\.like\.([a-z_.]*)%/g)) if (onAuditLogs(m.index)) out.push({ name: m[1], prefix: true, line: lineAt(src, m.index) });
+  for (const m of src.matchAll(/action\.like\.([a-z_.]*)%/g)) {
+    // the filter sits in a string given to .or(...) / .filter(...): the query is that call's receiver
+    const call = Math.max(src.lastIndexOf(".or(", m.index), src.lastIndexOf(".filter(", m.index));
+    const table = queryTable(src, masked, call >= 0 ? call : m.index);
+    if (table === null) out.push({ name: `action filter at line ${lineAt(src, m.index)}`, unresolved: true, line: lineAt(src, m.index) });
+    else if (table === "audit_logs") out.push({ name: m[1], prefix: true, line: lineAt(src, m.index) });
+  }
   return out;
+}
+
+// The table a query builder call at `at` belongs to: follows the call chain back to its start (admin.from("t")...)
+// and, when the chain starts at a name, that name's latest assignment (q = admin.from("t")..., q = q.eq(...)).
+// Returns the table, or null when it can't be worked out (a parameter, a call result).
+export function queryTable(src, masked, at, depth = 0) {
+  if (depth > 5) return null;
+  // walk back over the chain: .name(...) segments and the head before them
+  let i = at;
+  for (;;) {
+    let j = i - 1;
+    while (j >= 0 && /\s/.test(masked[j])) j--;
+    if (masked[j] === ")") {
+      let d = 0;
+      for (; j >= 0; j--) { if (masked[j] === ")") d++; else if (masked[j] === "(") { d--; if (d === 0) break; } }
+      j--;
+      while (j >= 0 && /[\w$]/.test(masked[j])) j--;
+      if (masked[j] === ".") { i = j; continue; }
+      // a call with no receiver: the head is a function call, not a query
+      return null;
+    }
+    while (j >= 0 && /[\w$]/.test(masked[j])) j--;
+    const head = masked.slice(j + 1, i).trim();
+    if (masked[j] === ".") { i = j; continue; }
+    const chain = src.slice(j + 1, at);
+    const from = chain.match(/\.from\(\s*["']([a-z_]+)["']\s*\)/);
+    if (from) return from[1];
+    if (!/^[A-Za-z_$][\w$]*$/.test(head)) return null;
+    // the head is a name: its latest assignment before here decides
+    // (not the assignment this chain is the right hand side of)
+    const assigns = [...masked.slice(0, j + 1).matchAll(new RegExp(`(?:\\b(?:let|const|var)\\s+)?\\b${head}\\s*=(?!=)\\s*`, "g"))]
+      .filter((x) => x.index + x[0].length < j + 1);
+    if (!assigns.length) return null;
+    const a = assigns[assigns.length - 1];
+    const rhsStart = a.index + a[0].length;
+    const rhs = src.slice(rhsStart, rhsStart + exprAfter(src, rhsStart).length);
+    const f = rhs.match(/\.from\(\s*["']([a-z_]+)["']\s*\)/);
+    if (f) return f[1];
+    // q = q.order(...): follow that q back in turn
+    if (new RegExp(`^\\s*${head}\\s*\\.`).test(rhs)) return queryTable(src, masked, rhsStart + rhs.indexOf("."), depth + 1);
+    return null;
+  }
 }
 
 // Permission names: values of the PERMISSIONS maps, PERMISSION_CATALOG rows and the two owner only permissions.
@@ -486,7 +538,7 @@ export function n8nAlertKinds(raw) {
     }
     if (open < 0 || masked[open] !== "{") continue;
     const lead = src.slice(Math.max(0, open - 80), open);
-    if (/\balert\s*:\s*$/.test(lead) || (/["']zella_platform_alert["']\s*,\s*$/.test(lead))) out.push({ name: m[2], line: lineAt(src, m.index) });
+    if (/(?:\balert|(["'])alert\1)\s*:\s*$/.test(lead) || (/["']zella_platform_alert["']\s*,\s*$/.test(lead))) out.push({ name: m[2], line: lineAt(src, m.index) });
   }
   return out;
 }

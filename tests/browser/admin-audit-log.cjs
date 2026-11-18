@@ -10,7 +10,14 @@ const SHOTS = process.env.SHOTS ?? path.join(__dirname, "out", "admin-audit-log"
 const OWNER = "admin@zella.test", READONLY = "readonly@zella.test";
 const ENTITY = require("crypto").randomUUID();   // this run's record id: every fixture and export of this run carries it
 const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, "../../web/supabase/functions/_shared/catalog.json"), "utf8"));
-const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 'lanea_test' and entity_id = '${ENTITY}') or (action = 'audit.exported' and new_data -> 'filters' ->> 'entityId' = '${ENTITY}')`);
+const OTHER = require("crypto").randomUUID();    // a second record of this run, which the record filter must leave out
+const STARTED = new Date().toISOString();
+const MEMBER = "staff-a@b3.test";
+// this run's rows only: its fixtures, its exports, and the refusal its business member call records
+const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 'lanea_test' and entity_id in ('${ENTITY}', '${OTHER}'))
+  or (action = 'audit.exported' and new_data -> 'filters' ->> 'entityId' = '${ENTITY}')
+  or (action = 'security.admin_refused' and new_data ->> 'action' = 'audit_export' and created_at >= '${STARTED}'
+      and user_id = (select id from auth.users where email = '${MEMBER}'))`);
 
 (async () => {
   k.guard();
@@ -46,7 +53,7 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
   // export
   let r = await k.fn(await k.token(READONLY), { action: "audit_export", entityType: "lanea_test" });
   k.check("a read only admin (audit.view, not owner or super admin) can't export", r.status === 403, `${r.status} ${r.body.error}`);
-  r = await k.fn(await k.token("staff-a@b3.test"), { action: "audit_export" });
+  r = await k.fn(await k.token(MEMBER), { action: "audit_export" });
   k.check("a business member can't", r.status === 403, String(r.status));
   r = await k.fn(null, { action: "audit_export" });
   k.check("nor anonymous", r.status === 401, String(r.status));
@@ -55,9 +62,13 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
   const lines = (r.body.csv ?? "").trimEnd().split("\r\n");
   k.check("the owner exports the filtered entries as CSV", r.status === 200 && r.body.rows === 65 && lines.length === 66 && lines[0].startsWith("When (UTC),Action,"), `${r.status} ${r.body.rows} ${lines.length}`);
   k.check("a cell that would run as a formula (a browser name starting with =) starts with an apostrophe", lines.slice(1).every((l) => !/,"?=HYPERLINK/.test(l)) && lines.filter((l) => l.includes(`"'=HYPERLINK(""x"")"`)).length === 60, lines[1]?.slice(0, 200));
-  // this export's own entry: by the owner, for this run's record id, one more than before
-  const audit = k.sql(`select coalesce(string_agg((new_data ->> 'rows') || '|' || (new_data -> 'filters' ->> 'entityType') || '|' || (new_data -> 'filters' ->> 'from'), ','), '') from public.audit_logs where action = 'audit.exported' and user_id = '${owner}' and new_data -> 'filters' ->> 'entityId' = '${ENTITY}'`);
-  k.check("the export is audited with its filters and row count", exportsBefore === 0 && audit === "65|lanea_test|2026-11-01T00:00:00.000Z", `${exportsBefore} before, ${audit}`);
+  // this export's own entry: by the owner, for this run's record id; exactly one, with its filters and row count
+  const where = `action = 'audit.exported' and user_id = '${owner}' and new_data -> 'filters' ->> 'entityId' = '${ENTITY}'`;
+  const exportsAfter = Number(k.sql(`select count(*) from public.audit_logs where ${where}`));
+  const audit = k.sql(`select (new_data ->> 'rows') || '|' || (new_data -> 'filters' ->> 'entityType') || '|' || (new_data -> 'filters' ->> 'from') from public.audit_logs where ${where} limit 1`);
+  k.check("the export is audited once, with its filters and row count", exportsBefore === 0 && exportsAfter === 1 && audit === "65|lanea_test|2026-11-01T00:00:00.000Z", `${exportsBefore} before, ${exportsAfter} after, ${audit}`);
+  // a second record for the same person and record type, which the browser's record filter must leave out
+  k.sql(`insert into public.audit_logs (user_id, action, entity_type, entity_id, created_at) select '${ro}', 'admin.updated', 'lanea_test', '${OTHER}', '2026-11-15 12:00:00.123456+00' from generate_series(1, 2)`);
 
   const browser = await k.chromium.launch();
   for (const [width, tag] of [[1440, "desktop"], [390, "phone"]]) {
@@ -71,9 +82,13 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
     k.check(`${tag}: the Action filter lists every catalog action, each once`, JSON.stringify([...values].sort()) === JSON.stringify(Object.keys(catalog.audit_actions).sort()), `${values.length} options`);
     await p.locator('label:has-text("Person") select').selectOption({ label: READONLY });
     await p.fill('input[placeholder="for example platform_admin"]', "lanea_test");
+    await p.waitForSelector("text=7 entries shown");   // this person's 5 for the run's record and 2 for the other one
+    // the record filter: wait for the list read with it, then only this run's record is shown
+    const filtered = p.waitForResponse((res) => res.url().includes("/functions/v1/owner-provision-business") && (res.request().postData() ?? "").includes(ENTITY) && res.status() === 200);
     await p.fill('input[placeholder="The record\'s id"]', ENTITY);
+    await filtered;
     await p.waitForSelector("text=5 entries shown");
-    k.check(`${tag}: person and record filters narrow the list`, true);
+    k.check(`${tag}: person and record filters narrow the list (the other record is left out)`, !(await p.isVisible('[data-load="stale"]')));
     await p.locator("tbody tr").first().locator('button:has-text("Details")').click().catch(() => {});
     await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `audit-filters-${tag}.png`), fullPage: true });
     const [dl] = await Promise.all([p.waitForEvent("download"), p.click('button:has-text("Export CSV")')]);
@@ -90,7 +105,10 @@ const cleanUp = () => k.sql(`delete from public.audit_logs where (entity_type = 
   await k.signIn(p, READONLY);
   await p.goto(k.APP + "/audit-logs");
   await p.waitForSelector('label:has-text("Person")');
-  // the list has loaded once Refresh is enabled again
+  // a known fixture of this run is on screen: the list really loaded
+  if (await p.isVisible(".al-filters-toggle")) await p.click(".al-filters-toggle");
+  await p.fill('input[placeholder="The record\'s id"]', ENTITY);
+  await p.waitForSelector("text=50 entries shown");
   await p.waitForSelector('.owner-page-heading button:has-text("Refresh"):not([disabled])');
   k.check("a read only admin sees no Export button", !(await p.isVisible("text=Export CSV")));
   await ctx.close();
