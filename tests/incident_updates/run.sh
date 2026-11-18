@@ -74,12 +74,18 @@ r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Messages are 
 [ "${r:-0}" -gt 0 ] && [ "$(notes)" -gt "$n1" ] && ok "with Tell all active businesses, owners are told ($r businesses)" || bad "notify: $r"
 [ "$(q "select count(*) from public.staff_notifications where kind = 'incident_update' and (delivery_status is distinct from 'skipped' or sms_status is distinct from 'skipped')")" = "0" ] && ok "in the app only: no notice is left for email or text delivery" || bad "incident notices queued for delivery"
 [ "$(q "select count(*) from public.audit_logs where action = 'platform.incident_updated' and entity_id = '$INC'")" = "2" ] && ok "each update is audited" || bad "update audit"
+# the same update sent again with the page's ref (a lost response): the saved one comes back, nobody is told twice
+REF=f4400000-0000-0000-0000-0000000000aa
+first=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Retry safe update'', true, ''$REF'') ->> ''id''")
+n3=$(notes)
+again=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''Retry safe update'', true, ''$REF'')::text")
+[[ "$first" =~ ^[0-9a-f-]{36}$ ]] && [[ "$again" == *"\"id\": \"$first\""* ]] && [[ "$again" == *'"already_saved": true'* ]] && [ "$(notes)" = "$n3" ] && [ "$(q "select count(*) from public.platform_incident_updates where client_ref = '$REF'")" = "1" ] && ok "a repeat with the same ref returns the saved update and tells nobody again" || bad "retry: $first / $again, notes $(notes) vs $n3"
 r=$(as "$RO" "select public.zella_incident_post_update(''$INC'', ''hello there'', false)::text")
 [[ "$r" == *"NOT_ALLOWED"* ]] && ok "a read only admin can't post updates" || bad "ro post: $r"
 r=$(as "$SA" "select public.zella_incident_post_update(''$INC'', ''x'', false)::text")
 [[ "$r" == *"BAD_INPUT"* ]] && ok "a too short update is refused" || bad "short: $r"
 r=$(as "$RO" "select count(*)::text from public.platform_incident_updates")
-[ "$r" = "2" ] && ok "a read only admin reads the timeline" || bad "ro read: $r"
+[ "$r" = "3" ] && ok "a read only admin reads the timeline" || bad "ro read: $r"
 r=$(as "$OW" "select count(*)::text from public.platform_incident_updates")
 [ "$r" = "0" ] && ok "a business owner reads none of it" || bad "owner read: $r"
 r=$(as "" "select count(*)::text from public.platform_incident_updates" anon)
@@ -107,10 +113,10 @@ o1=$("${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1
 v=$(q "select coalesce(to_regclass('public.platform_incident_updates')::text, '') || coalesce(to_regprocedure('public.zella_open_incident_checked(text,text,boolean)')::text, '')") && [ -z "$v" ] && ok "rollback removes the table and functions" || bad "left over"
 q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, notified_businesses integer, created_at timestamptz)" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"VERSION_MISMATCH"* ]] && [ -z "$(q "select to_regprocedure('public.zella_incident_post_update(uuid,text,boolean)')")" ] && ok "a timeline table of another shape stops the file before anything is installed" || bad "other table: $out"
+[[ "$out" == *"VERSION_MISMATCH"* ]] && [ -z "$(q "select to_regprocedure('public.zella_incident_post_update(uuid,text,boolean,uuid)')")" ] && ok "a timeline table of another shape stops the file before anything is installed" || bad "other table: $out"
 q "drop table public.platform_incident_updates" > /dev/null
 # the same columns and types, but not created by the file (no mark): the file stops, and the rollback never drops it
-q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, body text, notified_businesses integer, created_by uuid, created_at timestamptz)" > /dev/null
+q "create table public.platform_incident_updates (id uuid primary key, incident_id uuid, body text, notified_businesses integer, created_by uuid, client_ref uuid, created_at timestamptz)" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
 [[ "$out" == *"did not create"* ]] && ok "a look alike timeline table the file didn't create stops the file" || bad "look alike: $out"
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1)

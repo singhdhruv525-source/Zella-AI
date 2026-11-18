@@ -18,7 +18,9 @@
 --      (zella_keep_an_owner_turn_trg) takes one turn for every change to platform_admins before any row is locked, so
 --      two such changes can't deadlock either. admin_update keeps its own check for a clear message; this makes it
 --      hold in the database too.
--- All five functions and both triggers are new. Each is checked first: it must be absent or exactly this file's
+--   5. A trigger on auth.mfa_factors (zella_admin_mfa_added_trg): when an active platform admin's authenticator
+--      becomes verified, admin.mfa_added is written in the same transaction, once per authenticator.
+-- All six functions and the three triggers are new. Each is checked first: it must be absent or exactly this file's
 -- version, otherwise the file stops with VERSION_MISMATCH. Running the file twice changes nothing.
 -- Rollback: sql/rollback/zella_admin_sessions_rollback.sql (drops them all, refusing if any was changed since).
 begin;
@@ -26,7 +28,7 @@ begin;
 do $$
 declare f record;
 begin
-  if to_regclass('auth.sessions') is null or to_regclass('public.audit_logs') is null then
+  if to_regclass('auth.sessions') is null or to_regclass('public.audit_logs') is null or to_regclass('auth.mfa_factors') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   for f in select * from (values
@@ -34,18 +36,20 @@ begin
       ('public.zella_revoke_my_other_sessions()', 'eaaba33d1c889966f9bc2c3e223f44e9'),
       ('public.zella_remove_mfa_factor(uuid,uuid)', '7a8c3d352a3c9dbecea8e94c726fede1'),
       ('public.zella_keep_an_owner_trg()', '70c818f1d3c5a06094800c067807d32b'),
-      ('public.zella_keep_an_owner_turn_trg()', 'ccab7c7710e26e9dd409befbb5f25177')) v(sig, want) loop
+      ('public.zella_keep_an_owner_turn_trg()', 'ccab7c7710e26e9dd409befbb5f25177'),
+      ('public.zella_admin_mfa_added_trg()', '3268d6c69ffdb400a4354f9c0e148e80')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
     end if;
   end loop;
   -- the two triggers too: each absent, or exactly as this file creates it (its function, timing, events, no condition)
-  if exists (select 1 from pg_trigger g where g.tgrelid = to_regclass('public.platform_admins')
-       and g.tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn') and not coalesce(
-         g.tgenabled = 'O' and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0 and (
-           (g.tgname = 'zella_keep_an_owner' and g.tgtype = 27 and g.tgfoid = to_regprocedure('public.zella_keep_an_owner_trg()'))
-           or (g.tgname = 'zella_keep_an_owner_turn' and g.tgtype = 26 and g.tgfoid = to_regprocedure('public.zella_keep_an_owner_turn_trg()'))), false)) then
-    raise exception 'VERSION_MISMATCH: a zella_keep_an_owner trigger already exists in a version this file was not written for';
+  if exists (select 1 from pg_trigger g where g.tgrelid in (to_regclass('public.platform_admins'), to_regclass('auth.mfa_factors'))
+       and g.tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn', 'zella_admin_mfa_added') and not coalesce(
+         g.tgenabled = 'O' and g.tgconstraint = 0 and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0 and (
+           (g.tgname = 'zella_keep_an_owner' and g.tgrelid = 'public.platform_admins'::regclass and g.tgtype = 27 and g.tgfoid = to_regprocedure('public.zella_keep_an_owner_trg()'))
+           or (g.tgname = 'zella_keep_an_owner_turn' and g.tgrelid = 'public.platform_admins'::regclass and g.tgtype = 26 and g.tgfoid = to_regprocedure('public.zella_keep_an_owner_turn_trg()'))
+           or (g.tgname = 'zella_admin_mfa_added' and g.tgrelid = 'auth.mfa_factors'::regclass and g.tgtype = 21 and g.tgfoid = to_regprocedure('public.zella_admin_mfa_added_trg()'))), false)) then
+    raise exception 'VERSION_MISMATCH: a trigger of this file already exists in a version this file was not written for';
   end if;
 end $$;
 
@@ -129,5 +133,24 @@ revoke all on function public.zella_keep_an_owner_turn_trg() from public, anon, 
 drop trigger if exists zella_keep_an_owner_turn on public.platform_admins;
 create trigger zella_keep_an_owner_turn before update or delete on public.platform_admins
   for each statement execute function public.zella_keep_an_owner_turn_trg();
+
+-- an active admin's new authenticator is on record from the moment it is verified, in the same transaction (ACC-30):
+-- a lost answer in the browser, a later role change or a later removal can't leave it without an admin.mfa_added
+-- entry. Once per authenticator; owner-provision-business me_mfa_added then finds it and writes nothing more.
+create or replace function public.zella_admin_mfa_added_trg() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status = 'verified' and (tg_op = 'INSERT' or old.status is distinct from 'verified')
+     and exists (select 1 from public.platform_admins pa where pa.user_id = new.user_id and coalesce(pa.is_active, false))
+     and not exists (select 1 from public.audit_logs a where a.action = 'admin.mfa_added' and a.user_id = new.user_id and a.entity_id = new.id) then
+    insert into public.audit_logs (user_id, action, entity_type, entity_id, new_data)
+    values (new.user_id, 'admin.mfa_added', 'mfa_factor', new.id, jsonb_build_object('friendly_name', new.friendly_name, 'recorded_by', 'database'));
+  end if;
+  return null;
+end $$;
+revoke all on function public.zella_admin_mfa_added_trg() from public, anon, authenticated;
+drop trigger if exists zella_admin_mfa_added on auth.mfa_factors;
+create trigger zella_admin_mfa_added after insert or update on auth.mfa_factors
+  for each row execute function public.zella_admin_mfa_added_trg();
 
 commit;

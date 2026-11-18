@@ -14,6 +14,7 @@ export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+RUN=$(mktemp -d) || exit 1; trap 'rm -rf "$RUN"' EXIT   # this run's own worker output
 q() { "${P[@]}" -d $DB -c "$1"; }
 MIG="$REPO/sql/zella_admin_sessions.sql"; RB="$REPO/sql/rollback/zella_admin_sessions_rollback.sql"
 A=f3000000-0000-0000-0000-000000000001; B=f3000000-0000-0000-0000-000000000002
@@ -103,10 +104,10 @@ r=$( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false wh
 q "update public.platform_admins set is_active = true, role = 'zella_owner' where user_id in ('$O1', '$O2');
    create function public.zq_slow_trg() returns trigger language plpgsql as \$f\$ begin perform pg_sleep(1); return new; end \$f\$;
    create trigger aaa_zq_slow before update on public.platform_admins for each row execute function public.zq_slow_trg()" > /dev/null
-( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O1'" > "$HERE/.o1.out" 2>&1 ) &
-( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O2'" > "$HERE/.o2.out" 2>&1 ) &
+( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O1'" > "$RUN/o1.out" 2>&1 ) &
+( "${P[@]}" -d $DB -c "update public.platform_admins set is_active = false where user_id = '$O2'" > "$RUN/o2.out" 2>&1 ) &
 wait
-both="$(cat "$HERE/.o1.out" "$HERE/.o2.out")"; rm -f "$HERE/.o1.out" "$HERE/.o2.out"
+both="$(cat "$RUN/o1.out" "$RUN/o2.out")"
 q "drop trigger aaa_zq_slow on public.platform_admins; drop function public.zq_slow_trg()" > /dev/null
 owners=$(q "select count(*) from public.platform_admins where role = 'zella_owner' and is_active")
 [[ "$both" == *"LAST_OWNER"* ]] && [[ "$both" != *"deadlock"* ]] && [ "$owners" = "1" ] && ok "two owners removing each other with both rows already locked: one is refused (LAST_OWNER), no deadlock, one owner stays" || bad "simultaneous owner removal: $both, owners $owners"
@@ -120,8 +121,22 @@ out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
 q "drop trigger zella_keep_an_owner on public.platform_admins;
    create trigger zella_keep_an_owner before update or delete on public.platform_admins for each row execute function public.zella_keep_an_owner_trg()" > /dev/null
 
+# an active admin's authenticator is on record the moment it is verified (once), a business member's never
+M1=f3400000-0000-0000-0000-000000000001; FM=f3400000-0000-0000-0000-0000000000f1; FN=f3400000-0000-0000-0000-0000000000f2
+q "insert into auth.users (id, email, email_confirmed_at) values ('$M1', 'mfa-admin@sessions.test', now());
+   insert into public.platform_admins (user_id, role, is_active) values ('$M1', 'support_admin', true);
+   insert into auth.mfa_factors (id, user_id, factor_type, status, friendly_name, created_at, updated_at) values ('$FM', '$M1', 'totp', 'unverified', 'New phone', now(), now()), ('$FN', '$B', 'totp', 'unverified', 'Member phone', now(), now())" > /dev/null || bad "mfa fixture"
+mfa_added() { q "select count(*) from public.audit_logs where action = 'admin.mfa_added' and entity_id = '$1'"; }
+[ "$(mfa_added $FM)" = "0" ] && ok "setting an authenticator up writes nothing until it is verified" || bad "unverified recorded"
+q "update auth.mfa_factors set status = 'verified' where id in ('$FM', '$FN')" > /dev/null
+[ "$(mfa_added $FM)" = "1" ] && [ "$(q "select new_data ->> 'friendly_name' from public.audit_logs where action = 'admin.mfa_added' and entity_id = '$FM'")" = "New phone" ] && ok "an admin's verified authenticator is recorded (admin.mfa_added) in the same transaction" || bad "admin verify not recorded: $(mfa_added $FM)"
+[ "$(mfa_added $FN)" = "0" ] && ok "a business member's isn't (not an admin)" || bad "member recorded"
+q "update auth.mfa_factors set status = 'verified', friendly_name = 'Renamed' where id = '$FM'" > /dev/null
+[ "$(mfa_added $FM)" = "1" ] && ok "and only once: a later change to it writes nothing more" || bad "recorded twice: $(mfa_added $FM)"
 o1=$("${P[@]}" -d $DB -f "$RB" 2>&1) && o2=$("${P[@]}" -d $DB -f "$RB" 2>&1) && ok "rollback runs twice" || bad "rollback: $o1 $o2"
-[ "$(q "select count(*) from pg_trigger where tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn')")" = "0" ] && [ -z "$(q "select to_regprocedure('public.zella_keep_an_owner_turn_trg()')")" ] && ok "rollback drops both owner triggers and their functions" || bad "owner trigger left"
+left=$(q "select (select count(*) from pg_trigger where tgname in ('zella_keep_an_owner', 'zella_keep_an_owner_turn', 'zella_admin_mfa_added'))::text || ':' ||
+  (to_regprocedure('public.zella_keep_an_owner_trg()') is null and to_regprocedure('public.zella_keep_an_owner_turn_trg()') is null and to_regprocedure('public.zella_admin_mfa_added_trg()') is null)::text") \
+  && [ "$left" = "0:true" ] && ok "rollback drops the three triggers and their functions" || bad "triggers left: $left"
 v=$(q "select coalesce(to_regprocedure('public.zella_end_user_sessions(uuid)')::text, '') || coalesce(to_regprocedure('public.zella_revoke_my_other_sessions()')::text, '') || coalesce(to_regprocedure('public.zella_remove_mfa_factor(uuid,uuid)')::text, '')") && [ -z "$v" ] && ok "rollback drops all three functions" || bad "functions left"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_end_user_sessions(p_user_id uuid) returns integer language sql security definer set search_path = '' as \$f\$ select 0 \$f\$" > /dev/null

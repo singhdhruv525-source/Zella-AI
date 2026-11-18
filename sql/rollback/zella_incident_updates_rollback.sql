@@ -10,7 +10,7 @@ do $$
 declare f record; n boolean;
 begin
   for f in select * from (values
-      ('public.zella_incident_post_update(uuid,text,boolean)', 'f5a3726b3ffdc5ae3578e28fb9547098'),
+      ('public.zella_incident_post_update(uuid,text,boolean,uuid)', 'e7e5bb22ad48b14d09b41536783ff248'),
       ('public.zella_incident_edit(uuid,text,text)', 'e0215d925eed949c81af4ee8d21ac576'),
       ('public.zella_incident_title_key(text)', '4980429f996f03a32006003ada23cad3'),
       ('public.zella_open_incident_checked(text,text,boolean)', '60baa4d2414a8001635ead319ee6b4e2')) v(sig, want) loop
@@ -31,7 +31,7 @@ begin
     end if;
     if (select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns
          where table_schema = 'public' and table_name = 'platform_incident_updates')
-       is distinct from 'body text, created_at timestamp with time zone, created_by uuid, id uuid, incident_id uuid, notified_businesses integer' then
+       is distinct from 'body text, client_ref uuid, created_at timestamp with time zone, created_by uuid, id uuid, incident_id uuid, notified_businesses integer' then
       raise exception 'DRIFT: platform_incident_updates is not the table sql/zella_incident_updates.sql creates; roll back by hand';
     end if;
     execute 'select exists (select 1 from public.platform_incident_updates)' into n;
@@ -39,7 +39,7 @@ begin
   end if;
 end $$;
 drop function if exists public.zella_open_incident_checked(text, text, boolean);
-drop function if exists public.zella_incident_post_update(uuid, text, boolean);
+drop function if exists public.zella_incident_post_update(uuid, text, boolean, uuid);
 drop function if exists public.zella_incident_edit(uuid, text, text);
 drop function if exists public.zella_incident_title_key(text);
 drop table if exists public.platform_incident_updates;

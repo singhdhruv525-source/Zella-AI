@@ -28,7 +28,7 @@ declare n boolean;
 begin
   -- the alert trigger, under the tickets lock: absent, or exactly as the file creates it
   if exists (select 1 from pg_trigger g where g.tgrelid = 'public.support_tickets'::regclass and g.tgname = 'zella_support_ticket_alert'
-       and not coalesce(g.tgtype = 5 and g.tgenabled = 'O' and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0
+       and not coalesce(g.tgtype = 5 and g.tgenabled = 'O' and g.tgconstraint = 0 and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0
          and g.tgfoid = to_regprocedure('public.zella_support_ticket_alert_trg()'), false)) then
     raise exception 'DRIFT: the zella_support_ticket_alert trigger changed after sql/zella_support_replies.sql; roll back by hand';
   end if;

@@ -49,14 +49,14 @@ begin
   end loop;
   -- the alert trigger: absent, or exactly as this file creates it (its function, after insert, for each row)
   if exists (select 1 from pg_trigger g where g.tgrelid = 'public.support_tickets'::regclass and g.tgname = 'zella_support_ticket_alert'
-       and not coalesce(g.tgtype = 5 and g.tgenabled = 'O' and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0
+       and not coalesce(g.tgtype = 5 and g.tgenabled = 'O' and g.tgconstraint = 0 and g.tgqual is null and g.tgnargs = 0 and cardinality(g.tgattr::int2[]) = 0
          and g.tgfoid = to_regprocedure('public.zella_support_ticket_alert_trg()'), false)) then
     raise exception 'VERSION_MISMATCH: a zella_support_ticket_alert trigger already exists in a version this file was not written for';
   end if;
   -- an existing first_response_at must be the time this file reads and writes
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'support_tickets'
-       and column_name = 'first_response_at' and data_type <> 'timestamp with time zone') then
-    raise exception 'VERSION_MISMATCH: support_tickets.first_response_at already exists with another type';
+       and column_name = 'first_response_at' and (data_type <> 'timestamp with time zone' or is_generated <> 'NEVER')) then
+    raise exception 'VERSION_MISMATCH: support_tickets.first_response_at already exists with another type, or computed';
   end if;
   -- the business hours origin row is this file's alone: one with another value was not written by it
   if exists (select 1 from public.platform_settings where key = 'support_business_hours_origin' and value is distinct from '"zella_support_replies.sql"'::jsonb) then

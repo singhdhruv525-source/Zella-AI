@@ -108,55 +108,71 @@ o1=$("${P[@]}" -d $DB -f "$RB" 2>&1); e1=$?; o2=$("${P[@]}" -d $DB -f "$RB" 2>&1
 left=$(q "select coalesce(to_regclass('public.support_ticket_messages')::text, '') || coalesce(to_regprocedure('public.zella_business_ticket_reply(uuid,text,uuid)')::text, '') || (select count(*) from information_schema.columns where table_name = 'support_tickets' and column_name = 'first_response_at')::text || (select count(*) from pg_trigger where tgname = 'zella_support_ticket_alert')::text")
 [ "$left" = "00" ] && ok "rollback removes the table, functions, column and trigger" || bad "left: $left"
 [ "$(q "select count(*) from public.platform_settings where key in ('support_business_hours', 'support_business_hours_origin')")" = "0" ] && ok "and the business hours setting this file added, still unchanged" || bad "setting left"
-# a setting that was there before the file stays after its rollback
-q "insert into public.platform_settings (key, value) values ('support_business_hours', '{\"days\": [1, 2, 3, 4, 5], \"start\": \"09:00\", \"end\": \"17:00\", \"timezone\": \"America/New_York\", \"first_response_hours\": 4}'::jsonb)" > /dev/null
-oa=$("${P[@]}" -d $DB -f "$MIG" 2>&1); ea=$?; ob=$("${P[@]}" -d $DB -f "$RB" 2>&1); eb=$?
+# run a file: out and rc; refused MSG: it failed (nonzero exit) with that message; gone EXPR: a successful read says
+# EXPR is null (a failed read never counts as absent)
+run() { out=$("${P[@]}" -d $DB -f "$1" 2>&1); rc=$?; }
+refused() { [ $rc -ne 0 ] && [[ "$out" == *"$1"* ]]; }
+gone() { local v; v=$(q "select ($1) is null") && [ "$v" = "t" ]; }
+# a setting that was there before the file stays after its rollback, exactly as it was (non default hours)
+HOURS='{"days": [2, 4], "start": "08:30", "end": "16:00", "timezone": "America/Chicago", "first_response_hours": 6}'
+q "insert into public.platform_settings (key, value) values ('support_business_hours', '$HOURS'::jsonb)" > /dev/null
+run "$MIG"; ea=$rc; oa=$out; run "$RB"; eb=$rc; ob=$out
 [ $ea -eq 0 ] && [ $eb -eq 0 ] || bad "apply or rollback failed with a setting already there: $oa $ob"
-[ $ea -eq 0 ] && [ $eb -eq 0 ] && [ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours'")" = "1" ] && [ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours_origin'")" = "0" ] && ok "a business hours setting that was there before is kept by the rollback" || bad "pre-existing setting removed"
-# a column that was there before the file stays after its rollback
-q "alter table public.support_tickets add column first_response_at timestamptz" > /dev/null
-oa=$("${P[@]}" -d $DB -f "$MIG" 2>&1); ea=$?; ob=$("${P[@]}" -d $DB -f "$RB" 2>&1); eb=$?
+[ $ea -eq 0 ] && [ $eb -eq 0 ] && [ "$(q "select value = '$HOURS'::jsonb from public.platform_settings where key = 'support_business_hours'")" = "t" ] && [ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours_origin'")" = "0" ] && ok "a business hours setting that was there before is kept by the rollback, unchanged" || bad "pre-existing setting changed or removed"
+# a column that was there before the file stays after its rollback, with its times and its type
+TK=$(q "select id from public.support_tickets order by created_at limit 1")
+q "alter table public.support_tickets add column first_response_at timestamptz; update public.support_tickets set first_response_at = '2026-11-02 10:15:00+00' where id = '$TK'" > /dev/null
+run "$MIG"; ea=$rc; oa=$out; run "$RB"; eb=$rc; ob=$out
 [ $ea -eq 0 ] && [ $eb -eq 0 ] || bad "apply or rollback failed with a column already there: $oa $ob"
-[ $ea -eq 0 ] && [ $eb -eq 0 ] && [ "$(q "select count(*) from information_schema.columns where table_name = 'support_tickets' and column_name = 'first_response_at'")" = "1" ] && ok "a first_response_at column that was there before is kept by the rollback" || bad "pre-existing column dropped"
+[ $ea -eq 0 ] && [ $eb -eq 0 ] && [ "$(q "select (select data_type from information_schema.columns where table_schema = 'public' and table_name = 'support_tickets' and column_name = 'first_response_at') || '|' || (select first_response_at = '2026-11-02 10:15:00+00' from public.support_tickets where id = '$TK')")" = "timestamp with time zone|true" ] && ok "a first_response_at column that was there before is kept by the rollback, with its times" || bad "pre-existing column changed"
 q "alter table public.support_tickets drop column first_response_at; delete from public.platform_settings where key = 'support_business_hours'" > /dev/null
 # marked as the file's own, so it gets past the mark check and is stopped by the shape check
 q "create table public.support_ticket_messages (id uuid primary key, ticket_id uuid, author_side text, created_at timestamptz);
    comment on table public.support_ticket_messages is 'zella_support_replies.sql'" > /dev/null
-out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"a different support_ticket_messages table"* ]] && [ -z "$(q "select to_regprocedure('public.zella_business_ticket_reply(uuid,text,uuid)')")" ] && ok "a messages table of another shape stops the file before anything is installed" || bad "other table: $out"
+run "$MIG"
+refused "a different support_ticket_messages table" && gone "to_regprocedure('public.zella_business_ticket_reply(uuid,text,uuid)')" && ok "a messages table of another shape stops the file before anything is installed" || bad "other table: $out"
 q "drop table public.support_ticket_messages" > /dev/null
 # the same columns and types, but not created by the file (no mark): the file stops, and the rollback never drops it
 q "create table public.support_ticket_messages (id uuid primary key, ticket_id uuid, business_id uuid, author_id uuid, author_side text, body text, client_ref uuid, created_at timestamptz)" > /dev/null
-out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"did not create"* ]] && ok "a look alike messages table the file didn't create stops the file" || bad "look alike: $out"
-out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
-[[ "$out" == *"was not created by"* ]] && [ -n "$(q "select to_regclass('public.support_ticket_messages')")" ] && ok "and the rollback refuses to drop it" || bad "rollback dropped a look alike: $out"
+run "$MIG"
+refused "did not create" && ok "a look alike messages table the file didn't create stops the file" || bad "look alike: $out"
+run "$RB"
+refused "was not created by" && ! gone "to_regclass('public.support_ticket_messages')" && ok "and the rollback refuses to drop it" || bad "rollback dropped a look alike: $out"
 q "drop table public.support_ticket_messages" > /dev/null
-# a first_response_at of another type, or an origin row the file didn't write, stops it before anything is installed
+# a first_response_at of another type, or computed, or an origin row the file didn't write, stops it before anything
 q "alter table public.support_tickets add column first_response_at text" > /dev/null
-out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"first_response_at already exists with another type"* ]] && [ -z "$(q "select to_regprocedure('public.zella_admin_ticket_reply(uuid,uuid,text)')")" ] && ok "a first_response_at of another type stops the file" || bad "text column: $out"
+run "$MIG"
+refused "first_response_at already exists with another type" && gone "to_regprocedure('public.zella_admin_ticket_reply(uuid,uuid,text)')" && ok "a first_response_at of another type stops the file" || bad "text column: $out"
+q "alter table public.support_tickets drop column first_response_at; alter table public.support_tickets add column first_response_at timestamptz generated always as (created_at) stored" > /dev/null
+run "$MIG"
+refused "first_response_at already exists with another type, or computed" && gone "to_regprocedure('public.zella_admin_ticket_reply(uuid,uuid,text)')" && ok "a computed first_response_at stops the file too" || bad "generated column: $out"
 q "alter table public.support_tickets drop column first_response_at; insert into public.platform_settings (key, value) values ('support_business_hours_origin', '\"someone else\"'::jsonb)" > /dev/null
-out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"support_business_hours_origin setting this file did not write"* ]] && [ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours'")" = "0" ] && ok "an origin row the file didn't write stops it, before the default hours are added" || bad "foreign origin: $out"
-out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
-[ "$(q "select value #>> '{}' from public.platform_settings where key = 'support_business_hours_origin'")" = "someone else" ] && ok "and the rollback leaves that row alone" || bad "foreign origin removed: $out"
+run "$MIG"
+refused "support_business_hours_origin setting this file did not write" && [ "$(q "select count(*) from public.platform_settings where key = 'support_business_hours'")" = "0" ] && ok "an origin row the file didn't write stops it, before the default hours are added" || bad "foreign origin: $out"
+run "$RB"
+[ $rc -eq 0 ] && [ "$(q "select value #>> '{}' from public.platform_settings where key = 'support_business_hours_origin'")" = "someone else" ] && ok "and the rollback runs and leaves that row alone" || bad "foreign origin: rollback $rc: $out"
 q "delete from public.platform_settings where key = 'support_business_hours_origin'" > /dev/null
-"${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
-# an alert trigger changed after the file (here: given a condition) stops the file and its rollback, and stays as it was
-q "drop trigger zella_support_ticket_alert on public.support_tickets;
-   create trigger zella_support_ticket_alert after insert on public.support_tickets for each row when (new.priority = 'urgent') execute function public.zella_support_ticket_alert_trg()" > /dev/null
-out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"zella_support_ticket_alert trigger already exists"* ]] && ok "a changed alert trigger stops the file (VERSION_MISMATCH)" || bad "trigger drift not caught by the file: $out"
-out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
-[[ "$out" == *"zella_support_ticket_alert trigger changed"* ]] && [ "$(q "select count(*) from pg_trigger where tgname = 'zella_support_ticket_alert' and tgqual is not null")" = "1" ] && [ -n "$(q "select to_regclass('public.support_ticket_messages')")" ] && ok "and its rollback (DRIFT), changing nothing" || bad "trigger drift not caught by the rollback: $out"
+run "$MIG"; [ $rc -eq 0 ] && ok "applies again after the rollback" || bad "reapply: $out"
+# an alert trigger changed after the file stops the file and its rollback, and stays exactly as it was: given a
+# condition, and made a deferred constraint trigger with the same function and events
+tdef() { q "select coalesce((select pg_get_triggerdef(oid) from pg_trigger where tgrelid = 'public.support_tickets'::regclass and tgname = 'zella_support_ticket_alert'), '-')"; }
+for variant in "create trigger zella_support_ticket_alert after insert on public.support_tickets for each row when (new.priority = 'urgent') execute function public.zella_support_ticket_alert_trg()" \
+               "create constraint trigger zella_support_ticket_alert after insert on public.support_tickets deferrable initially deferred for each row execute function public.zella_support_ticket_alert_trg()"; do
+  kind=$([[ "$variant" == *constraint* ]] && echo "a deferred constraint trigger" || echo "a condition")
+  q "drop trigger zella_support_ticket_alert on public.support_tickets; $variant" > /dev/null
+  before=$(tdef)
+  run "$MIG"
+  refused "zella_support_ticket_alert trigger already exists" && ok "an alert trigger changed to $kind stops the file (VERSION_MISMATCH)" || bad "trigger drift ($kind) not caught by the file: $out"
+  run "$RB"
+  refused "zella_support_ticket_alert trigger changed" && [ "$(tdef)" = "$before" ] && ! gone "to_regclass('public.support_ticket_messages')" && ok "and its rollback (DRIFT), leaving the trigger exactly as it was" || bad "trigger drift ($kind) not caught by the rollback: $out"
+done
 q "drop trigger zella_support_ticket_alert on public.support_tickets;
    create trigger zella_support_ticket_alert after insert on public.support_tickets for each row execute function public.zella_support_ticket_alert_trg()" > /dev/null
 q "create or replace function public.zella_business_ticket_reply(p_ticket uuid, p_body text, p_ref uuid default null) returns jsonb language sql security definer set search_path = '' as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
-out=$("${P[@]}" -d $DB -f "$MIG" 2>&1)
-[[ "$out" == *"VERSION_MISMATCH"* ]] && ok "a changed function stops the file (VERSION_MISMATCH)" || bad "drift not caught: $out"
-out=$("${P[@]}" -d $DB -f "$RB" 2>&1)
-[[ "$out" == *"DRIFT"* ]] && ok "and the rollback (DRIFT)" || bad "rollback drift: $out"
+run "$MIG"
+refused "VERSION_MISMATCH" && ok "a changed function stops the file (VERSION_MISMATCH)" || bad "drift not caught: $out"
+run "$RB"
+refused "DRIFT" && ok "and the rollback (DRIFT)" || bad "rollback drift: $out"
 
 echo
 [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

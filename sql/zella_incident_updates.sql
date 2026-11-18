@@ -2,7 +2,8 @@
 -- problem (docs/ADMIN_AUDIT_2026-11-16.md OPS-12, OPS-11).
 --   1. platform_incident_updates: a timeline of progress notes on an incident. Internal: read by admins who can see
 --      incidents (businesses.view), written only through zella_incident_post_update.
---   2. zella_incident_post_update(incident, body, notify): support.manage, open incidents only. The owners of every
+--   2. zella_incident_post_update(incident, body, notify, ref): support.manage, open incidents only; the page's own id
+--      for the update (ref) makes a repeat after a lost response return the saved update instead of a second one. The owners of every
 --      active business are told in the app (never by email or text) ONLY when notify is true ("Tell all active
 --      businesses", off by default: routine notes never message owners).
 --      Incidents don't record which businesses they affect, so the notice goes to all active businesses. Audited as
@@ -40,11 +41,11 @@ begin
   if to_regclass('public.platform_incident_updates') is not null and (
        select string_agg(column_name || ' ' || data_type, ', ' order by column_name) from information_schema.columns
         where table_schema = 'public' and table_name = 'platform_incident_updates')
-     is distinct from 'body text, created_at timestamp with time zone, created_by uuid, id uuid, incident_id uuid, notified_businesses integer' then
+     is distinct from 'body text, client_ref uuid, created_at timestamp with time zone, created_by uuid, id uuid, incident_id uuid, notified_businesses integer' then
     raise exception 'VERSION_MISMATCH: a different platform_incident_updates table already exists';
   end if;
   for f in select * from (values
-      ('public.zella_incident_post_update(uuid,text,boolean)', 'f5a3726b3ffdc5ae3578e28fb9547098'),
+      ('public.zella_incident_post_update(uuid,text,boolean,uuid)', 'e7e5bb22ad48b14d09b41536783ff248'),
       ('public.zella_incident_edit(uuid,text,text)', 'e0215d925eed949c81af4ee8d21ac576'),
       ('public.zella_incident_title_key(text)', '4980429f996f03a32006003ada23cad3'),
       ('public.zella_open_incident_checked(text,text,boolean)', '60baa4d2414a8001635ead319ee6b4e2')) v(sig, want) loop
@@ -60,10 +61,13 @@ create table if not exists public.platform_incident_updates (
   body text not null check (length(btrim(body)) between 3 and 1000),
   notified_businesses integer not null default 0,
   created_by uuid,
+  -- the page's own id for an update, so sending the same update again (a lost response) saves and notifies once
+  client_ref uuid,
   created_at timestamptz not null default now()
 );
 -- the mark the rollback relies on: this table is this file's (it never drops a table it can't prove it created)
 comment on table public.platform_incident_updates is 'zella_incident_updates.sql';
+create unique index if not exists platform_incident_updates_client_ref_idx on public.platform_incident_updates (incident_id, client_ref) where client_ref is not null;
 create index if not exists platform_incident_updates_incident_idx on public.platform_incident_updates (incident_id, created_at);
 alter table public.platform_incident_updates enable row level security;
 revoke all on table public.platform_incident_updates from public, anon, authenticated;
@@ -107,16 +111,21 @@ end $$;
 revoke all on function public.zella_open_incident_checked(text, text, boolean) from public, anon;
 grant execute on function public.zella_open_incident_checked(text, text, boolean) to authenticated, service_role;
 
-create or replace function public.zella_incident_post_update(p_incident uuid, p_body text, p_notify boolean default false) returns jsonb
+create or replace function public.zella_incident_post_update(p_incident uuid, p_body text, p_notify boolean default false, p_ref uuid default null) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare i record; v_id uuid; b record; n integer := 0; v_body text := btrim(coalesce(p_body, ''));
+declare i record; v_id uuid; b record; n integer := 0; v_body text := btrim(coalesce(p_body, '')); prior record;
 begin
   if not public.zella_admin_can('support.manage') then raise exception 'NOT_ALLOWED'; end if;
   if length(v_body) not between 3 and 1000 then raise exception 'BAD_INPUT'; end if;
   select id, title, status into i from public.platform_incidents where id = p_incident for update;
   if not found then raise exception 'NOT_FOUND'; end if;
+  -- the same update sent again (same ref, under the incident's lock): the one already saved, nobody told twice
+  if p_ref is not null then
+    select id, notified_businesses into prior from public.platform_incident_updates where incident_id = i.id and client_ref = p_ref;
+    if found then return jsonb_build_object('id', prior.id, 'notified_businesses', prior.notified_businesses, 'already_saved', true); end if;
+  end if;
   if i.status <> 'open' then raise exception 'NOT_OPEN'; end if;
-  insert into public.platform_incident_updates (incident_id, body, created_by) values (i.id, v_body, auth.uid()) returning id into v_id;
+  insert into public.platform_incident_updates (incident_id, body, created_by, client_ref) values (i.id, v_body, auth.uid(), p_ref) returning id into v_id;
   if coalesce(p_notify, false) then
     for b in select id from public.businesses where suspended_at is null and cancelled_at is null and coalesce(is_active, true) loop
       perform public.zella_notify_owners(b.id, 'incident_update', left(i.title, 120), left(v_body, 300), 'info', 'home');
@@ -131,8 +140,8 @@ begin
   values (auth.uid(), 'platform.incident_updated', 'platform_incident', i.id, jsonb_build_object('update_id', v_id, 'notified_businesses', n));
   return jsonb_build_object('id', v_id, 'notified_businesses', n);
 end $$;
-revoke all on function public.zella_incident_post_update(uuid, text, boolean) from public, anon;
-grant execute on function public.zella_incident_post_update(uuid, text, boolean) to authenticated, service_role;
+revoke all on function public.zella_incident_post_update(uuid, text, boolean, uuid) from public, anon;
+grant execute on function public.zella_incident_post_update(uuid, text, boolean, uuid) to authenticated, service_role;
 
 create or replace function public.zella_incident_edit(p_incident uuid, p_title text, p_detail text default null) returns boolean
 language plpgsql security definer set search_path = '' as $$
