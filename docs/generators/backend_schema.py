@@ -53,6 +53,10 @@ GROUPS = [
         "business_verification_documents": "Business and owner verification documents (files in private storage).",
         "provisioning_steps": "Progress of each Create Business wizard step.",
         "activation_tests": "Results of the checks run before a business goes live.",
+        "owner_onboarding": "The owner onboarding journey per business: current step, finish later and resume, identity attempts and provider result, accepted plan version (written only through the onboarding functions).",
+        "owner_onboarding_steps": "When each of the seven onboarding steps was reached and completed for a business, and by whom.",
+        "owner_onboarding_sections": "The owner's answer per detail section (Looks right or a change with a note), with a fingerprint of the details they confirmed.",
+        "identity_verification_events": "Identity provider results, each processed once per provider and event id; unknown references kept as unmapped (server only).",
         "config_migration_snapshots": "Copy of a business's settings before a configuration upgrade, so it can be restored.",
         "zella_milestones": "First-time moments a business reached (first call answered, first booking, ...).",
         "platform_settings": "Platform-wide switches and settings (live switches, provider choices). No secrets.",
@@ -212,10 +216,12 @@ GROUPS = [
         "admin_alert_prefs": "Platform admin alert preferences.",
         "platform_alerts": "Platform alerts for Zella Voice staff (grouped, with resolution).",
         "platform_incidents": "Incidents shown on the public status page.",
+        "platform_incident_updates": "Progress notes on an incident (internal; owners are told only when the admin asks).",
         "business_report_schedules": "Which reports a business gets and when.",
         "business_report_runs": "Reports produced.",
         "support_tickets": "Support requests from businesses.",
         "support_ticket_notes": "Zella Voice admins' internal notes on support tickets (server only: the business never sees them).",
+        "support_ticket_messages": "The conversation on a support ticket that the business sees: Zella Voice replies and the business's answers (never the internal notes).",
     }),
 ]
 

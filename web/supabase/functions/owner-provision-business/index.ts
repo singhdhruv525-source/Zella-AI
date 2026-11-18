@@ -5,10 +5,13 @@ import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
-import { mfaGate, tokenAal } from "./mfa_gate.ts";
+import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
 import { BOOKING_MODELS, CONFIG_PERMISSIONS, allRows, cleanAutomationDefaults, missingColumn, configHandlers, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
+import { supportHours, ticketTiming } from "./access.ts";
+import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
+import { businessesList } from "./businesses.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1140,8 +1143,9 @@ type AuditEntry = {
 
 type AuditContext = { userId: string; ip: string | null; userAgent: string | null };
 
-// Audit failures are logged but never block the admin's action.
-async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry) {
+// Audit failures are logged but never block the admin's action (except an audit log export, below). Returns whether
+// the row was written.
+async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry): Promise<boolean> {
   const { error } = await admin.from("audit_logs").insert({
     ...entry,
     user_id: ctx.userId,
@@ -1149,6 +1153,7 @@ async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: Audit
     user_agent: ctx.userAgent,
   });
   if (error) console.error("Audit log write failed", error);
+  return !error;
 }
 
 function requestContext(req: Request, userId: string): AuditContext {
@@ -1262,12 +1267,18 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     entity_id: r.targetUserId,
     new_data: { email: r.email, role: r.role, invitation_sent: r.invited },
   }),
+  admin_sessions_end: (_fields, r) => ({
+    action: "admin.sessions_ended",
+    entity_type: "platform_admin",
+    entity_id: r.targetUserId,
+    new_data: { sessions_ended: r.sessionsEnded },
+  }),
   admin_update: (_fields, r) => ({
     action: "admin.updated",
     entity_type: "platform_admin",
     entity_id: r.targetUserId,
     old_data: r.before,
-    new_data: r.after,
+    new_data: { ...r.after, sessions_ended: r.sessionsEnded },
   }),
   ticket_create: (_fields, r) => ({
     action: "ticket.created",
@@ -1342,6 +1353,23 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     },
   }),
 };
+
+// Every row of a query, read in pages of 1000 (the API's row cap) by an unchanging key: each page starts after the
+// last key read (page(null) is the first), so a row renamed or added meanwhile can't be read twice or skipped.
+// deno-lint-ignore no-explicit-any
+async function everyRow(key: string, page: (after: string | null) => PromiseLike<{ data: any[] | null; error: unknown }>) {
+  // deno-lint-ignore no-explicit-any
+  const out: any[] = [];
+  let after: string | null = null;
+  for (;;) {
+    const { data, error } = await page(after);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < 1000) return out;
+    after = String(rows[rows.length - 1][key]);
+  }
+}
 
 async function resolveUsers(admin: SupabaseClient, ids: (string | null)[]) {
   const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))].slice(0, 100);
@@ -1594,49 +1622,55 @@ async function businessDetail(admin: SupabaseClient, businessId: string) {
   };
 }
 
-async function auditLogList(admin: SupabaseClient, fields: Json) {
-  const limit = 50;
-  let query = admin
-    .from("audit_logs")
-    .select("id, action, business_id, user_id, entity_type, entity_id, old_data, new_data, ip_address, created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit + 1);
-
-  const businessId = text(fields.businessId, 64);
-  if (businessId) query = query.eq("business_id", requireId(businessId));
-
-  const search = text(fields.search, 60).toLowerCase().replace(/[^a-z0-9_.]/g, "");
-  if (search) query = query.ilike("action", `%${search}%`);
-
-  const before = text(fields.before, 40);
-  if (before && !Number.isNaN(Date.parse(before))) query = query.lt("created_at", before);
-
-  const { data, error } = await query;
+async function auditLogList(admin: SupabaseClient, fields: Json, role: string | null = null) {
+  // ACC-12: person, dates, action and record filters; a (created_at, id) cursor, so entries with the same time are
+  // never skipped (access.ts).
+  const limit = AUDIT_PAGE;
+  const filters = auditFilters(fields, InputError);
+  const before = typeof fields.before === "string" ? fields.before : "";
+  const cursor = auditCursor(before);
+  if (before && !cursor) throw new InputError("The page marker is not valid");
+  const { data, error } = await applyAuditFilters(admin.from("audit_logs").select(AUDIT_COLUMNS), filters, cursor).limit(limit + 1);
   if (error) throw error;
 
-  const rows = data ?? [];
+  type AuditRow = { id: string; created_at: string; user_id: string | null; business_id: string | null } & Json;
+  const rows = (data ?? []) as AuditRow[];
   const page = rows.slice(0, limit);
   const [actors, names] = await Promise.all([
     resolveUsers(admin, page.map((r) => r.user_id)),
     businessNames(admin, page.map((r) => r.business_id)),
   ]);
 
+  // the first page also carries the lists the filters choose from
   let businesses: { id: string; name: string }[] | undefined;
-  if (!before) {
-    const { data: list, error: listError } = await admin
-      .from("businesses").select("id, name").order("name");
-    if (listError) throw listError;
-    businesses = list ?? [];
+  let people: { id: string; email: string | null }[] | undefined;
+  if (!cursor) {
+    // every business and every admin, read 1000 at a time by id, so the pickers are never cut off; sorted by name after
+    // (a fresh query for each page: a builder keeps every filter added to it)
+    const businessRows = () => admin.from("businesses").select("id, name"), adminRows = () => admin.from("platform_admins").select("user_id");
+    const [list, admins] = await Promise.all([
+      everyRow("id", (after) => (after ? businessRows().gt("id", after) : businessRows()).order("id").limit(1000)),
+      everyRow("user_id", (after) => (after ? adminRows().gt("user_id", after) : adminRows()).order("user_id").limit(1000)),
+    ]);
+    businesses = (list as { id: string; name: string }[])
+      .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")) || a.id.localeCompare(b.id));
+    // every admin, resolved 100 at a time (resolveUsers reads at most 100), so nobody is left out of the person filter
+    const ids = [...new Set((admins ?? []).map((a) => a.user_id))];
+    const emails: Record<string, string | null> = {};
+    for (let i = 0; i < ids.length; i += 100) Object.assign(emails, await resolveUsers(admin, ids.slice(i, i + 100)));
+    people = ids.map((id) => ({ id, email: emails[id] ?? null })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
   }
 
   return {
     logs: page.map((r) => ({
       ...r,
-      actor: actors[r.user_id] ?? null,
+      actor: r.user_id ? actors[r.user_id] ?? null : null,
       business_name: r.business_id ? names[r.business_id] ?? null : null,
     })),
-    nextCursor: rows.length > limit ? page[page.length - 1].created_at : null,
+    nextCursor: rows.length > limit ? nextAuditCursor(page[page.length - 1]) : null,
     businesses,
+    people,
+    canExport: Boolean(role && AUDIT_EXPORT_ROLES.includes(role)),
   };
 }
 
@@ -2175,7 +2209,7 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
   await requireOwner(admin, userId);
 
   const targetId = requireId(fields.userId, "admin");
-  if (targetId === userId) {
+  if (targetId.toLowerCase() === userId.toLowerCase()) {
     throw new InputError("You can't change your own access. Ask another Zella Voice owner.", 409);
   }
 
@@ -2203,17 +2237,46 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
     if ((count ?? 0) <= 1) throw new InputError("Zella Voice must keep at least one active owner", 409);
   }
 
-  const { error } = await admin
+  // Only from the state read above: if another owner changed this admin meanwhile, nothing is saved, so the sessions
+  // below are ended for the change that actually committed, never for one that didn't.
+  const { data: saved, error } = await admin
     .from("platform_admins")
     .update({ role, is_active: isActive })
-    .eq("user_id", targetId);
+    .eq("user_id", targetId)
+    .eq("role", current.role)
+    .eq("is_active", current.is_active)
+    .select("user_id");
+  // the database refuses too (sql/zella_admin_sessions.sql), also when two owners remove each other at once
+  if (error && /LAST_OWNER/.test(error.message ?? "")) throw new InputError("Zella Voice must keep at least one active owner", 409);
   if (error) throw error;
+  if (!saved?.length) throw new InputError("Their access was changed by someone else just now. Reload and try again.", 409);
+
+  // ACC-18: a removed admin, or one given another role, is signed out on every device.
+  const sessions = await endSessionsAfterChange(admin, targetId, current, { role, is_active: isActive });
 
   return {
     targetUserId: targetId,
     before: { role: current.role, is_active: current.is_active },
     after: { role, is_active: isActive },
+    ...sessions,
   };
+}
+
+// ACC-18: signs an admin out on every device again, for when ending their sessions failed after an access change was
+// saved (admin_update's sessionsWarning). Owners only, never their own account; audited.
+async function adminEndSessions(admin: SupabaseClient, fields: Json, userId: string) {
+  await requireOwner(admin, userId);
+  const targetId = requireId(fields.userId, "admin");
+  if (targetId.toLowerCase() === userId.toLowerCase()) throw new InputError("Use Sign out other devices in your own account security instead.", 409);
+  const { data: target, error } = await admin.from("platform_admins").select("user_id").eq("user_id", targetId).maybeSingle();
+  if (error) throw error;
+  if (!target) throw new InputError("Admin not found", 404);
+  const { data, error: endError } = await admin.rpc("zella_end_user_sessions", { p_user_id: targetId });
+  if (endError || typeof data !== "number") {
+    console.error("Ending an admin's sessions failed", endError?.message ?? data);
+    throw new InputError("Their devices could not be signed out. Try again in a moment.", 503);
+  }
+  return { targetUserId: targetId, sessionsEnded: data };
 }
 
 // ---------------------------------------------------------------------------
@@ -2293,20 +2356,79 @@ async function integrationsOverview(admin: SupabaseClient) {
 const TICKET_STATUSES = ["open", "in_progress", "resolved", "closed"] as const;
 const TICKET_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 
-async function ticketsList(admin: SupabaseClient) {
-  const [ticketsResult, businessesResult, adminsResult] = await Promise.all([
-    admin.from("support_tickets")
-      .select("id, business_id, subject, description, category, priority, status, assigned_to, created_by, metadata, created_at, updated_at, resolved_at")
-      .order("created_at", { ascending: false })
-      .limit(500),
+async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
+  // OPS-27: filtered on the server (status, business); OPS-25: first_response_at once sql/zella_support_replies.sql is
+  // applied (before that the column is missing and the list reads as before).
+  const cols = "id, business_id, subject, description, category, priority, status, assigned_to, created_by, metadata, created_at, updated_at, resolved_at";
+  const listQuery = (withFirst: boolean) => {
+    let q = admin.from("support_tickets").select(withFirst ? `${cols}, first_response_at` : cols).order("created_at", { ascending: false }).limit(500);
+    const status = text(fields.status, 20);
+    if (status) q = q.eq("status", oneOf(status, TICKET_STATUSES, "open"));
+    const businessId = text(fields.businessId, 64);
+    if (businessId) q = q.eq("business_id", requireId(businessId, "business"));
+    return q;
+  };
+  let ticketsResult = await listQuery(true);
+  let withFirstResponse = true;
+  if (ticketsResult.error && /first_response_at/.test(ticketsResult.error.message ?? "")) { ticketsResult = await listQuery(false); withFirstResponse = false; }
+  const [businessesResult, adminsResult, hoursResult, grantsResult] = await Promise.all([
     admin.from("businesses").select("id, name").order("name"),
-    admin.from("platform_admins").select("user_id").eq("is_active", true),
+    admin.from("platform_admins").select("user_id, role").eq("is_active", true),
+    admin.from("platform_settings").select("value").eq("key", "support_business_hours").maybeSingle(),
+    admin.from("platform_role_permissions").select("role").eq("permission", "support.manage"),
   ]);
-  const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error;
+  // a failed read of the hours or of the role grants is an error, never "the default hours" or "nobody can be assigned"
+  const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error ?? hoursResult.error ?? grantsResult.error;
   if (queryError) throw queryError;
 
-  const tickets = ticketsResult.data ?? [];
-  const adminIds = (adminsResult.data ?? []).map((a) => a.user_id);
+  const hours = supportHours(hoursResult.data?.value);
+  // one moment for every ticket's age: the overdue scan and the ages returned agree, however long the reads take
+  const nowIso = new Date().toISOString();
+  // deno-lint-ignore no-explicit-any
+  let tickets = (ticketsResult.data ?? []) as any[];
+  let overdueMessages: (Map<string, TicketMessage[]> & { available: boolean }) | null = null;
+  // Overdue: the tickets still waiting for a first reply are read 1000 at a time, newest first, and judged from their
+  // times alone as each page arrives; only overdue ones are kept, and reading stops at the newest 500 of them (a ticket
+  // that isn't overdue never hides an older one that is). Only those 500 have their conversations read.
+  if (fields.overdue === true && withFirstResponse) {
+    // A ticket answered between the ticket read and the replies read is no longer waiting: it is dropped and the scan
+    // goes on from the last ticket read, until 500 still qualify or there are no more.
+    const picked: typeof tickets = [];
+    const found = Object.assign(new Map<string, TicketMessage[]>(), { available: true });
+    let cursor: { created_at: string; id: string } | null = null;
+    do {
+      const batch = await waitingTickets(admin, fields, `${cols}, first_response_at`, (t) => ticketTiming(t, hours, nowIso).overdue === true, 500 - picked.length, cursor);
+      const replies = await ticketMessages(admin, batch.rows.map((t) => t.id));
+      if (!replies.available) found.available = false;
+      for (const t of batch.rows) {
+        const list = replies.get(t.id) ?? [];
+        if (list.some((m) => m.author_side === "zella")) continue;
+        picked.push(t);
+        if (list.length) found.set(t.id, list);
+      }
+      cursor = batch.next;
+    } while (picked.length < 500 && cursor);
+    tickets = picked;
+    overdueMessages = found;
+  }
+  const messages = overdueMessages ?? await ticketMessages(admin, tickets.map((t) => t.id));
+  // The time of the first reply comes from the replies read above when the ticket row was read just before one was
+  // added, so a ticket never shows a reply next to "No reply yet".
+  for (const t of tickets) {
+    if (t.first_response_at || !withFirstResponse) continue;
+    const firstZella = (messages.get(t.id) ?? []).find((m) => m.author_side === "zella");
+    if (firstZella) t.first_response_at = firstZella.created_at;
+  }
+  // without first_response_at (sql/zella_support_replies.sql not applied) a ticket's first reply and lateness are
+  // unknown: null, never "no reply" or "overdue"
+  // the overdue list keeps the moment it was chosen at; any other list takes its ages now, after the replies were
+  // read, so an age is never shorter than a first reply time read with it
+  const ageAt = fields.overdue === true ? nowIso : new Date().toISOString();
+  const timing = new Map(tickets.map((t) => [t.id, withFirstResponse ? ticketTiming(t, hours, ageAt) : { ...ticketTiming(t, hours, ageAt), firstResponseHours: null, overdue: null }]));
+  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue === true);
+  // only people who may work tickets can be assigned one (OPS-27)
+  const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);
+  const adminIds = (adminsResult.data ?? []).filter((a) => supportRoles.has(a.role)).map((a) => a.user_id);
   // Internal notes live in support_ticket_notes, which only the server can read (OPS-06). Before that table exists
   // (sql/zella_support_notes.sql not applied yet) they are still read from metadata, as before.
   const notesByTicket = await ticketNotes(admin, tickets);
@@ -2315,6 +2437,7 @@ async function ticketsList(admin: SupabaseClient) {
     ...adminIds,
     ...tickets.flatMap((t) => [t.assigned_to, t.created_by]),
     ...noteAuthors,
+    ...[...messages.values()].flat().map((m) => m.author_id ?? ""),
   ]);
   const nameById = new Map((businessesResult.data ?? []).map((b) => [b.id, b.name]));
 
@@ -2330,13 +2453,77 @@ async function ticketsList(admin: SupabaseClient) {
         created_at: n.created_at,
         author: n.author_id ? emails[n.author_id] ?? null : null,
       })),
+      // what the business sees (OPS-25), never the internal notes above
+      messages: (messages.get(t.id) ?? []).map((m) => ({
+        text: m.body, created_at: m.created_at, side: m.author_side,
+        author: m.author_side === "zella" ? (m.author_id ? emails[m.author_id] ?? "Zella Voice" : "Zella Voice") : null,
+      })),
+      ...timing.get(t.id),
     })),
+    supportHours: hours,
+    // false before sql/zella_support_replies.sql: the page says conversations aren't available instead of "No replies yet"
+    conversations: messages.available,
     businesses: businessesResult.data ?? [],
     assignees: adminIds.map((id) => ({ id, email: emails[id] ?? id })),
   };
 }
 
+// The tickets still waiting for their first reply (not resolved or closed) that `keep` accepts, with the list's status
+// and business filters, newest first, read 1000 at a time after a (created_at, id) cursor (from `start`), up to `max`
+// of them. `next` is the cursor after the last ticket read, or null when there are no more.
+// deno-lint-ignore no-explicit-any
+async function waitingTickets(admin: SupabaseClient, fields: Json, columns: string, keep: (t: any) => boolean, max: number,
+  start: { created_at: string; id: string } | null = null) {
+  // deno-lint-ignore no-explicit-any
+  const rows: any[] = [];
+  let after = start;
+  for (;;) {
+    let q = admin.from("support_tickets").select(columns).is("first_response_at", null).not("status", "in", "(resolved,closed)")
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1000);
+    const status = text(fields.status, 20);
+    if (status) q = q.eq("status", oneOf(status, TICKET_STATUSES, "open"));
+    const businessId = text(fields.businessId, 64);
+    if (businessId) q = q.eq("business_id", requireId(businessId, "business"));
+    if (after) q = q.or(`created_at.lt."${after.created_at}",and(created_at.eq."${after.created_at}",id.lt.${after.id})`);
+    const { data, error } = await q;
+    if (error) throw error;
+    // deno-lint-ignore no-explicit-any
+    const page = (data ?? []) as any[];
+    for (const [n, t] of page.entries()) {
+      if (keep(t)) rows.push(t);
+      if (rows.length >= max) return { rows, next: n < page.length - 1 || page.length === 1000 ? { created_at: t.created_at, id: t.id } : null };
+    }
+    if (page.length < 1000) return { rows, next: null };
+    after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
+  }
+}
+
 type TicketNote = { body: string; author_id: string | null; created_at: string };
+type TicketMessage = { body: string; author_id: string | null; author_side: string; created_at: string };
+
+// Replies the business sees (support_ticket_messages, sql/zella_support_replies.sql); none before it is applied.
+// Every message, read 1000 at a time after a (created_at, id) cursor, so no conversation is cut off.
+async function ticketMessages(admin: SupabaseClient, ids: string[]) {
+  const out = Object.assign(new Map<string, TicketMessage[]>(), { available: true });
+  for (let i = 0; i < ids.length; i += 200) {
+    let after: { created_at: string; id: string } | null = null;
+    for (;;) {
+      let q = admin.from("support_ticket_messages").select("id, ticket_id, body, author_id, author_side, created_at")
+        .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1000);
+      if (after) q = q.or(`created_at.gt."${after.created_at}",and(created_at.eq."${after.created_at}",id.gt.${after.id})`);
+      const { data, error } = await q;
+      if (error) { if (missingTable(error)) { out.available = false; return out; } throw error; }
+      const page = data ?? [];
+      for (const m of page) {
+        const list = out.get(m.ticket_id);
+        if (list) list.push(m); else out.set(m.ticket_id, [m]);
+      }
+      if (page.length < 1000) break;
+      after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
+    }
+  }
+  return out;
+}
 const missingTable = (e: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
 
 async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadata: unknown }[]) {
@@ -2344,27 +2531,33 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
   const ids = tickets.map((t) => t.id);
   if (!ids.length) return out;
   // read in pages of 1000 after a (created_at, id) cursor, so the API's row cap can't cut notes off and a note saved
-  // while reading can't make a page repeat or skip one
+  // while reading can't make a page repeat or skip one; 200 tickets at a time, so the request address stays short
   const pageSize = 1000;
-  let after: { created_at: string; id: string } | null = null;
-  for (;;) {
-    let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", ids);
-    if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
-    const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
-    if (error) {
-      if (!missingTable(error)) throw error;
-      out.clear();
-      break;
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    let after: { created_at: string; id: string } | null = null;
+    for (;;) {
+      let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", chunk);
+      if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
+      const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
+      if (error) {
+        if (!missingTable(error)) throw error;
+        return notesFromMetadata(tickets);   // before sql/zella_support_notes.sql: still read from metadata
+      }
+      for (const n of data ?? []) {
+        const notes = out.get(n.ticket_id) ?? [];
+        notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
+        out.set(n.ticket_id, notes);
+      }
+      if ((data ?? []).length < pageSize) break;
+      const last = data![data!.length - 1];
+      after = { created_at: last.created_at, id: last.id };
     }
-    for (const n of data ?? []) {
-      const notes = out.get(n.ticket_id) ?? [];
-      notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
-      out.set(n.ticket_id, notes);
-    }
-    if ((data ?? []).length < pageSize) return out;
-    const last = data![data!.length - 1];
-    after = { created_at: last.created_at, id: last.id };
   }
+  return out;
+}
+function notesFromMetadata(tickets: { id: string; metadata: unknown }[]) {
+  const out = new Map<string, TicketNote[]>();
   for (const t of tickets) {
     out.set(t.id, (Array.isArray(obj(t.metadata).notes) ? (obj(t.metadata).notes as unknown[]) : []).map((x) => {
       const n = obj(x);
@@ -2434,16 +2627,27 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     const assignee = text(fields.assignedTo, 64) || null;
     if (assignee) {
       requireId(assignee, "assignee");
-      const { data: isAdmin, error } = await admin
-        .from("platform_admins").select("user_id").eq("user_id", assignee).eq("is_active", true).maybeSingle();
+      // the same rule as the picker in tickets_list: an active admin whose role may work tickets (OPS-27)
+      const { data: target, error } = await admin
+        .from("platform_admins").select("user_id, role").eq("user_id", assignee).eq("is_active", true).maybeSingle();
       if (error) throw error;
-      if (!isAdmin) throw new InputError("Tickets can only be assigned to active platform admins");
+      if (!target) throw new InputError("Tickets can only be assigned to active platform admins");
+      if (!["zella_owner", "super_admin"].includes(target.role)) {
+        const { data: grant, error: grantError } = await admin.from("platform_role_permissions").select("role")
+          .eq("role", target.role).eq("permission", "support.manage").maybeSingle();
+        if (grantError) throw grantError;
+        if (!grant) throw new InputError("Tickets can only be assigned to admins whose role can work support tickets");
+      }
     }
     if (assignee !== ticket.assigned_to) {
       update.assigned_to = assignee;
       changes.assigned_to = { from: ticket.assigned_to, to: assignee };
     }
   }
+
+  // a reply over the limit is refused, never cut short: the page would clear a draft that wasn't sent in full
+  if (typeof fields.reply === "string" && fields.reply.trim().length > 4000) throw new InputError("A reply can be at most 4,000 characters.");
+  const reply = text(fields.reply, 4000);
 
   const note = text(fields.note, 4000);
   if (note) {
@@ -2459,10 +2663,30 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     changes.note_added = true;
   }
 
-  if (Object.keys(changes).length === 0) return { ticketId, businessId: ticket.business_id, changes };
+  if (Object.keys(changes).length === 0 && !reply) return { ticketId, businessId: ticket.business_id, changes };
 
-  const { error } = await admin.from("support_tickets").update(update).eq("id", ticketId);
-  if (error) throw error;
+  // The ticket's own changes (status, priority, assignee, a note) are saved first, and only when there are any: a reply
+  // alone needs no write here...
+  if (Object.keys(changes).length > 0) {
+    const { error } = await admin.from("support_tickets").update(update).eq("id", ticketId);
+    if (error) throw error;
+  }
+
+  // ...and the reply the business sees goes last (OPS-25; first_response_at and the opener's notice are set in the
+  // database), so nothing after it can fail and leave a published reply unaudited or tempt a resend. If the reply
+  // fails after other changes were saved, those changes are returned (and audited) with replyFailed, so the page
+  // says exactly what was saved and only the reply is sent again.
+  if (reply) {
+    const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
+    if (replyError) {
+      const why = /zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")
+        ? "Replies to the business need the latest database update (sql/zella_support_replies.sql)." : "The reply could not be sent. Try again.";
+      if (Object.keys(changes).length === 0) throw new InputError(why, /latest database update/.test(why) ? 503 : 500);
+      console.error("Ticket reply failed after other changes were saved", replyError.message);
+      return { ticketId, businessId: ticket.business_id, changes, replyFailed: why };
+    }
+    changes.reply_added = true;
+  }
 
   return { ticketId, businessId: ticket.business_id, changes };
 }
@@ -3129,6 +3353,7 @@ Deno.serve(withCors(async (req: Request) => {
     try { role = await callerRole(adminClient, user.id); }
     catch (e) { console.error("Platform admin verification failed", e); return respond({ error: "Could not verify platform admin access" }, 500); }
     if (!role) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: "NOT_ADMIN" });   // ACC-15
       return respond({ error: "Platform admin access required" }, 403);
     }
 
@@ -3163,22 +3388,32 @@ Deno.serve(withCors(async (req: Request) => {
       typeof fields.action === "string" ? fields.action : "";
 
     const gate = mfaGate({ hasVerifiedFactor: hasMfa, aal, action });
-    if (!gate.ok) return respond({ error: gate.error, code: gate.code }, gate.status);
+    if (!gate.ok) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: gate.code, action });   // ACC-15
+      return respond({ error: gate.error, code: gate.code }, gate.status);
+    }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
-    let allowed = action === "me_admin" || role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
+    // ACC-30: an admin's own authenticator and password changes (access.ts SELF_ACTIONS) are allowed for every role too.
+    let allowed = action === "me_admin" || SELF_ACTIONS.includes(action) || role === "zella_owner" || (role === "super_admin" && !["admins.manage", "roles.manage"].includes(permission));
     if (!allowed && RESTRICTED_ROLES.includes(role)) {
       const { data: grant } = await adminClient.from("platform_role_permissions").select("permission").eq("role", role).eq("permission", permission).maybeSingle();
       allowed = Boolean(grant);
     }
     if (!allowed) {
+      await recordRefusal(adminClient, requestContext(req, user.id), { code: "NOT_PERMITTED", action, permission });   // ACC-15
       return respond({ error: "Your admin role doesn't allow this. Ask a Zella Voice owner to change your role or its permissions.", code: "NOT_PERMITTED", permission }, 403);
     }
+    // ACC-19: granting or changing admin access needs a code entered in the last 5 minutes (mfa_gate.ts).
+    const fresh = freshCodeGate(action, authorization);
+    if (!fresh.ok) return respond({ error: fresh.error, code: fresh.code }, fresh.status);
 
+    // dashboard_data keeps its shape for the Offers page, the setup wizard's industry list and a web app older than
+    // businesses_list (which falls back to it). The Businesses list reads businesses_list (businesses.ts).
     if (action === "dashboard_data") {
       await processCancellations(adminClient);
 
@@ -3187,7 +3422,6 @@ Deno.serve(withCors(async (req: Request) => {
         industriesResult,
         invitationsResult,
         subscriptionsResult,
-        membersResult,
       ] = await Promise.all([
         adminClient
           .from("businesses")
@@ -3213,18 +3447,13 @@ Deno.serve(withCors(async (req: Request) => {
         adminClient
           .from("subscriptions")
           .select("id, business_id, status"),
-
-        adminClient
-          .from("business_members")
-          .select("business_id, user_id, role, status"),
       ]);
 
       const queryError =
         businessesResult.error ??
         industriesResult.error ??
         invitationsResult.error ??
-        subscriptionsResult.error ??
-        membersResult.error;
+        subscriptionsResult.error;
 
       if (queryError) {
         console.error("Dashboard data query failed", queryError);
@@ -3238,7 +3467,6 @@ Deno.serve(withCors(async (req: Request) => {
       const industries = industriesResult.data ?? [];
       const invitations = invitationsResult.data ?? [];
       const subscriptions = subscriptionsResult.data ?? [];
-      const members = membersResult.data ?? [];
 
       const industryById = new Map(
         industries.map((industry) => [industry.id, industry.name]),
@@ -3256,7 +3484,6 @@ Deno.serve(withCors(async (req: Request) => {
 
       const invitationsByBusiness = groupBy(invitations);
       const subscriptionsByBusiness = groupBy(subscriptions);
-      const membersByBusiness = groupBy(members);
 
       const businessRecords = businesses.map((business) => ({
         ...business,
@@ -3265,7 +3492,6 @@ Deno.serve(withCors(async (req: Request) => {
         invitations: invitationsByBusiness.get(business.id) ?? [],
         subscriptions:
           subscriptionsByBusiness.get(business.id) ?? [],
-        members: membersByBusiness.get(business.id) ?? [],
       }));
 
       return respond({
@@ -3282,8 +3508,6 @@ Deno.serve(withCors(async (req: Request) => {
           provisioningIssues: invitations.filter(
             (item) => item.status === "failed",
           ).length,
-          totalMembers: members.length,
-          totalSubscriptions: subscriptions.length,
         },
       });
     }
@@ -3299,8 +3523,12 @@ Deno.serve(withCors(async (req: Request) => {
       setup_save_automations: () => saveAutomations(adminClient, fields, user.id),
       setup_finish: () => finishSetup(adminClient, fields),
       overview_data: () => overviewData(adminClient),
+      businesses_list: async () => {
+        await processCancellations(adminClient);   // as dashboard_data did when Businesses opened (BIZ-03)
+        return businessesList(adminClient, fields, { text, InputError, UUID_RE });
+      },
       business_detail: () => businessDetail(adminClient, requireId(fields.businessId)),
-      audit_logs: () => auditLogList(adminClient, fields),
+      audit_logs: () => auditLogList(adminClient, fields, role),
       industries_list: () => industriesList(adminClient),
       industry_save: () => industrySave(adminClient, fields),
       industry_create: () => industryCreate(adminClient, fields),
@@ -3308,8 +3536,9 @@ Deno.serve(withCors(async (req: Request) => {
       admins_list: () => adminsList(adminClient, user.id),
       admin_invite: () => adminInvite(adminClient, fields, user.id),
       admin_update: () => adminUpdate(adminClient, fields, user.id),
+      admin_sessions_end: () => adminEndSessions(adminClient, fields, user.id),
       integrations_overview: () => integrationsOverview(adminClient),
-      tickets_list: () => ticketsList(adminClient),
+      tickets_list: () => ticketsList(adminClient, fields),
       ticket_create: () => ticketCreate(adminClient, fields, user.id),
       ticket_update: () => ticketUpdate(adminClient, fields, user.id),
       plans_list: () => plansList(adminClient),
@@ -3333,7 +3562,8 @@ Deno.serve(withCors(async (req: Request) => {
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
     const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action];
+    const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? access.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3341,12 +3571,20 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? access.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
       if (entry && !unchanged) {
-        await writeAudit(adminClient, requestContext(req, user.id), entry);
+        const recorded = await writeAudit(adminClient, requestContext(req, user.id), entry);
+        // ACC-12: an export of the audit log is handed over only once the export itself is on record
+        if (!recorded && action === "audit_export") {
+          return respond({ error: "The export could not be recorded in the audit log, so it was not downloaded. Try again." }, 503);
+        }
+        // ACC-30: a new authenticator counts as recorded only once its entry is written, so the browser keeps it to retry
+        if (!recorded && action === "me_mfa_added") {
+          return respond({ error: "The new authenticator could not be recorded in the audit log yet. It is tried again later." }, 503);
+        }
       }
 
       return respond(result);

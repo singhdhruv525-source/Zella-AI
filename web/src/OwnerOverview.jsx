@@ -37,6 +37,8 @@ export function Pill({ tone = "neutral", children }) {
 
 const loadOverview = () => callOwnerFunction("overview_data");
 
+// onCreateBusiness and onContinueSetup are null for a role without businesses.manage: those buttons are not shown
+// (the server refuses the writes anyway).
 export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onContinueSetup, onNavigate }) {
   // the last good answer stays on screen when a refresh fails, marked as possibly out of date (admin/loadState.jsx)
   const r = useRefreshable(loadOverview);
@@ -62,9 +64,11 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
-          <button type="button" className="owner-primary-button" onClick={onCreateBusiness}>
-            ＋ Create business
-          </button>
+          {onCreateBusiness && (
+            <button type="button" className="owner-primary-button" onClick={onCreateBusiness}>
+              ＋ Create business
+            </button>
+          )}
         </div>
       </div>
 
@@ -144,9 +148,13 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
                     <button type="button" className="op-name" onClick={() => onOpenBusiness(b.id)}>{b.name}</button>
                     <span>{b.industry} · {stageLabel(b.status)} · updated {timeAgo(b.updatedAt)}</span>
                   </div>
-                  <button type="button" className="owner-secondary-button op-small" onClick={() => onContinueSetup(b.id)}>
-                    Continue setup
-                  </button>
+                  {onContinueSetup ? (
+                    <button type="button" className="owner-secondary-button op-small" onClick={() => onContinueSetup(b.id)}>
+                      Continue setup
+                    </button>
+                  ) : (
+                    <button type="button" className="op-link" onClick={() => onOpenBusiness(b.id)}>View</button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -224,7 +232,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           <div className="op-empty">
             {emptyText(r, list("recentBusinesses") ? "No businesses yet." : "Not reported.", "the overview")}
             {/* only after an answer that really lists no businesses */}
-            {list("recentBusinesses") && !list("recentBusinesses").length && (
+            {onCreateBusiness && list("recentBusinesses") && !list("recentBusinesses").length && (
               <button type="button" className="owner-primary-button op-gap-top" onClick={onCreateBusiness}>
                 ＋ Create your first business
               </button>
