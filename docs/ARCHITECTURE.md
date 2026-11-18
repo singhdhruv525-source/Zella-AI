@@ -2102,6 +2102,15 @@ Knowledge, Automations, Reports, Team, Settings.
 | Pay before go live | Applies only once Stripe is live; until then the go live gate doesn't wait for payment. | REQ-LC-14, REQ-BIL-29 |
 | Public API, API keys, outgoing webhooks | **Not planned** (recorded in PR #91). | §36 |
 
+### 23.1c Decided by the owner (18 Nov 2026, security audit)
+
+| Topic | Decision | Applied in |
+|---|---|---|
+| Retention of call recordings and transcripts (D-13, D-27) | **90 days**, deleted automatically; the UI, the docs and the privacy policy say the same. The job is real and scheduled, behind the purge switch, off. | `sql/zella_privacy_retention.sql` |
+| Privacy policy and terms | Drafted for owner and legal review, naming every processor; linked from both sign in pages; the owner accepts both during onboarding (recorded server side). | `sql/zella_privacy_retention.sql`, `/privacy`, `/terms` |
+| AI disclosure and recording line (D-13) | Default greeting "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"; the AI disclosure can't be removed (checked on the server); "This call is recorded." only while recording is on for the business; recording off by default. | `sql/zella_call_disclosure.sql` |
+| Account deletion (REQ-PRV-01) | The owner asks in Settings, a Zella Voice admin confirms; the account is frozen (calls and automations stopped) and purged after a 30 day grace period unless cancelled; storage files removed and recordings at Vapi queued for deletion (behind `vapi_deletion_live`, off); audit history kept with business_id null (ACC-10). | `sql/zella_account_deletion.sql` |
+
 ### 23.2 Still open
 
 | ID | Decision | Owner |

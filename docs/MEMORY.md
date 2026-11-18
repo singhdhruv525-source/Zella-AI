@@ -144,6 +144,9 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Privacy decisions (owner, 18 Nov 2026, security audit):** recordings and transcripts 90 days, deleted automatically;
+  AI disclosure always in the greeting, recording line only while recording is on (off); account deletion: owner asks,
+  admin confirms, frozen, purged after 30 days. Built on `claude/security-fixes-g` (on lane G), not applied.
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
