@@ -6,8 +6,10 @@
 // ('platform_admin_' || ..., `legal.${kind}`).
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const ROOT = new URL("../../", import.meta.url).pathname;
+// a real file system path (a checkout path with spaces or other escaped characters works)
+export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 const lineAt = (src, i) => src.slice(0, i).split("\n").length;
 // SQL literals, also when the SQL sits inside another string with doubled quotes (zella_patch_function, execute).
@@ -61,13 +63,16 @@ export function sqlExprNames(text) {
   const t = text.replace(/--[^\n]*/g, " ").replace(/\s+/g, " ").trim().replace(/::\s*text$/i, "").trim();
   const lit = t.match(/^'+([a-z][a-z0-9_.]*)'+$/);
   if (lit) return [{ name: lit[1] }];
-  // every then / else result of a case: a literal, a name to resolve (null means "no audit row"), or unresolved
-  const branches = (c) => [...c.matchAll(/\b(?:then|else)\s+('+[a-z0-9_.]*'+|[a-z_][a-z0-9_]*\b(?!\s*[(.|])|\S+)/gi)].map((m) => {
-    const v = m[1];
+  // every then / else result of a case, read whole (up to the next when / else / end of that case): a literal, a
+  // name to resolve, a literal joined to more ('attendance.' || new_status: its known start), null ("no audit row"),
+  // or unresolved
+  const branches = (c) => caseResults(c).map((v) => {
     const lit = v.match(/^'+([a-z0-9_.]*)'+$/);
     if (lit) return { name: lit[1] };
     if (/^null$/i.test(v)) return null;
     if (/^[a-z_][a-z0-9_]*$/i.test(v)) return { ident: v.toLowerCase() };
+    const start = v.match(/^'+([a-z][a-z0-9_.]*)'+\s*\|\|/);
+    if (start) return { name: start[1], prefix: true };
     return { name: v.slice(0, 60), unresolved: true };
   }).filter(Boolean);
   if (/^case\b.*\bend$/i.test(t)) return branches(t);
@@ -82,6 +87,34 @@ export function sqlExprNames(text) {
   const id = t.match(/^([a-z_][a-z0-9_]*)$/i);
   if (id) return [{ ident: id[1].toLowerCase() }];
   return [{ name: t.slice(0, 60), unresolved: true }];
+}
+
+// The result expressions of a case ... end, each read up to the next when / else / end at the same depth (nested
+// brackets, nested cases and quoted text are skipped over).
+export function caseResults(t) {
+  const out = [];
+  const word = /\b(case|when|then|else|end)\b/gi;
+  let depth = 0, cases = 0, quote = false, start = -1, paren = 0;
+  const lower = t.toLowerCase();
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (quote) { if (c === "'") quote = false; continue; }
+    if (c === "'") { quote = true; continue; }
+    if (c === "(") { paren++; continue; }
+    if (c === ")") { paren--; continue; }
+    word.lastIndex = i;
+    const m = word.exec(lower);
+    if (!m || m.index !== i || (i > 0 && /[a-z0-9_]/.test(lower[i - 1]))) continue;
+    const w = m[1];
+    if (w === "case") { cases++; if (cases === 1) depth = paren; i += 3; continue; }
+    if (cases === 1 && paren === depth && (w === "when" || w === "else" || w === "end") && start >= 0) {
+      out.push(t.slice(start, i).trim()); start = -1;
+    }
+    if (cases === 1 && paren === depth && (w === "then" || w === "else")) start = i + w.length;
+    if (w === "end") { cases--; i += 2; continue; }
+    i += w.length - 1;
+  }
+  return out;
 }
 
 // The function a position sits in: its name, parameter names and body text.
@@ -154,15 +187,33 @@ export function sqlAuditActions(raw) {
         pos = g.end + 1 + after[0].length;
       }
     } else {
-      // select a, b, c from ... : split the select list at depth 0 until from / where / ;
-      const stop = src.slice(pos).search(/\b(from|where)\b|;/i);
-      const list = src.slice(pos, stop < 0 ? undefined : pos + stop);
+      // select a, b, c from ... : split the select list at depth 0 until from / where / ; at the outer level (a
+      // from or where inside brackets or quotes doesn't end it)
+      const stop = outerStop(src, pos);
+      const list = src.slice(pos, stop < 0 ? undefined : stop);
       const g = splitGroup(`(${list})`, 0);
       const item = g.items[idx];
       if (item) for (const n of sqlExprNames(item.text)) out.push({ ...n, at: pos + item.at - 1, line: lineAt(src, pos + item.at - 1) });
     }
   }
   return out;
+}
+
+// Where a select list ends: the first from / where / ; outside brackets and quoted text, or -1.
+function outerStop(src, from) {
+  let depth = 0, quote = false;
+  for (let i = from; i < src.length; i++) {
+    const c = src[i];
+    if (quote) { if (c === "'") quote = false; continue; }
+    if (c === "'") { quote = true; continue; }
+    if (c === "(") depth++;
+    else if (c === ")") { if (depth === 0) return i; depth--; }
+    else if (depth === 0) {
+      if (c === ";") return i;
+      if (/[fw]/i.test(c) && !/[a-z0-9_]/i.test(src[i - 1] ?? "") && /^(from|where)\b/i.test(src.slice(i, i + 6))) return i;
+    }
+  }
+  return -1;
 }
 
 // zella_platform_alert('kind', ...) and insert into platform_alerts (kind, ...) values ('kind', ...)
@@ -371,7 +422,7 @@ export function tsAuditActions(raw) {
   const src = stripJsComments(raw);
   const masked = maskStrings(src);
   const out = [];
-  for (const m of src.matchAll(/\baction\s*:\s*/g)) {
+  for (const m of src.matchAll(/(?:\baction|(["'])action\1)\s*:\s*/g)) {
     const expr = exprAfter(src, m.index + m[0].length);
     // a type, not a value: "action: string", or "action: RequestAction" where a type is written (a parameter, a type
     // alias, an interface, an annotation). In an object literal a PascalCase name is a value and stays unresolved.
@@ -390,10 +441,16 @@ export function tsAuditActions(raw) {
 export function tsAuditReads(raw) {
   const src = stripJsComments(raw);
   const out = [];
+  // only on a query of audit_logs: the nearest .from(...) before the filter names the table
+  const onAuditLogs = (at) => {
+    const froms = [...src.slice(0, at).matchAll(/\.from\(\s*["']([a-z_]+)["']\s*\)/g)];
+    return froms.length > 0 && froms[froms.length - 1][1] === "audit_logs";
+  };
   for (const m of src.matchAll(/\.(eq|in)\(\s*["']action["']\s*,\s*/g)) {
+    if (!onAuditLogs(m.index)) continue;
     for (const n of jsExprNames(exprAfter(src, m.index + m[0].length))) out.push({ ...n, line: lineAt(src, m.index) });
   }
-  for (const m of src.matchAll(/action\.like\.([a-z_.]*)%/g)) out.push({ name: m[1], prefix: true, line: lineAt(src, m.index) });
+  for (const m of src.matchAll(/action\.like\.([a-z_.]*)%/g)) if (onAuditLogs(m.index)) out.push({ name: m[1], prefix: true, line: lineAt(src, m.index) });
   return out;
 }
 
@@ -417,9 +474,19 @@ export function tsPermissions(raw) {
 export function n8nAlertKinds(raw) {
   const src = stripJsComments(raw);
   const out = [];
+  const masked = maskStrings(src);
   for (const m of src.matchAll(/\bp_kind\s*:\s*(["'])([a-z][a-z0-9_]*)\1/g)) {
-    const before = src.slice(Math.max(0, m.index - 200), m.index);
-    if (/zella_platform_alert|\balert\s*:\s*\{/.test(before) && !/zella_resolve_platform_alerts/.test(before.slice(-120))) out.push({ name: m[2], line: lineAt(src, m.index) });
+    // the object p_kind sits in, and what that object is given to: an alert: { ... } property, or the argument of a
+    // zella_platform_alert call (never zella_resolve_platform_alerts), however long the fields before p_kind are
+    let depth = 0, open = -1;
+    for (let i = m.index - 1; i >= 0; i--) {
+      const c = masked[i];
+      if (c === "}" || c === ")" || c === "]") depth++;
+      else if (c === "{" || c === "(" || c === "[") { if (depth === 0) { open = i; break; } depth--; }
+    }
+    if (open < 0 || masked[open] !== "{") continue;
+    const lead = src.slice(Math.max(0, open - 80), open);
+    if (/\balert\s*:\s*$/.test(lead) || (/["']zella_platform_alert["']\s*,\s*$/.test(lead))) out.push({ name: m[2], line: lineAt(src, m.index) });
   }
   return out;
 }

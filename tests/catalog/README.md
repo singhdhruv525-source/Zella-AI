@@ -15,7 +15,9 @@ fails when:
 - a name can't be worked out (an audit insert whose action is neither a literal, a `case`, a variable set from
   literals nor a parameter of a function whose callers pass literals);
 - a name in the list is no longer used anywhere, or has no label, or a label has a dash;
-- `settings.ts` `PERMISSION_CATALOG` (the role editor's list) differs from `permissions`;
+- `settings.ts` `PERMISSION_CATALOG` (the role editor's list) differs from `permissions` without
+  `owner_only_permissions` (`admins.manage` and `roles.manage` are left out of the editor on purpose: only a Zella
+  Voice owner holds them, so no role can be given them);
 - a label key in `web/src/ownerFormat.js` `ACTION_LABELS` is not a real audit action.
 
 Run it with `npm run lint` in `web/` (which also runs the unit tests), or directly:

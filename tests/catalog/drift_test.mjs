@@ -21,6 +21,8 @@ export function check(found, catalog, extra = {}) {
     permission: { names: catalog.permissions ?? {}, prefixes: [], what: "permission", key: "permissions" },
   };
   const used = { audit: new Set(), alert: new Set(), permission: new Set() };
+  // own entries only: "constructor" or "toString" are never catalog names
+  const has = (names, n) => Object.prototype.hasOwnProperty.call(names, n);
   const usedPrefixes = { audit: new Set(), alert: new Set() };
 
   for (const f of found) {
@@ -28,17 +30,19 @@ export function check(found, catalog, extra = {}) {
     const l = lists[kind];
     if (f.unresolved) { problems.push(`${f.where}: can't tell which ${l.what} "${f.name}" is; write it as a literal or a case`); continue; }
     if (f.kind === "audit_read") {
-      const ok = f.prefix ? Object.keys(l.names).some((n) => n.startsWith(f.name)) : f.name in l.names;
+      const ok = f.prefix ? Object.keys(l.names).some((n) => n.startsWith(f.name)) : has(l.names, f.name);
       if (!ok) problems.push(`${f.where}: reads ${l.what} "${f.name}${f.prefix ? "%" : ""}", which nothing in ${l.key} matches`);
       continue;
     }
     if (f.prefix) {
+      // permissions are only ever literal names: one built at run time is reported, never tracked as a prefix
+      if (kind === "permission") { problems.push(`${f.where}: builds a permission starting "${f.name}" at run time; write each permission as a literal`); continue; }
       if (!l.prefixes.includes(f.name)) problems.push(`${f.where}: builds ${l.what}s starting "${f.name}" at run time; add "${f.name}" to ${kind === "audit" ? "audit_action_prefixes" : "alert_kind_prefixes"} and each name it makes to ${l.key}`);
       usedPrefixes[kind].add(f.name);
       continue;
     }
     used[kind].add(f.name);
-    if (!(f.name in l.names)) problems.push(`${f.where}: ${l.what} "${f.name}" is not in ${l.key} in catalog.json; add it with a label`);
+    if (!has(l.names, f.name)) problems.push(`${f.where}: ${l.what} "${f.name}" is not in ${l.key} in catalog.json; add it with a label`);
   }
 
   for (const [kind, l] of Object.entries(lists)) {
@@ -66,10 +70,13 @@ export function check(found, catalog, extra = {}) {
   }
   // Labels the web app keeps today (ownerFormat.js) must be for real actions.
   for (const a of extra.webLabels ?? []) {
-    if (!(a in lists.audit.names)) problems.push(`web/src/ownerFormat.js ACTION_LABELS: "${a}" is not an audit action in catalog.json`);
+    if (!has(lists.audit.names, a)) problems.push(`web/src/ownerFormat.js ACTION_LABELS: "${a}" is not an audit action in catalog.json`);
   }
   return [...new Set(problems)];
 }
+
+// The keys of an object literal's lines, quoted with matching single or double quotes ("a.b": or 'a.b':).
+export const labelKeys = (body) => [...body.matchAll(/^\s*(["'])([^"'\n]+)\1\s*:/gm)].map((m) => m[2]);
 
 export function extras(root = ROOT) {
   const settings = readFileSync(join(root, "web/supabase/functions/owner-provision-business/settings.ts"), "utf8");
@@ -77,7 +84,7 @@ export function extras(root = ROOT) {
   const permissionCatalog = block ? [...block[1].matchAll(/\[\s*"([a-z]+\.[a-z_]+)"/g)].map((m) => m[1]) : [];
   const fmt = readFileSync(join(root, "web/src/ownerFormat.js"), "utf8");
   const labels = fmt.match(/ACTION_LABELS\s*=\s*\{([\s\S]*?)\n\};/);
-  const webLabels = labels ? [...labels[1].matchAll(/^\s*"([^"]+)"\s*:/gm)].map((m) => m[1]) : [];
+  const webLabels = labels ? labelKeys(labels[1]) : [];
   return { permissionCatalog, webLabels };
 }
 

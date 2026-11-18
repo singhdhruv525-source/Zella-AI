@@ -189,3 +189,27 @@ test("review fixes 3: a PascalCase value in an object literal is a value, not a 
   assert.deepEqual(names(tsAuditActions(`interface I { action: Foo; } const f = (p: { action: Foo }) => p; const x: { action: Foo } = y;`)), []);
   assert.deepEqual(names(tsAuditActions(`const g = async (n: number, action: Foo): Promise<void> => {}; function h(): { action: Foo } { return y; }`)), []);
 });
+
+test("review fixes 4: whole case arms, the outer select list, quoted keys, audit queries only, alert objects of any length", () => {
+  // a case arm joined to a column: its known start, not just the first token
+  assert.deepEqual(names(sqlExprNames(`case when x then 'attendance.' || new_status else 'attendance.none' end`)), ["attendance.*", "attendance.none"]);
+  // a from inside brackets doesn't end the select list, so the action after it is still read
+  assert.deepEqual(names(sqlAuditActions(`insert into audit_logs (entity_id, action) select (select id from t limit 1), 'a.after' from x;`)), ["a.after"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { "action": "plan.quoted" }; const f = { 'action': "plan.single" };`)), ["plan.quoted", "plan.single"]);
+  // an action filter on another table is not an audit read
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").select("id").eq("action", "a.read"); admin.from("jobs").select("id").eq("action", "not.audit");`)), ["a.read"]);
+  const title = "x".repeat(300);
+  assert.deepEqual(names(n8nAlertKinds(`await run("zella_platform_alert", { p_title: "${title}", p_detail: "${title}", p_kind: "long_kind" });
+    await run("zella_resolve_platform_alerts", { p_kind: "resolved_kind" }); const other = { p_kind: "not_an_alert" };`)), ["long_kind"]);
+});
+
+test("review fixes 4: drift check uses own catalog entries, refuses run time permissions, reads single quoted label keys", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  const cat = { audit_actions: { "a.one": "One" }, alert_kinds: {}, permissions: {}, owner_only_permissions: [] };
+  const p = check([{ kind: "audit", name: "a.one", where: "x:1" }, { kind: "audit", name: "constructor", where: "y:2" },
+    { kind: "permission", name: "billing.", prefix: true, where: "z:3" }], cat, { webLabels: ["toString", "a.one"] });
+  assert.ok(p.some((x) => x.includes('"constructor" is not in audit_actions')), p.join("\n"));
+  assert.ok(p.some((x) => x.includes("builds a permission")), p.join("\n"));
+  assert.ok(p.some((x) => x.includes('"toString" is not an audit action')), p.join("\n"));
+  assert.deepEqual(labelKeys(`\n  "a.one": "One",\n  'a.stale': "Stale",\n  "a.mixed': "x",\n`), ["a.one", "a.stale"]);
+});
