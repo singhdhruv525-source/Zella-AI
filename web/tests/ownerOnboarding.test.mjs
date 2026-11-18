@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import {
   ERROR_WORDS, SCREENS, STEP_KEYS, allowance, canLeave, canOpen, detailsDone, errorCode, errorWords, identityPassed,
   identityState, isNotReady, languageWords, money, nextOpenSection, nextStep, paymentPassed, paymentState, phoneWords,
-  UNAVAILABLE, afterCompleteError, createAnswerQueue, previousStep, progressFor, resumeStep, rpcError, sectionRows, stepAfterError, sectionState, securityPart, stateAfterResume, uploadKinds,
+  UNAVAILABLE, afterCompleteError, createAnswerQueue, movedNotice, previousStep, progressFor, resumeStep, rpcError, sectionRows, stepAfterError, sectionState, securityPart, stateAfterResume, uploadKinds,
 } from "../src/onboarding/steps.js";
 import { createFakeApi } from "../src/onboarding/fakeApi.js";
 
@@ -352,4 +352,12 @@ test("after a locked step, the journey shows the server's current step", () => {
   assert.equal(stepAfterError(afterCompleteError("identity", { message: "STEP_LOCKED" }), fresh), "details");
   assert.equal(stepAfterError(afterCompleteError("details", { message: "SECTIONS_NOT_CONFIRMED" }), fresh), "details");
   assert.equal(stepAfterError(afterCompleteError("done", { message: "PLAN_CHANGED" }), { current_step: "done", plan: { available: true, accepted: false } }), "plan");
+});
+
+test("moved to another step after a locked step: the reason is kept for the step it moved to", () => {
+  const locked = { message: "STEP_LOCKED" };
+  assert.equal(movedNotice("reload", "identity", "details", locked), ERROR_WORDS.STEP_LOCKED);
+  assert.equal(movedNotice("reload", "details", "details", { message: "SECTIONS_NOT_CONFIRMED" }), "", "the same step shows its own error");
+  assert.equal(movedNotice("plan", "done", "plan", { message: "PLAN_CHANGED" }), "", "the plan screen says why itself");
+  assert.equal(movedNotice(null, "payment", "payment", { message: "PAYMENT_NOT_CONFIRMED" }), "");
 });
