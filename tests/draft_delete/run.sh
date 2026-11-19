@@ -102,18 +102,44 @@ out=$(del "$B3" "$OWN" "Racing Draft" "Clean up test")
 wait $bgp
 out=$(del "$B3" "$OWN" "Racing Draft" "Clean up test")
 [[ "$out" == *NOT_A_DRAFT*owner_accepted* ]] && ok "after the acceptance commits, the delete refuses (the owner accepted)" || bad "after race: $out"
+# the real acceptance functions, both orders, both functions: never a deadlock, never a business deleted under an
+# accepted invitation. invitee <draft> <role>: an auth user with an invitation (and, for the owner, the invited seat)
+invitee() { local u; u=$(q "select gen_random_uuid()"); local em="inv-$u@owner.test"
+  q "insert into auth.users (id, email) values ('$u', '$em');
+     update public.business_invitations set auth_user_id = '$u', email = '$em', status = 'sent', role = '$2' where business_id = '$1';
+     insert into public.business_members (business_id, user_id, role, status) select '$1', '$u', 'owner', 'invited' where '$2' = 'owner'" > /dev/null; echo "$u"; }
+accept_sql() { echo "set local role authenticated; select set_config('request.jwt.claims', '{\"sub\": \"$2\", \"role\": \"authenticated\", \"aal\": \"aal1\", \"amr\": [{\"method\": \"otp\"}]}', true); select public.$1()"; }
+for fnrole in "zella_accept_my_invitations owner" "zella_accept_staff_invitations_v2 staff"; do
+  set -- $fnrole; fn=$1; role=$2
+  # acceptance first: it holds its rows, the delete answers BUSY at once, and after the commit the delete refuses
+  b=$(draft "Accept First $role"); u=$(invitee "$b" "$role")
+  PGAPPNAME=zlb_acc1 "${P[@]}" -d $DB -c "begin; $(accept_sql $fn $u); select pg_sleep(3); commit;" > /dev/null 2>&1 & bgp=$!
+  for i in $(seq 1 100); do [ "$(q "select count(*) from pg_stat_activity where application_name = 'zlb_acc1' and wait_event = 'PgSleep'")" = "1" ] && break; sleep 0.1; done
+  out=$(del "$b" "$OWN" "Accept First $role" "Clean up test"); wait $bgp
+  out2=$(del "$b" "$OWN" "Accept First $role" "Clean up test")
+  [[ "$out" == *BUSY* && "$out2" == *NOT_A_DRAFT* && "$out2" != *deadlock* ]] && [ "$(q "select count(*) from public.businesses where id = '$b'")" = "1" ] \
+    && [ "$(q "select status from public.business_invitations where business_id = '$b'")" = "accepted" ] && ok "$fn first: the delete answers BUSY, then refuses the accepted business" || bad "$fn first: $out | $out2"
+  # delete first: it holds the rows until it commits; the acceptance waits, then finds nothing to accept (no deadlock)
+  b=$(draft "Delete First $role"); u=$(invitee "$b" "$role")
+  PGAPPNAME=zlb_del1 "${P[@]}" -d $DB -c "begin; select public.zella_delete_draft_business('$b', '$OWN', 'Delete First $role', 'Clean up test'); select pg_sleep(3); commit;" > /dev/null 2>&1 & bgp=$!
+  for i in $(seq 1 100); do [ "$(q "select count(*) from pg_stat_activity where application_name = 'zlb_del1' and wait_event = 'PgSleep'")" = "1" ] && break; sleep 0.1; done
+  acc=$(printf '%s\n' "begin;" "$(accept_sql $fn $u);" "commit;" | timeout 20 "${P[@]}" -d $DB 2>&1); wait $bgp
+  [[ "$acc" != *deadlock* && "$acc" != *ERROR* ]] && [ "$(q "select count(*) from public.businesses where id = '$b'")" = "0" ] \
+    && [ "$(q "select count(*) from public.business_members where user_id = '$u' and status = 'active'")" = "0" ] && ok "delete first: $fn waits, then accepts nothing (no deadlock, no member left)" || bad "delete first $fn: $acc"
+done
 [ "$(q "select convalidated::text from pg_constraint where conname = 'audit_logs_business_id_fkey'")" = "true" ] && ok "the audit foreign key was added without a scan and validated after the commit" || bad "not validated"
 out=$(del "f9999999-0000-0000-0000-000000000000" "$OWN" "x" "Clean up test"); [[ "$out" == *NOT_FOUND* ]] && ok "an unknown business is not found" || bad "unknown: $out"
 g=$(q "select has_function_privilege('authenticated', 'public.zella_delete_draft_business(uuid,uuid,text,text)', 'execute')::text || has_function_privilege('anon', 'public.zella_delete_draft_business(uuid,uuid,text,text)', 'execute')::text")
 [ "$g" = "falsefalse" ] && ok "only the server may call it" || bad "grants: $g"
 
-"${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
+deleted_before=$(q "select count(*) from public.audit_logs where action = 'business.draft_deleted'")
+"$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $DB -q > /dev/null 2>&1 && "$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $DB -q > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && [ -z "$(q "select to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)')")" ] && ok "rollback restores the trigger function and the CASCADE exactly, and drops the delete" || bad "after rollback: $(fp)"
-[ "$(q "select count(*) from public.audit_logs where action = 'business.draft_deleted'")" = "2" ] && [ "$(q "select count(*) from public.audit_logs where action = 'business.draft_created' and business_id is null")" -ge 1 ] && ok "deletion entries and the deleted drafts' earlier rows stay after the rollback" || bad "entries after rollback"
+[ "$(q "select count(*) from public.audit_logs where action = 'business.draft_deleted'")" = "$deleted_before" ] && [ "$deleted_before" -ge 2 ] && [ "$(q "select count(*) from public.audit_logs where action = 'business.draft_created' and business_id is null")" -ge 1 ] && ok "deletion entries and the deleted drafts' earlier rows stay after the rollback" || bad "entries after rollback"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_delete_draft_business(p_business_id uuid, p_actor uuid, p_confirm_name text, p_reason text) returns jsonb language sql as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); [[ "$out" == *VERSION_MISMATCH* ]] && ok "a changed function stops the file" || bad "drift not caught: $out"
-out=$("${P[@]}" -d $DB -f "$RB" 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "and stops the rollback" || bad "rollback drift not caught: $out"
+out=$("$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $DB -q 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "and stops the rollback" || bad "rollback drift not caught: $out"
 
 echo
 [ $fails -eq 0 ] && echo "ALL PASSED" || { echo "$fails FAILED"; exit 1; }

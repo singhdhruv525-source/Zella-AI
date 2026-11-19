@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { duplicateState, matchedWords, newCreationKey } from "../src/businessDuplicates.js";
+import { duplicateCheck, duplicateState, matchedWords, newCreationKey } from "../src/businessDuplicates.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -27,4 +27,11 @@ test("a duplicate's state reads Live, its setup stage, or Draft in setup", () =>
   assert.equal(duplicateState({ isActive: true, onboardingStatus: "active" }), "Live");
   assert.equal(duplicateState({ isActive: false, onboardingStatus: "testing" }), "Testing");
   assert.equal(duplicateState({ isActive: false, onboardingStatus: "owner_setup" }), "Draft in setup");
+});
+
+test("the duplicate check: only a checked list counts; anything else is unchecked, never no duplicates", () => {
+  assert.equal(duplicateCheck({ checked: true, duplicates: [] }), "none");
+  assert.deepEqual(duplicateCheck({ checked: true, duplicates: [{ id: "a" }] }), [{ id: "a" }]);
+  for (const found of [{ duplicates: [] }, { checked: false, duplicates: [] }, { checked: true }, { checked: true, duplicates: "x" }, null, undefined])
+    assert.equal(duplicateCheck(found), "unchecked", JSON.stringify(found));
 });

@@ -11,7 +11,8 @@
 --     zella_export_finish (ready for 7 days, or back to approved to resume, failed after 3 tries), zella_export_tables,
 --     zella_export_rows (one page, read by key so a row removed meanwhile never shifts the next page) and
 --     zella_export_files. Every step is audited.
--- The business's own row (businesses, keyed by id) is exported with the rest.
+-- The business's own row (businesses, keyed by id) is exported with the rest. Each table is read from one copy taken
+-- for the export (business_export_tables and business_export_rows, server only), removed when the export ends.
 -- What an export never contains: integration_secrets, crm_record_secrets, email_unsubscribe_tokens and
 -- business_export_jobs; any column whose name says token, secret, password, api key, credential or a key/token hash;
 -- call recording links; and call transcripts and summaries in industries whose calls carry health, legal, financial,
@@ -35,11 +36,11 @@ begin
   for f in select * from (values
       ('public.zella_export_request(uuid,uuid,text)', 'f47b159a55dbc664012efcc5f31a91d3'),
       ('public.zella_export_decide(uuid,uuid,boolean,text)', 'd629f795bb5d2cdbfe5f35ae7d3cc153'),
-      ('public.zella_export_claim()', 'ff8042f03db758b059a9e0d195e6fb6d'),
+      ('public.zella_export_claim()', 'c4215609b2d684949f0733911769ba14'),
       ('public.zella_export_progress(uuid,uuid,jsonb)', 'dd7783ebcb736ed012d29a56adfa02cd'),
-      ('public.zella_export_finish(uuid,uuid,boolean,text,text)', '83b5834fc4d29a12c2e5c849c3d93877'),
+      ('public.zella_export_finish(uuid,uuid,boolean,text,text)', '323275293be575c3c43bb3a0982eff14'),
       ('public.zella_export_tables()', 'aba79deaddde7257e17b778805caa099'),
-      ('public.zella_export_rows(uuid,uuid,text,text,integer)', 'e369de5aa2fd5a1a13083c961c5bce9d'),
+      ('public.zella_export_rows(uuid,uuid,text,text,integer)', '4adac74824a52691f0c50d87b4109dbb'),
       ('public.zella_export_pause(uuid,uuid,jsonb)', '730410e6d2a55eec1baeddfec0bdc502'),
       ('public.zella_export_files(uuid,uuid)', '580156e5758c1d2fbbcae6e8387969c0')) as t(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(to_regprocedure(f.sig))) <> f.want then
@@ -141,6 +142,7 @@ begin
   if j.attempts >= 3 then
     update business_export_jobs set status = 'failed', finished_at = now(), claim_token = null,
            last_error = coalesce(last_error, 'stopped three times') where id = j.id;
+    delete from business_export_tables where job_id = j.id;   -- the export's copies of the tables
     insert into audit_logs (business_id, action, entity_type, entity_id, new_data)
     values (j.business_id, 'export.failed', 'business_export', j.id, jsonb_build_object('error', 'stopped three times'));
     return null;
@@ -196,6 +198,7 @@ begin
          last_error = case when p_ok then null else left(coalesce(p_error, 'unknown error'), 500) end
    where id = j.id;
   if v_status in ('ready', 'failed') then
+    delete from business_export_tables where job_id = j.id;   -- the export's copies of the tables (and their rows)
     insert into audit_logs (business_id, action, entity_type, entity_id, new_data)
     values (j.business_id, 'export.' || v_status, 'business_export', j.id,
             case when p_ok then jsonb_build_object('manifest', p_manifest) else jsonb_build_object('error', left(p_error, 300)) end);
@@ -217,36 +220,65 @@ AS $function$
      and c.table_name not in ('integration_secrets', 'crm_record_secrets', 'email_unsubscribe_tokens', 'business_export_jobs')
 $function$;
 
--- One page of one table for the running export, without secret columns and call content the rules keep back. Pages are
--- read by key (the row's id, or its whole text where a table has no id), after the last key of the page before, so a
--- row removed between pages never makes the next page skip one. Returns { rows, next } (next: null on the last page).
--- businesses gives the business's own row (keyed by id).
+-- Each table's rows for one export are copied once, in one statement, the first time the worker reads that table
+-- (business_export_rows, server only), and every page and every resumed run reads that copy: rows changed, added or
+-- removed after it never shift, skip or mix into the table's export. The copies go when the export ends.
+create table if not exists public.business_export_tables (
+  job_id uuid not null references public.business_export_jobs(id) on delete cascade,
+  table_name text not null,
+  row_count integer not null,
+  taken_at timestamptz not null default now(),
+  primary key (job_id, table_name)
+);
+create table if not exists public.business_export_rows (
+  job_id uuid not null,
+  table_name text not null,
+  k text not null,
+  r jsonb not null,
+  primary key (job_id, table_name, k),
+  foreign key (job_id, table_name) references public.business_export_tables(job_id, table_name) on delete cascade
+);
+alter table public.business_export_tables enable row level security;
+alter table public.business_export_rows enable row level security;
+revoke all on public.business_export_tables, public.business_export_rows from public, anon, authenticated;
+
+-- One page of one table for the running export, without secret columns and call content the rules keep back, from the
+-- export's own copy of that table. Pages are read by key (the row's id, or its whole text where a table has no id),
+-- after the last key of the page before. Returns { rows, next } (next: null on the last page). businesses gives the
+-- business's own row (keyed by id).
 drop function if exists public.zella_export_rows(uuid, uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.zella_export_rows(p_id uuid, p_token uuid, p_table text, p_after text, p_limit integer)
  RETURNS jsonb
  LANGUAGE plpgsql
- STABLE SECURITY DEFINER
+ SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare j business_export_jobs; v_drop text[]; v_rows jsonb; v_key text; v_owner text; v_limit integer := least(greatest(coalesce(p_limit, 500), 1), 1000);
+declare j business_export_jobs; v_drop text[]; v_rows jsonb; v_key text; v_owner text; v_next text; v_n integer;
+  v_limit integer := least(greatest(coalesce(p_limit, 500), 1), 1000);
 begin
   select * into j from business_export_jobs where id = p_id and status = 'running' and claim_token = p_token;
   if j.id is null then raise exception 'NOT_THIS_CLAIM'; end if;
   if not (p_table = any (public.zella_export_tables())) then raise exception 'NOT_EXPORTED: %', p_table; end if;
-  select coalesce(array_agg(column_name::text), '{}') into v_drop from information_schema.columns
-   where table_schema = 'public' and table_name = p_table
-     and column_name ~* '(token|secret|password|api_?key|credential|key_hash)';
-  if p_table = 'calls' then
-    v_drop := v_drop || array['recording_url'];
-    if public.zella_sensitive_industry(j.business_id) then v_drop := v_drop || array['transcript', 'summary']; end if;
+  if not exists (select 1 from business_export_tables where job_id = j.id and table_name = p_table) then
+    select coalesce(array_agg(column_name::text), '{}') into v_drop from information_schema.columns
+     where table_schema = 'public' and table_name = p_table
+       and column_name ~* '(token|secret|password|api_?key|credential|key_hash)';
+    if p_table = 'calls' then
+      v_drop := v_drop || array['recording_url'];
+      if public.zella_sensitive_industry(j.business_id) then v_drop := v_drop || array['transcript', 'summary']; end if;
+    end if;
+    v_key := case when exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = p_table and column_name = 'id')
+                  then 't.id::text' else 'to_jsonb(t)::text' end;
+    v_owner := case when p_table = 'businesses' then 't.id' else 't.business_id' end;
+    insert into business_export_tables (job_id, table_name, row_count) values (j.id, p_table, 0);
+    execute format('insert into public.business_export_rows (job_id, table_name, k, r) select $3, $4, %s, to_jsonb(t) - $1 from public.%I t where %s = $2 on conflict do nothing',
+                   v_key, p_table, v_owner) using v_drop, j.business_id, j.id, p_table;
+    get diagnostics v_n = row_count;
+    update business_export_tables set row_count = v_n where job_id = j.id and table_name = p_table;
   end if;
-  v_key := case when exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = p_table and column_name = 'id')
-                then 't.id::text' else 'to_jsonb(t)::text' end;
-  v_owner := case when p_table = 'businesses' then 't.id' else 't.business_id' end;
-  execute format('select coalesce(jsonb_agg(r order by k), ''[]''::jsonb), max(k) from (select to_jsonb(t) - $1 as r, %s as k from public.%I t
-                   where %s = $2 and ($3::text is null or %s > $3) order by %s limit $4) x', v_key, p_table, v_owner, v_key, v_key)
-    into v_rows, v_key using v_drop, j.business_id, p_after, v_limit;
-  return jsonb_build_object('rows', v_rows, 'next', case when jsonb_array_length(v_rows) = v_limit then v_key end);
+  select coalesce(jsonb_agg(x.r order by x.k), '[]'::jsonb), max(x.k) into v_rows, v_next from (
+    select k, r from business_export_rows where job_id = j.id and table_name = p_table and (p_after is null or k > p_after) order by k limit v_limit) x;
+  return jsonb_build_object('rows', v_rows, 'next', case when jsonb_array_length(v_rows) = v_limit then v_next end);
 end
 $function$;
 

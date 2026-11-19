@@ -29,10 +29,7 @@ begin
   drop function if exists public.zella_delete_draft_business(uuid, uuid, text, text);
   alter table public.audit_logs drop constraint audit_logs_business_id_fkey;
   alter table public.audit_logs add constraint audit_logs_business_id_fkey
-    foreign key (business_id) references public.businesses(id) on delete cascade not valid;
+    foreign key (business_id) references public.businesses(id) on delete cascade;
   delete from public.zella_function_archive where migration = 'zella_draft_delete';
 end $$;
 commit;
-
--- After the commit, as in the file: check the rows already there without blocking audit writes. Safe to run again.
-alter table public.audit_logs validate constraint audit_logs_business_id_fkey;

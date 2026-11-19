@@ -56,13 +56,19 @@ r=$(rows $J $T integrations); [[ "$r" == *'"provider": "test"'* && "$r" != *secr
 out=$(q "select public.zella_export_rows('$J', '$T', 'integration_secrets', null, 10)" 2>&1); [[ "$out" == *NOT_EXPORTED* ]] && ok "a secret table can't be asked for" || bad "secret table: $out"
 r=$(rows $J $T businesses); [[ "$r" == *"Export Test Studio"* && "$r" != *"Other Studio"* && "$r" != *"Export Dental Studio"* ]] && ok "the business's own row is exported, and no other business's" || bad "businesses: $r"
 [[ ",$tabs," == *",businesses,"* ]] && ok "businesses is among the exported tables" || bad "tables: $tabs"
-# pages are read by key: a row removed after page one never makes page two skip one
-for i in 1 2 3 4 5; do q "insert into public.calls (business_id, direction, transcript) values ('$B', 'inbound', 'page test $i')" > /dev/null; done
-p1=$(q "select public.zella_export_rows('$J', '$T', 'calls', null, 3)"); next=$(q "select '$p1'::jsonb ->> 'next'")
-q "delete from public.calls where id = (select ('$p1'::jsonb #>> '{rows,0,id}')::uuid)" > /dev/null
-p2=$(q "select public.zella_export_rows('$J', '$T', 'calls', '$next', 3)")
-p3=$(q "select public.zella_export_rows('$J', '$T', 'calls', '$(q "select '$p2'::jsonb ->> 'next'")', 3)")
-[ "$(q "select jsonb_array_length('$p1'::jsonb -> 'rows') + jsonb_array_length('$p2'::jsonb -> 'rows')")" = "6" ] && [ "$(q "select jsonb_array_length('$p3'::jsonb -> 'rows')::text || coalesce('$p3'::jsonb ->> 'next', 'end')")" = "0end" ] && ok "pages by key: removing a row already read skips nothing" || bad "keyset: $p2"
+# each table is read from one copy taken for the export the first time it is read: rows changed, added or removed after
+# it (read or not yet read) never shift, skip or mix into the pages, across calls and resumed runs
+for i in 1 2 3 4 5 6; do q "insert into public.customers (business_id, first_name) values ('$B', 'Copy $i')" > /dev/null; done
+p1=$(q "select public.zella_export_rows('$J', '$T', 'customers', null, 3)"); next=$(q "select '$p1'::jsonb ->> 'next'")
+q "delete from public.customers where id = (select ('$p1'::jsonb #>> '{rows,0,id}')::uuid)" > /dev/null
+q "delete from public.customers where business_id = '$B' and first_name = 'Copy 6'" > /dev/null
+q "insert into public.customers (business_id, first_name) values ('$B', 'Added after the copy')" > /dev/null
+q "update public.customers set first_name = 'Changed after the copy' where business_id = '$B' and first_name = 'Copy 4'" > /dev/null
+p2=$(q "select public.zella_export_rows('$J', '$T', 'customers', '$next', 3)"); n2=$(q "select '$p2'::jsonb ->> 'next'")
+p3=$(q "select public.zella_export_rows('$J', '$T', 'customers', '$n2', 3)")
+all=$(q "select string_agg(r ->> 'first_name', '|' order by r ->> 'first_name') from (select jsonb_array_elements('$p1'::jsonb -> 'rows') r union all select jsonb_array_elements('$p2'::jsonb -> 'rows') union all select jsonb_array_elements('$p3'::jsonb -> 'rows')) x")
+[ "$all" = "Copy 1|Copy 2|Copy 3|Copy 4|Copy 5|Copy 6" ] && [ "$(q "select jsonb_array_length('$p3'::jsonb -> 'rows')::text || coalesce('$p3'::jsonb ->> 'next', 'end')")" = "0end" ] \
+  && [ "$(q "select row_count from public.business_export_tables where job_id = '$J' and table_name = 'customers'")" = "6" ] && ok "pages read the export's own copy: later deletes, additions and changes never shift or mix in" || bad "copy: $all"
 f=$(q "select public.zella_export_files('$J', '$T')"); [[ "$f" == *"$B/owner_identity/a.pdf"* && "$f" == *"$B/r/b.png"* && "$f" != *"$O/"* ]] && ok "files from both buckets, that business only" || bad "files: $f"
 out=$(q "select public.zella_export_rows('$J', gen_random_uuid(), 'calls', null, 10)" 2>&1); [[ "$out" == *NOT_THIS_CLAIM* ]] && [ "$(q "select public.zella_export_progress('$J', gen_random_uuid(), '{}')")" = "f" ] && ok "a stale claim can't read or write" || bad "stale"
 q "select public.zella_export_progress('$J', '$T', '{\"tables_done\": [\"calls\"]}')" > /dev/null
@@ -75,7 +81,8 @@ c=$(q "select public.zella_export_claim()"); T=$(q "select '$c'::jsonb ->> 'toke
 [ "$(q "select public.zella_export_finish('$J', '$T', false, null, 'storage timeout')")" = "approved" ] && ok "a failure goes back to approved" || bad "retry"
 c=$(q "select public.zella_export_claim()"); [ "$(q "select '$c'::jsonb #>> '{progress,tables_done,0}'")" = "calls" ] && ok "and the next claim resumes from its progress" || bad "resume: $c"
 T=$(q "select '$c'::jsonb ->> 'token'")
-[ "$(q "select public.zella_export_finish('$J', '$T', true, '$J/manifest.json', null)")" = "ready" ] && [ "$(q "select (expires_at between now() + interval '6 days 23 hours' and now() + interval '7 days 1 minute')::text from public.business_export_jobs where id = '$J'")" = "true" ] && ok "a finish makes it ready for 7 days" || bad "ready"
+[ "$(q "select count(*) from public.business_export_tables where job_id = '$J'")" -ge 1 ] || bad "no copies before finish"
+[ "$(q "select public.zella_export_finish('$J', '$T', true, '$J/manifest.json', null)")" = "ready" ] && [ "$(q "select count(*) from public.business_export_rows where job_id = '$J'")" = "0" ] && [ "$(q "select (expires_at between now() + interval '6 days 23 hours' and now() + interval '7 days 1 minute')::text from public.business_export_jobs where id = '$J'")" = "true" ] && ok "a finish makes it ready for 7 days" || bad "ready"
 c=$(q "select public.zella_export_claim()"); T2=$(q "select '$c'::jsonb ->> 'token'")
 r=$(rows $J2 $T2 calls); [[ "$r" == *'"direction": "inbound"'* ]] || bad "dental rows missing: $r"; [[ "$r" != *"Caller said hello"* && "$r" != *"A greeting"* ]] && ok "a sensitive industry's transcripts and summaries are left out" || bad "dental: $r"
 q "update public.business_export_jobs set claimed_at = now() - interval '1 hour' where id = '$J2'" > /dev/null

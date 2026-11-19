@@ -166,71 +166,96 @@ async function track(admin: SupabaseClient, businessId: string, step: string, st
   } catch (e) { console.error(`Provisioning step ${step} could not be recorded`, e); }
 }
 
+// An attempt at one setup step. With sql/zella_provisioning_retry.sql applied, zella_provisioning_begin marks the step
+// pending with a new attempt id and zella_provisioning_end writes the outcome only while the step is still that
+// attempt's pending mark, checked in the database under the business and step locks: an older attempt that ends late
+// never overwrites what a newer one recorded. Before the migration (PGRST202) the earlier way is used: the mark's
+// updated_at, read back, and conditional writes.
+type Attempt = { end: (outcome: "done" | "failed" | "restore", error?: string | null) => Promise<void> };
+async function beginAttempt(admin: SupabaseClient, businessId: string, step: string): Promise<Attempt> {
+  let data: unknown = null, error: { code?: string; message?: string } | null = null;
+  try { ({ data, error } = await admin.rpc("zella_provisioning_begin", { p_business_id: businessId, p_step: step })); }
+  catch (e) { error = { message: e instanceof Error ? e.message : String(e) }; }   // recording never changes the save's answer
+  if (!error && data && typeof (data as Json).attempt === "string") {
+    const b = data as { attempt: string; before_status: string | null; before_error: string | null };
+    return { end: async (outcome, err = null) => {
+      try {
+        const { error: e } = await admin.rpc("zella_provisioning_end", { p_business_id: businessId, p_step: step, p_attempt: b.attempt, p_outcome: outcome,
+          p_error: err, p_before_status: b.before_status ?? null, p_before_error: b.before_error ?? null });
+        if (e) console.error(`Provisioning step ${step} could not be recorded`, e);
+      } catch (e) { console.error(`Provisioning step ${step} could not be recorded`, e); }
+    } };
+  }
+  if (error && error.code !== "PGRST202") console.error(`Provisioning step ${step} could not be started`, error);
+  // before the migration: the earlier way
+  let before: { status: string; error: string | null } | null = null, mine: string | null = null;
+  try {
+    const { data: row } = await admin.from("provisioning_steps").select("status, error").eq("business_id", businessId).eq("step", step).maybeSingle();
+    before = (row as { status: string; error: string | null } | null) ?? null;
+  } catch { before = null; }
+  await track(admin, businessId, step, "pending");
+  try {
+    const { data: row } = await admin.from("provisioning_steps").select("status, updated_at").eq("business_id", businessId).eq("step", step).maybeSingle();
+    const r = row as { status?: string; updated_at?: string } | null;
+    mine = r?.status === "pending" && typeof r.updated_at === "string" ? r.updated_at : null;
+  } catch { mine = null; }
+  const stillMine = async () => {
+    if (!mine) return false;
+    const { data: row } = await admin.from("provisioning_steps").select("status, updated_at").eq("business_id", businessId).eq("step", step).maybeSingle();
+    const r = row as { status?: string; updated_at?: string } | null;
+    return r?.status === "pending" && r.updated_at === mine;
+  };
+  return { end: async (outcome, err = null) => {
+    try {
+      if (outcome === "restore") {
+        if (!mine) return;   // only this attempt's own pending mark is put back
+        if (before) await admin.from("provisioning_steps").update({ status: before.status, error: before.error }).eq("business_id", businessId).eq("step", step).eq("status", "pending").eq("updated_at", mine);
+        else await admin.from("provisioning_steps").delete().eq("business_id", businessId).eq("step", step).eq("status", "pending").eq("updated_at", mine);
+        return;
+      }
+      if (mine && !(await stillMine())) return;
+      await track(admin, businessId, step, outcome, err);
+    } catch (e) { console.error(`Provisioning step ${step} could not be recorded`, e); }
+  } };
+}
+
 export async function trackSetup<T>(admin: SupabaseClient, action: string, fields: Json, run: () => Promise<T>): Promise<T> {
   const step = SETUP_STEPS[action];
   if (!step) return await run();
   const given = typeof fields.businessId === "string" && UUID.test(fields.businessId) ? fields.businessId : null;
-  let before: { status: string; error: string | null } | null = null;
-  // this attempt's own pending mark (its updated_at): a refusal or a failure is written back only while the row is still
-  // that mark, so an older attempt that ends late never overwrites what a newer attempt recorded
-  let mine: string | null = null;
-  if (given) {
-    try {
-      const { data } = await admin.from("provisioning_steps").select("status, error").eq("business_id", given).eq("step", step).maybeSingle();
-      before = (data as { status: string; error: string | null } | null) ?? null;
-    } catch { before = null; }
-    await track(admin, given, step, "pending");
-    try {
-      const { data } = await admin.from("provisioning_steps").select("status, updated_at").eq("business_id", given).eq("step", step).maybeSingle();
-      const row = data as { status?: string; updated_at?: string } | null;
-      mine = row?.status === "pending" && typeof row.updated_at === "string" ? row.updated_at : null;
-    } catch { mine = null; }
-  }
-  const stillMine = async () => {
-    if (!given || !mine) return false;
-    const { data } = await admin.from("provisioning_steps").select("status, updated_at").eq("business_id", given).eq("step", step).maybeSingle();
-    const row = data as { status?: string; updated_at?: string } | null;
-    return row?.status === "pending" && row.updated_at === mine;
-  };
+  const attempt = given ? await beginAttempt(admin, given, step) : null;
   let result: T;
   try {
     result = await run();
   } catch (e) {
     const status = (e as { status?: unknown }).status;
-    if (given && typeof status === "number") {
-      // a deliberate refusal (InputError: bad input, or setup can't finish yet, such as no plan check or no app
-      // address): it is answered before anything is provisioned, so the step is put back as it was
-      try {
-        if (mine) {   // only this attempt's own pending mark is put back (the update matches nothing once another attempt wrote)
-          if (before) await admin.from("provisioning_steps").update({ status: before.status, error: before.error }).eq("business_id", given).eq("step", step).eq("status", "pending").eq("updated_at", mine);
-          else await admin.from("provisioning_steps").delete().eq("business_id", given).eq("step", step).eq("status", "pending").eq("updated_at", mine);
-        }
-      } catch (restoreError) { console.error(`Provisioning step ${step} could not be put back`, restoreError); }
-    } else if (given) {
-      let ours = true;
-      try { ours = mine ? await stillMine() : true; } catch { ours = true; }
-      if (ours) await track(admin, given, step, "failed", e instanceof Error ? e.message : String(e));
-    }
+    // a deliberate refusal (InputError: bad input, or setup can't finish yet, such as no plan check or no app
+    // address): it is answered before anything is provisioned, so the step is put back as it was
+    if (attempt && typeof status === "number") await attempt.end("restore");
+    else if (attempt) await attempt.end("failed", e instanceof Error ? e.message : String(e));
     throw e;
   }
   const r = (result ?? {}) as Json;
   const businessId = given ?? (typeof r.businessId === "string" && UUID.test(r.businessId) ? r.businessId : null);
   if (!businessId) return result;
+  const finish = async (outcome: "done" | "failed" | "restore", error: string | null = null) => {
+    if (attempt) await attempt.end(outcome, error);
+    else if (outcome !== "restore") await track(admin, businessId, step, outcome, error);   // the first save made the business
+  };
   if (action === "setup_finish") {
     // the owner invitation email is its own step; the finish is done when the workspace is activated
     if (r.invitationStatus === "failed") {
       await track(admin, businessId, "owner_invitation", "failed", typeof r.invitationError === "string" ? r.invitationError : "The invitation email failed");
-      await track(admin, businessId, step, "failed", "The owner invitation email failed");
+      await finish("failed", "The owner invitation email failed");
     } else if (r.completed === false) {
       // the invitation was cancelled while it went out: nothing failed, nothing finished
-      try { await admin.from("provisioning_steps").delete().eq("business_id", businessId).eq("step", step).eq("status", "pending"); }
-      catch (e) { console.error("Provisioning step finish could not be put back", e); }
+      await finish("restore");
     } else {
       if (r.invitationStatus) await track(admin, businessId, "owner_invitation", "done");
-      await track(admin, businessId, step, "done");
+      await finish("done");
     }
   } else {
-    await track(admin, businessId, step, "done");
+    await finish("done");
   }
   return result;
 }
@@ -256,7 +281,9 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
     });
     if (error?.code === "PGRST202") return { duplicates: [], checked: false };
     if (error) throw error;
-    const duplicates = (Array.isArray(data) ? data : []).map((row) => {
+    // an answer that isn't a list is a check that couldn't run, never "no duplicates"
+    if (!Array.isArray(data)) return { duplicates: [], checked: false };
+    const duplicates = data.map((row) => {
       const r = obj(row);
       return {
         id: text(r.id, 64), name: text(r.name, 200), onboardingStatus: text(r.onboarding_status, 40),
@@ -366,17 +393,29 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
     if (dError) throw dError;
     const missing = missingDocuments((docs ?? []) as { kind: string; status: string }[]);
     if (!missing.length) throw new InputError("This business has every required document.", 409);
-    const last = (await lastRequests([businessId])).get(businessId);
-    if (last && Date.now() - Date.parse(last) < DOCUMENT_REQUEST_COOLDOWN_HOURS * 3_600_000) {
-      throw new InputError(`Documents were already requested ${new Date(last).toISOString().slice(0, 16).replace("T", " ")} UTC. Ask again after ${DOCUMENT_REQUEST_COOLDOWN_HOURS} hours.`, 429);
-    }
+    const tooSoon = (at: string) => new InputError(`Documents were already requested ${at} UTC. Ask again after ${DOCUMENT_REQUEST_COOLDOWN_HOURS} hours.`, 429);
     const { data: invite } = await admin.from("business_invitations").select("email").eq("business_id", businessId).eq("role", "owner")
       .in("status", ["pending", "sent", "accepted"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const to = text((invite as { email?: string } | null)?.email ?? b.email, 254).toLowerCase();
+    const masked = to ? `${to.slice(0, 1)}…@${to.split("@")[1] ?? ""}` : null;
+    const m = to ? renderEmail("S4", { business: String(b.name), appUrl: Deno.env.get("ZELLA_APP_URL") ?? "" } as unknown as Parameters<typeof renderEmail>[1], { strict: true }) : null;
+    // sql/zella_document_requests.sql: the wait check, the email and the audit row as one database step, one request at
+    // a time per business. Before it is applied (PGRST202), the steps below run one by one.
+    const one = await admin.rpc("zella_request_documents", {
+      p_business: businessId, p_actor: userId, p_missing: missing, p_cooldown_hours: DOCUMENT_REQUEST_COOLDOWN_HOURS,
+      p_to: to || null, p_subject: m?.subject ?? null, p_html: m?.html ?? null, p_text: m?.text ?? null,
+    });
+    if (!one.error) {
+      const r = obj(one.data);
+      return { businessId, name: b.name, missing, email: text(r.email, 20), emailId: typeof r.email_id === "string" ? r.email_id : null, to: masked, auditedInDatabase: true };
+    }
+    if (String(one.error.message ?? "").includes("TOO_SOON")) throw tooSoon(text((one.error as { details?: string }).details ?? "", 20) || "recently");
+    if (String(one.error.message ?? "").includes("NOT_FOUND")) throw new InputError("Business not found", 404);
+    if (one.error.code !== "PGRST202") throw one.error;
+    const last = (await lastRequests([businessId])).get(businessId);
+    if (last && Date.now() - Date.parse(last) < DOCUMENT_REQUEST_COOLDOWN_HOURS * 3_600_000) throw tooSoon(new Date(last).toISOString().slice(0, 16).replace("T", " "));
     let emailId: string | null = null, emailState: "queued" | "not_installed" | "no_address" = "no_address";
-    if (to) {
-      const data = { business: String(b.name), appUrl: Deno.env.get("ZELLA_APP_URL") ?? "" } as unknown as Parameters<typeof renderEmail>[1];
-      const m = renderEmail("S4", data, { strict: true });
+    if (to && m) {
       const { data: id, error: qError } = await admin.rpc("zella_queue_platform_email", {
         // keyed on the request this one follows: two requests at once, or a retry after the audit failed, read the same
         // last request and so share the key, and the outbox queues the email once
@@ -387,7 +426,7 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
       else if (qError) throw qError;
       else { emailState = "queued"; emailId = String(id); }
     }
-    return { businessId, name: b.name, missing, email: emailState, emailId, to: to ? `${to.slice(0, 1)}…@${to.split("@")[1] ?? ""}` : null };
+    return { businessId, name: b.name, missing, email: emailState, emailId, to: masked };
   };
 
   // SET-ONB-RETRY part 2: a person retries one failed internal step (zella_retry_provisioning adds only what is
@@ -482,10 +521,11 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
 
   // business_delete_draft and retry_step are audited by their database functions, in the same transaction.
   // export_request and export_decide are audited by their database functions.
-  const audited: Record<string, (r: Json) => Json> = {
+  const audited: Record<string, (r: Json) => Json | null> = {   // null: already audited (no second row)
     export_download: (r) => ({ action: "export.downloaded", business_id: r.businessId, entity_type: "business_export", entity_id: r.id,
       new_data: { files: Array.isArray(r.links) ? r.links.length : 0, expires_at: r.expiresAt } }),
-    document_request: (r) => ({ action: "business.documents_requested", business_id: r.businessId, entity_type: "business", entity_id: r.businessId,
+    // written by zella_request_documents itself, in the same transaction, once that migration is applied
+    document_request: (r) => r.auditedInDatabase ? null : ({ action: "business.documents_requested", business_id: r.businessId, entity_type: "business", entity_id: r.businessId,
       new_data: { missing: r.missing, email: r.email, email_id: r.emailId } }),
   };
 

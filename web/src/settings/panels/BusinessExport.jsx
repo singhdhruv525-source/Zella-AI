@@ -13,7 +13,8 @@ const call = (action, payload) => callOwnerFunction(action, payload);
 export default function BusinessExport({ me }) {
   const [q, setQ] = useState("");
   const state = useAsync(() => call("export_status"), []);
-  const found = useAsync(() => call("tenants_search", { q }), [q]);   // first 25 matches by name
+  // first 25 matches by name, kept with the words they were found for, so an older answer is never offered for new words
+  const found = useAsync(async () => ({ q, result: await call("tenants_search", { q }) }), [q]);
   const [business, setBusiness] = useState("");
   const [notice, setNotice] = useState({ text: "", error: "" });
   const [asking, setAsking] = useState(false);
@@ -29,8 +30,10 @@ export default function BusinessExport({ me }) {
     return () => clearInterval(t);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   // the business search: loading and failure are shown, and a failed or stale list can't be picked from
-  const searchProblem = found.error ? `The business search didn't answer: ${found.error}` : "";
-  const searchReady = !found.loading && !found.error && Array.isArray(found.data?.rows);
+  const current = found.data?.q === q ? found.data.result : null;
+  const searchProblem = found.error ? `The business search didn't answer: ${found.error}`
+    : !found.loading && current && !Array.isArray(current.rows) ? "The business search isn't available right now." : "";
+  const searchReady = !found.loading && !found.error && Array.isArray(current?.rows);
   const oops = (err) => setNotice({ text: "", error: err.message });
   async function download(j) {
     try { const r = await call("export_download", { id: j.id }); setLinks({ name: j.business_name, ...r }); }
@@ -46,8 +49,8 @@ export default function BusinessExport({ me }) {
             <div className="zs-grid">
               <Field label="Find a business"><input type="search" aria-label="Find a business" placeholder="Business name" value={q} onChange={(e) => { setQ(e.target.value); setBusiness(""); }} /></Field>
               <Field label="Business to export"><select aria-label="Business to export" value={business} disabled={!searchReady} onChange={(e) => setBusiness(e.target.value)}>
-                <option value="">{found.loading ? "Searching…" : searchProblem ? "Search unavailable" : "Choose a business"}</option>
-                {(found.data?.rows ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                <option value="">{found.loading || (!searchReady && !searchProblem) ? "Searching…" : searchProblem ? "Search unavailable" : "Choose a business"}</option>
+                {searchReady && current.rows.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select></Field>
             </div>
             {searchProblem && <Banner tone="error">{searchProblem} <button type="button" className="zs-btn sm" onClick={found.reload}>Try again</button></Banner>}

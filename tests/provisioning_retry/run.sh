@@ -63,12 +63,28 @@ n=$(timeout 10 "${P[@]}" -d $DB -c "select public.zella_retry_provisioning_due()
 [ "$n" = "0" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$L' and step = 'modules'")" = "failed" ] && ok "the timer skips a business someone holds, without waiting" || bad "locked: $n"
 wait $bgp
 [ "$(q "select public.zella_retry_provisioning_due()")" = "1" ] && ok "and retries it on the next run" || bad "next run"
+# one setup save's attempt (zella_provisioning_begin / _end): the outcome goes to that attempt's own mark only
+V=$(mk "Attempt Studio"); fail "$V" modules
+a1=$(q "select public.zella_provisioning_begin('$V', 'modules')"); A1=$(q "select '$a1'::jsonb ->> 'attempt'")
+[ "$(q "select '$a1'::jsonb ->> 'before_status'")" = "failed" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$V' and step = 'modules'")" = "pending" ] && ok "begin marks the step pending and returns what it was" || bad "begin: $a1"
+a2=$(q "select public.zella_provisioning_begin('$V', 'modules')"); A2=$(q "select '$a2'::jsonb ->> 'attempt'")
+[ "$(q "select public.zella_provisioning_end('$V', 'modules', '$A1', 'failed', 'late failure', 'failed', 'old')")" = "f" ] \
+  && [ "$(q "select public.zella_provisioning_end('$V', 'modules', '$A1', 'restore', null, 'failed', 'old')")" = "f" ] \
+  && [ "$(q "select status from public.provisioning_steps where business_id = '$V' and step = 'modules'")" = "pending" ] && ok "an older attempt's late failure or refusal is ignored once a newer one began" || bad "stale end"
+[ "$(q "select public.zella_provisioning_end('$V', 'modules', '$A2', 'done', null, 'pending', null)")" = "t" ] && [ "$(q "select status || ',' || coalesce(attempt_id::text, 'none') from public.provisioning_steps where business_id = '$V' and step = 'modules'")" = "done,none" ] && ok "the newer attempt's outcome is recorded" || bad "newer end"
+[ "$(q "select public.zella_provisioning_end('$V', 'modules', '$A2', 'failed', 'again', null, null)")" = "f" ] && ok "and nothing ends twice" || bad "twice"
+a3=$(q "select public.zella_provisioning_begin('$V', 'modules')"); A3=$(q "select '$a3'::jsonb ->> 'attempt'")
+q "select public.zella_retry_provisioning('$V', 'modules', null)" > /dev/null
+[ "$(q "select public.zella_provisioning_end('$V', 'modules', '$A3', 'failed', 'stale', 'done', null)")" = "f" ] && ok "a retry that recorded the step meanwhile wins over a stale attempt" || bad "retry wins"
+a4=$(q "select public.zella_provisioning_begin('$V', 'receptionist')"); A4=$(q "select '$a4'::jsonb ->> 'attempt'")
+[ "$(q "select public.zella_provisioning_end('$V', 'receptionist', '$A4', 'restore', null, null, null)")" = "t" ] && [ "$(q "select count(*) from public.provisioning_steps where business_id = '$V' and step = 'receptionist'")" = "0" ] && ok "a refusal with nothing before removes its own pending mark" || bad "restore none"
 A=$(mk "Stubborn Studio"); q "delete from public.automations where business_id = '$A'" > /dev/null
 for i in 1 2 3 4; do fail "$A" automations; q "update public.provisioning_steps set updated_at = now() - interval '2 hours' where business_id = '$A'" > /dev/null; q "select public.zella_retry_provisioning_due()" > /dev/null; done
 [ "$(q "select count(*) from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$A'")" = "3" ] && ok "at most 3 timed attempts per step" || bad "attempts: $(q "select count(*) from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$A'")"
 g=$(q "select has_function_privilege('authenticated', 'public.zella_retry_provisioning(uuid,text,uuid)', 'execute')::text || has_function_privilege('anon', 'public.zella_retry_provisioning_due()', 'execute')::text")
 [ "$g" = "falsefalse" ] && ok "only the server may call either" || bad "grants: $g"
 "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
+[ "$(q "select count(*) from pg_proc where proname in ('zella_provisioning_begin', 'zella_provisioning_end')")$(q "select count(*) from information_schema.columns where table_name = 'provisioning_steps' and column_name = 'attempt_id'")" = "00" ] && ok "rollback drops the attempt functions and column" || bad "attempt leftovers"
 [ "$(q "select count(*) from cron.job where jobname = 'zella_provisioning_retry'")$(q "select count(*) from pg_proc where proname in ('zella_retry_provisioning', 'zella_retry_provisioning_due')")" = "00" ] && ok "rollback removes the job and both functions" || bad "after rollback"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_retry_provisioning_due() returns integer language sql as \$f\$ select 0 \$f\$" > /dev/null

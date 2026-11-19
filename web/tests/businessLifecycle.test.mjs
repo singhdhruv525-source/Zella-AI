@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DRAFT_DELETE_ROLES, since } from "../src/businessLifecycle.js";
+import { DRAFT_DELETE_ROLES, nextRedrawMs, requestWaitHours, since } from "../src/businessLifecycle.js";
 
 const NOW = Date.parse("2026-11-16T12:00:00Z");
 
@@ -50,4 +50,17 @@ test("an export's state in words", async () => {
   const { exportState } = await import("../src/businessLifecycle.js");
   assert.deepEqual(["requested", "running", "ready", "failed", "expired", "odd"].map((status) => exportState({ status })[0]),
     ["Waiting for approval", "Being prepared", "Ready to download", "Failed", "Expired", "Unknown"]);
+});
+
+test("request waits end on their own, and a list loaded after a long idle reads the time of the load", () => {
+  const t0 = Date.parse("2026-11-19T00:00:00Z"), H = 3_600_000;
+  const rows = [{ last_requested_at: new Date(t0 - 23.5 * H).toISOString() }, { last_requested_at: new Date(t0 - 2 * H).toISOString() }, { last_requested_at: null }];
+  assert.equal(nextRedrawMs(rows, 24, t0), H / 2 + 1000, "the first wait ends in half an hour");
+  assert.equal(nextRedrawMs([{ last_requested_at: new Date(t0 - 30 * H).toISOString() }], 24, t0), null, "nothing waiting: no timer");
+  assert.equal(nextRedrawMs([{ last_requested_at: new Date(t0 - 1 * H).toISOString() }], 24, t0), H, "capped at an hour");
+  // idle: the page's clock stopped at t0, the list is reloaded 30 hours later; with the load's time the button is back
+  const later = t0 + 30 * H, asked = [{ last_requested_at: new Date(t0 - 2 * H).toISOString() }];
+  assert.equal(requestWaitHours(asked[0].last_requested_at, 24, t0), 22, "with the stale clock it would still wait");
+  assert.equal(requestWaitHours(asked[0].last_requested_at, 24, later), 0, "with the load's time it doesn't");
+  assert.equal(nextRedrawMs(asked, 24, later), null);
 });

@@ -70,6 +70,13 @@ Deno.test("setup_check_duplicates lists matches and keeps only known match kinds
   assertEquals(calls[0], { fn: "zella_business_duplicates", args: { p_name: "Glow Dental", p_phone: "555 201 3344", p_website: "glow.example", p_exclude: null, p_creation_key: KEY } });
 });
 
+Deno.test("setup_check_duplicates: an answer that isn't a list is an unchecked result, never no duplicates", async () => {
+  for (const data of [null, {}, "x"]) {
+    const r = await lifecycleHandlers(rpcAdmin(() => ({ data, error: null }), []), { business: { name: "Glow" } }, kit).handlers.setup_check_duplicates();
+    assertEquals(r, { duplicates: [], checked: false });
+  }
+});
+
 Deno.test("setup_check_duplicates leaves the business itself out, refuses a bad id, and is empty before the migration", async () => {
   const calls: Call[] = [];
   const missing = rpcAdmin(() => ({ data: null, error: { code: "PGRST202", message: "missing" } }), calls);
@@ -264,9 +271,13 @@ Deno.test("documents_missing lists drafts and live businesses that miss a requir
   assertEquals(await lifecycleHandlers(none.admin, {}, kit).handlers.documents_missing(), { available: false, rows: [], required: ["business_registration", "owner_identity"] });
 });
 
+// before sql/zella_document_requests.sql: the database answers that zella_request_documents isn't there
+const beforeAtomic = (other: (fn: string) => { data: unknown; error: unknown }) => (fn: string) =>
+  fn === "zella_request_documents" ? { data: null, error: { code: "PGRST202", message: "Could not find the function" } } : other(fn);
+
 Deno.test("document_request queues S4 to the owner and is audited; it waits out the cooldown and refuses when nothing is missing", async () => {
   const base = { businesses: [{ id: A, name: "Draft Co", email: "front@draft.test", cancelled_at: null }], business_verification_documents: [], business_invitations: [{ email: "Owner@Draft.test" }], audit_logs: [] };
-  const { admin, calls } = tables(base, () => ({ data: "email-1", error: null }));
+  const { admin, calls } = tables(base, beforeAtomic(() => ({ data: "email-1", error: null })));
   const h = lifecycleHandlers(admin, { businessId: A }, kit);
   const r = await h.handlers.document_request() as Record<string, unknown>;
   assertEquals([r.email, r.emailId, r.to, r.missing], ["queued", "email-1", "o…@draft.test", ["business_registration", "owner_identity"]]);
@@ -276,18 +287,18 @@ Deno.test("document_request queues S4 to the owner and is audited; it waits out 
   // the key follows the last request, so two at once (or a retry after the audit failed) queue the email once
   assertEquals(q.p_dedupe_key, `email:S4:${A}:after:first`);
   const old = new Date(Date.now() - 30 * 3_600_000).toISOString();
-  const again = tables({ ...base, audit_logs: [{ business_id: A, created_at: old }] }, () => ({ data: "email-2", error: null }));
+  const again = tables({ ...base, audit_logs: [{ business_id: A, created_at: old }] }, beforeAtomic(() => ({ data: "email-2", error: null })));
   await lifecycleHandlers(again.admin, { businessId: A }, kit).handlers.document_request();
-  const twice = tables({ ...base, audit_logs: [{ business_id: A, created_at: old }] }, () => ({ data: "email-2", error: null }));
+  const twice = tables({ ...base, audit_logs: [{ business_id: A, created_at: old }] }, beforeAtomic(() => ({ data: "email-2", error: null })));
   await lifecycleHandlers(twice.admin, { businessId: A }, kit).handlers.document_request();
   const keys = [again, twice].map((w) => w.calls.find((c) => c.fn === "zella_queue_platform_email")!.args!.p_dedupe_key);
   assertEquals(keys, [`email:S4:${A}:after:${old}`, `email:S4:${A}:after:${old}`]);
   assertEquals(h.audited.document_request(r), { action: "business.documents_requested", business_id: A, entity_type: "business", entity_id: A, new_data: { missing: r.missing, email: "queued", email_id: "email-1" } });
 
-  const recent = tables({ ...base, audit_logs: [{ business_id: A, created_at: new Date(Date.now() - 3_600_000).toISOString() }] });
+  const recent = tables({ ...base, audit_logs: [{ business_id: A, created_at: new Date(Date.now() - 3_600_000).toISOString() }] }, beforeAtomic(() => ({ data: null, error: null })));
   const err = await assertRejects(() => lifecycleHandlers(recent.admin, { businessId: A }, kit).handlers.document_request(), InputError);
   assertEquals((err as InputError).status, 429);
-  assertEquals(recent.calls.some((c) => c.fn), false);
+  assertEquals(recent.calls.filter((c) => c.fn).map((c) => c.fn), ["zella_request_documents"], "nothing queued");
 
   const complete = tables({ ...base, business_verification_documents: [{ kind: "business_registration", status: "verified" }, { kind: "owner_identity", status: "pending_review" }] });
   assertEquals(((await assertRejects(() => lifecycleHandlers(complete.admin, { businessId: A }, kit).handlers.document_request(), InputError)) as InputError).status, 409);
@@ -301,31 +312,66 @@ Deno.test("document_request without the outbox is still recorded, and says email
     () => ({ data: null, error: { code: "PGRST202", message: "Could not find the function" } }));
   const r = await lifecycleHandlers(admin, { businessId: A }, kit).handlers.document_request() as Record<string, unknown>;
   assertEquals([r.email, r.emailId, r.to], ["not_installed", null, "f…@draft.test"]);
-  const noAddress = tables({ businesses: [{ id: A, name: "Draft Co", email: null, cancelled_at: null }], business_verification_documents: [], business_invitations: [], audit_logs: [] });
+  const noAddress = tables({ businesses: [{ id: A, name: "Draft Co", email: null, cancelled_at: null }], business_verification_documents: [], business_invitations: [], audit_logs: [] }, beforeAtomic(() => ({ data: null, error: null })));
   assertEquals(((await lifecycleHandlers(noAddress.admin, { businessId: A }, kit).handlers.document_request()) as Record<string, unknown>).email, "no_address");
 });
 
+Deno.test("document_request with sql/zella_document_requests.sql: one database step that audits itself; TOO_SOON in words", async () => {
+  const base = { businesses: [{ id: A, name: "Draft Co", email: "front@draft.test", cancelled_at: null }], business_verification_documents: [], business_invitations: [{ email: "Owner@Draft.test" }], audit_logs: [] };
+  const { admin, calls } = tables(base, (fn) => fn === "zella_request_documents" ? { data: { email: "queued", email_id: "e9", previous: null }, error: null } : { data: null, error: { message: "not expected" } });
+  const h = lifecycleHandlers(admin, { businessId: A }, kit, "admin-1");
+  const r = await h.handlers.document_request() as Record<string, unknown>;
+  assertEquals([r.email, r.emailId, r.to, r.auditedInDatabase], ["queued", "e9", "o…@draft.test", true]);
+  const call = calls.find((c) => c.fn === "zella_request_documents")!.args!;
+  assertEquals([call.p_business, call.p_actor, call.p_to, call.p_missing, call.p_cooldown_hours, String(call.p_html).includes("Draft Co")], [A, "admin-1", "owner@draft.test", ["business_registration", "owner_identity"], 24, true]);
+  assertEquals(calls.some((c) => c.fn === "zella_queue_platform_email"), false, "queued by the database step itself");
+  assertEquals(h.audited.document_request(r), null, "audited in the same transaction, never twice");
+  const soon = tables(base, () => ({ data: null, error: { code: "P0001", message: "TOO_SOON", details: "2026-11-19 00:10" } }));
+  const err = await assertRejects(() => lifecycleHandlers(soon.admin, { businessId: A }, kit, "admin-1").handlers.document_request(), InputError, "2026-11-19 00:10 UTC");
+  assertEquals((err as InputError).status, 429);
+});
+
 // SET-ONB-RETRY part 1: what trackSetup records
-function trackAdmin(prior: { status: string; error: string | null } | null = null) {
+// The step rows as the database has them, one per step. Without opts.db the attempt functions aren't installed
+// (PGRST202: the earlier way, with a pending mark's own updated_at); with it they are, and the stand in answers as
+// zella_provisioning_begin and _end do (an end applies only to the attempt's own pending mark).
+function trackAdmin(prior: { status: string; error: string | null } | null = null, opts: { db?: boolean } = {}) {
   const log: string[] = [];
-  // the step row as the database has it: a pending mark carries its own updated_at, as zella_track_provisioning writes
-  const state: { row: Record<string, unknown> | null; marks: number } = { row: prior, marks: 0 };
+  const state: { rows: Record<string, Record<string, unknown> | null>; marks: number; ends: Record<string, unknown>[] } = { rows: { modules: prior, integrations: prior, finish: prior }, marks: 0, ends: [] };
   const admin = {
     rpc: async (fn: string, a: Record<string, unknown>) => {
+      const step = String(a.p_step);
+      if (fn === "zella_provisioning_begin") {
+        if (!opts.db) return { data: null, error: { code: "PGRST202", message: "missing" } };
+        const before = state.rows[step];
+        const attempt = `att${++state.marks}`;
+        state.rows[step] = { status: "pending", error: null, updated_at: `t${state.marks}`, attempt_id: attempt };
+        log.push(`begin:${step}`);
+        return { data: { attempt, before_status: before?.status ?? null, before_error: before?.error ?? null }, error: null };
+      }
+      if (fn === "zella_provisioning_end") {
+        state.ends.push(a);
+        const row = state.rows[step];
+        if (!row || row.attempt_id !== a.p_attempt || row.status !== "pending") { log.push(`end ignored:${step}:${a.p_outcome}`); return { data: false, error: null }; }
+        state.rows[step] = a.p_outcome === "restore" ? (a.p_before_status ? { status: a.p_before_status, error: a.p_before_error } : null) : { status: a.p_outcome, error: a.p_error ?? null };
+        log.push(`end:${step}:${a.p_outcome}`);
+        return { data: true, error: null };
+      }
       log.push(`${fn}:${a.p_step}:${a.p_status}${a.p_error ? `:${a.p_error}` : ""}`);
-      state.row = { status: a.p_status, error: a.p_error ?? null, updated_at: `t${++state.marks}` };
+      state.rows[step] = { status: a.p_status, error: a.p_error ?? null, updated_at: `t${++state.marks}` };
       return { data: null, error: null };
     },
     from: () => {
       const chain: Record<string, unknown> = {};
       // a write applies (and is logged) only if the row matches its status and updated_at filters, as in the database
       const where: Record<string, unknown> = {}; let write: (() => void) | null = null;
+      const row = () => state.rows[String(where.step)] ?? null;
       chain.select = () => chain;
       chain.eq = (k: string, v: unknown) => { where[k] = v; return chain; };
-      const matches = () => ["status", "updated_at"].every((k) => !(k in where) || state.row?.[k] === where[k]);
-      chain.maybeSingle = async () => ({ data: state.row, error: null });
-      chain.update = (v: Record<string, unknown>) => { write = () => { log.push(`restore:${v.status}`); state.row = { ...state.row, ...v }; }; return chain; };
-      chain.delete = () => { write = () => { log.push("delete pending"); state.row = null; }; return chain; };
+      const matches = () => ["status", "updated_at"].every((k) => !(k in where) || row()?.[k] === where[k]);
+      chain.maybeSingle = async () => ({ data: row(), error: null });
+      chain.update = (v: Record<string, unknown>) => { write = () => { log.push(`restore:${v.status}`); state.rows[String(where.step)] = { ...row(), ...v }; }; return chain; };
+      chain.delete = () => { write = () => { log.push("delete pending"); state.rows[String(where.step)] = null; }; return chain; };
       chain.then = (resolve: (v: unknown) => void) => { if (write && matches()) write(); resolve({ data: null, error: null }); };
       return chain;
     },
@@ -333,16 +379,39 @@ function trackAdmin(prior: { status: string; error: string | null } | null = nul
   return { admin, log, state };
 }
 
+Deno.test("trackSetup with the attempt functions: the outcome goes to the attempt's own mark, a stale one is ignored", async () => {
+  const ok = trackAdmin({ status: "failed", error: "old" }, { db: true });
+  await trackSetup(ok.admin, "setup_save_modules", { businessId: A }, async () => ({ businessId: A }));
+  assertEquals(ok.log, ["begin:modules", "end:modules:done"]);
+  const refused = trackAdmin({ status: "failed", error: "old" }, { db: true });
+  await assertRejects(() => trackSetup(refused.admin, "setup_save_modules", { businessId: A }, async () => { throw new InputError("Pick a module", 400); }), InputError);
+  assertEquals([refused.log, refused.state.rows.modules], [["begin:modules", "end:modules:restore"], { status: "failed", error: "old" }]);
+  assertEquals([refused.state.ends[0].p_before_status, refused.state.ends[0].p_before_error], ["failed", "old"]);
+  // a newer attempt begins while this one runs: this one's late failure, refusal and success are all ignored
+  for (const outcome of ["failed", "restore", "done"] as const) {
+    const w = trackAdmin(null, { db: true });
+    const p = trackSetup(w.admin, "setup_save_modules", { businessId: A }, async () => {
+      w.state.rows.modules = { status: "pending", attempt_id: "newer" };
+      if (outcome === "failed") throw new Error("database down");
+      if (outcome === "restore") throw new InputError("Pick a module", 400);
+      return { businessId: A };
+    });
+    if (outcome === "done") await p; else await assertRejects(() => p);
+    assertEquals(w.log, ["begin:modules", `end ignored:modules:${outcome === "done" ? "done" : outcome}`]);
+    assertEquals(w.state.rows.modules, { status: "pending", attempt_id: "newer" });
+  }
+});
+
 Deno.test("trackSetup: an older attempt that ends late never overwrites what a newer attempt recorded", async () => {
   const refused = trackAdmin({ status: "failed", error: "old" });
   await assertRejects(() => trackSetup(refused.admin, "setup_save_modules", { businessId: A }, async () => {
-    refused.state.row = { status: "done", error: null, updated_at: "newer" };   // another attempt finished meanwhile
+    refused.state.rows.modules = { status: "done", error: null, updated_at: "newer" };   // another attempt finished meanwhile
     throw new InputError("Pick a module", 400);
   }), InputError);
   assertEquals(refused.log.includes("restore:failed"), false);
   const failed = trackAdmin();
   await assertRejects(() => trackSetup(failed.admin, "setup_save_modules", { businessId: A }, async () => {
-    failed.state.row = { status: "done", error: null, updated_at: "newer" };
+    failed.state.rows.modules = { status: "done", error: null, updated_at: "newer" };
     throw new Error("database down");
   }), Error, "database down");
   assertEquals(failed.log, ["zella_track_provisioning:modules:pending"]);
@@ -458,7 +527,7 @@ Deno.test("export_download: only the requester or an owner, only while ready, li
   assertEquals(((await assertRejects(() => lifecycleHandlers(mk({ ...job, status: "running" }), { id: A }, kit, "admin-1").handlers.export_download(), InputError)) as InputError).status, 409);
   assertEquals(((await assertRejects(() => lifecycleHandlers(mk({ ...job, expires_at: new Date(Date.now() - 1000).toISOString() }), { id: A }, kit, "admin-1").handlers.export_download(), InputError)) as InputError).status, 409);
   const h = lifecycleHandlers(mk(job), {}, kit);
-  assertEquals(h.audited.export_download(r).action, "export.downloaded");
+  assertEquals(h.audited.export_download(r)?.action, "export.downloaded");
 });
 
 Deno.test("draftAges with everyDraft also checks drafts the page doesn't show, and alerts an old abandoned one", async () => {

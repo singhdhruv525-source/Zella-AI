@@ -28,3 +28,10 @@ export function duplicateState(d) {
   if (d?.isActive) return "Live";
   return SETUP_WORDS[d?.onboardingStatus] ?? "Draft in setup";
 }
+
+// What the duplicate check answered: "unchecked" unless the server says it checked and sent a list, "none" for a
+// checked empty list, otherwise the possible duplicates. A missing or odd answer is never taken as no duplicates.
+export function duplicateCheck(found) {
+  if (found?.checked !== true || !Array.isArray(found?.duplicates)) return "unchecked";
+  return found.duplicates.length ? found.duplicates : "none";
+}

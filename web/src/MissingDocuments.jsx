@@ -3,7 +3,7 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
-import { documentRequestNotice, requestWaitHours } from "./businessLifecycle";
+import { documentRequestNotice, nextRedrawMs, requestWaitHours } from "./businessLifecycle";
 
 // Verification > Missing documents (UI-11): businesses that haven't sent a required document yet, including ones
 // already live ("Live without documents"), and Request documents. The request is audited; the email to the owner (S4)
@@ -18,18 +18,18 @@ export default function MissingDocuments({ onOpenBusiness, refreshKey = 0 }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const inFlight = useRef(false);
+  const [now, setNow] = useState(() => Date.now());
   const load = useCallback(async () => {
     setError("");
-    try { setData(await callOwnerFunction("documents_missing")); }
+    try { setData(await callOwnerFunction("documents_missing")); setNow(Date.now()); }   // waits read against the time of the load
     catch (err) { setData(null); setError(friendlyError(err)); }
   }, []);
   useEffect(() => { load(); }, [load, refreshKey]);   // the page's Refresh reloads this list too
   // the wait shown on a button ends on its own: the page redraws when the earliest wait is over
-  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const ends = (data?.rows ?? []).map((b) => Date.parse(b.last_requested_at ?? "") + (data.cooldownHours ?? 24) * 3_600_000).filter((t) => Number.isFinite(t) && t > now);
-    if (!ends.length) return undefined;
-    const t = setTimeout(() => setNow(Date.now()), Math.min(Math.min(...ends) - now + 1000, 3_600_000));
+    const ms = nextRedrawMs(data?.rows, data?.cooldownHours ?? 24, now);
+    if (ms === null) return undefined;
+    const t = setTimeout(() => setNow(Date.now()), ms);
     return () => clearTimeout(t);
   }, [data, now]);
 

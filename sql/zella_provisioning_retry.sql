@@ -14,8 +14,14 @@
 --   * zella_retry_provisioning_due() retries failed internal steps last changed more than an hour ago, at most 3 timed
 --     attempts per step; its timed job zella_provisioning_retry is created switched OFF: turning it on is the owner's
 --     switch.
--- Nothing existing is replaced. Each new function must be absent or exactly this file's version, otherwise
--- VERSION_MISMATCH. Rollback: sql/rollback/zella_provisioning_retry_rollback.sql
+--   * zella_provisioning_begin(p_business, p_step) and zella_provisioning_end(p_business, p_step, p_attempt, p_outcome,
+--     ...): one setup save's attempt. Begin marks the step pending with a new attempt id (provisioning_steps.attempt_id)
+--     and returns it with the status it had; end writes done, failed, or the earlier status back (a refusal), only
+--     while the step is still that attempt's pending mark, under the business and step locks (the retries' order). An
+--     older attempt that ends late never overwrites what a newer attempt, a retry or the timer recorded. Server only.
+-- Nothing existing is replaced; provisioning_steps gains one column (attempt_id, empty until a save begins). Each new
+-- function must be absent or exactly this file's version, otherwise VERSION_MISMATCH.
+-- Rollback: sql/rollback/zella_provisioning_retry_rollback.sql
 begin;
 
 do $$
@@ -27,7 +33,9 @@ begin
   end if;
   for f in select * from (values
       ('public.zella_retry_provisioning(uuid,text,uuid)', 'b5b05c27d48b7c001a8f6b453c484b78'),
-      ('public.zella_retry_provisioning_due()', '654dbd4bd7d3e4d25e978355f82d0aad')) as t(sig, want) loop
+      ('public.zella_retry_provisioning_due()', '654dbd4bd7d3e4d25e978355f82d0aad'),
+      ('public.zella_provisioning_begin(uuid,text)', 'ea7cafd97b8324ddcc36a1d6fa174c42'),
+      ('public.zella_provisioning_end(uuid,text,uuid,text,text,text,text)', '627142dd2cb33c7d2b4511870594aa95')) as t(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(to_regprocedure(f.sig))) <> f.want then
       raise exception 'VERSION_MISMATCH: % is not a version this file was written for', f.sig;
     end if;
@@ -101,6 +109,58 @@ begin
   return n;
 end
 $function$;
+
+alter table public.provisioning_steps add column if not exists attempt_id uuid;
+
+CREATE OR REPLACE FUNCTION public.zella_provisioning_begin(p_business_id uuid, p_step text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare r provisioning_steps; v uuid := gen_random_uuid();
+begin
+  if p_business_id is null or p_step is null or length(p_step) not between 1 and 40 then raise exception 'INVALID_INPUT'; end if;
+  perform 1 from businesses where id = p_business_id for update;   -- the business first, then its step (as the retries)
+  select * into r from provisioning_steps where business_id = p_business_id and step = p_step for update;
+  perform zella_track_provisioning(p_business_id, p_step, 'pending', null);
+  update provisioning_steps set attempt_id = v where business_id = p_business_id and step = p_step;
+  return jsonb_build_object('attempt', v, 'before_status', r.status, 'before_error', r.error);
+end
+$function$;
+
+-- p_outcome: done or failed (recorded through zella_track_provisioning, which raises or resolves the alert), or restore
+-- (a refusal: the step goes back to p_before_status and p_before_error, or away when it had none). True when written.
+CREATE OR REPLACE FUNCTION public.zella_provisioning_end(p_business_id uuid, p_step text, p_attempt uuid, p_outcome text, p_error text,
+  p_before_status text, p_before_error text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare r provisioning_steps;
+begin
+  if p_outcome is null or p_outcome not in ('done', 'failed', 'restore') or p_attempt is null then raise exception 'INVALID_INPUT'; end if;
+  perform 1 from businesses where id = p_business_id for update;
+  select * into r from provisioning_steps where business_id = p_business_id and step = p_step for update;
+  if r.business_id is null or r.status <> 'pending' or r.attempt_id is distinct from p_attempt then return false; end if;
+  if p_outcome = 'restore' then
+    if p_before_status is null then delete from provisioning_steps where business_id = p_business_id and step = p_step;
+    else update provisioning_steps set status = p_before_status, error = p_before_error, attempt_id = null, updated_at = now()
+          where business_id = p_business_id and step = p_step;
+    end if;
+  else
+    perform zella_track_provisioning(p_business_id, p_step, p_outcome, p_error);
+    update provisioning_steps set attempt_id = null where business_id = p_business_id and step = p_step;
+  end if;
+  return true;
+end
+$function$;
+
+revoke all on function public.zella_provisioning_begin(uuid, text) from public, anon, authenticated;
+revoke all on function public.zella_provisioning_end(uuid, text, uuid, text, text, text, text) from public, anon, authenticated;
+grant execute on function public.zella_provisioning_begin(uuid, text) to service_role;
+grant execute on function public.zella_provisioning_end(uuid, text, uuid, text, text, text, text) to service_role;
 
 revoke all on function public.zella_retry_provisioning(uuid, text, uuid) from public, anon, authenticated;
 revoke all on function public.zella_retry_provisioning_due() from public, anon, authenticated;

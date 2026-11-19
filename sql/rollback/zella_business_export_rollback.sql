@@ -11,11 +11,11 @@ begin
   for f in select * from (values
       ('public.zella_export_request(uuid,uuid,text)', 'f47b159a55dbc664012efcc5f31a91d3'),
       ('public.zella_export_decide(uuid,uuid,boolean,text)', 'd629f795bb5d2cdbfe5f35ae7d3cc153'),
-      ('public.zella_export_claim()', 'ff8042f03db758b059a9e0d195e6fb6d'),
+      ('public.zella_export_claim()', 'c4215609b2d684949f0733911769ba14'),
       ('public.zella_export_progress(uuid,uuid,jsonb)', 'dd7783ebcb736ed012d29a56adfa02cd'),
-      ('public.zella_export_finish(uuid,uuid,boolean,text,text)', '83b5834fc4d29a12c2e5c849c3d93877'),
+      ('public.zella_export_finish(uuid,uuid,boolean,text,text)', '323275293be575c3c43bb3a0982eff14'),
       ('public.zella_export_tables()', 'aba79deaddde7257e17b778805caa099'),
-      ('public.zella_export_rows(uuid,uuid,text,text,integer)', 'e369de5aa2fd5a1a13083c961c5bce9d'),
+      ('public.zella_export_rows(uuid,uuid,text,text,integer)', '4adac74824a52691f0c50d87b4109dbb'),
       ('public.zella_export_pause(uuid,uuid,jsonb)', '730410e6d2a55eec1baeddfec0bdc502'),
       ('public.zella_export_files(uuid,uuid)', '580156e5758c1d2fbbcae6e8387969c0')) as t(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(to_regprocedure(f.sig))) <> f.want then
@@ -40,6 +40,9 @@ drop function if exists public.zella_export_tables();
 drop function if exists public.zella_export_rows(uuid, uuid, text, text, integer);
 drop function if exists public.zella_export_pause(uuid, uuid, jsonb);
 drop function if exists public.zella_export_files(uuid, uuid);
+-- the exports' working copies of tables (copies, never the only record of anything) go in any case
+drop table if exists public.business_export_rows;
+drop table if exists public.business_export_tables;
 do $$ begin
   if to_regclass('public.business_export_jobs') is not null and not exists (select 1 from public.business_export_jobs) then
     drop table public.business_export_jobs;

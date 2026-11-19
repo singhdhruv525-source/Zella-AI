@@ -247,13 +247,18 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     const mime = stored.metadata?.mimetype;
     if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES || typeof mime !== "string" || !DOCUMENT_TYPES[mime] || size !== file.size || mime !== file.mime) throw new InputError("Uploaded file metadata does not match");
     const now = new Date().toISOString();
-    const { error: oldError } = await admin.from("business_verification_documents")
-      .update({ status: "replaced", updated_at: now }).eq("business_id", businessId).eq("kind", kind).neq("status", "replaced");
-    if (oldError) throw oldError;
+    // The new row first, then the older ones marked replaced: if the insert is refused (for example FILE_REMOVED, when
+    // the orphan cleanup claimed this upload), the earlier document stays as it was, never left without one.
     const { data, error } = await admin.from("business_verification_documents").insert({
       business_id: businessId, kind, file_path: path, file_name: file.name, mime_type: mime, size_bytes: size, uploaded_by: userId,
     }).select("id, kind, file_name, mime_type, size_bytes, status, review_note, created_at, reviewed_at").single();
-    if (error) throw error;
+    if (error) {
+      if (String(error.message ?? "").includes("FILE_REMOVED")) throw new InputError("That upload was removed because it wasn't confirmed in time. Upload the document again.", 409);
+      throw error;
+    }
+    const { error: oldError } = await admin.from("business_verification_documents")
+      .update({ status: "replaced", updated_at: now }).eq("business_id", businessId).eq("kind", kind).neq("status", "replaced").neq("id", (data as { id: string }).id);
+    if (oldError) throw oldError;
     return { businessId, document: data };
   };
 

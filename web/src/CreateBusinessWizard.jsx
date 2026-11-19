@@ -12,7 +12,7 @@ import { friendlyError } from "./admin/adminOps";
 import { addLeaveGuard } from "./router";
 import { hoursList } from "./automationOptions";
 import { RESUME_AT, WIZARD_STEPS, hasUnsavedChanges, stepProgress } from "./wizardProgress";
-import { duplicateState, matchedWords, newCreationKey } from "./businessDuplicates";
+import { duplicateCheck, duplicateState, matchedWords, newCreationKey } from "./businessDuplicates";
 import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
 import PlanStep, { loadPlanInfo } from "./PlanStep";
@@ -2022,12 +2022,10 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       if (!businessId && !createAnyway.current) {
         const found = await callOwnerFunction("setup_check_duplicates", { business: setup.business, creationKey: creationKey.current });
         // a check that couldn't run (not installed yet, or no list back) is said so, never taken as "no duplicates"
-        if (found?.checked === false || !Array.isArray(found?.duplicates)) {
-          setDuplicates({ unchecked: true });
-          return false;
-        }
-        if (found.duplicates.length) {
-          setDuplicates(found.duplicates);
+        const check = duplicateCheck(found);
+        if (check === "unchecked") { setDuplicates({ unchecked: true }); return false; }
+        if (check !== "none") {
+          setDuplicates(check);
           return false;   // not saved: the admin chooses Create anyway or changes the details
         }
       }

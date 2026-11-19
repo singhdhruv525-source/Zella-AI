@@ -51,3 +51,10 @@ const EXPORT_STATES = { requested: ["Waiting for approval", "warning"], approved
 export function exportState(j) {
   return EXPORT_STATES[j?.status] ?? ["Unknown", ""];
 }
+
+// UI-11: how long until the earliest request wait on the list ends (ms, at most an hour), or null when none is waiting.
+// The list redraws then, so a button comes back on its own; the clock is also read again whenever the list loads.
+export function nextRedrawMs(rows, cooldownHours = 24, now = Date.now()) {
+  const ends = (rows ?? []).map((b) => Date.parse(b?.last_requested_at ?? "") + cooldownHours * 3_600_000).filter((t) => Number.isFinite(t) && t > now);
+  return ends.length ? Math.min(Math.min(...ends) - now + 1000, 3_600_000) : null;
+}
