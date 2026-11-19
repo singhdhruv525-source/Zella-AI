@@ -103,6 +103,23 @@ q "insert into net._http_response (id, status_code, content) values ($old, 403, 
 [ "$(q "select count(*) from public.platform_alerts where kind = 'n8n_dispatch_refused' and dedupe_key = 'n8n_secret' and status <> 'resolved'")" = 1 ] \
   && [ "$(q "select not ('$old' = any (pending_request_ids::text[])) from public.n8n_dispatch_state where workflow = 'event-router'")" = t ] \
   && ok "the older request's late 403 is read and raises the secret alert" || bad "late answer"
+# the newer request answers 200, then an even older one answers: it never overwrites the newer answer
+q "insert into net._http_response (id, status_code, content) values ($new, 200, 'not stored')" > /dev/null; dispatch > /dev/null
+[ "$(answer event-router)" = "event-router:200:-" ] && [ "$(q "select count(*) from public.platform_alerts where dedupe_key = 'n8n_secret' and status <> 'resolved'")" = 0 ] \
+  && ok "a later success resolves the secret alert" || bad "later success: $(answer event-router)"
+q "update public.n8n_dispatch_state set pending_request_ids = array_prepend(1::bigint, pending_request_ids) where workflow = 'event-router';
+   insert into net._http_response (id, status_code, content) values (1, 401, 'not stored')" > /dev/null; dispatch > /dev/null
+[ "$(answer event-router)" = "event-router:200:-" ] && [ "$(q "select count(*) from public.platform_alerts where dedupe_key = 'n8n_secret' and status <> 'resolved'")" = 0 ] \
+  && [ "$(q "select not (1 = any (pending_request_ids)) from public.n8n_dispatch_state where workflow = 'event-router'")" = t ] \
+  && ok "an older answer arriving late only leaves the queue: no overwrite, no alert" || bad "older answer: $(answer event-router)"
+# a 200 recorded before a refusal doesn't resolve it: a success has to come after the refusal
+q "update public.n8n_dispatch_state set last_status_code = 200, response_request_id = 1 where workflow = 'followup-texts'" > /dev/null
+dispatch > /dev/null; r3=$(q "select last_request_id from public.n8n_dispatch_state where workflow = 'event-router'")
+q "insert into net._http_response (id, status_code, content) values ($r3, 401, 'not stored')" > /dev/null; dispatch > /dev/null
+r4=$(q "select last_request_id from public.n8n_dispatch_state where workflow = 'event-router'")
+q "insert into net._http_response (id, status_code, content) values ($r4, 500, 'not stored')" > /dev/null; dispatch > /dev/null
+[ "$(q "select count(*) from public.platform_alerts where dedupe_key = 'n8n_secret' and status <> 'resolved'")" = 1 ] \
+  && ok "a 500 after a 401 doesn't resolve the secret alert, even with an earlier 200 elsewhere" || bad "resolved without a later success"
 
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_dispatch_response_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_dispatch_response_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores the function and its grants exactly" || bad "after rollback: $(fp)"

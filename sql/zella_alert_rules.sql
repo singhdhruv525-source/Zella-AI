@@ -29,7 +29,7 @@ begin
   if md5(d) = 'd2dda6716c1f0285a8290ef442f5a90f' then          -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_alert_rules', s, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> '9b87d92813a20bf0f71c88968f07fa58' then                               -- nor exactly this file's version (already applied)
+  elsif md5(d) <> '5621f2af7308bd91ebba81e5052fd570' then                               -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
   if to_regclass('public.platform_alert_rules') is not null and not exists (
@@ -90,7 +90,16 @@ begin
   insert into public.platform_alerts (kind, title, detail, severity, business_id, dedupe_key, meta)
   values (p_kind, p_title, left(p_detail, 1000), v_sev, p_business_id, coalesce(p_dedupe_key, ''), coalesce(p_meta, '{}'::jsonb))
   on conflict (kind, coalesce(business_id, '00000000-0000-0000-0000-000000000000'::uuid), dedupe_key) where status <> 'resolved'
-  do update set occurrences = platform_alerts.occurrences + 1, last_seen_at = now(), detail = coalesce(excluded.detail, platform_alerts.detail), meta = platform_alerts.meta || excluded.meta,
+  do update set occurrences = platform_alerts.occurrences + 1, last_seen_at = now(), detail = coalesce(excluded.detail, platform_alerts.detail),
+    -- an open alert that becomes urgent goes back to the email queue: the earlier email markers move under
+    -- before_escalation (the history stays), so the urgent email is never held back by an earlier claim or bell only
+    notified_at = case when excluded.severity = 'urgent' and platform_alerts.severity <> 'urgent' then null else platform_alerts.notified_at end,
+    meta = case when excluded.severity = 'urgent' and platform_alerts.severity <> 'urgent'
+                then (platform_alerts.meta - 'email_claimed_at' - 'emailed_at' - 'email_attempts' - 'email_skipped') || excluded.meta
+                     || jsonb_build_object('escalated_at', now(), 'before_escalation',
+                          jsonb_strip_nulls(jsonb_build_object('notified_at', platform_alerts.notified_at, 'emailed_at', platform_alerts.meta -> 'emailed_at',
+                                                               'email_skipped', platform_alerts.meta -> 'email_skipped')))
+                else platform_alerts.meta || excluded.meta end,
     -- the open alert takes the higher of its severity and this one's (an urgent raise is never left as info or warning;
     -- nothing is ever lowered)
     severity = (array['info', 'warning', 'urgent'])[greatest(coalesce(array_position(array['info', 'warning', 'urgent'], platform_alerts.severity), 2),

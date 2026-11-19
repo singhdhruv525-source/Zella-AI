@@ -14,6 +14,8 @@ export const N8N_TIMEOUT_MS = 5000;
 const PAGE = 250;
 // at most this many pages of workflows (2,500); past it the answer says it is incomplete
 export const MAX_PAGES = 10;
+// at most this many requests to n8n at the same time
+export const CONCURRENCY = 6;
 
 // "Zella Voice - Follow-up Texts" -> "Follow up Texts": plain words, no dashes on screen
 export const workflowLabel = (name: string) => name.replace(/^Zella(\s+Voice)?\s*[-:]\s*/i, "").replace(/[-‐–—]+/g, " ").replace(/\s+/g, " ").trim();
@@ -62,9 +64,16 @@ export async function n8nStatus(env: (name: string) => string | undefined, fetch
       const status = typeof e.status === "string" ? e.status : e.finished === true ? "success" : e.stoppedAt ? "error" : "running";
       return { status, startedAt: (e.startedAt as string) ?? null, stoppedAt: (e.stoppedAt as string) ?? null };
     };
-    const workflows: N8nWorkflow[] = await Promise.all(zella.map(async (w) => ({
-      id: String(w.id), name: workflowLabel(String(w.name)), active: w.active === true, lastExecution: await lastOf(String(w.id)),
-    })));
+    // at most CONCURRENCY requests to n8n at once
+    const workflows: N8nWorkflow[] = new Array(zella.length);
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < zella.length) {
+        const i = nextIndex++; const w = zella[i];
+        workflows[i] = { id: String(w.id), name: workflowLabel(String(w.name)), active: w.active === true, lastExecution: await lastOf(String(w.id)) };
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, zella.length) }, worker));
     workflows.sort((a, b) => a.name.localeCompare(b.name));
     return { configured: true, ok: true, workflows, checkedAt: new Date().toISOString(), complete };
   } catch (e) {

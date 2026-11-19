@@ -5,8 +5,8 @@
 export function dispatchAnswer(row) {
   if (!row) return null;
   const answer = answerOf(row);
-  // a newer request is still waiting: the answer shown is the previous one, and the label says so
-  if (row.waiting && answer.kind !== "none") return { ...answer, tone: answer.tone === "success" ? "neutral" : answer.tone, label: `${answer.label}, a newer request is waiting`, pending: true };
+  // another request is still waiting for its answer (its order isn't known), and the label says so
+  if (row.waiting && answer.kind !== "none") return { ...answer, tone: answer.tone === "success" ? "neutral" : answer.tone, label: `${answer.label}, another request is waiting`, pending: true };
   if (row.waiting) return { tone: "neutral", label: "Waiting for the answer", kind: "waiting" };
   return answer;
 }

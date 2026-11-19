@@ -7,7 +7,8 @@
 --   2. zella_dispatch_n8n keeps the request id, and on its next run reads that request's net._http_response (pg_net
 --      fills it after the request, so it is never waited for). 401 or 403 raise one urgent n8n_dispatch_refused alert
 --      for all workflows (dedupe n8n_secret), resolved only once no workflow's latest answer is a refusal; 404 raises a
---      warning for that workflow, resolved by its own next 2xx.
+--      warning for that workflow, resolved by its own next 2xx. An answer older than the recorded one only leaves the
+--      queue, and the secret alert needs a success after the refusal it records.
 --      Everything else is the production body unchanged: same counts, switch, address and secret checks, back off
 --      and result. Production's version is the one patched on 15 Nov 2026 by sql/zella_email_delivery.sql (the
 --      retired owner emails line), never sql/baseline. Archived first; any other version stops the file.
@@ -27,7 +28,7 @@ begin
   if md5(d) = '4333da07a5c57d91aa8f018e75368345' then          -- production's version (after zella_email_delivery.sql): archive it
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_dispatch_response', s, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> '808738aa69ac598aa952842e41114608' then                               -- nor exactly this file's version (already applied)
+  elsif md5(d) <> 'd830c8fb2bacf67fa05246e1b2bcd3e1' then                               -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
 end $$;
@@ -83,6 +84,12 @@ begin
       exception when others then v_resp := null;
       end;
       continue when v_resp is null;
+      -- an answer older than the one already recorded only leaves the queue: it never overwrites the newer answer,
+      -- raises or resolves an alert
+      if exists (select 1 from public.n8n_dispatch_state x where x.workflow = prev.workflow and x.response_request_id > prev.rid) then
+        update public.n8n_dispatch_state set pending_request_ids = array_remove(pending_request_ids, prev.rid) where workflow = prev.workflow;
+        continue;
+      end if;
       v_code := case when coalesce(v_resp ->> 'status_code', '') ~ '^[0-9]{1,3}$' then (v_resp ->> 'status_code')::integer end;
       update public.n8n_dispatch_state set response_request_id = prev.rid, last_status_code = v_code,
              last_response_at = coalesce(case when v_resp ->> 'created' is not null then (v_resp ->> 'created')::timestamptz end, now()),
@@ -94,18 +101,20 @@ begin
           case when v_code = 404 then 'n8n has no published workflow for ' || prev.workflow else 'n8n refused the dispatcher (wrong secret?)' end,
           'n8n answered ' || v_code || ' when the dispatcher handed over ' || prev.workflow || '.',
           case when v_code = 404 then 'warning' else 'urgent' end, null, case when v_code = 404 then prev.workflow else 'n8n_secret' end,
-          jsonb_build_object('workflow', prev.workflow, 'status_code', v_code));
+          jsonb_build_object('workflow', prev.workflow, 'status_code', v_code, 'request_id', prev.rid));
       elsif v_code between 200 and 299 then
         -- this workflow's own "not published" alert only; the shared secret alert is settled below
         update public.platform_alerts set status = 'resolved', resolved_at = now(), resolution_note = 'n8n answered ' || v_code
          where kind = 'n8n_dispatch_refused' and dedupe_key = prev.workflow and status <> 'resolved';
       end if;
     end loop;
-    -- the secret alert is shared by every workflow: resolved only once no workflow's latest answer is a refusal
-    if not exists (select 1 from public.n8n_dispatch_state where last_status_code in (401, 403))
-       and exists (select 1 from public.n8n_dispatch_state where last_status_code between 200 and 299) then
-      update public.platform_alerts set status = 'resolved', resolved_at = now(), resolution_note = 'n8n accepts the dispatcher again'
-       where kind = 'n8n_dispatch_refused' and dedupe_key = 'n8n_secret' and status <> 'resolved';
+    -- the secret alert is shared by every workflow: resolved only once no workflow's latest answer is a refusal and a
+    -- success came after the refusal it records (request ids grow, so "after" is a higher id)
+    if not exists (select 1 from public.n8n_dispatch_state where last_status_code in (401, 403)) then
+      update public.platform_alerts a set status = 'resolved', resolved_at = now(), resolution_note = 'n8n accepts the dispatcher again'
+       where a.kind = 'n8n_dispatch_refused' and a.dedupe_key = 'n8n_secret' and a.status <> 'resolved'
+         and exists (select 1 from public.n8n_dispatch_state x where x.last_status_code between 200 and 299
+                       and x.response_request_id > coalesce((a.meta ->> 'request_id')::bigint, 0));
     end if;
   end if;
 

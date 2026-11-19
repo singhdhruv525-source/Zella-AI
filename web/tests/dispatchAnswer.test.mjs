@@ -14,9 +14,9 @@ test("each answer reads in plain words with its tone", () => {
   assert.equal(dispatchAnswer({ status_code: null }).label, "Not recorded yet");
 });
 
-test("a newer request still waiting is shown beside the previous answer, never as a plain success", () => {
+test("another request still waiting is shown beside the previous answer, never as a plain success", () => {
   const a = dispatchAnswer({ status_code: 200, waiting: true });
-  assert.equal(a.label, "Accepted (200), a newer request is waiting");
+  assert.equal(a.label, "Accepted (200), another request is waiting");
   assert.equal(a.tone, "neutral");
   assert.equal(a.pending, true);
   assert.equal(dispatchAnswer({ status_code: 401, waiting: true }).tone, "danger");

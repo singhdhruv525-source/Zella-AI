@@ -28,8 +28,12 @@ function healthSummary(r, automation, jobs) {
   const complete = counts.every(isCount) && Array.isArray(r.data?.configuration);
   const problems = counts.filter(isCount).reduce((a, b) => a + b, 0);
   const missing = (r.data?.configuration ?? []).filter((c) => c.required && !c.set).length;
-  const issues = problems + missing;
-  if (issues) return { tone: "warn", state: "issues", text: `${issues} ${issues === 1 ? "issue" : "issues"} found${missing ? ` (${missing} required ${missing === 1 ? "setting" : "settings"} missing)` : ""}` };
+  // the scheduler's own findings count too: failed workflows and events in 24 hours and its open alerts
+  const sj = jobs && !jobs.error && jobs.data && !jobs.data.missing ? jobs.data : null;
+  const scheduler = sj ? [sj.failed_24h?.workflows, sj.failed_24h?.events, Array.isArray(sj.alerts) ? sj.alerts.length : 0].filter(isCount).reduce((a, b) => a + b, 0) : 0;
+  const issues = problems + missing + scheduler;
+  const notes = [missing ? `${missing} required ${missing === 1 ? "setting" : "settings"} missing` : "", scheduler ? `${scheduler} from the scheduler` : ""].filter(Boolean).join(", ");
+  if (issues) return { tone: "warn", state: "issues", text: `${issues} ${issues === 1 ? "issue" : "issues"} found${notes ? ` (${notes})` : ""}` };
   const jobsRead = jobs ? !jobs.loading && !jobs.error && jobs.data && typeof jobs.data === "object" && !jobs.data.missing : true;
   if (!complete || automation.status === "failed" || !jobsRead) return { tone: "warn", state: "incomplete", text: "Checks incomplete: no issues in the checks that ran, but some results are missing." };
   return { tone: "ok", state: "clear", text: "No issues found in the checks below" };

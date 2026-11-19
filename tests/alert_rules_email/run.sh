@@ -80,6 +80,13 @@ add ${A}26 w_bell_later warning 2
 q "insert into public.platform_alert_rules (kind, destination) values ('w_bell_later', 'bell');
    update public.platform_alerts set notified_at = now() - interval '20 minutes' where id = '${A}26'" > /dev/null
 [ "$(ids)" = "" ] && ok "a claim that never finished isn't retried by email once its kind is bell only" || bad "bell retry: $(ids)"
+q "delete from public.platform_alerts" > /dev/null
+add ${A}27 w_escalate warning 2
+[ "$(ids)" = "27" ] || bad "escalate first claim"
+q "update public.platform_alerts set meta = meta || jsonb_build_object('emailed_at', now()) where id = '${A}27'" > /dev/null
+q "select public.zella_platform_alert('w_escalate', 'Alert', null, 'urgent', null, '${A}27')" > /dev/null
+[ "$(ids)" = "27" ] && [ "$(q "select severity || ':' || (meta -> 'before_escalation' ? 'emailed_at')::text from public.platform_alerts where id = '${A}27'")" = "urgent:true" ] \
+  && ok "an emailed alert that becomes urgent is emailed again, and its earlier email stays on record" || bad "escalation: $(q "select severity, notified_at, meta from public.platform_alerts where id = '${A}27'")"
 
 q "delete from public.platform_alerts; delete from public.platform_alert_rules;
    insert into public.platform_alert_rules (kind, email_permission) values ('w_ops', 'integrations.manage'), ('w_nobody', 'billing.manage')" > /dev/null

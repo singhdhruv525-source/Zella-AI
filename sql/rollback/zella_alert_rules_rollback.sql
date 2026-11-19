@@ -13,7 +13,7 @@ begin
   if exists (select 1 from public.zella_function_archive where migration = 'zella_alert_rules_email') then
     raise exception 'ROLLBACK_ORDER: roll back sql/zella_alert_rules_email.sql first';
   end if;
-  if md5(pg_get_functiondef(s::regprocedure)) <> '9b87d92813a20bf0f71c88968f07fa58' then
+  if md5(pg_get_functiondef(s::regprocedure)) <> '5621f2af7308bd91ebba81e5052fd570' then
     raise exception 'ROLLBACK_DRIFT: % has changed since this migration', s;
   end if;
   for a in select definition from public.zella_function_archive where migration = 'zella_alert_rules' loop
