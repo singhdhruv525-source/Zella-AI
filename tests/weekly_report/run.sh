@@ -5,7 +5,8 @@
 # in a week makes one report and one alert; through the real job runner and the weekly group; two runs at once make one;
 # the next week resolves the previous alert; the alert carries no figure, and reaches the email digest only once email
 # is live; permissions (Zella Voice owner and super admin yes, read only admin no until the owner grants reports.view,
-# a business owner no, anonymous no, no direct table or job access); rollback twice restores both functions exactly;
+# a business owner no, anonymous no, no direct table or job access); rollback twice restores both functions exactly and
+# keeps the stored reports;
 # applies again; a later change to the weekly list survives the rollback; an unknown version stops the file (drift).
 # STACK=1 first applies zella_writing_cleanup.sql and the merged, unapplied migrations (docs/SCHEMA_STATUS.md).
 set -uo pipefail
@@ -23,6 +24,11 @@ if [ "${STACK:-0}" = "1" ]; then
   done
   echo "(with the merged, unapplied migrations)"
 fi
+# the shared definition of live (lane C) comes before this file
+for f in zella_admin_permissions zella_connection_state; do
+  [ "${STACK:-0}" = "1" ] && [ "$f" = zella_admin_permissions ] && continue
+  "${P[@]}" -d $DB -f "$REPO/sql/$f.sql" > /dev/null 2>&1 || { echo "needs: $f failed"; exit 1; }
+done
 fp() { q "select md5(pg_get_functiondef('public.zella_run_scheduled_job(text)'::regprocedure)) || ',' || md5(pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure))"; }
 as_user() { # user id, sql -> runs as that signed in user (two step sign in done), prints the result or the error
   local out; out=$("${P[@]}" -d $DB -c "begin; select set_config('request.jwt.claims', json_build_object('sub', '$1', 'role', 'authenticated', 'aal', 'aal2')::text, true); set local role authenticated; $2; commit;" 2>&1)
@@ -55,7 +61,9 @@ q "insert into auth.users (id, email, email_confirmed_at) values
 base=$(q "select public.zella_platform_weekly_summary('2026-11-02 00:00+00', '2026-11-09 00:00+00')")   # whatever the copy already has
 B1=$(q "insert into public.businesses (name, industry_id, onboarding_status, is_active, created_at) select 'Week Live', id, 'active', true, $IN from public.industries limit 1 returning id" | head -1)
 B2=$(q "insert into public.businesses (name, industry_id, onboarding_status, is_active, created_at) select 'Week Setup', id, 'started', false, $OUT from public.industries limit 1 returning id" | head -1)
-q "insert into public.business_members (business_id, user_id, role, status) values ('$B1', 'f7000000-0000-0000-0000-000000000004', 'owner', 'active');
+q "insert into public.ai_agents (business_id, name, agent_type, status, is_default) values ('$B1', 'Receptionist', 'receptionist', 'active', true);
+   insert into public.business_phone_numbers (business_id, e164, vapi_phone_number_id, status) values ('$B1', '+15550109901', 'vapi-test-week', 'active');
+   insert into public.business_members (business_id, user_id, role, status) values ('$B1', 'f7000000-0000-0000-0000-000000000004', 'owner', 'active');
    insert into public.calls (business_id, direction, status, from_number, created_at) values ('$B1', 'inbound', 'completed', '+15550100001', $IN), ('$B1', 'inbound', 'missed', '+15550100002', $IN),
      ('$B1', 'outbound', 'completed', '+15550100003', $IN), ('$B1', 'inbound', 'missed', '+15550100004', $OUT), ('$B1', 'inbound', 'completed', '+15550100005', $EARLY);
    insert into public.sms_messages (business_id, direction, status, created_at) values ('$B1', 'outbound', 'sent', $IN), ('$B1', 'outbound', 'delivered', $IN),
@@ -102,9 +110,11 @@ else wait $bg; bad "overlap: the first run never held its row"; fi
 #    resolve the newer ones)
 o=$(q "select count(*) from public.platform_alerts where kind = 'weekly_report' and status = 'open'")
 [ "$o" = "2" ] && ok "a run for an older week leaves newer weeks' alerts open" || bad "older week resolved newer alerts: $o open"
-q "select public.zella_post_weekly_platform_report('2026-11-23 08:00+00')" > /dev/null
+# a week after the current one, from the same anchor as step 5 (now), so the test reads the same on any date
+q "select public.zella_post_weekly_platform_report(now() + interval '7 days')" > /dev/null
+want=$(q "select '1,' || (date_trunc('week', (now() + interval '7 days') at time zone 'UTC'))::date - 7")
 o=$(q "select count(*) || ',' || max(dedupe_key) from public.platform_alerts where kind = 'weekly_report' and status = 'open'")
-[ "$o" = "1,2026-11-16" ] && ok "only the latest report's alert stays open" || bad "open report alerts: $o"
+[ "$o" = "$want" ] && ok "only the latest report's alert stays open" || bad "open report alerts: $o"
 
 # 8. the email digest: nothing while email is off; the report alert once email is live
 q "insert into public.platform_settings (key, value) values ('email_live', 'false'::jsonb), ('email_from_address', '\"\"'::jsonb) on conflict (key) do update set value = excluded.value" > /dev/null
@@ -115,6 +125,10 @@ e=$(q "select count(*) from jsonb_array_elements(public.zella_claim_admin_alert_
 [ "$e" = "1" ] && ok "once email is live the digest carries the report alert (the latest one only)" || bad "digest while live: $e"
 q "update public.platform_settings set value = 'false'::jsonb where key = 'email_live'" > /dev/null
 
+# 8b. a session in a time zone with daylight saving: the week still ends at Monday 00:00 UTC (US clocks went back on 1 Nov 2026)
+t=$("${P[@]}" -d $DB -c "set timezone = 'America/New_York'" -c "select public.zella_post_weekly_platform_report('2026-11-02 08:00+00')" -c "set timezone = 'UTC'" \
+     -c "select (summary ->> 'to')::timestamptz = '2026-11-02 00:00+00' from public.platform_report_runs where period_start = '2026-10-26'" | tail -1)
+[ "$t" = "t" ] && ok "a daylight saving session time zone doesn't move the week's end" || bad "dst: $t"
 # 9. permissions
 R="select jsonb_array_length(public.zella_admin_weekly_reports(12) -> 'reports')"
 o=$(as_user f7000000-0000-0000-0000-000000000001 "$R"); s=$(as_user f7000000-0000-0000-0000-000000000002 "$R")
@@ -146,11 +160,12 @@ if q "select cron.schedule('zella_jobs_weekly', '0 8 * * 1', \$c\$select public.
 else bad "could not make the weekly job in the test copy"; fi
 
 # 10. rollback, twice
+RUNS=$(q "select count(*) from public.platform_report_runs")   # before the rollback
 "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores both functions exactly" || bad "fingerprints after rollback: $(fp) vs $before"
-x=$(q "select (to_regclass('public.platform_report_runs') is null) || ',' || (to_regprocedure('public.zella_admin_weekly_reports(integer)') is null) || ',' ||
+x=$(q "select (to_regclass('public.platform_report_runs') is not null) || ',' || (select count(*) from public.platform_report_runs) || ',' || (to_regprocedure('public.zella_admin_weekly_reports(integer)') is null) || ',' ||
        (select count(*) from public.platform_alerts where kind = 'weekly_report' and status <> 'resolved') || ',' || (select count(*) from public.zella_function_archive where migration = 'zella_weekly_platform_report')")
-[ "$x" = "true,true,0,0" ] && ok "the table and functions are gone, report alerts resolved, archive cleared" || bad "after rollback: $x"
+[ "$x" = "true,$RUNS,true,0,0" ] && ok "the functions are gone, the stored reports kept ($RUNS), report alerts resolved, archive cleared" || bad "after rollback: $x"
 "${P[@]}" -d $DB -f "$FILE" > /dev/null 2>&1 && [ "$(fp)" = "$after" ] && ok "applies again after the rollback, to the same versions" || bad "reapply"
 
 # 11. a later change to the weekly list survives the rollback; only the report's entry is removed
@@ -167,7 +182,7 @@ q "do \$\$ begin execute replace(pg_get_functiondef('public.zella_run_scheduled_
   -- someone else
   if p_job'); end \$\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$FILE" 2>&1)
-x=$(q "select (to_regclass('public.platform_report_runs') is null) || ',' || (position('zella_post_weekly_platform_report' in pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure)) = 0)")
+x=$(q "select (to_regprocedure('public.zella_admin_weekly_reports(integer)') is null) || ',' || (position('zella_post_weekly_platform_report' in pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure)) = 0)")
 [[ "$out" == *"VERSION_MISMATCH"* ]] && [ "$x" = "true,true" ] && ok "a version that isn't production's stops the file and changes nothing" || bad "drift: $x / $out"
 
 echo

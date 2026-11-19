@@ -44,6 +44,10 @@ begin
      or to_regclass('public.platform_alerts') is null or to_regclass('public.support_tickets') is null or to_regclass('public.automation_runs') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
+  -- live businesses are counted with the one shared definition of live (docs/PRODUCT.md §9.1)
+  if to_regprocedure('public.zella_connection_state(uuid[])') is null then
+    raise exception 'VERSION_MISMATCH: apply sql/zella_connection_state.sql first (the shared definition of live)';
+  end if;
   d := pg_get_functiondef(job::regprocedure);
   if md5(d) = '671ec3ca5b53cc2d660f054b837d67d1' then                      -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
@@ -84,9 +88,9 @@ language sql stable security definer set search_path = public as $$
     'from', p_from, 'to', p_to,
     -- businesses created in the week, whatever their setup stage
     'new_businesses', (select count(*) from businesses where created_at >= p_from and created_at < p_to),
-    -- live when the report ran: setup finished (active), switched on, not suspended, not cancelled
-    'live_businesses', (select count(*) from businesses where onboarding_status = 'active' and coalesce(is_active, false)
-                          and suspended_at is null and cancelled_at is null),
+    -- live when the report ran, by the one shared definition (sql/zella_connection_state.sql): an active business, its
+    -- receptionist switched on and an active number linked to Vapi
+    'live_businesses', (select count(*) from public.zella_connection_state(null) s where s.live),
     -- every call, both directions; missed is the call's own status
     'calls', (select count(*) from calls where created_at >= p_from and created_at < p_to),
     'missed_calls', (select count(*) from calls where created_at >= p_from and created_at < p_to and status = 'missed'),
@@ -112,7 +116,8 @@ declare
   v_id uuid; v_alert uuid;
 begin
   insert into platform_report_runs (kind, period_start, period_end, summary)
-  values ('weekly_platform_summary', v_start, v_start + 6, public.zella_platform_weekly_summary(v_from, v_from + interval '7 days'))
+  -- both ends are made in UTC from dates, so a session time zone with daylight saving can't stretch or shrink the week
+  values ('weekly_platform_summary', v_start, v_start + 6, public.zella_platform_weekly_summary(v_from, (v_start + 7)::timestamp at time zone 'UTC'))
   on conflict (kind, period_start) do nothing
   returning id into v_id;
   if v_id is null then return 0; end if;          -- this week's report already exists (a second run, or one running now)
@@ -130,7 +135,7 @@ end $$;
 -- 4. Settings, Reporting configuration (reports.view) ---------------------------------------------------------------------
 create or replace function public.zella_admin_weekly_reports(p_limit integer default 12) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
-declare v_job boolean; v_found boolean := false; v_next timestamptz;
+declare v_job boolean; v_found boolean := false; v_next timestamptz; v_monday timestamp;
 begin
   perform public.zella_admin_require('reports.view');
   begin
@@ -138,8 +143,10 @@ begin
   exception when others then v_job := null; v_found := false;      -- no scheduler here: say so rather than guess
   end;
   if coalesce(v_job, false) then                                   -- Mondays 08:00 UTC (zella_dispatcher.sql)
-    v_next := (date_trunc('week', now() at time zone 'UTC') + interval '8 hours') at time zone 'UTC';
-    if v_next <= now() then v_next := v_next + interval '7 days'; end if;
+    -- worked out in UTC wall time, then turned into a time: the session time zone never shifts it
+    v_monday := date_trunc('week', now() at time zone 'UTC') + interval '8 hours';
+    if v_monday at time zone 'UTC' <= now() then v_monday := v_monday + interval '7 days'; end if;
+    v_next := v_monday at time zone 'UTC';
   end if;
   return jsonb_build_object(
     'reports', coalesce((select jsonb_agg(jsonb_build_object('id', r.id, 'period_start', r.period_start, 'period_end', r.period_end,

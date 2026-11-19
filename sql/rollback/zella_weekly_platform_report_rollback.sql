@@ -4,9 +4,9 @@
 --     byte for byte, and the archived original is put back. When another migration changed it later (for example
 --     zella_cancellations_scheduled.sql applied after this file), only the report's entry is removed, so that later change
 --     stays; a NOTICE says so.
---   * The three new functions and platform_report_runs are dropped. The reports in it are counts only (no customer data);
---     each one is lost with the table.
---   * The open "weekly platform report is ready" alert is resolved, so the bell no longer points to a report that is gone.
+--   * The three new functions are dropped. platform_report_runs and every report stored in it are kept (a rollback never
+--     deletes data; the table stays server only), and applying the file again uses them.
+--   * The open "weekly platform report is ready" alert is resolved, so the bell no longer points to a page that is gone.
 begin;
 do $$
 declare s text; d text; v_new text; v_orig text; v_md5 text;
@@ -43,5 +43,4 @@ end $$;
 drop function if exists public.zella_admin_weekly_reports(integer);
 drop function if exists public.zella_post_weekly_platform_report(timestamptz);
 drop function if exists public.zella_platform_weekly_summary(timestamptz, timestamptz);
-drop table if exists public.platform_report_runs;
 commit;

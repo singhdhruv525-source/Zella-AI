@@ -4,7 +4,7 @@
 // Each figure, in the order shown, with what it counts (the same definitions as zella_platform_weekly_summary).
 export const FIGURES = [
   ["new_businesses", "New businesses", "Businesses created in the week, at any setup stage."],
-  ["live_businesses", "Live businesses", "Set up, switched on, not suspended and not cancelled, when the report ran."],
+  ["live_businesses", "Live businesses", "Live when the report ran, by the one shared definition: active, receptionist switched on, a number linked to Vapi."],
   ["calls", "Calls", "Every call in the week, answered or not, both directions."],
   ["missed_calls", "Missed calls", "Calls in the week whose status is missed."],
   ["texts_sent", "Texts sent", "Texts that reached the provider (sent or delivered). Test mode and blocked texts are not counted."],
@@ -35,7 +35,7 @@ export function figureRows(summary) {
   return FIGURES.map(([key, label, definition]) => {
     let value = n(s[key]);
     if (key === "open_alerts" && typeof s.urgent_alerts === "number") value = `${value} (${n(s.urgent_alerts)} urgent)`;
-    if (key === "tickets_opened" && typeof s.tickets_open === "number") value = `${value} (${n(s.tickets_open)} open now)`;
+    if (key === "tickets_opened" && typeof s.tickets_open === "number") value = `${value} (${n(s.tickets_open)} open when the report was made)`;
     return { key, label, value, definition };
   });
 }

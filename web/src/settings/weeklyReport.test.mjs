@@ -18,7 +18,7 @@ test("every figure the server counts is shown once, in order, with its definitio
   assert.deepEqual(rows.map((r) => r.key), FIGURES.map(([k]) => k));
   assert.equal(rows.find((r) => r.key === "calls").value, "1,234");
   assert.equal(rows.find((r) => r.key === "open_alerts").value, "4 (1 urgent)");
-  assert.equal(rows.find((r) => r.key === "tickets_opened").value, "2 (5 open now)");
+  assert.equal(rows.find((r) => r.key === "tickets_opened").value, "2 (5 open when the report was made)");
   assert.equal(rows.find((r) => r.key === "failed_automations").value, "0", "zero is a count, not missing");
   for (const r of rows) assert.ok(r.definition.length > 10, `${r.key} has a definition`);
 });
