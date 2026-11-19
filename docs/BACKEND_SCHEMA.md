@@ -4567,7 +4567,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_eval_run(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_invitation_cancel(p_business_id uuid, p_invitation_id uuid)` | jsonb | yes | server only |
 | `zella_admin_mask(p text)` | text |  | server only |
-| `zella_admin_member_set_status(p_business_id uuid, p_user_id uuid, p_status text, p_expected text, p_seen_at timestamp with time zone)` | jsonb | yes | server only |
+| `zella_admin_member_set_status(p_business_id uuid, p_user_id uuid, p_status text, p_expected text, p_seen_at timestamp with time zone, p_actor uuid, p_reason text)` | jsonb | yes | server only |
 | `zella_admin_message_detail(p_channel text, p_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
 | `zella_admin_message_retry(p_channel text, p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_message_retry_check(p_channel text, p_id uuid)` | jsonb | yes | server only |
