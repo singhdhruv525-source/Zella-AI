@@ -359,3 +359,10 @@ test("edge function alert kinds: a computed key that may be p_kind leaves it unr
   assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "new_alert" });`), ["?"]);
   assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { [key]: "new_alert", p_kind: "known_alert" });`), ["known_alert"]);
 });
+
+test("edge function alert kinds: a known computed key that isn't p_kind keeps the kind", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_title"]: "x" });`), ["known_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_kind"]: "later_alert" });`), ["later_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "x" });`), ["?"]);
+});
