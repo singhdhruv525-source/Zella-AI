@@ -32,7 +32,9 @@ as() { printf '%s\n' "begin; set local role authenticated;" \
     "select set_config('request.jwt.claims', '{\"sub\": \"$1\", \"role\": \"authenticated\", \"aal\": \"aal2\"}', true) \\g /dev/null" \
     "$2;" "commit;" | "${P[@]}" -d $DB 2>&1; }
 out=$(as $OWN "select public.zella_admin_template_save('$SMS', null, 'Hi <SCRIPT>x</SCRIPT> {{first_name}}', 'test')")
-[[ "$out" != *BODY_TEXT* ]] && ok "before: <SCRIPT> in upper case gets through a save (COM-27)" || bad "before: $out"
+# the save must really succeed, and store the body, for this to show the gap
+[[ "$out" != *ERROR* && "$out" != *BODY_TEXT* ]] && [ "$(q "select count(*) from public.message_templates where key = 'appointment_reminder' and business_id is null and status = 'active' and body = 'Hi <SCRIPT>x</SCRIPT> {{first_name}}'")" = "1" ] \
+  && ok "before: <SCRIPT> in upper case gets through a save (COM-27)" || bad "before: $out"
 SMS=$(q "select id from public.message_templates where key = 'appointment_reminder' and business_id is null and status = 'active'")
 q "update public.message_templates set body = 'Hi {{first_name}}, see you soon at {{business}}.' where id = '$SMS'" > /dev/null
 [ -z "$(q "select to_regprocedure('public.zella_admin_template_create(text,text,uuid,text,text,text,text)')")" ] && ok "before: nothing can create or retire a template (UI-20)" || bad "before create"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, LoadState, Needs, Pill, Table, useAsync, words } from "../SettingsKit";
@@ -19,17 +19,26 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
   const [notice, setNotice] = useState({ text: "", error: "" });
   const [deleting, setDeleting] = useState(null);
   const mayDelete = DRAFT_DELETE_ROLES.includes(me?.role);
-  async function retry(b, step) {
+  // one retry or resend at a time per business: a second click while the first is on its way does nothing
+  const [working, setWorking] = useState({});   // business id -> "retry" | "resend"
+  const inFlight = useRef(new Set());
+  async function once(id, kind, fn) {
+    if (inFlight.current.has(id)) return;
+    inFlight.current.add(id); setWorking((w) => ({ ...w, [id]: kind }));
+    try { await fn(); }
+    finally { inFlight.current.delete(id); setWorking((w) => { const n = { ...w }; delete n[id]; return n; }); }
+  }
+  const retry = (b, step) => once(b.id, "retry", async () => {
     try {
       const r = await call("retry_step", { businessId: b.id, step });
       setNotice(r.status === "done" ? { text: `${words(step)} for ${b.name} is done${r.added ? ` (${r.added} added)` : ""}.`, error: "" } : { text: "", error: r.note || `${words(step)} still needs attention.` });
       state.reload();
     } catch (err) { setNotice({ text: "", error: err.message }); }
-  }
-  async function resend(id) {
+  });
+  const resend = (id) => once(id, "resend", async () => {
     try { await call("invitation_resend", { businessId: id }); setNotice({ text: "Invitation sent again.", error: "" }); state.reload(); }
     catch (err) { setNotice({ text: "", error: err.message }); }
-  }
+  });
   async function remove(b, reason) {
     const r = await call("business_delete_draft", { businessId: b.id, confirmName: b.name, reason });
     setNotice({ text: `${b.name} was deleted.${r.filesLeft ? ` ${r.filesLeft} uploaded files are left for the orphan cleanup.` : ""}`, error: "" });
@@ -51,15 +60,15 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
               return (
                 <div key={f.step}>
                   {words(f.step)}{f.error ? `: ${f.error}` : ""}
-                  {can(me, "businesses.manage") && act === "retry" && <> <button type="button" className="zs-btn sm" onClick={() => retry(b, f.step)}>Retry step</button></>}
-                  {can(me, "businesses.manage") && act === "resend" && <> <button type="button" className="zs-btn sm" onClick={() => resend(b.id)}>Send owner invite</button></>}
+                  {can(me, "businesses.manage") && act === "retry" && <> <button type="button" className="zs-btn sm" disabled={Boolean(working[b.id])} onClick={() => retry(b, f.step)}>{working[b.id] === "retry" ? "Retrying…" : "Retry step"}</button></>}
+                  {can(me, "businesses.manage") && act === "resend" && <> <button type="button" className="zs-btn sm" disabled={Boolean(working[b.id])} onClick={() => resend(b.id)}>{working[b.id] === "resend" ? "Sending…" : "Send owner invite"}</button></>}
                 </div>
               );
             }) : "None")],
             ["", (b) => can(me, "businesses.manage") ? (
               <span className="zs-actions">
                 <button type="button" className="zs-btn sm" onClick={() => openSetup(b.id)}>Continue setup</button>
-                {!b.checks.owner_invited && <button type="button" className="zs-btn sm" onClick={() => resend(b.id)}>Send owner invite</button>}
+                {!b.checks.owner_invited && <button type="button" className="zs-btn sm" disabled={Boolean(working[b.id])} onClick={() => resend(b.id)}>{working[b.id] === "resend" ? "Sending…" : "Send owner invite"}</button>}
                 {mayDelete && DELETABLE(b) && <button type="button" className="zs-btn sm danger-outline" onClick={() => setDeleting(b)}>Delete draft</button>}
               </span>) : null],
           ]} />

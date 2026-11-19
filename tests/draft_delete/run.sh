@@ -92,6 +92,17 @@ check_refused "Number One" "insert into public.business_phone_numbers (business_
 check_refused "Subscribed One" "insert into public.subscriptions (business_id, status) values ('BIZ', 'trial')" subscriptions
 check_refused "Paid One" "insert into public.payments (business_id, amount) values ('BIZ', 10)" payments
 check_refused "Delivered One" "insert into public.assistant_deliveries (business_id, outcome) values ('BIZ', 'served')" assistant_deliveries
+# an owner accepting the invitation at the same moment: the delete answers BUSY (never waits in another order), then
+# once the acceptance commits, the delete refuses because the owner accepted
+B3=$(draft "Racing Draft")
+PGAPPNAME=zlb_accepting "${P[@]}" -d $DB -c "begin; update public.business_invitations set status = 'accepted' where business_id = '$B3'; select pg_sleep(3); commit;" > /dev/null 2>&1 & bgp=$!
+for i in $(seq 1 100); do [ "$(q "select count(*) from pg_stat_activity where application_name = 'zlb_accepting' and wait_event = 'PgSleep'")" = "1" ] && break; sleep 0.1; done
+out=$(del "$B3" "$OWN" "Racing Draft" "Clean up test")
+[[ "$out" == *BUSY* ]] && [ "$(q "select count(*) from public.businesses where id = '$B3'")" = "1" ] && ok "while an invitation is being accepted, the delete answers BUSY and deletes nothing" || bad "race: $out"
+wait $bgp
+out=$(del "$B3" "$OWN" "Racing Draft" "Clean up test")
+[[ "$out" == *NOT_A_DRAFT*owner_accepted* ]] && ok "after the acceptance commits, the delete refuses (the owner accepted)" || bad "after race: $out"
+[ "$(q "select convalidated::text from pg_constraint where conname = 'audit_logs_business_id_fkey'")" = "true" ] && ok "the audit foreign key was added without a scan and validated after the commit" || bad "not validated"
 out=$(del "f9999999-0000-0000-0000-000000000000" "$OWN" "x" "Clean up test"); [[ "$out" == *NOT_FOUND* ]] && ok "an unknown business is not found" || bad "unknown: $out"
 g=$(q "select has_function_privilege('authenticated', 'public.zella_delete_draft_business(uuid,uuid,text,text)', 'execute')::text || has_function_privilege('anon', 'public.zella_delete_draft_business(uuid,uuid,text,text)', 'execute')::text")
 [ "$g" = "falsefalse" ] && ok "only the server may call it" || bad "grants: $g"

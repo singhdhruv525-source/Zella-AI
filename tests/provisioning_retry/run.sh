@@ -54,6 +54,15 @@ q "update public.provisioning_steps set updated_at = now() - interval '2 hours' 
 n=$(q "select public.zella_retry_provisioning_due()")
 [ "$n" = "1" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$T' and step = 'modules'")" = "done" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$T' and step = 'owner_invitation'")" = "failed" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$NEW' and step = 'modules'")" = "failed" ] && ok "the timed run retries only failed internal steps over an hour old" || bad "timer: $n"
 [ "$(q "select new_data ->> 'by' from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$T'")" = "timer" ] && ok "and is audited as the timer" || bad "timer audit"
+# a retry by hand holding the business: the timer skips it (same lock order, so no deadlock), and takes it next time
+L=$(mk "Locked Retry Studio"); q "delete from public.business_modules where business_id = '$L'" > /dev/null; fail "$L" modules
+q "update public.provisioning_steps set updated_at = now() - interval '2 hours' where business_id = '$L'" > /dev/null
+PGAPPNAME=zlb_holding "${P[@]}" -d $DB -c "begin; select 1 from public.businesses where id = '$L' for update; select pg_sleep(3); commit;" > /dev/null 2>&1 & bgp=$!
+for i in $(seq 1 100); do [ "$(q "select count(*) from pg_stat_activity where application_name = 'zlb_holding' and wait_event = 'PgSleep'")" = "1" ] && break; sleep 0.1; done
+n=$(timeout 10 "${P[@]}" -d $DB -c "select public.zella_retry_provisioning_due()" 2>&1)
+[ "$n" = "0" ] && [ "$(q "select status from public.provisioning_steps where business_id = '$L' and step = 'modules'")" = "failed" ] && ok "the timer skips a business someone holds, without waiting" || bad "locked: $n"
+wait $bgp
+[ "$(q "select public.zella_retry_provisioning_due()")" = "1" ] && ok "and retries it on the next run" || bad "next run"
 A=$(mk "Stubborn Studio"); q "delete from public.automations where business_id = '$A'" > /dev/null
 for i in 1 2 3 4; do fail "$A" automations; q "update public.provisioning_steps set updated_at = now() - interval '2 hours' where business_id = '$A'" > /dev/null; q "select public.zella_retry_provisioning_due()" > /dev/null; done
 [ "$(q "select count(*) from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$A'")" = "3" ] && ok "at most 3 timed attempts per step" || bad "attempts: $(q "select count(*) from public.audit_logs where action = 'provisioning.step_retried' and business_id = '$A'")"

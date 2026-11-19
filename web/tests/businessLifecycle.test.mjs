@@ -15,6 +15,11 @@ test("since says how long ago a draft last changed, in words", () => {
   assert.equal(since("2026-11-17T08:00:00Z", NOW), "Today");
   assert.equal(since(null, NOW), "Not known");
   assert.equal(since("not a date", NOW), "Not known");
+  // by calendar day in the viewer's time zone, not 24 hour blocks: 23:30 seen at 00:30 is yesterday
+  const late = new Date(2026, 10, 18, 23, 30).toISOString(), justAfter = new Date(2026, 10, 19, 0, 30).getTime();
+  assert.equal(since(late, justAfter), "Yesterday");
+  assert.equal(since(new Date(2026, 10, 19, 0, 5).toISOString(), justAfter), "Today");
+  assert.equal(since(new Date(2026, 10, 17, 1, 0).toISOString(), new Date(2026, 10, 19, 23, 0).getTime()), "2 days ago");
 });
 
 test("retention state: past, kept, or no date", async () => {

@@ -82,18 +82,42 @@ export type DraftAge = { lastActivityAt: string; abandoned: boolean };
 // Last activity is the later of the business row's own change and its newest audit entry (every setup save is
 // audited). A draft that has just become Abandoned raises one draft_abandoned alert, once ever per business: a
 // resolved alert is not raised again. Alerts are best effort and never fail the page.
-export async function draftAges(admin: SupabaseClient, rows: DraftRow[], now = Date.now()): Promise<{ days: number; ages: Map<string, DraftAge> }> {
+// everyDraft: also check every other unfinished, not cancelled business, not only the rows the page shows (the page
+// lists the newest ones), so an older abandoned draft is still marked and alerted.
+const ID_CHUNK = 100;
+const chunks = <T>(list: T[], n = ID_CHUNK) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
+async function everyUnfinishedDraft(admin: SupabaseClient): Promise<DraftRow[]> {
+  const out: DraftRow[] = [];
+  for (let from = 0; from < 100_000; from += 1000) {
+    const { data, error } = await admin.from("businesses").select("id, name, created_at, updated_at").is("cancelled_at", null)
+      .neq("onboarding_status", "active").order("created_at", { ascending: false }).range(from, from + 999);
+    if (error) throw error;
+    out.push(...((data ?? []) as DraftRow[]));
+    if ((data ?? []).length < 1000) return out;
+  }
+  throw new Error("Too many draft businesses to check at once");
+}
+
+export async function draftAges(admin: SupabaseClient, shown: DraftRow[], now = Date.now(), opts: { everyDraft?: boolean } = {}): Promise<{ days: number; ages: Map<string, DraftAge> }> {
   const ages = new Map<string, DraftAge>();
   const { data: setting } = await admin.from("platform_settings").select("value").eq("key", "draft_abandon_days").maybeSingle();
   const set = Number((setting as { value?: unknown } | null)?.value);
   const days = Number.isInteger(set) && set >= 7 && set <= 365 ? set : DRAFT_ABANDON_DAYS_DEFAULT;
+  const rows = [...shown];
+  if (opts.everyDraft) { const seen = new Set(rows.map((r) => r.id)); for (const r of await everyUnfinishedDraft(admin)) if (!seen.has(r.id)) rows.push(r); }
   if (!rows.length) return { days, ages };
-  const ids = rows.map((r) => r.id);
-  const { data: audit, error } = await admin.from("audit_logs").select("business_id, created_at").in("business_id", ids)
-    .order("created_at", { ascending: false }).limit(5000);
-  if (error) throw error;
+  // each business's newest audit entry, a few businesses per query (one query for all could stop at its row limit
+  // before reaching some of them)
   const newest = new Map<string, string>();
-  for (const a of (audit ?? []) as { business_id: string; created_at: string }[]) if (!newest.has(a.business_id)) newest.set(a.business_id, a.created_at);
+  for (const ids of chunks(rows.map((r) => r.id))) {
+    for (const id of ids) {
+      const { data: audit, error } = await admin.from("audit_logs").select("business_id, created_at").eq("business_id", id)
+        .order("created_at", { ascending: false }).limit(1);
+      if (error) throw error;
+      const a = ((audit ?? []) as { business_id: string; created_at: string }[])[0];
+      if (a) newest.set(id, a.created_at);
+    }
+  }
   const cutoff = now - days * DAY_MS;
   for (const r of rows) {
     const times = [r.updated_at, r.created_at, newest.get(r.id)].map((t) => Date.parse(String(t ?? ""))).filter((t) => Number.isFinite(t));
@@ -103,10 +127,12 @@ export async function draftAges(admin: SupabaseClient, rows: DraftRow[], now = D
   const abandoned = rows.filter((r) => ages.get(r.id)?.abandoned);
   if (abandoned.length) {
     try {
-      const { data: raised, error: alertError } = await admin.from("platform_alerts").select("business_id")
-        .eq("kind", "draft_abandoned").in("business_id", abandoned.map((r) => r.id));
-      if (alertError) throw alertError;
-      const already = new Set(((raised ?? []) as { business_id: string }[]).map((a) => a.business_id));
+      const already = new Set<string>();
+      for (const ids of chunks(abandoned.map((r) => r.id))) {
+        const { data: raised, error: alertError } = await admin.from("platform_alerts").select("business_id").eq("kind", "draft_abandoned").in("business_id", ids);
+        if (alertError) throw alertError;
+        for (const a of (raised ?? []) as { business_id: string }[]) already.add(a.business_id);
+      }
       for (const r of abandoned.filter((x) => !already.has(x.id))) {
         await admin.rpc("zella_platform_alert", {
           p_kind: "draft_abandoned", p_title: "A draft business looks abandoned",
@@ -145,13 +171,27 @@ export async function trackSetup<T>(admin: SupabaseClient, action: string, field
   if (!step) return await run();
   const given = typeof fields.businessId === "string" && UUID.test(fields.businessId) ? fields.businessId : null;
   let before: { status: string; error: string | null } | null = null;
+  // this attempt's own pending mark (its updated_at): a refusal or a failure is written back only while the row is still
+  // that mark, so an older attempt that ends late never overwrites what a newer attempt recorded
+  let mine: string | null = null;
   if (given) {
     try {
       const { data } = await admin.from("provisioning_steps").select("status, error").eq("business_id", given).eq("step", step).maybeSingle();
       before = (data as { status: string; error: string | null } | null) ?? null;
     } catch { before = null; }
     await track(admin, given, step, "pending");
+    try {
+      const { data } = await admin.from("provisioning_steps").select("status, updated_at").eq("business_id", given).eq("step", step).maybeSingle();
+      const row = data as { status?: string; updated_at?: string } | null;
+      mine = row?.status === "pending" && typeof row.updated_at === "string" ? row.updated_at : null;
+    } catch { mine = null; }
   }
+  const stillMine = async () => {
+    if (!given || !mine) return false;
+    const { data } = await admin.from("provisioning_steps").select("status, updated_at").eq("business_id", given).eq("step", step).maybeSingle();
+    const row = data as { status?: string; updated_at?: string } | null;
+    return row?.status === "pending" && row.updated_at === mine;
+  };
   let result: T;
   try {
     result = await run();
@@ -161,11 +201,15 @@ export async function trackSetup<T>(admin: SupabaseClient, action: string, field
       // a deliberate refusal (InputError: bad input, or setup can't finish yet, such as no plan check or no app
       // address): it is answered before anything is provisioned, so the step is put back as it was
       try {
-        if (before) await admin.from("provisioning_steps").update({ status: before.status, error: before.error }).eq("business_id", given).eq("step", step);
-        else await admin.from("provisioning_steps").delete().eq("business_id", given).eq("step", step).eq("status", "pending");
+        if (mine) {   // only this attempt's own pending mark is put back (the update matches nothing once another attempt wrote)
+          if (before) await admin.from("provisioning_steps").update({ status: before.status, error: before.error }).eq("business_id", given).eq("step", step).eq("status", "pending").eq("updated_at", mine);
+          else await admin.from("provisioning_steps").delete().eq("business_id", given).eq("step", step).eq("status", "pending").eq("updated_at", mine);
+        }
       } catch (restoreError) { console.error(`Provisioning step ${step} could not be put back`, restoreError); }
     } else if (given) {
-      await track(admin, given, step, "failed", e instanceof Error ? e.message : String(e));
+      let ours = true;
+      try { ours = mine ? await stillMine() : true; } catch { ours = true; }
+      if (ours) await track(admin, given, step, "failed", e instanceof Error ? e.message : String(e));
     }
     throw e;
   }
@@ -246,6 +290,7 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
         throw new InputError(`This business can't be deleted: ${why.join(", ") || "it is no longer a draft"}.`, 409);
       }
       if (m.includes("NAME_MISMATCH")) throw new InputError("The name you typed doesn't match the business.");
+      if (m.includes("BUSY")) throw new InputError("Someone is accepting an invitation for this business right now. Try again in a moment.", 409);
       if (m.includes("REASON_REQUIRED")) throw new InputError("Give a short reason (it goes in the audit log).");
       if (m.includes("NOT_FOUND")) throw new InputError("Business not found", 404);
       if (m.includes("NOT_ALLOWED")) throw new InputError("Only a Zella Voice owner or super admin can delete a draft business.", 403);
@@ -265,18 +310,30 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
 
   // UI-11: businesses (not cancelled) that still miss a required verification document, including ones already live
   // ("Live without documents"), with when documents were last requested.
+  // Every business is checked, read 1000 at a time (a single read stops at the row limit and would leave the oldest out).
+  const everyRow = async <T>(page: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message?: string; code?: string } | null }>): Promise<T[]> => {
+    const out: T[] = [];
+    for (let from = 0; from < 200_000; from += 1000) {
+      const { data, error } = await page(from, from + 999);
+      if (error) throw error;
+      out.push(...((data ?? []) as T[]));
+      if (((data ?? []) as unknown[]).length < 1000) return out;
+    }
+    throw new Error("Too many rows to check at once");
+  };
   const documentsMissing = async () => {
-    const { data: docs, error } = await admin.from("business_verification_documents").select("business_id, kind, status").neq("status", "replaced");
-    if (error) {
-      if (missingTable(error)) return { available: false, rows: [], required: REQUIRED_DOCUMENTS };
+    let docs: { business_id: string; kind: string; status: string }[];
+    try {
+      docs = await everyRow((from, to) => admin.from("business_verification_documents").select("business_id, kind, status").neq("status", "replaced").order("id").range(from, to));
+    } catch (error) {
+      if (missingTable(error as { message?: string; code?: string })) return { available: false, rows: [], required: REQUIRED_DOCUMENTS };
       throw error;
     }
-    const { data: biz, error: bizError } = await admin.from("businesses").select("id, name, onboarding_status, is_active, created_at")
-      .is("cancelled_at", null).order("created_at", { ascending: false }).limit(1000);
-    if (bizError) throw bizError;
+    const biz = await everyRow<{ id: string; name: string; onboarding_status: string; is_active: boolean; created_at: string }>((from, to) =>
+      admin.from("businesses").select("id, name, onboarding_status, is_active, created_at").is("cancelled_at", null).order("created_at", { ascending: false }).order("id").range(from, to));
     const byBiz = new Map<string, { kind: string; status: string }[]>();
-    for (const d of (docs ?? []) as { business_id: string; kind: string; status: string }[]) byBiz.set(d.business_id, [...(byBiz.get(d.business_id) ?? []), d]);
-    const rows = ((biz ?? []) as { id: string; name: string; onboarding_status: string; is_active: boolean; created_at: string }[])
+    for (const d of docs) byBiz.set(d.business_id, [...(byBiz.get(d.business_id) ?? []), d]);
+    const rows = biz
       .map((b) => ({ ...b, missing: missingDocuments(byBiz.get(b.id) ?? []), live: b.is_active || b.onboarding_status === "active" }))
       .filter((b) => b.missing.length > 0);
     const last = await lastRequests(rows.map((r) => r.id));
@@ -288,11 +345,12 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
 
   const lastRequests = async (ids: string[]) => {
     const out = new Map<string, string>();
-    if (!ids.length) return out;
-    const { data, error } = await admin.from("audit_logs").select("business_id, created_at").eq("action", "business.documents_requested")
-      .in("business_id", ids).order("created_at", { ascending: false }).limit(2000);
-    if (error) throw error;
-    for (const a of (data ?? []) as { business_id: string; created_at: string }[]) if (!out.has(a.business_id)) out.set(a.business_id, a.created_at);
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data, error } = await admin.from("audit_logs").select("business_id, created_at").eq("action", "business.documents_requested")
+        .in("business_id", ids.slice(i, i + 100)).order("created_at", { ascending: false }).limit(2000);
+      if (error) throw error;
+      for (const a of (data ?? []) as { business_id: string; created_at: string }[]) if (!out.has(a.business_id)) out.set(a.business_id, a.created_at);
+    }
     return out;
   };
 
@@ -320,7 +378,9 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
       const data = { business: String(b.name), appUrl: Deno.env.get("ZELLA_APP_URL") ?? "" } as unknown as Parameters<typeof renderEmail>[1];
       const m = renderEmail("S4", data, { strict: true });
       const { data: id, error: qError } = await admin.rpc("zella_queue_platform_email", {
-        p_business: businessId, p_code: "S4", p_dedupe_key: `email:S4:${businessId}:${Date.now()}`, p_to: to,
+        // keyed on the request this one follows: two requests at once, or a retry after the audit failed, read the same
+        // last request and so share the key, and the outbox queues the email once
+        p_business: businessId, p_code: "S4", p_dedupe_key: `email:S4:${businessId}:after:${last ?? "first"}`, p_to: to,
         p_subject: m.subject, p_html: m.html, p_text: m.text, p_mandatory: true, p_user: null, p_cc: [],
       });
       if (qError?.code === "PGRST202" || (qError && missingTable(qError))) emailState = "not_installed";

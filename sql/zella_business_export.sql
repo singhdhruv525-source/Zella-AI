@@ -7,8 +7,11 @@
 --     its progress so an interrupted run resumes where it stopped. Server only (row security on, no policies);
 --   * the private bucket business-exports (not public; nothing but the server key reads it);
 --   * server only functions: zella_export_request, zella_export_decide (approve or reject), zella_export_claim,
---     zella_export_progress, zella_export_finish (ready for 7 days, or back to approved to resume, failed after 3
---     tries), zella_export_tables, zella_export_rows and zella_export_files. Every step is audited.
+--     zella_export_progress, zella_export_pause (out of time: back to approved with its progress, not a try),
+--     zella_export_finish (ready for 7 days, or back to approved to resume, failed after 3 tries), zella_export_tables,
+--     zella_export_rows (one page, read by key so a row removed meanwhile never shifts the next page) and
+--     zella_export_files. Every step is audited.
+-- The business's own row (businesses, keyed by id) is exported with the rest.
 -- What an export never contains: integration_secrets, crm_record_secrets, email_unsubscribe_tokens and
 -- business_export_jobs; any column whose name says token, secret, password, api key, credential or a key/token hash;
 -- call recording links; and call transcripts and summaries in industries whose calls carry health, legal, financial,
@@ -35,8 +38,9 @@ begin
       ('public.zella_export_claim()', 'ff8042f03db758b059a9e0d195e6fb6d'),
       ('public.zella_export_progress(uuid,uuid,jsonb)', 'dd7783ebcb736ed012d29a56adfa02cd'),
       ('public.zella_export_finish(uuid,uuid,boolean,text,text)', '83b5834fc4d29a12c2e5c849c3d93877'),
-      ('public.zella_export_tables()', '5a84e8a9605c8e20d1ffbfcf4537d600'),
-      ('public.zella_export_rows(uuid,uuid,text,integer,integer)', 'b0da0326b04c813ccd7ddd5b443063d9'),
+      ('public.zella_export_tables()', 'aba79deaddde7257e17b778805caa099'),
+      ('public.zella_export_rows(uuid,uuid,text,text,integer)', 'e369de5aa2fd5a1a13083c961c5bce9d'),
+      ('public.zella_export_pause(uuid,uuid,jsonb)', '730410e6d2a55eec1baeddfec0bdc502'),
       ('public.zella_export_files(uuid,uuid)', '580156e5758c1d2fbbcae6e8387969c0')) as t(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(to_regprocedure(f.sig))) <> f.want then
       raise exception 'VERSION_MISMATCH: % is not a version this file was written for', f.sig;
@@ -159,6 +163,20 @@ AS $function$
   select exists (select 1 from u)
 $function$;
 
+-- Out of time (the worker's run is limited): save the progress and hand the job back to approved. This isn't a failed
+-- try, so the claim's try is given back; only failures and claims that stopped answering count toward the 3.
+CREATE OR REPLACE FUNCTION public.zella_export_pause(p_id uuid, p_token uuid, p_progress jsonb)
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with u as (update business_export_jobs set progress = coalesce(p_progress, progress), status = 'approved', claim_token = null,
+                    attempts = greatest(attempts - 1, 0), last_error = null
+              where id = p_id and status = 'running' and claim_token = p_token returning 1)
+  select exists (select 1 from u)
+$function$;
+
 -- ok: ready for 7 days. Not ok: back to approved so the next claim resumes from the progress (failed after 3 tries).
 CREATE OR REPLACE FUNCTION public.zella_export_finish(p_id uuid, p_token uuid, p_ok boolean, p_manifest text, p_error text)
  RETURNS text
@@ -186,27 +204,31 @@ begin
 end
 $function$;
 
--- Every table that holds a business's rows, less the ones an export never contains.
+-- Every table that holds a business's rows, less the ones an export never contains, and businesses itself (its own row).
 CREATE OR REPLACE FUNCTION public.zella_export_tables()
  RETURNS text[]
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(array_agg(c.table_name::text order by c.table_name), '{}')
+  select array['businesses'] || coalesce(array_agg(c.table_name::text order by c.table_name), '{}')
     from information_schema.columns c join pg_tables t on t.schemaname = 'public' and t.tablename = c.table_name
-   where c.table_schema = 'public' and c.column_name = 'business_id'
+   where c.table_schema = 'public' and c.column_name = 'business_id' and c.table_name <> 'businesses'
      and c.table_name not in ('integration_secrets', 'crm_record_secrets', 'email_unsubscribe_tokens', 'business_export_jobs')
 $function$;
 
--- One page of one table for the running export, without secret columns and call content the rules keep back.
-CREATE OR REPLACE FUNCTION public.zella_export_rows(p_id uuid, p_token uuid, p_table text, p_offset integer, p_limit integer)
+-- One page of one table for the running export, without secret columns and call content the rules keep back. Pages are
+-- read by key (the row's id, or its whole text where a table has no id), after the last key of the page before, so a
+-- row removed between pages never makes the next page skip one. Returns { rows, next } (next: null on the last page).
+-- businesses gives the business's own row (keyed by id).
+drop function if exists public.zella_export_rows(uuid, uuid, text, integer, integer);
+CREATE OR REPLACE FUNCTION public.zella_export_rows(p_id uuid, p_token uuid, p_table text, p_after text, p_limit integer)
  RETURNS jsonb
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare j business_export_jobs; v_drop text[]; v_rows jsonb;
+declare j business_export_jobs; v_drop text[]; v_rows jsonb; v_key text; v_owner text; v_limit integer := least(greatest(coalesce(p_limit, 500), 1), 1000);
 begin
   select * into j from business_export_jobs where id = p_id and status = 'running' and claim_token = p_token;
   if j.id is null then raise exception 'NOT_THIS_CLAIM'; end if;
@@ -218,9 +240,13 @@ begin
     v_drop := v_drop || array['recording_url'];
     if public.zella_sensitive_industry(j.business_id) then v_drop := v_drop || array['transcript', 'summary']; end if;
   end if;
-  execute format('select coalesce(jsonb_agg(r), ''[]''::jsonb) from (select to_jsonb(t) - $1 as r from public.%I t where t.business_id = $2 order by to_jsonb(t)::text offset $3 limit $4) x', p_table)
-    into v_rows using v_drop, j.business_id, greatest(coalesce(p_offset, 0), 0), least(greatest(coalesce(p_limit, 500), 1), 1000);
-  return v_rows;
+  v_key := case when exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = p_table and column_name = 'id')
+                then 't.id::text' else 'to_jsonb(t)::text' end;
+  v_owner := case when p_table = 'businesses' then 't.id' else 't.business_id' end;
+  execute format('select coalesce(jsonb_agg(r order by k), ''[]''::jsonb), max(k) from (select to_jsonb(t) - $1 as r, %s as k from public.%I t
+                   where %s = $2 and ($3::text is null or %s > $3) order by %s limit $4) x', v_key, p_table, v_owner, v_key, v_key)
+    into v_rows, v_key using v_drop, j.business_id, p_after, v_limit;
+  return jsonb_build_object('rows', v_rows, 'next', case when jsonb_array_length(v_rows) = v_limit then v_key end);
 end
 $function$;
 
@@ -243,7 +269,7 @@ $function$;
 do $$ declare s text; begin
   foreach s in array array['zella_export_request(uuid,uuid,text)', 'zella_export_decide(uuid,uuid,boolean,text)', 'zella_export_claim()',
                            'zella_export_progress(uuid,uuid,jsonb)', 'zella_export_finish(uuid,uuid,boolean,text,text)', 'zella_export_tables()',
-                           'zella_export_rows(uuid,uuid,text,integer,integer)', 'zella_export_files(uuid,uuid)'] loop
+                           'zella_export_rows(uuid,uuid,text,text,integer)', 'zella_export_files(uuid,uuid)', 'zella_export_pause(uuid,uuid,jsonb)'] loop
     execute format('revoke all on function public.%s from public, anon, authenticated', s);
     execute format('grant execute on function public.%s to service_role', s);
   end loop;

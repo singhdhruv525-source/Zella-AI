@@ -12,7 +12,7 @@ import { documentRequestNotice, requestWaitHours } from "./businessLifecycle";
 const KIND = { business_registration: "Business registration", owner_identity: "Owner's photo ID" };
 const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "Never");
 
-export default function MissingDocuments({ onOpenBusiness }) {
+export default function MissingDocuments({ onOpenBusiness, refreshKey = 0 }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -23,7 +23,15 @@ export default function MissingDocuments({ onOpenBusiness }) {
     try { setData(await callOwnerFunction("documents_missing")); }
     catch (err) { setData(null); setError(friendlyError(err)); }
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, refreshKey]);   // the page's Refresh reloads this list too
+  // the wait shown on a button ends on its own: the page redraws when the earliest wait is over
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const ends = (data?.rows ?? []).map((b) => Date.parse(b.last_requested_at ?? "") + (data.cooldownHours ?? 24) * 3_600_000).filter((t) => Number.isFinite(t) && t > now);
+    if (!ends.length) return undefined;
+    const t = setTimeout(() => setNow(Date.now()), Math.min(Math.min(...ends) - now + 1000, 3_600_000));
+    return () => clearTimeout(t);
+  }, [data, now]);
 
   async function ask(b) {
     if (inFlight.current) return;
@@ -47,7 +55,7 @@ export default function MissingDocuments({ onOpenBusiness }) {
             <thead><tr><th>Business</th><th>Still needed</th><th>Last requested</th><th aria-label="Actions" /></tr></thead>
             <tbody>
               {rows.map((b) => {
-                const wait = requestWaitHours(b.last_requested_at, data.cooldownHours);
+                const wait = requestWaitHours(b.last_requested_at, data.cooldownHours, now);
                 return (
                   <tr key={b.id}>
                     <td>

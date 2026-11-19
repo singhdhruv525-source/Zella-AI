@@ -127,6 +127,7 @@ Deno.test("business_delete_draft explains why a business is not a draft, and kee
   const cases: [string, number, string][] = [
     ["NOT_A_DRAFT: calls,phone_numbers", 409, "it has calls, it has phone numbers"],
     ["NAME_MISMATCH", 400, "doesn't match"], ["NOT_FOUND", 404, "not found"], ["NOT_ALLOWED", 403, "super admin"],
+    ["BUSY: an invitation for this business is being accepted right now", 409, "Try again"],
   ];
   for (const [message, status, words] of cases) {
     const err = await assertRejects(() => lifecycleHandlers(deleteAdmin({ data: null, error: { message } }, [], []), deleteFields, kit, "actor", "zella_owner").handlers.business_delete_draft(), InputError);
@@ -137,7 +138,7 @@ Deno.test("business_delete_draft explains why a business is not a draft, and kee
 });
 
 // A small stand in for the tables draftAges reads: platform_settings, audit_logs and platform_alerts.
-function agesAdmin(opts: { setting?: unknown; audit?: { business_id: string; created_at: string }[]; raised?: string[]; alertFails?: boolean }) {
+function agesAdmin(opts: { setting?: unknown; audit?: { business_id: string; created_at: string }[]; raised?: string[]; alertFails?: boolean; drafts?: Record<string, unknown>[] }) {
   const alerts: Record<string, unknown>[] = [];
   const admin = {
     from: (table: string) => {
@@ -145,7 +146,9 @@ function agesAdmin(opts: { setting?: unknown; audit?: { business_id: string; cre
       const chain = {
         select: () => chain, eq: (k: string, v: unknown) => { q[k] = v; return chain; }, in: () => chain, order: () => chain,
         maybeSingle: async () => ({ data: opts.setting === undefined ? null : { value: opts.setting }, error: null }),
-        limit: async () => ({ data: opts.audit ?? [], error: null }),
+        limit: async () => ({ data: (opts.audit ?? []).filter((a) => !q.business_id || a.business_id === q.business_id).sort((x, y) => y.created_at.localeCompare(x.created_at)), error: null }),
+        is: () => chain, neq: () => chain,
+        range: async (from: number) => ({ data: table === "businesses" && from === 0 ? (opts.drafts ?? []) : [], error: null }),
         then: (resolve: (v: unknown) => void) => resolve(table === "platform_alerts"
           ? (opts.alertFails ? { data: null, error: new Error("alerts down") } : { data: (opts.raised ?? []).map((business_id) => ({ business_id })), error: null })
           : { data: [], error: null }),
@@ -227,6 +230,8 @@ function tables(data: Record<string, unknown>, rpc: (fn: string, args: Record<st
       const answer = () => { const d = data[table]; return d instanceof Error || (d && typeof d === "object" && "code" in (d as object)) ? { data: null, error: d } : { data: d ?? null, error: null }; };
       const chain: Record<string, unknown> = {};
       for (const m of ["select", "eq", "neq", "in", "is", "order", "limit", "not"]) chain[m] = () => chain;
+      // a page read: the table's rows on the first page, then nothing (as a short last page)
+      chain.range = async (from: number) => { const r = answer(); return from === 0 || r.error ? r : { data: [], error: null }; };
       chain.maybeSingle = async () => { const r = answer(); return { ...r, data: Array.isArray(r.data) ? r.data[0] ?? null : r.data }; };
       chain.then = (resolve: (v: unknown) => void) => resolve(answer());
       return chain;
@@ -268,6 +273,15 @@ Deno.test("document_request queues S4 to the owner and is audited; it waits out 
   const q = calls.find((c) => c.fn === "zella_queue_platform_email")!.args!;
   assertEquals([q.p_code, q.p_to, q.p_mandatory, String(q.p_dedupe_key).startsWith(`email:S4:${A}:`)], ["S4", "owner@draft.test", true, true]);
   assertEquals(String(q.p_html).includes("Draft Co"), true);
+  // the key follows the last request, so two at once (or a retry after the audit failed) queue the email once
+  assertEquals(q.p_dedupe_key, `email:S4:${A}:after:first`);
+  const old = new Date(Date.now() - 30 * 3_600_000).toISOString();
+  const again = tables({ ...base, audit_logs: [{ business_id: A, created_at: old }] }, () => ({ data: "email-2", error: null }));
+  await lifecycleHandlers(again.admin, { businessId: A }, kit).handlers.document_request();
+  const twice = tables({ ...base, audit_logs: [{ business_id: A, created_at: old }] }, () => ({ data: "email-2", error: null }));
+  await lifecycleHandlers(twice.admin, { businessId: A }, kit).handlers.document_request();
+  const keys = [again, twice].map((w) => w.calls.find((c) => c.fn === "zella_queue_platform_email")!.args!.p_dedupe_key);
+  assertEquals(keys, [`email:S4:${A}:after:${old}`, `email:S4:${A}:after:${old}`]);
   assertEquals(h.audited.document_request(r), { action: "business.documents_requested", business_id: A, entity_type: "business", entity_id: A, new_data: { missing: r.missing, email: "queued", email_id: "email-1" } });
 
   const recent = tables({ ...base, audit_logs: [{ business_id: A, created_at: new Date(Date.now() - 3_600_000).toISOString() }] });
@@ -294,20 +308,45 @@ Deno.test("document_request without the outbox is still recorded, and says email
 // SET-ONB-RETRY part 1: what trackSetup records
 function trackAdmin(prior: { status: string; error: string | null } | null = null) {
   const log: string[] = [];
+  // the step row as the database has it: a pending mark carries its own updated_at, as zella_track_provisioning writes
+  const state: { row: Record<string, unknown> | null; marks: number } = { row: prior, marks: 0 };
   const admin = {
-    rpc: async (fn: string, a: Record<string, unknown>) => { log.push(`${fn}:${a.p_step}:${a.p_status}${a.p_error ? `:${a.p_error}` : ""}`); return { data: null, error: null }; },
+    rpc: async (fn: string, a: Record<string, unknown>) => {
+      log.push(`${fn}:${a.p_step}:${a.p_status}${a.p_error ? `:${a.p_error}` : ""}`);
+      state.row = { status: a.p_status, error: a.p_error ?? null, updated_at: `t${++state.marks}` };
+      return { data: null, error: null };
+    },
     from: () => {
       const chain: Record<string, unknown> = {};
-      for (const m of ["select", "eq"]) chain[m] = () => chain;
-      chain.maybeSingle = async () => ({ data: prior, error: null });
-      chain.update = (v: Record<string, unknown>) => { log.push(`restore:${v.status}`); return chain; };
-      chain.delete = () => { log.push("delete pending"); return chain; };
-      chain.then = (resolve: (v: unknown) => void) => resolve({ data: null, error: null });
+      // a write applies (and is logged) only if the row matches its status and updated_at filters, as in the database
+      const where: Record<string, unknown> = {}; let write: (() => void) | null = null;
+      chain.select = () => chain;
+      chain.eq = (k: string, v: unknown) => { where[k] = v; return chain; };
+      const matches = () => ["status", "updated_at"].every((k) => !(k in where) || state.row?.[k] === where[k]);
+      chain.maybeSingle = async () => ({ data: state.row, error: null });
+      chain.update = (v: Record<string, unknown>) => { write = () => { log.push(`restore:${v.status}`); state.row = { ...state.row, ...v }; }; return chain; };
+      chain.delete = () => { write = () => { log.push("delete pending"); state.row = null; }; return chain; };
+      chain.then = (resolve: (v: unknown) => void) => { if (write && matches()) write(); resolve({ data: null, error: null }); };
       return chain;
     },
   } as unknown as SupabaseClient;
-  return { admin, log };
+  return { admin, log, state };
 }
+
+Deno.test("trackSetup: an older attempt that ends late never overwrites what a newer attempt recorded", async () => {
+  const refused = trackAdmin({ status: "failed", error: "old" });
+  await assertRejects(() => trackSetup(refused.admin, "setup_save_modules", { businessId: A }, async () => {
+    refused.state.row = { status: "done", error: null, updated_at: "newer" };   // another attempt finished meanwhile
+    throw new InputError("Pick a module", 400);
+  }), InputError);
+  assertEquals(refused.log.includes("restore:failed"), false);
+  const failed = trackAdmin();
+  await assertRejects(() => trackSetup(failed.admin, "setup_save_modules", { businessId: A }, async () => {
+    failed.state.row = { status: "done", error: null, updated_at: "newer" };
+    throw new Error("database down");
+  }), Error, "database down");
+  assertEquals(failed.log, ["zella_track_provisioning:modules:pending"]);
+});
 
 Deno.test("trackSetup: each setup save is recorded pending, then done", async () => {
   for (const [action, step] of [["setup_save_modules", "modules"], ["setup_save_receptionist", "receptionist"], ["setup_save_operations", "operations"], ["setup_save_automations", "automations"]]) {
@@ -420,4 +459,36 @@ Deno.test("export_download: only the requester or an owner, only while ready, li
   assertEquals(((await assertRejects(() => lifecycleHandlers(mk({ ...job, expires_at: new Date(Date.now() - 1000).toISOString() }), { id: A }, kit, "admin-1").handlers.export_download(), InputError)) as InputError).status, 409);
   const h = lifecycleHandlers(mk(job), {}, kit);
   assertEquals(h.audited.export_download(r).action, "export.downloaded");
+});
+
+Deno.test("draftAges with everyDraft also checks drafts the page doesn't show, and alerts an old abandoned one", async () => {
+  const shown = [{ id: B, name: "New Draft", created_at: daysAgo(2), updated_at: daysAgo(1) }];
+  const { admin, alerts } = agesAdmin({ drafts: [shown[0], { id: C, name: "Old Hidden Draft", created_at: daysAgo(90), updated_at: daysAgo(80) }] });
+  const { ages } = await draftAges(admin, shown, NOW, { everyDraft: true });
+  assertEquals([ages.get(B)?.abandoned, ages.get(C)?.abandoned], [false, true]);
+  assertEquals(alerts.map((a) => a.p_business_id), [C]);
+  const plain = agesAdmin({ drafts: [{ id: C, name: "Old Hidden Draft", created_at: daysAgo(90), updated_at: daysAgo(80) }] });
+  assertEquals((await draftAges(plain.admin, shown, NOW)).ages.has(C), false, "without everyDraft only the rows given");
+});
+
+Deno.test("documents_missing reads every business, 1000 at a time, so the oldest is never left out", async () => {
+  const many = Array.from({ length: 1001 }, (_, i) => ({ id: `b${String(i).padStart(5, "0")}`, name: `Business ${i}`, onboarding_status: "owner_setup", is_active: false, created_at: daysAgo(i) }));
+  const pages: number[] = [];
+  const admin = {
+    from: (table: string) => {
+      const chain: Record<string, unknown> = {};
+      for (const m of ["select", "eq", "neq", "in", "is", "order", "limit", "not"]) chain[m] = () => chain;
+      chain.range = async (from: number, to: number) => {
+        if (table === "businesses") pages.push(from);
+        return { data: table === "businesses" ? many.slice(from, to + 1) : [], error: null };
+      };
+      chain.then = (resolve: (v: unknown) => void) => resolve({ data: [], error: null });
+      return chain;
+    },
+    rpc: async () => ({ data: null, error: null }),
+  } as unknown as SupabaseClient;
+  const r = await lifecycleHandlers(admin, {}, kit).handlers.documents_missing() as { rows: { id: string }[] };
+  assertEquals(pages, [0, 1000]);
+  assertEquals(r.rows.length, 1001);
+  assertEquals(r.rows.at(-1)!.id, "b01000");
 });

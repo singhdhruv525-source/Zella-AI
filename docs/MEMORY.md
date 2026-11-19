@@ -295,8 +295,14 @@ most often needed:
   Never in an export: secret tables and columns, recording links, and transcripts in sensitive industries. Default,
   owner can change.
 
-- **Export worker limit (Lane B, 16 Nov 2026):** each worker run has about 2 minutes; a run that runs out hands the job
-  back and the next resumes, but each run counts as one of the 3 tries. A very large business may need the limit raised.
+- **Export worker limit (Lane B, 16 Nov 2026; changed in review 19 Nov 2026):** each worker run has about 2 minutes. A run
+  that runs out pauses the job (zella_export_pause): it saves where it stopped, page by page, and isn't counted as a try,
+  so a large business takes as many runs as it needs; only failures and runs that stop answering count toward the 3.
+  Each export also has its own file list, taken once, so files removed or added later never shift it.
+
+- **Spanish template versions aren't sent yet (Lane B review, 19 Nov 2026):** every sender asks zella_resolve_template
+  for en-US, so a Spanish version made on Messaging, Templates is kept but not used. How a send picks its language (the
+  business's language setting, or Spanish creation held back until then) is waiting on the owner; the page says so.
 
 - **Held emails to businesses (Lane B, 16 Nov 2026):** an email held after 5 tries is released (back to queued, tries
   reset) or discarded by an admin with comms.manage and a reason. A discard ends as `failed`, which only a discard

@@ -91,10 +91,13 @@ function Outbox({ onOpenBusiness }) {
       {missing ? <p className="op-muted">The outbox isn't installed on this database yet (sql/zella_platform_emails.sql).</p> : (
         <>
           <Filters>
-            <Select label="Business" value={f.business} onChange={set("business")} options={(options.data?.businesses ?? []).map((b) => [b.id, b.name])} />
+            <Select label="Business" value={f.business} onChange={set("business")} disabled={!options.data}
+              options={(options.data?.businesses ?? []).map((b) => [b.id, b.name])} />
             <Select label="Status" value={f.status} onChange={set("status")} options={Object.entries(STATUS).map(([k, [l]]) => [k, l])} />
             <Select label="Email" value={f.code} onChange={set("code")} options={EMAILS.map((x) => [x.code, `${x.code} ${x.name}`])} />
           </Filters>
+          {options.loading && <p className="op-muted" role="status">Loading the list of businesses…</p>}
+          {!options.loading && (options.error || !options.data) && <ErrorNote error={options.error || "The list of businesses didn't load, so you can't filter by business yet."} onRetry={options.reload} />}
           <ErrorNote error={log.error} onRetry={log.reload} />
           {!log.loading && !log.error && !log.data ? <p className="op-muted" role="status">The outbox didn't answer with any data. Not available right now.</p> : (
           <DataTable error={log.error} loading={log.loading} rows={log.data?.rows} empty="No emails to businesses yet." onRow={(r) => setOpen(r.id)}

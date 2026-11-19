@@ -29,7 +29,8 @@ export async function handle(req: Request): Promise<Response> {
       },
       async download(bucket, path) {
         const r = await fetch(`${base}/storage/v1/object/${bucket}/${enc(path)}`, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
-        if (!r.ok) { await r.body?.cancel(); return null; }
+        if (r.status === 404 || r.status === 400) { const t = await r.text(); if (r.status === 404 || /not.?found/i.test(t)) return "missing"; throw new Error(`file read failed: ${path}`); }
+        if (!r.ok) { await r.body?.cancel(); throw new Error(`file read failed (${r.status}): ${path}`); }   // try again later, never skipped
         return { body: new Uint8Array(await r.arrayBuffer()), type: r.headers.get("content-type") ?? "application/octet-stream" };
       },
     });

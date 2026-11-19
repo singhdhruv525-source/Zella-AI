@@ -29,6 +29,7 @@ export function NewVersion({ t, industries, onDone, onCancel }) {
       <label className="owner-field"><span>Language</span>
         <select value={locale} onChange={(e) => setLocale(e.target.value)}>{LOCALES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
       </label>
+      {locale !== "en-US" && <p className="op-muted" role="status">Messages are sent in English today: no sender chooses a language yet, so this version is kept but not used until one does (waiting on the owner's decision).</p>}
       {t.channel === "email" && <label className="owner-field"><span>Subject</span><input value={subject} onChange={(e) => setSubject(e.target.value)} /></label>}
       <label className="owner-field"><span>Message</span><textarea rows={6} value={body} maxLength={1600} onChange={(e) => setBody(e.target.value)} /></label>
       {same && <p className="op-muted">Choose an industry or another language: this one is the platform version itself.</p>}

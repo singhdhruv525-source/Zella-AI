@@ -4,11 +4,13 @@
 // (lifecycle.ts DRAFT_DELETE_ROLES) and so does the database.
 export const DRAFT_DELETE_ROLES = ["zella_owner", "super_admin"];
 
-// "Today", "Yesterday" or "12 days ago": how long since a draft last changed (BIZ-13b).
+// "Today", "Yesterday" or "12 days ago": how long since a draft last changed (BIZ-13b), by calendar day in the
+// viewer's time zone (a change at 23:30 is "Yesterday" at 00:30), never by 24 hour blocks.
 export function since(at, now = Date.now()) {
   const t = Date.parse(at ?? "");
   if (!Number.isFinite(t)) return "Not known";
-  const days = Math.floor((now - t) / 86_400_000);
+  const day = (ms) => { const d = new Date(ms); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000; };
+  const days = day(now) - day(t);
   return days <= 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
 }
 

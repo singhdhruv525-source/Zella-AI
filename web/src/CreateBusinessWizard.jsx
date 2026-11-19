@@ -2021,7 +2021,12 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (key === "business") {
       if (!businessId && !createAnyway.current) {
         const found = await callOwnerFunction("setup_check_duplicates", { business: setup.business, creationKey: creationKey.current });
-        if (found.duplicates?.length) {
+        // a check that couldn't run (not installed yet, or no list back) is said so, never taken as "no duplicates"
+        if (found?.checked === false || !Array.isArray(found?.duplicates)) {
+          setDuplicates({ unchecked: true });
+          return false;
+        }
+        if (found.duplicates.length) {
           setDuplicates(found.duplicates);
           return false;   // not saved: the admin chooses Create anyway or changes the details
         }
@@ -2309,18 +2314,27 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
 
       {duplicates && STEPS[step].key === "business" && !businessId && (
         <div className="wiz-unsaved wiz-duplicates" role="alert">
-          <strong>This business may already be on Zella Voice.</strong>
-          <ul>
-            {duplicates.map((d) => (
-              <li key={d.id}>{d.name}: {matchedWords(d.matched)} ({duplicateState(d)})</li>
-            ))}
-          </ul>
-          <p>Check the businesses list before making another one. If this is a different business, create it anyway.</p>
+          {duplicates.unchecked ? (
+            <>
+              <strong>We couldn't check whether this business is already on Zella Voice.</strong>
+              <p>The duplicate check isn't available right now. Check the businesses list yourself before making it, or try again later.</p>
+            </>
+          ) : (
+            <>
+              <strong>This business may already be on Zella Voice.</strong>
+              <ul>
+                {duplicates.map((d) => (
+                  <li key={d.id}>{d.name}: {matchedWords(d.matched)} ({duplicateState(d)})</li>
+                ))}
+              </ul>
+              <p>Check the businesses list before making another one. If this is a different business, create it anyway.</p>
+            </>
+          )}
           <div className="wiz-footer-right">
             <button type="button" className="owner-secondary-button" onClick={() => setDuplicates(null)}>Change details</button>
             <button type="button" className="owner-primary-button" disabled={saving}
               onClick={() => { createAnyway.current = true; run(() => setStep(step + 1)); }}>
-              Create anyway
+              {duplicates.unchecked ? "Create without the check" : "Create anyway"}
             </button>
           </div>
         </div>

@@ -69,6 +69,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   }, [verifying, rejecting, closeDialog]);
 
   const request = useRef(0);
+  const [refreshes, setRefreshes] = useState(0);   // Refresh also reloads the Missing documents list
   const load = useCallback(async () => {
     const id = ++request.current;
     setLoading(true);
@@ -136,7 +137,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
           <p>Documents that prove each business is real and that the person who registered it may act for it.</p>
         </div>
         <div className="op-heading-actions">
-          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
+          <button type="button" className="owner-secondary-button" onClick={() => { setRefreshes((n) => n + 1); load(); }} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
         </div>
       </div>
 
@@ -166,7 +167,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             ))}
           </div>
 
-          {status === "missing" ? <MissingDocuments onOpenBusiness={onOpenBusiness} /> : (
+          {status === "missing" ? <MissingDocuments onOpenBusiness={onOpenBusiness} refreshKey={refreshes} /> : (
           <section className="owner-panel">
             <div className="owner-table-wrap" tabIndex={0}>
               <table className="owner-table">

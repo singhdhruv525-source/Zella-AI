@@ -5,7 +5,7 @@ begin;
 do $$
 begin
   if to_regprocedure('public.zella_admin_contact_lookup(uuid,text,text)') is not null
-     and md5(pg_get_functiondef(to_regprocedure('public.zella_admin_contact_lookup(uuid,text,text)'))) <> '70a1b603668c9ba0dd47290f9be3d97b' then
+     and md5(pg_get_functiondef(to_regprocedure('public.zella_admin_contact_lookup(uuid,text,text)'))) <> '4ea03aaa7e28d16f4dbc2f03e0c56bff' then
     raise exception 'ROLLBACK_DRIFT: public.zella_admin_contact_lookup has changed since this migration';
   end if;
 end $$;

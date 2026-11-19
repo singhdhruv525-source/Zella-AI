@@ -70,9 +70,14 @@ E2=$(held inv2)
 r=$(as $SUP "select public.zella_admin_platform_email_discard('$E2', 'Wrong address, sent by hand')"); [[ "$r" == *NOT_ALLOWED* ]] && ok "support admin without comms.manage can't discard" || bad "support: $r"
 r=$(as $OWN "select public.zella_admin_platform_email_discard('$E2', 'Wrong address, sent by hand') ->> 'status'")
 [ "$r" = "failed" ] && [ "$(q "select last_error from public.platform_emails where id = '$E2'")" = "Discarded by an admin: Wrong address, sent by hand" ] && ok "discard ends the email, with the reason" || bad "discard: $r"
-q "update public.platform_settings set value = 'true' where key = 'email_live'; insert into public.platform_settings (key, value) select 'email_live', 'true' where not exists (select 1 from public.platform_settings where key = 'email_live')" > /dev/null
-n=$(q "select count(*) from public.zella_claim_platform_emails(10) where id = '$E2'"); q "delete from public.platform_settings where key = 'email_live'" > /dev/null
-[ "$n" = "0" ] && [ "$(q "select status from public.platform_emails where id = '$E2'")" = "failed" ] && ok "a discarded email is never claimed, even with email_live on" || bad "discarded claimed: $n"
+# email_live stays off here (no test switches a live flag on): with it off, a queued email would move to test mode, and
+# the discarded one stays failed; and every path of the claim, live or not, only takes queued or sending emails
+n=$(q "select count(*) from public.zella_claim_platform_emails(10) where id = '$E2'")
+claim_def=$(q "select pg_get_functiondef('public.zella_claim_platform_emails(integer)'::regprocedure)")
+[ "$n" = "0" ] && [ "$(q "select status from public.platform_emails where id = '$E2'")" = "failed" ] \
+  && [ "$(grep -c "status in ('queued', 'sending')" <<< "$claim_def")" -ge 2 ] && ! grep -q "'failed'" <<< "$claim_def" \
+  && [ "$(q "select coalesce((select value::text from public.platform_settings where key = 'email_live'), 'unset')")" != "true" ] \
+  && ok "a discarded email is never claimed (the claim only takes queued or sending emails), with email_live left off" || bad "discarded claimed: $n"
 [ "$(q "select count(*) from public.platform_alerts where kind = 'platform_email_held' and status = 'open'")" = "0" ] && ok "discard closes its held alert" || bad "alert after discard"
 [ "$(q "select count(*) from public.audit_logs where action = 'comms.platform_email_discarded' and entity_id = '$E2'")" = "1" ] && ok "discard is audited" || bad "discard audit"
 out=$(as $OWN "select public.zella_admin_platform_email_discard('$E2', 'again')"); [[ "$out" == *NOT_HELD* ]] && ok "only a held email can be discarded" || bad "discard not held: $out"

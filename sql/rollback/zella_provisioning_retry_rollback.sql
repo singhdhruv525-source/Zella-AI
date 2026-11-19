@@ -8,7 +8,7 @@ declare f record;
 begin
   for f in select * from (values
       ('public.zella_retry_provisioning(uuid,text,uuid)', 'b5b05c27d48b7c001a8f6b453c484b78'),
-      ('public.zella_retry_provisioning_due()', 'f608e26c9df1d31cccd43c638fa8d26b')) as t(sig, want) loop
+      ('public.zella_retry_provisioning_due()', '654dbd4bd7d3e4d25e978355f82d0aad')) as t(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(to_regprocedure(f.sig))) <> f.want then
       raise exception 'ROLLBACK_DRIFT: % has changed since this migration', f.sig;
     end if;

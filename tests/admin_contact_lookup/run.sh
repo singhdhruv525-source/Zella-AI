@@ -57,6 +57,11 @@ for args in "'$B', '778', 'x reason'|QUERY_TOO_SHORT" "'$B', 'casey', 'x reason'
   IFS='|' read -r a want <<< "$args"; out=$(as $OWN "select public.zella_admin_contact_lookup($a)"); [[ "$out" == *"$want"* ]] || bad "should refuse $want: $out"
 done; ok "short or partial queries, a missing business and a missing reason are refused"
 [ "$(q "select count(*) from public.audit_logs where action = 'comms.contact_lookup' and user_id = '$OWN'")" = "3" ] && [ "$(q "select string_agg(distinct new_data ->> 'query', ',') from public.audit_logs where action = 'comms.contact_lookup'")" = "c…@example.org,…7788" ] && ok "each lookup is audited with the masked query only" || bad "audit: $(q "select string_agg(new_data::text, ' ') from public.audit_logs where action = 'comms.contact_lookup'")"
+# a second contact of the same business whose number ends the same way: its opt in never hides the first one's opt out
+q "insert into public.contact_consents (business_id, phone_digits, channel, purpose, status, source, recorded_at) values ('$B', '15559997788', 'sms', 'marketing', 'opted_in', 'web_form', now())" > /dev/null
+r2=$(as $OWN "select public.zella_admin_contact_lookup('$B', '7788', 'Two contacts check')")
+[ "$(q "select string_agg((c ->> 'contact') || ':' || (c ->> 'status'), '+' order by c ->> 'contact') from jsonb_array_elements('$r2'::jsonb -> 'consents') c")" = "…7788, contact 1:opted_out+…7788, contact 2:opted_in" ] && ok "two matching contacts: each keeps its own latest consent, told apart" || bad "two contacts: $(q "select '$r2'::jsonb -> 'consents'")"
+q "delete from public.contact_consents where phone_digits = '15559997788'" > /dev/null
 for who in "$RO" "$BO"; do out=$(as $who "select public.zella_admin_contact_lookup('$B', '7788', 'x reason')"); [[ "$out" == *NOT_ALLOWED* ]] || bad "allowed for $who: $out"; done
 out=$("${P[@]}" -d $DB -c "begin; set local role anon; select public.zella_admin_contact_lookup('$B', '7788', 'x reason'); commit;" 2>&1); [[ "$out" == *"permission denied"* ]] || bad "anon: $out"
 ok "a role without comms.manage, a business owner and anonymous are refused"

@@ -27,7 +27,7 @@ begin
   end if;
   for f in select * from (values
       ('public.zella_retry_provisioning(uuid,text,uuid)', 'b5b05c27d48b7c001a8f6b453c484b78'),
-      ('public.zella_retry_provisioning_due()', 'f608e26c9df1d31cccd43c638fa8d26b')) as t(sig, want) loop
+      ('public.zella_retry_provisioning_due()', '654dbd4bd7d3e4d25e978355f82d0aad')) as t(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(to_regprocedure(f.sig))) <> f.want then
       raise exception 'VERSION_MISMATCH: % is not a version this file was written for', f.sig;
     end if;
@@ -85,12 +85,16 @@ CREATE OR REPLACE FUNCTION public.zella_retry_provisioning_due()
 AS $function$
 declare s record; n integer := 0;
 begin
+  -- The same lock order as a retry by hand (zella_retry_provisioning): the business row first, then its step row, each
+  -- skipped if someone else holds it, so the timer and a person retrying at once never deadlock.
   for s in select p.business_id, p.step from provisioning_steps p join businesses b on b.id = p.business_id
             where p.status = 'failed' and p.step in ('modules', 'receptionist', 'automations') and p.updated_at < now() - interval '1 hour'
               and b.cancelled_at is null
               and (select count(*) from audit_logs a where a.business_id = p.business_id and a.action = 'provisioning.step_retried'
-                     and a.user_id is null and a.new_data ->> 'step' = p.step) < 3
-            for update of p skip locked loop
+                     and a.user_id is null and a.new_data ->> 'step' = p.step) < 3 loop
+    continue when not exists (select 1 from (select 1 from businesses where id = s.business_id and cancelled_at is null for update skip locked) x);
+    continue when not exists (select 1 from (select 1 from provisioning_steps where business_id = s.business_id and step = s.step and status = 'failed'
+                                              for update skip locked) y);
     perform zella_retry_provisioning(s.business_id, s.step, null);
     n := n + 1;
   end loop;

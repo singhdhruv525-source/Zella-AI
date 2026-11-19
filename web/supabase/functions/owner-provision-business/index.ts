@@ -3568,7 +3568,8 @@ Deno.serve(withCors(async (req: Request) => {
     };
 
     const extra = settingsHandlers(adminClient, fields, { userId: user.id, role, aal, mfa: hasMfa },
-      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE, draftAges });
+      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE,
+        draftAges: (a: SupabaseClient, rows: { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]) => draftAges(a, rows, Date.now(), { everyDraft: true }) });
     const onboarding = onboardingHandlers(adminClient, fields, user.id, {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });

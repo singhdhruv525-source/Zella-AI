@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, Field, LoadState, Pill, Table, useAsync, when } from "../SettingsKit";
@@ -21,6 +21,16 @@ export default function BusinessExport({ me }) {
   const [links, setLinks] = useState(null);
   const manage = Boolean(me?.permissions?.includes("businesses.manage"));
   const done = (text) => { setNotice({ text, error: "" }); state.reload(); };
+  // the worker changes jobs in the background: while one is waiting or running, look again every 30 seconds
+  const open = (state.data?.jobs ?? []).some((j) => ["requested", "approved", "running"].includes(j.status));
+  useEffect(() => {
+    if (!open) return undefined;
+    const t = setInterval(() => { if (document.visibilityState === "visible") state.reload(); }, 30000);
+    return () => clearInterval(t);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the business search: loading and failure are shown, and a failed or stale list can't be picked from
+  const searchProblem = found.error ? `The business search didn't answer: ${found.error}` : "";
+  const searchReady = !found.loading && !found.error && Array.isArray(found.data?.rows);
   const oops = (err) => setNotice({ text: "", error: err.message });
   async function download(j) {
     try { const r = await call("export_download", { id: j.id }); setLinks({ name: j.business_name, ...r }); }
@@ -35,13 +45,15 @@ export default function BusinessExport({ me }) {
           {manage && (<>
             <div className="zs-grid">
               <Field label="Find a business"><input type="search" aria-label="Find a business" placeholder="Business name" value={q} onChange={(e) => { setQ(e.target.value); setBusiness(""); }} /></Field>
-              <Field label="Business to export"><select aria-label="Business to export" value={business} onChange={(e) => setBusiness(e.target.value)}>
-                <option value="">Choose a business</option>
+              <Field label="Business to export"><select aria-label="Business to export" value={business} disabled={!searchReady} onChange={(e) => setBusiness(e.target.value)}>
+                <option value="">{found.loading ? "Searching…" : searchProblem ? "Search unavailable" : "Choose a business"}</option>
                 {(found.data?.rows ?? []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select></Field>
             </div>
+            {searchProblem && <Banner tone="error">{searchProblem} <button type="button" className="zs-btn sm" onClick={found.reload}>Try again</button></Banner>}
             <div className="zs-actions">
-              <button type="button" className="zs-btn" disabled={!business} onClick={() => setAsking(true)}>Request export</button>
+              <button type="button" className="zs-btn" disabled={!business || !searchReady} onClick={() => setAsking(true)}>Request export</button>
+              <button type="button" className="zs-btn ghost" disabled={state.loading} onClick={state.reload}>{state.loading ? "Checking…" : "Refresh"}</button>
             </div>
           </>)}
           <Table rows={s.jobs} empty="No exports yet." columns={[

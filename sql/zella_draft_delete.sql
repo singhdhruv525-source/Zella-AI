@@ -44,21 +44,24 @@ begin
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
   if to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)') is not null
-     and md5(pg_get_functiondef(to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)'))) <> 'd6bedb36457b54e476f5a0f214f2abc3' then
+     and md5(pg_get_functiondef(to_regprocedure('public.zella_delete_draft_business(uuid,uuid,text,text)'))) <> 'f41314ca882166483c8e1d8f8cbc6bae' then
     raise exception 'VERSION_MISMATCH: zella_delete_draft_business is not a version this file was written for';
   end if;
   -- the audit foreign key must be exactly production's CASCADE (or this file's SET NULL when it is already applied)
   select confdeltype into f from pg_constraint where conrelid = 'public.audit_logs'::regclass and conname = 'audit_logs_business_id_fkey'
      and pg_get_constraintdef(oid) in ('FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE',
-                                       'FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL');
+                                       'FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL',
+                                       'FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE SET NULL NOT VALID');
   if f is null or f.confdeltype::text <> (case when v_applied then 'n' else 'c' end) then
     raise exception 'VERSION_MISMATCH: audit_logs_business_id_fkey is not a version this file was written for';
   end if;
 end $$;
 
+-- Added NOT VALID, so this transaction doesn't scan the whole audit history while it holds the table's lock; existing
+-- rows are checked after the commit (VALIDATE CONSTRAINT, at the end of this file), which doesn't block audit writes.
 alter table public.audit_logs drop constraint audit_logs_business_id_fkey;
 alter table public.audit_logs add constraint audit_logs_business_id_fkey
-  foreign key (business_id) references public.businesses(id) on delete set null;
+  foreign key (business_id) references public.businesses(id) on delete set null not valid;
 
 CREATE OR REPLACE FUNCTION public.zella_audit_privileged()
  RETURNS trigger
@@ -114,6 +117,16 @@ begin
   if not exists (select 1 from platform_admins where user_id = p_actor and is_active and role in ('zella_owner', 'super_admin')) then
     raise exception 'NOT_ALLOWED';
   end if;
+  -- The business's members and invitations are locked first, without waiting (NOWAIT): an owner accepting their
+  -- invitation (zella_accept_my_invitations, zella_accept_staff_invitations_v2) holds or takes those rows, so an
+  -- acceptance either finished before (and the checks below see it) or waits for this delete. NOWAIT means this never
+  -- waits in a different order from them (no deadlock): while one is in progress the answer is BUSY, try again.
+  begin
+    perform 1 from business_members where business_id = p_business_id for update nowait;
+    perform 1 from business_invitations where business_id = p_business_id for update nowait;
+  exception when lock_not_available then
+    raise exception 'BUSY: an invitation for this business is being accepted right now';
+  end;
   select * into b from businesses where id = p_business_id for update;
   if b.id is null then raise exception 'NOT_FOUND'; end if;
   if lower(trim(coalesce(p_confirm_name, ''))) <> lower(trim(b.name)) then raise exception 'NAME_MISMATCH'; end if;
@@ -160,3 +173,7 @@ revoke all on function public.zella_delete_draft_business(uuid, uuid, text, text
 grant execute on function public.zella_delete_draft_business(uuid, uuid, text, text) to service_role;
 
 commit;
+
+-- After the commit: check the audit rows already there against the new foreign key (this takes a lock that lets audit
+-- reads and writes go on). Safe to run again.
+alter table public.audit_logs validate constraint audit_logs_business_id_fkey;
