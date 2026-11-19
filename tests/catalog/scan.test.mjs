@@ -346,3 +346,10 @@ test("edge function alert kinds: a payload passed by name, computed and shorthan
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...base, p_title: "x" });`), ["?"]);
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_title: "x" });`), ["?"]);
 });
+
+test("edge function alert kinds: the last p_kind wins; a spread after it is unresolved, one before it isn't", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ...payload });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...payload, p_kind: "known_alert" });`), ["known_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "first_alert", p_kind: "second_alert" });`), ["second_alert"]);
+});
