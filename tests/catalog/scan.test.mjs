@@ -366,3 +366,12 @@ test("edge function alert kinds: a known computed key that isn't p_kind keeps th
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_kind"]: "later_alert" });`), ["later_alert"]);
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "x" });`), ["?"]);
 });
+
+test("edge function alert kinds: an escaped computed key may be p_kind, so the kind is unresolved", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  // the key is written with an escape: p_kin then backslash u0064 (a "d")
+  const escaped = 'admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_kin' + "\\" + 'u0064"]: "new_alert" });';
+  assert.ok(escaped.includes("\\u0064"), escaped);
+  assert.deepEqual(kinds(escaped), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_title"]: "x" });`), ["known_alert"]);
+});
