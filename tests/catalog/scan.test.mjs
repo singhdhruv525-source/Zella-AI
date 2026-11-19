@@ -353,3 +353,9 @@ test("edge function alert kinds: the last p_kind wins; a spread after it is unre
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...payload, p_kind: "known_alert" });`), ["known_alert"]);
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "first_alert", p_kind: "second_alert" });`), ["second_alert"]);
 });
+
+test("edge function alert kinds: a computed key that may be p_kind leaves it unresolved until a later p_kind", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "new_alert" });`), ["?"]);
+  assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { [key]: "new_alert", p_kind: "known_alert" });`), ["known_alert"]);
+});

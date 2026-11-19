@@ -717,7 +717,11 @@ export function tsAlertKinds(raw) {
       else if (c === "}" || c === ")" || c === "]") { depth--; if (depth === 0) break; }
       if (depth !== 1 || (c !== "{" && c !== ",")) continue;
       const rest = src.slice(i + 1);
-      if (/^\s*\.\.\./.test(rest) || /^\s*p_kind\s*[,}]/.test(rest)) { kind = { names: [], loose: true, line: lineAt(src, i + 1) }; continue; }
+      // a spread, a shorthand p_kind, or a computed key that isn't the string "p_kind" may set the kind: unresolved until
+      // a later explicit p_kind
+      if (/^\s*\.\.\./.test(rest) || /^\s*p_kind\s*[,}]/.test(rest) || (/^\s*\[/.test(rest) && !/^\s*\[\s*(["'])p_kind\1\s*\]/.test(rest))) {
+        kind = { names: [], loose: true, line: lineAt(src, i + 1) }; continue;
+      }
       const key = /\s*(?:(["'])(p_kind)\1|(p_kind)\b|\[\s*(["'])p_kind\4\s*\])\s*:\s*/y;
       key.lastIndex = i + 1;
       const hit = key.exec(src);
