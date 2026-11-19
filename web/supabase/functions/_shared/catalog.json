@@ -350,6 +350,7 @@
     "usage_missing_duration": "Usage missing duration",
     "usage_processing_failed": "Usage processing failed",
     "website_page_broken": "Website page broken",
+    "weekly_report": "Weekly platform report ready",
     "workflow_failed": "Automation failed"
   },
   "alert_kind_prefixes": [
@@ -370,6 +371,7 @@
     "legal.manage": "Draft, review and publish legal documents",
     "plans.manage": "Create and edit plans and allowances",
     "platform.configure": "Platform profile, branding, maintenance and preferences",
+    "reports.view": "Read the weekly platform report",
     "roles.manage": "Change what each restricted role may do (Zella Voice owner only)",
     "security.manage": "Security settings",
     "security.view": "Security overview, admins and sessions",
