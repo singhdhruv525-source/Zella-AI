@@ -27,7 +27,8 @@ async function context(browser, width, height = 900) {
     const req = route.request(); const url = new URL(req.url());
     if (url.hostname !== "zlocal.supabase.co") return ["localhost", "127.0.0.1", "fonts.googleapis.com", "fonts.gstatic.com"].includes(url.hostname) ? route.continue() : route.fulfill({ status: 200, body: "" });
     const target = new URL(BACKEND); target.pathname = url.pathname; target.search = url.search;
-    const r = await fetch(target.href, { method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer() });
+    // redirect: "error": the stand in never redirects, so a redirect is refused rather than followed elsewhere
+    const r = await fetch(target.href, { method: req.method(), headers: req.headers(), body: ["GET", "HEAD"].includes(req.method()) ? undefined : req.postDataBuffer(), redirect: "error" });
     await route.fulfill({ status: r.status, headers: Object.fromEntries(r.headers.entries()), body: Buffer.from(await r.arrayBuffer()) });
   });
   return ctx;
@@ -52,21 +53,42 @@ async function signIn(p, email, root = /@zella\.test$|@lanea\.test$/.test(email)
   await p.waitForLoadState("networkidle").catch(() => {});
 }
 
-// The stand in's access token for a person, for calling the function directly.
-async function token(email) {
-  const r = await fetch(BACKEND + "/auth/v1/token?grant_type=password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: PASSWORD }) });
-  return (await r.json()).access_token;
+// The stand in's session for a person (access and refresh token), for calling the function directly. A failed sign in
+// stops the journey: it never carries on as if anonymous.
+async function signInApi(email) {
+  const r = await fetch(BACKEND + "/auth/v1/token?grant_type=password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: PASSWORD }), redirect: "error" });
+  const s = await r.json().catch(() => ({}));
+  if (!r.ok || typeof s.access_token !== "string" || !s.access_token) throw new Error(`test sign in failed for ${email} (${r.status})`);
+  return s;
 }
+async function token(email) { return (await signInApi(email)).access_token; }
 // A token with a code entered just now (the stand in's /factors/<id>/verify with 123456), for fresh code actions.
 async function freshToken(email) {
   const tok = await token(email);
   const id = sql(`select f.id from auth.mfa_factors f join auth.users u on u.id = f.user_id where u.email = '${email}' and f.status = 'verified' limit 1`);
-  const r = await fetch(`${BACKEND}/auth/v1/factors/${id}/verify`, { method: "POST", headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify({ code: "123456", challenge_id: "c" }) });
-  return (await r.json()).access_token;
+  const r = await fetch(`${BACKEND}/auth/v1/factors/${id}/verify`, { method: "POST", headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: JSON.stringify({ code: "123456", challenge_id: "c" }), redirect: "error" });
+  const s = await r.json().catch(() => ({}));
+  if (!r.ok || typeof s.access_token !== "string" || !s.access_token) throw new Error(`test code check failed for ${email} (${r.status})`);
+  return s.access_token;
 }
+// A refresh with the stand in, as the app does: { status, body }.
+async function refresh(refreshToken) {
+  const r = await fetch(BACKEND + "/auth/v1/token?grant_type=refresh_token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ refresh_token: refreshToken }), redirect: "error" });
+  return { status: r.status, body: await r.json().catch(() => ({})) };
+}
+// The session id in the page's own access token (the app keeps the session in localStorage).
+async function pageSessionId(p) {
+  return p.evaluate(() => {
+    const key = Object.keys(localStorage).find((k) => /^sb-.*-auth-token$/.test(k));
+    const t = key && JSON.parse(localStorage.getItem(key))?.access_token;
+    return t ? JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).session_id ?? null : null;
+  });
+}
+// fn(null, ...) is an explicit anonymous call; any other token must be a real one
 async function fn(tok, body, extra = {}) {
+  if (tok !== null && (typeof tok !== "string" || !tok)) throw new Error("fn: no token (a failed test sign in?)");
   const headers = { "content-type": "application/json", ...(tok ? { authorization: `Bearer ${tok}` } : {}), ...extra };
-  const r = await fetch(BACKEND + "/functions/v1/owner-provision-business", { method: "POST", headers, body: JSON.stringify(body) });
+  const r = await fetch(BACKEND + "/functions/v1/owner-provision-business", { method: "POST", headers, body: JSON.stringify(body), redirect: "error" });
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }
 
@@ -80,4 +102,4 @@ async function freshCode(p, code = "123456") {
   return true;
 }
 
-module.exports = { freshCode, freshToken,  chromium, APP, BACKEND, DB, guard, sql, check, failures, context, page, signIn, token, fn };
+module.exports = { freshCode, freshToken, chromium, APP, BACKEND, DB, guard, sql, check, failures, context, page, signIn, signInApi, token, refresh, pageSessionId, fn };

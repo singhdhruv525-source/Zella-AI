@@ -229,7 +229,7 @@ async function sweep(browser, name, email) {
       if (MOBILE) await page.keyboard.press("Escape").catch(() => {});
       if (ONLY && !key.includes(ONLY)) continue;
       const info = await inspect(page, vw.width);
-      const axe = AXE ? await runAxe(page, AXE) : "skipped";
+      const axe = NO_AXE ? "skipped" : await runAxe(page, AXE);   // only --no-axe skips; anything else is scanned or reported
       const shot = path.join(dir, (key.replace(UUID, "id").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "root") + ".png");
       await page.screenshot({ path: shot }).catch(() => {});
       const row = { route: key, ...info, stuck, pageErrors: [...pageErrors], failed: [...failed], consoleErrors: [...new Set(consoleErrors)].slice(0, 5), axe, shot };

@@ -24,7 +24,7 @@ async function runAxe(page, source) {
   await page.addScriptTag({ content: source }).catch(() => {});
   return page.evaluate(async () => {
     if (!window.axe) return [{ id: "axe-failed", impact: "critical", n: 1, sample: ["axe did not load on this page"] }];
-    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] }, resultTypes: ["violations"] });
+    const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] });
     return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => ({ id: v.id, impact: v.impact, n: v.nodes.length,
       sample: v.nodes.slice(0, 2).map((n) => `${n.target.join(" ")} :: ${(n.failureSummary ?? "").split("\n").slice(-1)[0].slice(0, 120)}`) }));
   }).catch((e) => [{ id: "axe-failed", impact: "critical", n: 1, sample: [String(e?.message ?? e).slice(0, 200)] }]);

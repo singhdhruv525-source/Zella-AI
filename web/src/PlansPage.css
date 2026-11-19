@@ -1,0 +1,210 @@
+/* Plans and subscriptions page (PlansPage.jsx). Page scoped: every rule starts with .pp-page or .pp-drawer.
+   Colours, sizes and spacing come from the tokens in styles/tokens.css. */
+
+.pp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.pp-page .empty-value,
+.pp-drawer .empty-value {
+  color: var(--zella-text-faint);
+  font-weight: 400;
+}
+
+.pp-nowrap { white-space: nowrap; }
+.pp-tabular { font-variant-numeric: tabular-nums; }
+
+/* Header actions: "Updated 2:44 PM" then Refresh */
+.pp-heading-actions { align-items: center; gap: var(--zella-space-3); }
+.pp-updated { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); white-space: nowrap; }
+.pp-page .pp-refresh { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
+
+/* Small buttons in the table, at one height */
+.pp-page .owner-secondary-button.sm {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 var(--zella-space-3);
+  font-size: var(--zella-text-sm);
+  white-space: nowrap;
+}
+
+/* Business plans table: every row has the same shape */
+.pp-page .pp-table td {
+  padding: 10px var(--zella-space-4);
+  vertical-align: middle;
+}
+
+.pp-table th.num,
+.pp-table td.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-table th.col-actions,
+.pp-table td.col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.pp-table .op-pill { white-space: nowrap; }
+
+.pp-name {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-phone-line { display: none; }
+
+/* Plan drawer */
+.pp-drawer {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.pp-drawer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--zella-space-3);
+  padding: var(--zella-space-5) var(--zella-space-5) var(--zella-space-3);
+}
+
+.pp-drawer-titles { flex: 1; min-width: 0; }
+
+.pp-drawer-eyebrow {
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  font-weight: 500;
+}
+
+.pp-drawer .pp-drawer-title {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--zella-text);
+  font-family: var(--zella-font);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: var(--zella-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-drawer-body {
+  flex: 1;
+  padding: 0 var(--zella-space-5) var(--zella-space-5);
+}
+
+.pp-drawer .ao-facts > div {
+  grid-template-columns: minmax(140px, 40%) 1fr;
+  column-gap: var(--zella-space-4);
+}
+
+.pp-drawer .ao-facts dt { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.pp-drawer .ao-facts dd { color: var(--zella-text); font-size: var(--zella-text-base); font-weight: 500; }
+
+.pp-drawer .drawer-section h3 {
+  margin: var(--zella-space-5) 0 var(--zella-space-2);
+  color: var(--zella-text);
+  font-family: var(--zella-font);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.pp-drawer-note { margin: 0 0 var(--zella-space-1); font-size: var(--zella-text-sm); }
+
+.pp-versions-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--zella-border);
+  border-radius: var(--zella-radius-md);
+}
+
+.pp-drawer .pp-versions { width: 100%; min-width: 0; border-collapse: collapse; }
+.pp-drawer .pp-versions th,
+.pp-drawer .pp-versions td { padding: 8px var(--zella-space-3); }
+.pp-versions tbody tr:last-child td { border-bottom: 0; }
+.pp-versions th.num,
+.pp-versions td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.pp-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--zella-space-2);
+  margin-top: var(--zella-space-5);
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border: 1px solid var(--zella-info-border);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-info-bg);
+  color: var(--zella-text-2);
+  font-size: var(--zella-text-sm);
+}
+
+.pp-banner .ba-icon { flex: none; color: var(--zella-info); font-size: 20px; }
+.pp-banner p { margin: 0; font-weight: 400; line-height: var(--zella-leading); }
+.pp-banner strong { color: var(--zella-info); font-weight: 600; }
+
+.pp-drawer .pp-drawer-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--zella-space-2);
+  padding: var(--zella-space-3) var(--zella-space-5);
+  border-top: 1px solid var(--zella-border);
+  background: var(--zella-card);
+}
+
+/* Phones: the plans table becomes one card per business */
+@media (max-width: 600px) {
+  .pp-table { min-width: 0; width: 100%; }
+  .pp-table thead { display: none; }
+
+  .pp-table tbody tr:not(.pp-empty-row) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px var(--zella-space-3);
+    align-items: center;
+    padding: var(--zella-space-3) var(--zella-space-4);
+    border-bottom: 1px solid var(--zella-border);
+  }
+
+  .pp-table tbody tr:not(.pp-empty-row) td { padding: 0; border: 0; }
+  .pp-table td[data-label="Plan"],
+  .pp-table td[data-label="Price"],
+  .pp-table td[data-label="Allowances"] { display: none; }
+
+  .pp-table td.pp-business { grid-column: 1; grid-row: 1; min-width: 0; }
+  .pp-table td.col-actions { grid-column: 2; grid-row: 1 / span 2; width: auto; }
+  .pp-table td.pp-sub { grid-column: 1; grid-row: 2; }
+
+  .pp-name { max-width: 100%; }
+
+  .pp-phone-line {
+    display: block;
+    overflow: hidden;
+    color: var(--zella-text-secondary);
+    font-size: var(--zella-text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pp-heading-actions { flex-wrap: nowrap; }
+
+  .pp-drawer .ao-facts > div { grid-template-columns: minmax(120px, 45%) 1fr; }
+  .pp-drawer-head { padding: var(--zella-space-4) var(--zella-space-4) var(--zella-space-3); }
+  .pp-drawer-body { padding: 0 var(--zella-space-4) var(--zella-space-4); }
+  .pp-drawer .pp-drawer-foot { padding: var(--zella-space-3) var(--zella-space-4); }
+  .pp-drawer .pp-versions th,
+  .pp-drawer .pp-versions td { padding: 8px var(--zella-space-2); font-size: var(--zella-text-xs); }
+}

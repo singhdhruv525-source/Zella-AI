@@ -194,3 +194,115 @@ test("review fixes 3: a PascalCase value in an object literal is a value, not a 
   assert.deepEqual(names(tsAuditActions(`interface I { action: Foo; } const f = (p: { action: Foo }) => p; const x: { action: Foo } = y;`)), []);
   assert.deepEqual(names(tsAuditActions(`const g = async (n: number, action: Foo): Promise<void> => {}; function h(): { action: Foo } { return y; }`)), []);
 });
+
+test("review fixes 4: whole case arms, the outer select list, quoted keys, audit queries only, alert objects of any length", () => {
+  // a case arm joined to a column: its known start, not just the first token
+  assert.deepEqual(names(sqlExprNames(`case when x then 'attendance.' || new_status else 'attendance.none' end`)), ["attendance.*", "attendance.none"]);
+  // a from inside brackets doesn't end the select list, so the action after it is still read
+  assert.deepEqual(names(sqlAuditActions(`insert into audit_logs (entity_id, action) select (select id from t limit 1), 'a.after' from x;`)), ["a.after"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { "action": "plan.quoted" }; const f = { 'action': "plan.single" };`)), ["plan.quoted", "plan.single"]);
+  // an action filter on another table is not an audit read
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").select("id").eq("action", "a.read"); admin.from("jobs").select("id").eq("action", "not.audit");`)), ["a.read"]);
+  const title = "x".repeat(300);
+  assert.deepEqual(names(n8nAlertKinds(`await run("zella_platform_alert", { p_title: "${title}", p_detail: "${title}", p_kind: "long_kind" });
+    await run("zella_resolve_platform_alerts", { p_kind: "resolved_kind" }); const other = { p_kind: "not_an_alert" };`)), ["long_kind"]);
+});
+
+test("review fixes 4: drift check uses own catalog entries, refuses run time permissions, reads single quoted label keys", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  const cat = { audit_actions: { "a.one": "One" }, alert_kinds: {}, permissions: {}, owner_only_permissions: [] };
+  const p = check([{ kind: "audit", name: "a.one", where: "x:1" }, { kind: "audit", name: "constructor", where: "y:2" },
+    { kind: "permission", name: "billing.", prefix: true, where: "z:3" }], cat, { webLabels: ["toString", "a.one"] });
+  assert.ok(p.some((x) => x.includes('"constructor" is not in audit_actions')), p.join("\n"));
+  assert.ok(p.some((x) => x.includes("builds a permission")), p.join("\n"));
+  assert.ok(p.some((x) => x.includes('"toString" is not an audit action')), p.join("\n"));
+  assert.deepEqual(labelKeys(`\n  "a.one": "One",\n  'a.stale': "Stale",\n  "a.mixed': "x",\n`), ["a.one", "a.stale"]);
+});
+
+test("review fixes 5: quoted names, query receivers, quoted alert keys, computed label keys", async () => {
+  // a "from" or "end" used as a quoted column name doesn't end the select list or a case
+  assert.deepEqual(names(sqlAuditActions(`insert into audit_logs (x, action) select "from", 'a.after' from t;`)), ["a.after"]);
+  assert.deepEqual(names(sqlExprNames(`case when "end" = 1 then 'a.one' else 'a.two' end`)), ["a.one", "a.two"]);
+  // the receiver decides: a chain, a name bound to a query, and one that can't be told
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs").select("id"); q = q.order("x"); q = q.eq("action", "a.bound");`)), ["a.bound"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("jobs").select("id"); q = q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`function f(query) { return query.eq("action", "a.unknown"); }`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(n8nAlertKinds(`return { json: { "alert": { p_kind: "quoted_kind", p_title: "x" } } };`)), ["quoted_kind"]);
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  ["gone.label"]: "Gone",\n  [dynamic]: "x",\n  "a.one": "One",\n`), ["gone.label", "a.one"]);
+});
+
+
+test("review fixes 6: dollar quotes, filter calls only, branch assignments, alert keys past comments, label keys anywhere", async () => {
+  // double quotes inside a dollar quoted string are text, not a quoted name
+  assert.deepEqual(names(sqlExprNames(`case when note = $msg$"\\""$msg$ then 'a.new' else 'a.old' end`)), ["a.new", "a.old"]);
+  // a LIKE pattern that isn't in a filter call is not a query; one in a filter call on an unknown receiver still is
+  assert.deepEqual(tsAuditReads(`const example = "action.like.demo.%";`), []);
+  assert.deepEqual(names(tsAuditReads(`function f(query) { return query.or("action.like.demo.%"); }`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").select("id").or("action.like.a.pre.%")`)), ["a.pre.*"]);
+  // an assignment in a branch can reach the filter: audit_logs if any can, ignored only when all are other tables
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (useJobs) q = admin.from("jobs"); q.eq("action", "a.branch");`)), ["a.branch"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("jobs"); if (x) q = admin.from("tasks"); q.eq("action", "not.audit");`)), []);
+  // a long comment between alert: and the object
+  assert.deepEqual(names(n8nAlertKinds(`const x = { alert: /* ${"a long note ".repeat(12)} */ { p_kind: "new_kind" } };`)), ["new_kind"]);
+  // several static keys on one line, and none from a block comment
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  ["a.one"]: "One", ["gone.label"]: "Gone",\n  /*\n  ["c.comment"]: "C",\n  */\n  "b.x": f("a, b", { "in.side": 1 }),\n`), ["a.one", "gone.label", "b.x"]);
+});
+
+test("review fixes 7: regex values, any dollar tag, nested filter arguments, conditional and overwritten queries, RPC calls only", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": /[(]/.source, "gone.label": "Gone",\n  "b.two": x / 2, "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  // dollar quote tags in any language, of any length
+  assert.deepEqual(names(sqlExprNames(`case when note = $réponse$"$réponse$ then 'a.new' else 'a.old' end`)), ["a.new", "a.old"]);
+  const tag = "$" + "t".repeat(80) + "$";
+  assert.deepEqual(names(sqlExprNames("case when note = " + tag + '"' + tag + " then 'a.new' else 'a.old' end")), ["a.new", "a.old"]);
+  // a pattern inside an argument expression of .or(...)
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").or(["action.like.a.new.%"].join(","))`)), ["a.new.*"]);
+  // both arms of a conditional assignment; an overwritten binding doesn't reach the call
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : admin.from("audit_logs"); q.eq("action", "a.cond");`)), ["a.cond"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); q = admin.from("jobs"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (x) { q = admin.from("jobs"); } q.eq("action", "a.maybe");`)), ["a.maybe"]);
+  // an RPC name in an array is not a call
+  assert.deepEqual(names(n8nAlertKinds(`const x = ["zella_platform_alert", /* note */ { p_kind: "sample_kind" }];`)), []);
+  assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", /* note */ { p_kind: "real_kind" });`)), ["real_kind"]);
+});
+
+test("review fixes 8: division after an object, comments before a filter call, property writes, unknown arms, bracketed bodies, keywords", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": { valueOf() { return 6; } } / 2, "gone.label": "Gone",\n  "b.re": /[(]/.source, "c.three": "C",\n`), ["a.one", "gone.label", "b.re", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").or ${" ".repeat(40)} ("action.like.a.missing.%")`)), ["a.missing.*"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); state.q = admin.from("jobs"); q.eq("action", "a.prop");`)), ["a.prop"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : fallback; q.eq("action", "a.arm");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (useJobs) (q = admin.from("jobs")); q.eq("action", "a.paren");`)), ["a.paren"]);
+  assert.deepEqual(names(n8nAlertKinds(`function f() { return ("zella_platform_alert", { p_kind: "sample_kind" }); }`)), []);
+  assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", { p_kind: "real_kind" });`)), ["real_kind"]);
+});
+
+test("review fixes 9: a regex after a block, a wrapped conditional", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": (() => { if (false) {} /[(]/.test("x"); return "One"; })(), "gone.label": "Gone",\n  "b.two": { valueOf() { return 6; } } / 2, "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : fallback); q.eq("action", "a.wrapped");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : admin.from("tasks")); q.eq("action", "not.audit");`)), []);
+});
+
+test("review fixes 10: division after a function value, nested conditional arms", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": function () {} / 2, "gone.label": "Gone",\n  "b.two": (() => { if (false) {} /[(]/.test("x"); return "B"; })(), "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : (useTasks ? admin.from("tasks") : audit); q.eq("action", "a.nested");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : (useTasks ? admin.from("tasks") : admin.from("audit_logs")); q.eq("action", "a.deep");`)), ["a.deep"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : admin.from("tasks"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : audit; q.eq("action", "a.unknown");`)).map((n) => n.startsWith("?")), [true]);
+});
+
+test("review fixes 11: a conditional nested in a conditional's first arm, nullish arms", async () => {
+  assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? (a ? b ? admin.from("jobs") : admin.from("tasks") : audit) : admin.from("jobs"); q.eq("action", "a.inner");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? a ? admin.from("jobs") : admin.from("audit_logs") : admin.from("tasks"); q.eq("action", "a.first");`)), ["a.first"]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? a ? admin.from("jobs") : admin.from("tasks") : admin.from("jobs"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`const q = cached ?? admin.from("jobs"); q.eq("action", "a.nullish");`)).map((n) => n.startsWith("?")), [true]);
+});
+
+test("review fixes 12: ?? inside a conditional arm", async () => {
+  assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? cached ?? admin.from("jobs") : audit; q.eq("action", "a.coalesced");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? admin.from("audit_logs") : admin.from("jobs"); q.eq("action", "a.gate");`)), ["a.gate"]);
+});

@@ -45,7 +45,7 @@ const NAVIGATION = [
   { label: "Modules & Features", title: "Modules & features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
   { label: "Plans & Subscriptions", title: "Plans & subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
   { label: "Offers & Promotions", title: "Offers & promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
-  { label: "AI Agents", title: "AI agents", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
+  { label: "AI Agents", title: "AI receptionists", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
   { label: "Voice & numbers", icon: "call", path: "/voice", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Messaging", icon: "forum", path: "/messaging", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Platform Operations", title: "Platform operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
@@ -129,7 +129,9 @@ export default function OwnerDashboard({ onSignOut }) {
     try {
       const data = await callOwnerFunction("dashboard_data");
       if (epoch !== industryEpoch.current || request !== industryRequest.current) return;
-      setIndustries(Array.isArray(data.industries) ? data.industries : []);
+      // an answer without an industry list can't be read: never treat it as "no industries" (an empty list is real)
+      if (!Array.isArray(data?.industries)) throw new Error("The industry list couldn't be read. Try again.");
+      setIndustries(data.industries);
       setIndustryError("");
       setIndustriesLoaded(true);
     } catch (error) {
@@ -202,6 +204,8 @@ export default function OwnerDashboard({ onSignOut }) {
   return (
     <div className="owner-app">
       {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
+      {/* The column carries the sidebar's background and border down the whole page; only the nav inside is sticky. */}
+      <div className="owner-sidebar-col">
       <aside id="owner-sidebar" className={`owner-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
         <SidebarBrand caption="Platform control" toggle={<DockToggle />} />
 
@@ -247,6 +251,7 @@ export default function OwnerDashboard({ onSignOut }) {
           </div>
         </button>}
       </aside>
+      </div>
 
       <main className="owner-main">
         <header className="owner-topbar">
@@ -318,6 +323,20 @@ export default function OwnerDashboard({ onSignOut }) {
               <strong>This page isn't available</strong>
               <p>Your admin role ({me?.roleLabel ?? "restricted"}) doesn't include it. Ask a Zella Voice owner if you need access.</p>
             </div>
+          ) : wizard && !industriesLoaded ? (
+            // The wizard fills industry defaults (automations, booking length) from this list when it loads a saved
+            // business, so it opens only once the list is here; a failed load says so instead of guessing.
+            industryError ? (
+              <div className="owner-empty-state" role="alert" data-wizard="industries-failed">
+                <strong>The industry list couldn't be loaded</strong>
+                <p>{industryError}</p>
+                <div><button type="button" className="owner-secondary-button op-small" onClick={loadIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Retrying..." : "Retry"}</button></div>
+              </div>
+            ) : (
+              <div className="owner-empty-state" role="status" aria-busy="true" data-wizard="industries-loading">
+                <strong>Loading setup</strong>
+              </div>
+            )
           ) : wizard ? (
             <CreateBusinessWizard
               key={wizard.businessId || "new"}

@@ -34,10 +34,32 @@ const BIZ = "b3000000-0000-0000-0000-0000000000a1";
     ctx = await k.context(browser, width); p = await k.page(ctx);
     await k.signIn(p, ADMIN);
     await p.goto(k.APP + "/support");
-    await p.click('button[role="tab"]:has-text("Waiting too long")');
+    // a ticket that has waited three days without a reply is overdue; the request just opened isn't yet
+    const overdue = `Overdue fixture ${tag} ${Date.now().toString(36)}`;
+    const filler = `Filler ${tag} ${Date.now().toString(36)}`;
+    // the ids are chosen here, before the inserts, so the clean up knows them whatever an insert or a wait does
+    const { randomUUID } = require("crypto");
+    const overdueId = randomUUID(), fillerIds = Array.from({ length: 500 }, () => randomUUID());
+    try {
+      k.sql(`insert into public.support_tickets (id, business_id, subject, status, priority, category, created_at) values ('${overdueId}', '${BIZ}', '${overdue}', 'open', 'normal', 'issue', now() - interval '3 days')`);
+      // 500 newer resolved tickets put it outside the regular list (the newest 500), so only the server's overdue read
+      // can find it
+      k.sql(`insert into public.support_tickets (id, business_id, subject, status, priority, category, created_at, resolved_at) select f.id, '${BIZ}', '${filler} ' || f.n, 'resolved', 'normal', 'issue', now() - interval '1 hour', now() from unnest('{${fillerIds.join(",")}}'::uuid[]) with ordinality f(id, n)`);
+      await p.reload(); await p.waitForSelector(`text=${subject}`);
+      await p.click('button[role="tab"]:has-text("All")');
+      await p.waitForSelector(`text=${filler} 1`);
+      k.check(`${tag}: the overdue ticket is not in the regular list`, !(await p.isVisible(`text=${overdue}`)));
+      await p.click('button[role="tab"]:has-text("Waiting too long")');
+      await p.waitForSelector(`text=${overdue}`);
+      k.check(`${tag}: Waiting too long shows the overdue ticket from the server and not the new one`, await p.isVisible(`text=${overdue}`) && !(await p.isVisible(`text=${subject}`)));
+    } finally {
+      // only the rows this run inserted, by id
+      k.sql(`delete from public.support_tickets where business_id = '${BIZ}' and id = any ('{${[overdueId, ...fillerIds].join(",")}}'::uuid[])`);
+    }
     await p.click('button[role="tab"]:has-text("Open & in progress")');
     await p.click(`button:has-text("${subject}")`);
-    await p.waitForSelector("text=No reply yet");
+    // the detail panel of the ticket just opened says it has no reply yet
+    await p.locator("aside.st-detail").filter({ hasText: subject }).locator("text=No reply yet").waitFor();
     await p.fill('textarea[aria-label="Reply to the business"]', "We are looking at your phone line now.");
     await p.click('button:has-text("Send reply")');
     await p.waitForSelector("text=We are looking at your phone line now.");

@@ -16,7 +16,7 @@ export function endsSessions(before: Access, after: Access) {
 }
 
 export const SESSIONS_NOT_ENDED =
-  "The change is saved, but their devices could not be signed out. They are refused on their next action; try again to sign them out everywhere.";
+  "The change is saved, but their devices could not be signed out. They are refused on their next action; use Sign out everywhere to try again.";
 
 // Returns how many sessions ended, or null with a warning when the database couldn't do it (for example before
 // sql/zella_admin_sessions.sql is applied). The role change itself is never undone.
@@ -94,7 +94,7 @@ export const AUDIT_COLUMNS = "id, action, business_id, user_id, entity_type, ent
 
 export type AuditFilters = {
   businessId?: string; auditAction?: string; search?: string; actorId?: string; from?: string; to?: string;
-  entityType?: string; entityId?: string;
+  entityType?: string; entityId?: string; timeZone?: string;
 };
 
 const day = (v: unknown) => {
@@ -106,7 +106,13 @@ const day = (v: unknown) => {
 // The filters from a request, checked; anything malformed is refused, never silently widened.
 export function auditFilters(fields: Json, InputError: new (m: string, s?: number) => Error): AuditFilters {
   const f: AuditFilters = {};
-  const str = (k: string) => (typeof fields[k] === "string" ? (fields[k] as string).trim() : "");
+  // left out (undefined or null) means no filter; anything else that isn't text is refused, never read as "no filter"
+  const str = (k: string) => {
+    const v = fields[k];
+    if (v === undefined || v === null) return "";
+    if (typeof v !== "string") throw new InputError("A filter is not valid");
+    return v.trim();
+  };
   const id = (k: string, label: string) => { const v = str(k); if (!v) return undefined; if (!UUID.test(v)) throw new InputError(`${label} is not valid`); return v; };
   f.businessId = id("businessId", "The business");
   f.actorId = id("actorId", "The person");
@@ -118,14 +124,24 @@ export function auditFilters(fields: Json, InputError: new (m: string, s?: numbe
   const entityType = str("entityType");
   if (entityType) { if (!ENTITY_TYPE.test(entityType)) throw new InputError("The record type is not valid"); f.entityType = entityType; }
   f.entityId = id("entityId", "The record id");
+  // The dates are days in the admin's own time zone (the page shows times in it), so a day covers the same hours on
+  // the page, in the filter and in the export. Without a valid zone, UTC.
+  const tzIn = str("timeZone");
+  let tz = "UTC";
+  if (tzIn) {
+    try { new Intl.DateTimeFormat("en-US", { timeZone: tzIn }); tz = tzIn; } catch { throw new InputError("The time zone is not valid"); }
+  }
   for (const k of ["from", "to"] as const) {
     const v = str(k);
     if (!v) continue;
     const d = day(v);
     if (!d) throw new InputError(`The ${k === "from" ? "start" : "end"} date is not valid`);
-    // "to" is the whole of that day
-    f[k] = k === "from" ? d.toISOString() : new Date(d.getTime() + 86_400_000).toISOString();
+    // the start of that day in the zone; "to" is the whole of that day (up to the start of the next one)
+    const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, dd = d.getUTCDate();
+    const next = new Date(Date.UTC(y, m - 1, dd + 1));
+    f[k] = new Date(k === "from" ? dayStart(y, m, dd, tz) : dayStart(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), tz)).toISOString();
   }
+  if (tzIn && (f.from || f.to)) f.timeZone = tz;
   if (f.from && f.to && f.from >= f.to) throw new InputError("The start date is after the end date");
   for (const k of Object.keys(f) as (keyof AuditFilters)[]) if (f[k] === undefined) delete f[k];
   return f;
@@ -157,12 +173,12 @@ export function applyAuditFilters(query: any, f: AuditFilters, cursor: { at: str
   return q;
 }
 
-// One CSV cell. Text a spreadsheet would run as a formula (starting with = + - @, a tab or a return) gets a leading
-// apostrophe, so an export opened in a spreadsheet never runs anything.
+// One CSV cell. Text a spreadsheet would run as a formula (starting with = + - @, their full width forms, a tab or a
+// return) gets a leading apostrophe, so an export opened in a spreadsheet never runs anything.
 export function csvCell(v: unknown): string {
   if (v === null || v === undefined) return "";
   let t = typeof v === "object" ? JSON.stringify(v) : String(v);
-  if (/^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+  if (/^[=+\-@\t\r\uFF1D\uFF0B\uFF0D\uFF20]/.test(t)) t = `'${t}`;
   return /[",\r\n]/.test(t) || t !== t.trim() ? `"${t.replace(/"/g, '""')}"` : t;
 }
 export const csvRow = (cells: unknown[]) => cells.map(csvCell).join(",");
@@ -222,7 +238,8 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
       let truncated = false;
       if (rows.length >= AUDIT_EXPORT_MAX_ROWS) {
         const last = rows[rows.length - 1];
-        const { data } = await applyAuditFilters(admin.from("audit_logs").select("id"), filters, { at: last.created_at, id: last.id }).limit(1);
+        const { data, error } = await applyAuditFilters(admin.from("audit_logs").select("id"), filters, { at: last.created_at, id: last.id }).limit(1);
+        if (error) throw error;   // never call the file complete when the check didn't run
         truncated = (data ?? []).length > 0;
       }
       const actorIds = [...new Set(rows.map((r) => r.user_id).filter(Boolean))].slice(0, 500) as string[];
@@ -244,22 +261,35 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
       return { csv: lines.join("\r\n") + "\r\n", rows: rows.length, truncated, filename: `zella-voice-audit-log-${stamp}.csv`, filters };
     },
     // The browser has just verified a new authenticator (Supabase Auth); record it once it is really in the list.
+    // Recorded once per authenticator: a retry after a lost answer finds its entry already there and writes nothing.
+    // The answer is a success only once the entry is on record (the request fails with 503 if writing it fails), so
+    // the browser keeps retrying until then.
     me_mfa_added: async () => {
       const factorId = requireId(fields.factorId, "authenticator");
       const factor = (await verifiedFactors()).find((f) => f.id === factorId);
       if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
-      return { factorId, friendlyName: factor.friendly_name ?? null };
+      const { data: seen, error } = await admin.from("audit_logs").select("id")
+        .eq("action", "admin.mfa_added").eq("user_id", userId).eq("entity_id", factorId).limit(1);
+      if (error) throw error;
+      return { factorId, friendlyName: factor.friendly_name ?? null, alreadyRecorded: (seen ?? []).length > 0 };
     },
     // Removing one needs another left: every admin keeps two step sign in (ACC-01).
     me_mfa_remove: async () => {
       const factorId = requireId(fields.factorId, "authenticator");
-      const factors = await verifiedFactors();
-      const factor = factors.find((f) => f.id === factorId);
+      const factor = (await verifiedFactors()).find((f) => f.id === factorId);
       if (!factor) throw new InputError("That authenticator isn't set up on your account", 404);
-      if (factors.length < 2) throw new InputError("Every Zella Voice admin needs two step sign in. Add another authenticator first, then remove this one.", 409);
-      const { error } = await admin.auth.admin.mfa.deleteFactor({ userId, id: factorId });
-      if (error) throw error;
-      return { factorId, friendlyName: factor.friendly_name ?? null, left: factors.length - 1 };
+      // Supabase Auth's own delete doesn't keep the last factor, so the removal runs in the database while holding a
+      // lock on the person (zella_remove_mfa_factor): the "another verified one is left" check and the delete can't
+      // interleave with a second removal (sql/zella_admin_sessions.sql).
+      const { data: left, error } = await admin.rpc("zella_remove_mfa_factor", { p_user_id: userId, p_factor_id: factorId });
+      if (error) {
+        const m = error.message ?? "";
+        if (/LAST_FACTOR/.test(m)) throw new InputError("Every Zella Voice admin needs two step sign in. Add another authenticator first, then remove this one.", 409);
+        if (/NOT_FOUND/.test(m)) throw new InputError("That authenticator isn't set up on your account", 404);
+        if (/zella_remove_mfa_factor|PGRST202|does not exist/i.test(m)) throw new InputError("Removing an authenticator needs the latest database update (sql/zella_admin_sessions.sql).", 503);
+        throw error;
+      }
+      return { factorId, friendlyName: factor.friendly_name ?? null, left: typeof left === "number" ? left : null };
     },
     // Through the server key, which skips Supabase's own reauthentication: the fresh code (entered within 5 minutes)
     // is the reauthentication instead.
@@ -274,7 +304,7 @@ export function accessHandlers(admin: SupabaseClient, fields: Json, userId: stri
 
   // Never the password itself, nor anything about it.
   const audited: Record<string, (r: Json) => Json | null> = {
-    me_mfa_added: (r) => ({ action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: r.factorId, new_data: { friendly_name: r.friendlyName } }),
+    me_mfa_added: (r) => r.alreadyRecorded ? null : ({ action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: r.factorId, new_data: { friendly_name: r.friendlyName } }),
     me_mfa_remove: (r) => ({ action: "admin.mfa_removed", entity_type: "mfa_factor", entity_id: r.factorId, old_data: { friendly_name: r.friendlyName }, new_data: { left: r.left } }),
     me_password_change: () => ({ action: "admin.password_changed", entity_type: "user", entity_id: userId }),
     // what was exported and how much, never the file itself
@@ -318,14 +348,52 @@ function instant(y: number, m: number, d: number, hhmm: string, tz: string) {
   return guess - zoned(first, tz).offset;
 }
 
-// Business hours between two instants, in hours (0 when the end is not after the start). At most 400 days are read.
+// The first instant of a local day in a time zone. Midnight can be skipped (the clocks jump from 23:59 to 01:00, as
+// in America/Santiago) or happen twice (they go back over it): the answer is the earliest instant whose local date is
+// that day.
+export function dayStart(y: number, m: number, d: number, tz: string) {
+  const want = y * 10000 + m * 100 + d;
+  const dateOf = (ms: number) => { const z = zoned(ms, tz); return z.y * 10000 + z.m * 100 + z.d; };
+  let t = instant(y, m, d, "00:00", tz);
+  // skipped midnight: the guess is still the day before; step forward to the first minute of the day
+  while (dateOf(t) < want) t += 60_000;
+  // an earlier instant with the same date (midnight twice): step back while the date stays
+  while (dateOf(t - 60_000) === want) t -= 60_000;
+  return t;
+}
+
+// Business hours between two instants, in hours of elapsed time (0 when the end is not after the start). The first and
+// last weeks are read day by day. A whole week in between adds one week's business hours at once only when the
+// time zone's offset is the same at both ends of it and on each of its days (no clock change inside), so it counts
+// exactly what the days would; a week with a clock change is read day by day. Exact for any length, bounded work
+// (a few checks per week).
 export function businessHoursBetween(fromIso: string, toIso: string, hours: SupportHours): number {
   const from = Date.parse(fromIso), to = Date.parse(toIso);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return 0;
+  const [sh, sm] = hours.start.split(":").map(Number), [eh, em] = hours.end.split(":").map(Number);
+  const weekMs = hours.days.length * ((eh * 60 + em) - (sh * 60 + sm)) * 60_000;
   let total = 0;
   let { y, m, d } = zoned(from, hours.timezone);
-  for (let i = 0; i < 400; i++) {
+  const DAY = 86_400_000, WEEK = 7 * DAY;
+  // the zone's offset at the local midnight starting each of the week's days and the one after it: all equal means no
+  // clock change anywhere in the week
+  const steady = (yy: number, mm: number, dd: number) => {
+    let first: number | null = null;
+    for (let k = 0; k < 8; k++) {
+      const at = new Date(Date.UTC(yy, mm - 1, dd + k, 12));
+      const o = zoned(instant(at.getUTCFullYear(), at.getUTCMonth() + 1, at.getUTCDate(), "00:00", hours.timezone), hours.timezone).offset;
+      if (first === null) first = o; else if (o !== first) return false;
+    }
+    return true;
+  };
+  for (let i = 0; i < 100_000; i++) {
     const noon = Date.UTC(y, m - 1, d, 12);
+    // after the first day, a whole week that ends at least a week before the end, with no clock change, at once
+    if (i > 0 && to - noon > 2 * WEEK && steady(y, m, d)) {
+      total += weekMs;
+      const at = new Date(noon + WEEK); y = at.getUTCFullYear(); m = at.getUTCMonth() + 1; d = at.getUTCDate();
+      continue;
+    }
     const wd = ((new Date(noon).getUTCDay() + 6) % 7) + 1;
     const open = instant(y, m, d, hours.start, hours.timezone), close = instant(y, m, d, hours.end, hours.timezone);
     if (open >= to) break;

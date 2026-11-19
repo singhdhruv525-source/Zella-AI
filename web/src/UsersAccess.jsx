@@ -44,6 +44,9 @@ export default function UsersAccess() {
   const [confirm, setConfirm] = useState(null);
   // { retry, code, error }: the server asked for a new authenticator code before this change (ACC-19)
   const [fresh, setFresh] = useState(null);
+  // user id -> true for each admin whose change saved but whose devices weren't signed out; one retry each
+  const [sessionRetry, setSessionRetry] = useState({});
+  const clearRetry = (userId) => setSessionRetry((all) => { const next = { ...all }; delete next[userId]; return next; });
   const [roles, setRoles] = useState(null);
   useEffect(() => { let live = true; loadRoles().then((r) => live && setRoles(r)).catch(() => {}); return () => { live = false; }; }, []);
 
@@ -65,21 +68,27 @@ export default function UsersAccess() {
 
   const isOwner = data?.me?.role === "zella_owner";
 
-  async function run(action, payload, success) {
+  // onDone runs once after a success, whether it came on the first try or after a new code (the retry below)
+  async function run(action, payload, success, onDone) {
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const result = await callOwnerFunction(action, payload);
       setNotice(success(result));
+      // ACC-18: the change is saved but their devices weren't signed out: offer to try that again on its own
+      // it stays until their devices are signed out or the owner dismisses it, whatever else is done meanwhile
+      if (result?.sessionsWarning && payload?.userId) setSessionRetry((all) => ({ ...all, [payload.userId]: true }));
+      if (action === "admin_sessions_end" && typeof result?.sessionsEnded === "number" && payload?.userId) clearRetry(payload.userId);
       setConfirm(null);
       setFresh(null);
+      onDone?.();
       await load();
       return true;
     } catch (err) {
       if (needsFreshCode(err)) {
         // keep the confirmation: the same change runs again once a new code is entered
-        setFresh({ retry: () => run(action, payload, success), code: "", error: "" });
+        setFresh({ retry: () => run(action, payload, success, onDone), code: "", error: "" });
         return false;
       }
       setError(friendlyError(err));
@@ -93,17 +102,16 @@ export default function UsersAccess() {
     event.preventDefault();
     if (busy || checkEmail(invite.email, { required: true })) return;
     const label = ROLE_LABELS[invite.role] ?? invite.role;
-    const ok = await run("admin_invite", { ...invite, email: invite.email.trim() }, (r) =>
+    await run("admin_invite", { ...invite, email: invite.email.trim() }, (r) =>
       r.resent
         ? `Invitation reemailed to ${r.email}. Their existing role was not changed.`
         : r.invited
         ? `Invitation emailed to ${r.email} as ${label}.`
-        : `${r.email} already had a Zella Voice login and can now use the admin dashboard as ${label}.`
-    );
-    if (ok) {
+        : `${r.email} already had a Zella Voice login and can now use the admin dashboard as ${label}.`,
+    () => {
       setInviting(false);
       setInvite({ email: "", role: "super_admin" });
-    }
+    });
   }
 
   return (
@@ -122,6 +130,19 @@ export default function UsersAccess() {
       </div>
 
       {notice && <div className="ic-notice" role="status">{notice}</div>}
+      {isOwner && Object.keys(sessionRetry).map((userId) => {
+        const who = (data?.admins ?? []).find((a) => a.user_id === userId)?.email ?? "This admin";
+        return (
+          <div key={userId} className="op-gap">
+            <span className="op-muted">{who} wasn&apos;t signed out on every device. </span>
+            <button type="button" className="owner-secondary-button op-small" disabled={busy} aria-label={`Sign ${who} out everywhere`}
+              onClick={() => run("admin_sessions_end", { userId }, (r) => signedOutText(r) || `${who} was signed out on every device.`)}>
+              Sign out everywhere
+            </button>
+            <button type="button" className="owner-secondary-button op-small" disabled={busy} aria-label={`Dismiss for ${who}`} onClick={() => clearRetry(userId)}>Dismiss</button>
+          </div>
+        );
+      })}
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
 
       {data && !isOwner && (

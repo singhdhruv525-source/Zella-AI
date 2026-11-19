@@ -123,7 +123,10 @@
 .op-list li > div.inc-resolve { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .inc-resolve .owner-input { width: 240px; }
 
-.op-list .inc-main span.inc-edit { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 1.4fr) auto; gap: 8px; width: 100%; }
+/* side by side when the incident column is wide enough; the fields and buttons wrap onto their own lines when not */
+.op-list .inc-main span.inc-edit { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; }
+.op-list .inc-main span.inc-edit > .owner-input { flex: 1 1 180px; min-width: 0; }
+.op-list .inc-main span.inc-edit > .owner-input + .owner-input { flex-grow: 1.4; }
 .op-list .inc-main span.inc-edit-actions { display: flex; gap: 8px; }
 
 /* Updates timeline */
@@ -173,7 +176,7 @@
   .inc-panel .inc-open-button { width: 100%; justify-content: center; }
   .op-list.inc-list li.inc-row { grid-template-columns: 1fr; padding: var(--zella-space-4); }
   .inc-resolve .owner-input { width: auto; flex: 1; min-width: 0; }
-  .op-list .inc-main span.inc-edit { grid-template-columns: 1fr; }
+  .op-list .inc-main span.inc-edit > .owner-input { flex-basis: 100%; }
   .op-list .inc-main span.inc-post { grid-template-columns: 1fr auto; }
   .op-list .inc-main span.inc-post input { grid-column: 1 / -1; }
   .inc-foot { padding: var(--zella-space-3) var(--zella-space-4); }

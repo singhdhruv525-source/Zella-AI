@@ -15,9 +15,11 @@ import {
 import { MODULE_DEPENDENCIES, businessModuleProblems } from "./module_deps.ts";
 import { mask, maskText } from "./mask.ts";
 import { START_ON_SAVE_SWITCH, savedStatus, startOnSave, type LiveBusiness } from "./live.ts";
-import { businessesList } from "./businesses.ts";
+import { BOOKING_MODELS, CONFIG_PERMISSIONS, allRows, cleanAutomationDefaults, missingColumn, configHandlers, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 import { supportHours, ticketTiming } from "./access.ts";
 import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
+import { businessesList } from "./businesses.ts";
+import { LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers, trackSetup } from "./lifecycle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -542,12 +544,13 @@ function cleanBusinessFields(fields: Json) {
 
 async function saveBusiness(admin: SupabaseClient, fields: Json) {
   const values = cleanBusinessFields(obj(fields.business));
-  const existingId = text(fields.businessId, 64);
+  let existingId = text(fields.businessId, 64);
 
   if (!existingId) {
-    const { data, error } = await admin.rpc("zella_create_business_draft", {
-      p_fields: values,
-    });
+    // BIZ-14: one creation key per wizard session, so a retry after a timeout gets the same business back (lifecycle.ts)
+    const creationKey = text(fields.creationKey, 64);
+    if (creationKey && !UUID_RE.test(creationKey)) throw new InputError("The creation key is not valid");
+    const { data, error } = await createDraft(admin, values, creationKey);
 
     if (error) {
       if (error.message.includes("INDUSTRY_NOT_FOUND")) {
@@ -556,7 +559,11 @@ async function saveBusiness(admin: SupabaseClient, fields: Json) {
       throw error;
     }
 
-    return { businessId: data.business_id, created: true, industryChanged: false, values };
+    if (!data?.business_id) throw new Error("The draft was not created");
+    if (!data.existing) {
+      return { businessId: data.business_id, created: true, industryChanged: false, values };
+    }
+    existingId = data.business_id;   // a retry: save these values on the business the first try made
   }
 
   const businessId = requireId(existingId);
@@ -1162,9 +1169,10 @@ type AuditEntry = {
 
 type AuditContext = { userId: string; ip: string | null; userAgent: string | null };
 
-// Audit failures never block the admin's action (it has already happened when this runs): the failure raises an
-// audit_write_failed platform alert, and the response carries auditWarning so the admin knows (BIZ-17). Suspensions
-// and cancellations are also recorded by the database's own trigger (zella_audit_privileged) on the businesses row.
+// One helper for every audit row; returns whether the row was written, and callers act on a failed write (an audit
+// log export, a new authenticator and a sensitivity change fail closed; see the dispatcher). A failed write also raises
+// an urgent audit_write_failed platform alert, and an action that stands carries auditWarning so the admin knows
+// (BIZ-17). Suspensions and cancellations are also recorded by the database's own trigger (zella_audit_privileged).
 export const AUDIT_WARNING = "Saved, but it could not be recorded in the activity log. The Zella Voice team has been alerted.";
 export async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry): Promise<boolean> {
   const { error } = await admin.from("audit_logs").insert({
@@ -1290,6 +1298,11 @@ export const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> 
       terminology: r.terminology,
       modules_added: r.modulesCreated,
       modules_updated: r.modulesUpdated,
+      modules_switched_off: r.modulesSwitchedOff,
+      booking_model: r.bookingModel,
+      automation_defaults_changed: r.automationDefaultsChanged || undefined,
+      switched_off_without_confirmation: r.confirmedWithoutCount || undefined,
+      reason: r.reason ?? undefined,
     },
   }),
   industry_create: (_fields, r) => ({
@@ -1303,6 +1316,12 @@ export const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> 
     entity_type: "platform_admin",
     entity_id: r.targetUserId,
     new_data: { email: r.email, role: r.role, invitation_sent: r.invited },
+  }),
+  admin_sessions_end: (_fields, r) => ({
+    action: "admin.sessions_ended",
+    entity_type: "platform_admin",
+    entity_id: r.targetUserId,
+    new_data: { sessions_ended: r.sessionsEnded },
   }),
   admin_update: (_fields, r) => ({
     action: "admin.updated",
@@ -1392,6 +1411,23 @@ export const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> 
     },
   }),
 };
+
+// Every row of a query, read in pages of 1000 (the API's row cap) by an unchanging key: each page starts after the
+// last key read (page(null) is the first), so a row renamed or added meanwhile can't be read twice or skipped.
+// deno-lint-ignore no-explicit-any
+async function everyRow(key: string, page: (after: string | null) => PromiseLike<{ data: any[] | null; error: unknown }>) {
+  // deno-lint-ignore no-explicit-any
+  const out: any[] = [];
+  let after: string | null = null;
+  for (;;) {
+    const { data, error } = await page(after);
+    if (error) throw error;
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < 1000) return out;
+    after = String(rows[rows.length - 1][key]);
+  }
+}
 
 async function resolveUsers(admin: SupabaseClient, ids: (string | null)[]) {
   const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))].slice(0, 100);
@@ -1505,7 +1541,7 @@ async function overviewData(admin: SupabaseClient) {
   ];
 
   const logs = logsResult.data ?? [];
-  const actors = await resolveUsers(admin, logs.map((l) => l.user_id));
+  const [actors, connectionTotals] = await Promise.all([resolveUsers(admin, logs.map((l) => l.user_id)), connectionCounts(admin)]);
 
   return {
     stats: {
@@ -1515,7 +1551,10 @@ async function overviewData(admin: SupabaseClient) {
       live: count(["active"]),
       pendingInvitations: invitations.filter((i) => ["pending", "sent"].includes(i.status)).length - expired.filter((i) => i.status === "sent").length,
       acceptedInvitations: invitations.filter((i) => i.status === "accepted").length,
-      receptionistsLive: (agentsResult.data ?? []).filter((a) => a.status === "active").length,
+      // Live and answering from the shared definition (zella_connection_counts); null when it isn't applied yet.
+      receptionistsLive: connectionTotals?.live ?? null,
+      receptionistsAnswering: connectionTotals?.answering ?? null,
+      receptionistsSwitchedOn: (agentsResult.data ?? []).filter((a) => a.status === "active").length,
       callsLast30Days: callsResult.count ?? 0,
       aiCallsLast30Days: aiCallsResult.count ?? 0,
       openTickets: ticketsResult.count ?? 0,
@@ -1587,15 +1626,20 @@ async function auditLogList(admin: SupabaseClient, fields: Json, role: string | 
   let businesses: { id: string; name: string }[] | undefined;
   let people: { id: string; email: string | null }[] | undefined;
   if (!cursor) {
-    const [{ data: list, error: listError }, { data: admins, error: adminsError }] = await Promise.all([
-      admin.from("businesses").select("id, name").order("name"),
-      admin.from("platform_admins").select("user_id"),
+    // every business and every admin, read 1000 at a time by id, so the pickers are never cut off; sorted by name after
+    // (a fresh query for each page: a builder keeps every filter added to it)
+    const businessRows = () => admin.from("businesses").select("id, name"), adminRows = () => admin.from("platform_admins").select("user_id");
+    const [list, admins] = await Promise.all([
+      everyRow("id", (after) => (after ? businessRows().gt("id", after) : businessRows()).order("id").limit(1000)),
+      everyRow("user_id", (after) => (after ? adminRows().gt("user_id", after) : adminRows()).order("user_id").limit(1000)),
     ]);
-    if (listError) throw listError;
-    if (adminsError) throw adminsError;
-    businesses = list ?? [];
-    const emails = await resolveUsers(admin, (admins ?? []).map((a) => a.user_id));
-    people = Object.entries(emails).map(([id, email]) => ({ id, email })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
+    businesses = (list as { id: string; name: string }[])
+      .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")) || a.id.localeCompare(b.id));
+    // every admin, resolved 100 at a time (resolveUsers reads at most 100), so nobody is left out of the person filter
+    const ids = [...new Set((admins ?? []).map((a) => a.user_id))];
+    const emails: Record<string, string | null> = {};
+    for (let i = 0; i < ids.length; i += 100) Object.assign(emails, await resolveUsers(admin, ids.slice(i, i + 100)));
+    people = ids.map((id) => ({ id, email: emails[id] ?? null })).sort((a, b) => String(a.email).localeCompare(String(b.email)));
   }
 
   return {
@@ -1637,30 +1681,45 @@ function uniqueSlug(base: string, used: Set<string>) {
 }
 
 async function industriesList(admin: SupabaseClient) {
-  const [industriesResult, configsResult, modulesResult, businessesResult] = await Promise.all([
+  // Businesses are read in pages: a single read stops at PostgREST's max_rows (1000) and undercounts.
+  const [industriesResult, configsResult, modulesResult, businessRows] = await Promise.all([
     admin.from("industries").select("id, name, slug, description, is_active, created_at").order("name"),
     admin.from("industry_configurations").select("industry_id, terminology, updated_at"),
     admin.from("industry_modules")
       .select("id, industry_id, name, slug, description, is_active")
       .order("name"),
-    admin.from("businesses").select("industry_id"),
+    allRows<{ industry_id: string | null }>((from, to) => admin.from("businesses").select("industry_id").order("id").range(from, to)),
   ]);
 
-  const queryError = industriesResult.error ?? configsResult.error ??
-    modulesResult.error ?? businessesResult.error;
+  const queryError = industriesResult.error ?? configsResult.error ?? modulesResult.error;
   if (queryError) throw queryError;
 
   const counts = new Map<string, number>();
-  for (const b of businessesResult.data ?? []) {
+  for (const b of businessRows) {
     if (b.industry_id) counts.set(b.industry_id, (counts.get(b.industry_id) ?? 0) + 1);
   }
 
   const configByIndustry = new Map((configsResult.data ?? []).map((c) => [c.industry_id, c]));
   const modules = modulesResult.data ?? [];
 
+  // CFG-05: industry data (sql/zella_industry_data.sql). Left out, with industryData false, until it is applied.
+  const [dataResult, defaultsResult] = await Promise.all([
+    admin.from("industries").select("id, sensitive, booking_model"),
+    admin.from("industry_configurations").select("industry_id, automation_defaults"),
+  ]);
+  const industryData = !missingColumn(dataResult.error) && !missingColumn(defaultsResult.error);
+  if (industryData && (dataResult.error ?? defaultsResult.error)) throw dataResult.error ?? defaultsResult.error;
+  const dataById = new Map(industryData ? (dataResult.data ?? []).map((d: Json) => [d.id, d]) : []);
+  const defaultsById = new Map(industryData ? (defaultsResult.data ?? []).map((d: Json) => [d.industry_id, d.automation_defaults]) : []);
+
   return {
+    industryData,
+    bookingModels: BOOKING_MODELS,
     industries: (industriesResult.data ?? []).map((industry) => ({
       ...industry,
+      sensitive: industryData ? Boolean(obj(dataById.get(industry.id)).sensitive) : null,
+      bookingModel: industryData ? (obj(dataById.get(industry.id)).booking_model ?? null) : null,
+      automationDefaults: industryData ? (defaultsById.get(industry.id) ?? null) : null,
       terminology: obj(configByIndustry.get(industry.id)?.terminology),
       configUpdatedAt: configByIndustry.get(industry.id)?.updated_at ?? null,
       modules: modules.filter((m) => m.industry_id === industry.id),
@@ -1676,6 +1735,24 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
     .from("industries").select("id, name").eq("id", industryId).maybeSingle();
   if (industryError) throw industryError;
   if (!industry) throw new InputError("Industry not found", 404);
+
+  // CFG-01: switching a module off removes it at once from every business in the industry (zella_module_on needs
+  // industry_modules.is_active), so a module that businesses use now is only switched off when the admin confirmed it
+  // after seeing "N businesses lose X". Checked before anything is written.
+  const { data: current, error: currentError } = await admin
+    .from("industry_modules").select("id, slug, name, is_active").eq("industry_id", industryId);
+  if (currentError) throw currentError;
+  const requested = list(fields.modules, 60).map(obj)
+    .map((m) => ({ id: text(m.id, 64), isActive: bool(m.isActive, true) })).filter((m) => m.id);
+  const turningOff = requested.filter((r) => (current ?? []).some((m) => m.id === r.id && m.is_active && !r.isActive));
+  const usage = await moduleUsage(admin, industryId, turningOff.map((m) => m.id));
+  const offCheck = switchOffCheck(current ?? [], requested, usage, fields.confirmOff);
+  if (offCheck.unconfirmed.length) throw new InputError(switchOffMessage(offCheck.unconfirmed), 409);
+  // a confirmed switch off of a module businesses use needs a reason for the audit log (only an older app that sends
+  // no confirmation at all is let through without one, LEGACY_SWITCH_OFF_ALLOWED)
+  if (!offCheck.legacy && offCheck.switchedOff.some((m) => m.businesses > 0) && text(fields.reason, 300).length < 3) {
+    throw new InputError("Give a short reason for switching these modules off (it goes in the audit log)");
+  }
 
   const { data: config, error: configError } = await admin
     .from("industry_configurations")
@@ -1706,26 +1783,34 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
 
   const now = new Date().toISOString();
 
+  // CFG-05: the booking model and default automations, only when the page sends them (an older page doesn't).
+  const industryUpdate: Json = { description: text(fields.description, 500) || null };
+  if ("bookingModel" in fields) {
+    const model = fields.bookingModel === null || fields.bookingModel === "" ? null : text(fields.bookingModel, 40);
+    if (model !== null && !(BOOKING_MODELS as readonly string[]).includes(model)) throw new InputError("Choose a booking model from the list");
+    industryUpdate.booking_model = model;
+  }
+  const defaults = "automationDefaults" in fields ? cleanAutomationDefaults(fields.automationDefaults, InputError) : undefined;
   const { error: describeError } = await admin
     .from("industries")
-    .update({ description: text(fields.description, 500) || null })
+    .update(industryUpdate)
     .eq("id", industryId);
+  if (missingColumn(describeError)) throw new InputError("Industry data isn't switched on yet. Reload the page.", 409);
   if (describeError) throw describeError;
 
+  const configValues: Json = { terminology: next };
+  if (defaults !== undefined) configValues.automation_defaults = defaults;
   const { error: termsError } = config
     ? await admin.from("industry_configurations")
-      .update({ terminology: next, updated_at: now })
+      .update({ ...configValues, updated_at: now })
       .eq("id", config.id)
     : await admin.from("industry_configurations")
-      .insert({ industry_id: industryId, terminology: next });
+      .insert({ industry_id: industryId, ...configValues });
+  if (missingColumn(termsError)) throw new InputError("Industry data isn't switched on yet. Reload the page.", 409);
   if (termsError) throw termsError;
 
   // Modules are added, renamed or switched off. Never deleted: deleting would
   // silently remove the module from every business that already uses it.
-  const { data: current, error: currentError } = await admin
-    .from("industry_modules").select("id, slug").eq("industry_id", industryId);
-  if (currentError) throw currentError;
-
   const known = new Set<string>((current ?? []).map((m: { id: string }) => m.id));
   const usedSlugs = new Set<string>((current ?? []).map((m: { slug: string }) => m.slug));
   let created = 0;
@@ -1766,6 +1851,11 @@ async function industrySave(admin: SupabaseClient, fields: Json) {
     modulesUpdated: changed,
     previousTerminology: previous,
     terminology: next,
+    bookingModel: "booking_model" in industryUpdate ? industryUpdate.booking_model : undefined,
+    automationDefaultsChanged: defaults !== undefined,
+    modulesSwitchedOff: offCheck.switchedOff,
+    confirmedWithoutCount: offCheck.legacy && offCheck.switchedOff.some((m) => m.businesses > 0),
+    reason: text(fields.reason, 300) || null,
   };
 }
 
@@ -1828,6 +1918,25 @@ async function industryCreate(admin: SupabaseClient, fields: Json) {
       );
       if (modulesError) throw modulesError;
     }
+
+    // CFG-05: a copy also takes the booking model, default automations and safety lines. A new industry always starts
+    // sensitive (the column's default) until a Zella Voice owner turns that off. Skipped before the migration.
+    if (copyFromId) {
+      const [src, srcConfig] = await Promise.all([
+        admin.from("industries").select("booking_model").eq("id", copyFromId).maybeSingle(),
+        admin.from("industry_configurations").select("automation_defaults, safety_rules").eq("industry_id", copyFromId).maybeSingle(),
+      ]);
+      if (!missingColumn(src.error) && !missingColumn(srcConfig.error)) {
+        if (src.error ?? srcConfig.error) throw src.error ?? srcConfig.error;
+        const [a, b] = await Promise.all([
+          admin.from("industries").update({ booking_model: obj(src.data).booking_model ?? null }).eq("id", industry.id),
+          admin.from("industry_configurations").update({
+            automation_defaults: obj(srcConfig.data).automation_defaults ?? null, safety_rules: obj(srcConfig.data).safety_rules ?? null,
+          }).eq("industry_id", industry.id),
+        ]);
+        if (a.error ?? b.error) throw a.error ?? b.error;
+      }
+    }
   } catch (error) {
     await admin.from("industry_modules").delete().eq("industry_id", industry.id);
     await admin.from("industry_configurations").delete().eq("industry_id", industry.id);
@@ -1845,7 +1954,7 @@ async function industryCreate(admin: SupabaseClient, fields: Json) {
 async function agentsList(admin: SupabaseClient) {
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [agentsResult, configsResult, businessesResult, industriesResult, integrationsResult, callsResult] =
+  const [agentsResult, configsResult, businessesResult, industriesResult, callsResult] =
     await Promise.all([
       admin.from("ai_agents")
         .select("id, business_id, name, status, updated_at")
@@ -1853,7 +1962,6 @@ async function agentsList(admin: SupabaseClient) {
       admin.from("ai_agent_configs").select("agent_id, personality, knowledge_base, voice_config, updated_at"),
       admin.from("businesses").select("id, name, industry_id, onboarding_status, is_active"),
       admin.from("industries").select("id, name"),
-      admin.from("integrations").select("business_id, provider, status"),
       admin.from("calls")
         .select("business_id, created_at, ai_handled")
         .gte("created_at", since)
@@ -1862,17 +1970,16 @@ async function agentsList(admin: SupabaseClient) {
     ]);
 
   const queryError = agentsResult.error ?? configsResult.error ?? businessesResult.error ??
-    industriesResult.error ?? integrationsResult.error ?? callsResult.error;
+    industriesResult.error ?? callsResult.error;
   if (queryError) throw queryError;
+
+  // Phone, Vapi link, answering and live come from the one shared definition (zella_business_connections).
+  const agentBusinesses = (agentsResult.data ?? []).map((a) => a.business_id);
+  const [connections, deliveries] = await Promise.all([connectionsFor(admin, agentBusinesses), deliveriesFor(admin, agentBusinesses)]);
 
   const configByAgent = new Map((configsResult.data ?? []).map((c) => [c.agent_id, c]));
   const businessById = new Map((businessesResult.data ?? []).map((b) => [b.id, b]));
   const industryName = new Map((industriesResult.data ?? []).map((i) => [i.id, i.name]));
-
-  const connected = (businessId: string, provider: string) =>
-    (integrationsResult.data ?? []).some(
-      (i) => i.business_id === businessId && i.provider?.toLowerCase() === provider && i.status === "active",
-    );
 
   const callStats = new Map<string, { aiCalls: number; lastCallAt: string | null }>();
   for (const call of callsResult.data ?? []) {
@@ -1893,13 +2000,15 @@ async function agentsList(admin: SupabaseClient) {
       const faqs = Array.isArray(kb.faqs) ? kb.faqs.length : 0;
       const greeting = text(obj(config?.voice_config).greeting, 500);
       const stat = callStats.get(agent.business_id);
+      const link = connections?.get(agent.business_id) ?? null;
+      const served = deliveries?.get(agent.business_id) ?? null;
 
       const checks = {
         knowledge: services + faqs > 0,
         hours: Object.values(hours).some((h) => obj(h).closed === true || Boolean(obj(h).open)),
         greeting: Boolean(greeting),
-        phone: connected(agent.business_id, "telnyx"),
-        voice: connected(agent.business_id, "vapi"),
+        phone: link?.phone ?? false,
+        voice: link?.vapi_linked ?? false,
       };
 
       return {
@@ -1915,6 +2024,17 @@ async function agentsList(admin: SupabaseClient) {
         faqs,
         checks,
         ready: Object.values(checks).filter(Boolean).length,
+        live: link?.live ?? false,
+        answering: link?.answering ?? false,
+        lastServedAt: link?.last_served_at ?? null,
+        businessState: link?.business_state ?? null,
+        // COM-03: what calls actually got (null when sql/zella_agent_delivery_admin.sql isn't applied)
+        delivery: served && {
+          lastOutcome: served.last_outcome, lastAt: served.last_at, served7d: served.served_7d, notReady7d: served.not_ready_7d,
+          unknownNumber7d: served.unknown_number_7d, forwardedUsage7d: served.forwarded_usage_7d,
+          lastProblems: served.last_problems, lastProblemAt: served.last_problem_at, servedVersion: served.served_version,
+          publishedVersion: served.published_version, syncStatus: served.published_sync_status, syncError: served.published_sync_error,
+        },
         aiCallsLast30Days: stat?.aiCalls ?? 0,
         lastCallAt: stat?.lastCallAt ?? null,
         updatedAt: config?.updated_at ?? agent.updated_at,
@@ -1924,10 +2044,14 @@ async function agentsList(admin: SupabaseClient) {
 
   return {
     agents,
+    connectionsAvailable: connections !== null,
+    deliveriesAvailable: deliveries !== null,
     stats: {
       total: agents.length,
-      live: agents.filter((a) => a.status === "active").length,
-      readyToConnect: agents.filter((a) => a.checks.knowledge && a.checks.hours && a.checks.greeting && !a.checks.phone).length,
+      live: agents.filter((a) => a.live).length,
+      answering: agents.filter((a) => a.answering).length,
+      notReady7d: deliveries ? agents.filter((a) => (a.delivery?.notReady7d ?? 0) > 0).length : null,
+      readyToConnect: agents.filter((a) => a.checks.knowledge && a.checks.hours && a.checks.greeting && !a.checks.voice).length,
       missingKnowledge: agents.filter((a) => !a.checks.knowledge).length,
     },
   };
@@ -2071,7 +2195,7 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
   await requireOwner(admin, userId);
 
   const targetId = requireId(fields.userId, "admin");
-  if (targetId === userId) {
+  if (targetId.toLowerCase() === userId.toLowerCase()) {
     throw new InputError("You can't change your own access. Ask another Zella Voice owner.", 409);
   }
 
@@ -2099,11 +2223,19 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
     if ((count ?? 0) <= 1) throw new InputError("Zella Voice must keep at least one active owner", 409);
   }
 
-  const { error } = await admin
+  // Only from the state read above: if another owner changed this admin meanwhile, nothing is saved, so the sessions
+  // below are ended for the change that actually committed, never for one that didn't.
+  const { data: saved, error } = await admin
     .from("platform_admins")
     .update({ role, is_active: isActive })
-    .eq("user_id", targetId);
+    .eq("user_id", targetId)
+    .eq("role", current.role)
+    .eq("is_active", current.is_active)
+    .select("user_id");
+  // the database refuses too (sql/zella_admin_sessions.sql), also when two owners remove each other at once
+  if (error && /LAST_OWNER/.test(error.message ?? "")) throw new InputError("Zella Voice must keep at least one active owner", 409);
   if (error) throw error;
+  if (!saved?.length) throw new InputError("Their access was changed by someone else just now. Reload and try again.", 409);
 
   // ACC-18: a removed admin, or one given another role, is signed out on every device.
   const sessions = await endSessionsAfterChange(admin, targetId, current, { role, is_active: isActive });
@@ -2114,6 +2246,23 @@ async function adminUpdate(admin: SupabaseClient, fields: Json, userId: string) 
     after: { role, is_active: isActive },
     ...sessions,
   };
+}
+
+// ACC-18: signs an admin out on every device again, for when ending their sessions failed after an access change was
+// saved (admin_update's sessionsWarning). Owners only, never their own account; audited.
+async function adminEndSessions(admin: SupabaseClient, fields: Json, userId: string) {
+  await requireOwner(admin, userId);
+  const targetId = requireId(fields.userId, "admin");
+  if (targetId.toLowerCase() === userId.toLowerCase()) throw new InputError("Use Sign out other devices in your own account security instead.", 409);
+  const { data: target, error } = await admin.from("platform_admins").select("user_id").eq("user_id", targetId).maybeSingle();
+  if (error) throw error;
+  if (!target) throw new InputError("Admin not found", 404);
+  const { data, error: endError } = await admin.rpc("zella_end_user_sessions", { p_user_id: targetId });
+  if (endError || typeof data !== "number") {
+    console.error("Ending an admin's sessions failed", endError?.message ?? data);
+    throw new InputError("Their devices could not be signed out. Try again in a moment.", 503);
+  }
+  return { targetUserId: targetId, sessionsEnded: data };
 }
 
 // ---------------------------------------------------------------------------
@@ -2133,38 +2282,38 @@ async function integrationsOverview(admin: SupabaseClient) {
   const integrations = integrationsResult.data ?? [];
   const businesses = businessesResult.data ?? [];
   const nameById = new Map(businesses.map((b) => [b.id, b.name]));
-
-  const hasActive = (businessId: string, provider: string) =>
-    integrations.some((i) =>
-      i.business_id === businessId && i.provider?.toLowerCase() === provider && i.status === "active"
-    );
+  // Connected means the shared definition (zella_business_connections): numbers, Vapi link, calendars, lead sources.
+  const [connections, counts] = await Promise.all([connectionsFor(admin, businesses.map((b) => b.id)), connectionCounts(admin)]);
 
   // Compare what each client asked for in setup with what's actually connected.
   const requests = businesses.map((b) => {
     const choices = obj(obj(b.setup_data).integrations);
     const phone = obj(choices.phone);
     const leads = obj(choices.lead_sources);
+    const link = connections?.get(b.id) ?? null;
     return {
       businessId: b.id,
       businessName: b.name,
       stage: b.onboarding_status,
       setupDone: Boolean(choices.phone),
-      phone: { wanted: phone.mode ? String(phone.mode) : null, connected: hasActive(b.id, "telnyx") },
-      voice: { wanted: Boolean(choices.phone), connected: hasActive(b.id, "vapi") },
+      phone: { wanted: phone.mode ? String(phone.mode) : null, connected: link?.phone ?? false },
+      voice: { wanted: Boolean(choices.phone), connected: link?.vapi_linked ?? false, answering: link?.answering ?? false },
       calendar: {
         wanted: choices.calendar && choices.calendar !== "none" ? String(choices.calendar) : null,
-        connected: hasActive(b.id, String(choices.calendar ?? "")) ||
-          hasActive(b.id, choices.calendar === "google" ? "google_calendar" : "outlook_calendar"),
+        connected: link?.calendar ?? false,
       },
+      // There is no mailbox connection table, so email is never called connected or not connected.
       email: {
         wanted: choices.email && choices.email !== "none" ? String(choices.email) : null,
-        connected: hasActive(b.id, String(choices.email ?? "")) ||
-          hasActive(b.id, choices.email === "gmail" ? "gmail_mail" : "outlook_mail"),
+        connected: null,
+        tracked: false,
       },
       leads: {
         wanted: Object.entries(leads).filter(([, on]) => on === true).map(([k]) => k),
-        connected: ["meta", "website", "google"].filter((k) => hasActive(b.id, k)),
+        connected: link?.lead_sources ?? [],
       },
+      live: link?.live ?? false,
+      problems: link?.problems ?? 0,
     };
   });
 
@@ -2181,6 +2330,8 @@ async function integrationsOverview(admin: SupabaseClient) {
     connections: integrations.map((i) => ({ ...i, business_name: nameById.get(i.business_id) ?? "Unknown business" })),
     providers: [...byProvider.values()],
     requests,
+    connectionsAvailable: connections !== null,
+    counts,
   };
 }
 
@@ -2204,25 +2355,66 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
     return q;
   };
   let ticketsResult = await listQuery(true);
-  if (ticketsResult.error && /first_response_at/.test(ticketsResult.error.message ?? "")) ticketsResult = await listQuery(false);
+  let withFirstResponse = true;
+  if (ticketsResult.error && /first_response_at/.test(ticketsResult.error.message ?? "")) { ticketsResult = await listQuery(false); withFirstResponse = false; }
   const [businessesResult, adminsResult, hoursResult, grantsResult] = await Promise.all([
     admin.from("businesses").select("id, name").order("name"),
     admin.from("platform_admins").select("user_id, role").eq("is_active", true),
     admin.from("platform_settings").select("value").eq("key", "support_business_hours").maybeSingle(),
     admin.from("platform_role_permissions").select("role").eq("permission", "support.manage"),
   ]);
-  const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error;
+  // a failed read of the hours or of the role grants is an error, never "the default hours" or "nobody can be assigned"
+  const queryError = ticketsResult.error ?? businessesResult.error ?? adminsResult.error ?? hoursResult.error ?? grantsResult.error;
   if (queryError) throw queryError;
 
   const hours = supportHours(hoursResult.data?.value);
+  // one moment for every ticket's age: the overdue scan and the ages returned agree, however long the reads take
+  const nowIso = new Date().toISOString();
   // deno-lint-ignore no-explicit-any
   let tickets = (ticketsResult.data ?? []) as any[];
-  const timing = new Map(tickets.map((t) => [t.id, ticketTiming(t, hours)]));
-  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue);
+  let overdueMessages: (Map<string, TicketMessage[]> & { available: boolean }) | null = null;
+  // Overdue: the tickets still waiting for a first reply are read 1000 at a time, newest first, and judged from their
+  // times alone as each page arrives; only overdue ones are kept, and reading stops at the newest 500 of them (a ticket
+  // that isn't overdue never hides an older one that is). Only those 500 have their conversations read.
+  if (fields.overdue === true && withFirstResponse) {
+    // A ticket answered between the ticket read and the replies read is no longer waiting: it is dropped and the scan
+    // goes on from the last ticket read, until 500 still qualify or there are no more.
+    const picked: typeof tickets = [];
+    const found = Object.assign(new Map<string, TicketMessage[]>(), { available: true });
+    let cursor: { created_at: string; id: string } | null = null;
+    do {
+      const batch = await waitingTickets(admin, fields, `${cols}, first_response_at`, (t) => ticketTiming(t, hours, nowIso).overdue === true, 500 - picked.length, cursor);
+      const replies = await ticketMessages(admin, batch.rows.map((t) => t.id));
+      if (!replies.available) found.available = false;
+      for (const t of batch.rows) {
+        const list = replies.get(t.id) ?? [];
+        if (list.some((m) => m.author_side === "zella")) continue;
+        picked.push(t);
+        if (list.length) found.set(t.id, list);
+      }
+      cursor = batch.next;
+    } while (picked.length < 500 && cursor);
+    tickets = picked;
+    overdueMessages = found;
+  }
+  const messages = overdueMessages ?? await ticketMessages(admin, tickets.map((t) => t.id));
+  // The time of the first reply comes from the replies read above when the ticket row was read just before one was
+  // added, so a ticket never shows a reply next to "No reply yet".
+  for (const t of tickets) {
+    if (t.first_response_at || !withFirstResponse) continue;
+    const firstZella = (messages.get(t.id) ?? []).find((m) => m.author_side === "zella");
+    if (firstZella) t.first_response_at = firstZella.created_at;
+  }
+  // without first_response_at (sql/zella_support_replies.sql not applied) a ticket's first reply and lateness are
+  // unknown: null, never "no reply" or "overdue"
+  // the overdue list keeps the moment it was chosen at; any other list takes its ages now, after the replies were
+  // read, so an age is never shorter than a first reply time read with it
+  const ageAt = fields.overdue === true ? nowIso : new Date().toISOString();
+  const timing = new Map(tickets.map((t) => [t.id, withFirstResponse ? ticketTiming(t, hours, ageAt) : { ...ticketTiming(t, hours, ageAt), firstResponseHours: null, overdue: null }]));
+  if (fields.overdue === true) tickets = tickets.filter((t) => timing.get(t.id)?.overdue === true);
   // only people who may work tickets can be assigned one (OPS-27)
   const supportRoles = new Set(["zella_owner", "super_admin", ...(grantsResult.data ?? []).map((g) => g.role)]);
   const adminIds = (adminsResult.data ?? []).filter((a) => supportRoles.has(a.role)).map((a) => a.user_id);
-  const messages = await ticketMessages(admin, tickets.map((t) => t.id));
   // Internal notes live in support_ticket_notes, which only the server can read (OPS-06). Before that table exists
   // (sql/zella_support_notes.sql not applied yet) they are still read from metadata, as before.
   const notesByTicket = await ticketNotes(admin, tickets);
@@ -2255,22 +2447,66 @@ async function ticketsList(admin: SupabaseClient, fields: Json = {}) {
       ...timing.get(t.id),
     })),
     supportHours: hours,
+    // false before sql/zella_support_replies.sql: the page says conversations aren't available instead of "No replies yet"
+    conversations: messages.available,
     businesses: businessesResult.data ?? [],
     assignees: adminIds.map((id) => ({ id, email: emails[id] ?? id })),
   };
+}
+
+// The tickets still waiting for their first reply (not resolved or closed) that `keep` accepts, with the list's status
+// and business filters, newest first, read 1000 at a time after a (created_at, id) cursor (from `start`), up to `max`
+// of them. `next` is the cursor after the last ticket read, or null when there are no more.
+// deno-lint-ignore no-explicit-any
+async function waitingTickets(admin: SupabaseClient, fields: Json, columns: string, keep: (t: any) => boolean, max: number,
+  start: { created_at: string; id: string } | null = null) {
+  // deno-lint-ignore no-explicit-any
+  const rows: any[] = [];
+  let after = start;
+  for (;;) {
+    let q = admin.from("support_tickets").select(columns).is("first_response_at", null).not("status", "in", "(resolved,closed)")
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1000);
+    const status = text(fields.status, 20);
+    if (status) q = q.eq("status", oneOf(status, TICKET_STATUSES, "open"));
+    const businessId = text(fields.businessId, 64);
+    if (businessId) q = q.eq("business_id", requireId(businessId, "business"));
+    if (after) q = q.or(`created_at.lt."${after.created_at}",and(created_at.eq."${after.created_at}",id.lt.${after.id})`);
+    const { data, error } = await q;
+    if (error) throw error;
+    // deno-lint-ignore no-explicit-any
+    const page = (data ?? []) as any[];
+    for (const [n, t] of page.entries()) {
+      if (keep(t)) rows.push(t);
+      if (rows.length >= max) return { rows, next: n < page.length - 1 || page.length === 1000 ? { created_at: t.created_at, id: t.id } : null };
+    }
+    if (page.length < 1000) return { rows, next: null };
+    after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
+  }
 }
 
 type TicketNote = { body: string; author_id: string | null; created_at: string };
 type TicketMessage = { body: string; author_id: string | null; author_side: string; created_at: string };
 
 // Replies the business sees (support_ticket_messages, sql/zella_support_replies.sql); none before it is applied.
+// Every message, read 1000 at a time after a (created_at, id) cursor, so no conversation is cut off.
 async function ticketMessages(admin: SupabaseClient, ids: string[]) {
-  const out = new Map<string, TicketMessage[]>();
+  const out = Object.assign(new Map<string, TicketMessage[]>(), { available: true });
   for (let i = 0; i < ids.length; i += 200) {
-    const { data, error } = await admin.from("support_ticket_messages").select("ticket_id, body, author_id, author_side, created_at")
-      .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).limit(5000);
-    if (error) { if (missingTable(error)) return out; throw error; }
-    for (const m of data ?? []) out.set(m.ticket_id, [...(out.get(m.ticket_id) ?? []), m]);
+    let after: { created_at: string; id: string } | null = null;
+    for (;;) {
+      let q = admin.from("support_ticket_messages").select("id, ticket_id, body, author_id, author_side, created_at")
+        .in("ticket_id", ids.slice(i, i + 200)).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1000);
+      if (after) q = q.or(`created_at.gt."${after.created_at}",and(created_at.eq."${after.created_at}",id.gt.${after.id})`);
+      const { data, error } = await q;
+      if (error) { if (missingTable(error)) { out.available = false; return out; } throw error; }
+      const page = data ?? [];
+      for (const m of page) {
+        const list = out.get(m.ticket_id);
+        if (list) list.push(m); else out.set(m.ticket_id, [m]);
+      }
+      if (page.length < 1000) break;
+      after = { created_at: page[page.length - 1].created_at, id: page[page.length - 1].id };
+    }
   }
   return out;
 }
@@ -2281,27 +2517,33 @@ async function ticketNotes(admin: SupabaseClient, tickets: { id: string; metadat
   const ids = tickets.map((t) => t.id);
   if (!ids.length) return out;
   // read in pages of 1000 after a (created_at, id) cursor, so the API's row cap can't cut notes off and a note saved
-  // while reading can't make a page repeat or skip one
+  // while reading can't make a page repeat or skip one; 200 tickets at a time, so the request address stays short
   const pageSize = 1000;
-  let after: { created_at: string; id: string } | null = null;
-  for (;;) {
-    let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", ids);
-    if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
-    const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
-    if (error) {
-      if (!missingTable(error)) throw error;
-      out.clear();
-      break;
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    let after: { created_at: string; id: string } | null = null;
+    for (;;) {
+      let query = admin.from("support_ticket_notes").select("id, ticket_id, body, author_id, created_at").in("ticket_id", chunk);
+      if (after) query = query.or(`created_at.gt.${after.created_at},and(created_at.eq.${after.created_at},id.gt.${after.id})`);
+      const { data, error } = await query.order("created_at", { ascending: true }).order("id", { ascending: true }).limit(pageSize);
+      if (error) {
+        if (!missingTable(error)) throw error;
+        return notesFromMetadata(tickets);   // before sql/zella_support_notes.sql: still read from metadata
+      }
+      for (const n of data ?? []) {
+        const notes = out.get(n.ticket_id) ?? [];
+        notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
+        out.set(n.ticket_id, notes);
+      }
+      if ((data ?? []).length < pageSize) break;
+      const last = data![data!.length - 1];
+      after = { created_at: last.created_at, id: last.id };
     }
-    for (const n of data ?? []) {
-      const notes = out.get(n.ticket_id) ?? [];
-      notes.push({ body: n.body, author_id: n.author_id, created_at: n.created_at });
-      out.set(n.ticket_id, notes);
-    }
-    if ((data ?? []).length < pageSize) return out;
-    const last = data![data!.length - 1];
-    after = { created_at: last.created_at, id: last.id };
   }
+  return out;
+}
+function notesFromMetadata(tickets: { id: string; metadata: unknown }[]) {
+  const out = new Map<string, TicketNote[]>();
   for (const t of tickets) {
     out.set(t.id, (Array.isArray(obj(t.metadata).notes) ? (obj(t.metadata).notes as unknown[]) : []).map((x) => {
       const n = obj(x);
@@ -2371,10 +2613,17 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     const assignee = text(fields.assignedTo, 64) || null;
     if (assignee) {
       requireId(assignee, "assignee");
-      const { data: isAdmin, error } = await admin
-        .from("platform_admins").select("user_id").eq("user_id", assignee).eq("is_active", true).maybeSingle();
+      // the same rule as the picker in tickets_list: an active admin whose role may work tickets (OPS-27)
+      const { data: target, error } = await admin
+        .from("platform_admins").select("user_id, role").eq("user_id", assignee).eq("is_active", true).maybeSingle();
       if (error) throw error;
-      if (!isAdmin) throw new InputError("Tickets can only be assigned to active platform admins");
+      if (!target) throw new InputError("Tickets can only be assigned to active platform admins");
+      if (!["zella_owner", "super_admin"].includes(target.role)) {
+        const { data: grant, error: grantError } = await admin.from("platform_role_permissions").select("role")
+          .eq("role", target.role).eq("permission", "support.manage").maybeSingle();
+        if (grantError) throw grantError;
+        if (!grant) throw new InputError("Tickets can only be assigned to admins whose role can work support tickets");
+      }
     }
     if (assignee !== ticket.assigned_to) {
       update.assigned_to = assignee;
@@ -2382,16 +2631,9 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     }
   }
 
-  // OPS-25: a reply the business sees; first_response_at and the opener's notice are set in the database
+  // a reply over the limit is refused, never cut short: the page would clear a draft that wasn't sent in full
+  if (typeof fields.reply === "string" && fields.reply.trim().length > 4000) throw new InputError("A reply can be at most 4,000 characters.");
   const reply = text(fields.reply, 4000);
-  if (reply) {
-    const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
-    if (replyError) {
-      if (/zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")) throw new InputError("Replies to the business need the latest database update (sql/zella_support_replies.sql).", 503);
-      throw replyError;
-    }
-    changes.reply_added = true;
-  }
 
   const note = text(fields.note, 4000);
   if (note) {
@@ -2407,10 +2649,30 @@ async function ticketUpdate(admin: SupabaseClient, fields: Json, userId: string)
     changes.note_added = true;
   }
 
-  if (Object.keys(changes).length === 0) return { ticketId, businessId: ticket.business_id, changes };
+  if (Object.keys(changes).length === 0 && !reply) return { ticketId, businessId: ticket.business_id, changes };
 
-  const { error } = await admin.from("support_tickets").update(update).eq("id", ticketId);
-  if (error) throw error;
+  // The ticket's own changes (status, priority, assignee, a note) are saved first, and only when there are any: a reply
+  // alone needs no write here...
+  if (Object.keys(changes).length > 0) {
+    const { error } = await admin.from("support_tickets").update(update).eq("id", ticketId);
+    if (error) throw error;
+  }
+
+  // ...and the reply the business sees goes last (OPS-25; first_response_at and the opener's notice are set in the
+  // database), so nothing after it can fail and leave a published reply unaudited or tempt a resend. If the reply
+  // fails after other changes were saved, those changes are returned (and audited) with replyFailed, so the page
+  // says exactly what was saved and only the reply is sent again.
+  if (reply) {
+    const { error: replyError } = await admin.rpc("zella_admin_ticket_reply", { p_ticket: ticketId, p_author: userId, p_body: reply });
+    if (replyError) {
+      const why = /zella_admin_ticket_reply|does not exist|PGRST202/i.test(replyError.message ?? "")
+        ? "Replies to the business need the latest database update (sql/zella_support_replies.sql)." : "The reply could not be sent. Try again.";
+      if (Object.keys(changes).length === 0) throw new InputError(why, /latest database update/.test(why) ? 503 : 500);
+      console.error("Ticket reply failed after other changes were saved", replyError.message);
+      return { ticketId, businessId: ticket.business_id, changes, replyFailed: why };
+    }
+    changes.reply_added = true;
+  }
 
   return { ticketId, businessId: ticket.business_id, changes };
 }
@@ -2510,7 +2772,13 @@ async function platformStatus(admin: SupabaseClient, userId: string) {
     admin.from("businesses").select("id", head),
     admin.from("businesses").select("id", head).eq("onboarding_status", "failed"),
     admin.from("business_invitations").select("id", head).eq("status", "failed"),
-    admin.from("integrations").select("id", head).in("status", ["error", "disconnected"]),
+    // Connections that need attention, from the shared definition; the integrations table alone until it is applied.
+    (async () => {
+      const c = await connectionCounts(admin);
+      if (c) return { count: c.problems, error: null };
+      const r = await admin.from("integrations").select("id", head).in("status", ["error", "disconnected"]);
+      return { count: r.count, error: r.error };
+    })(),
     admin.from("support_tickets").select("id", head).eq("priority", "urgent").in("status", ["open", "in_progress"]),
     admin.from("audit_logs").select("id", head).gte("created_at", dayAgo),
     admin.from("calls").select("id", head).gte("created_at", dayAgo),
@@ -2951,6 +3219,7 @@ const EDITABLE_SETTINGS: Record<string, { label: string; check: (v: unknown) => 
   transfer_failure_threshold: { label: "Failed transfers before a business is flagged", check: (v) => intIn(v, 1, 50) },
   ai_low_confidence_questions: { label: "Unsure answers in one call before it is flagged for review", check: (v) => intIn(v, 2, 20) },
   response_sample_rate: { label: "Share of AI conversations sampled for quality review (0 to 1)", check: (v) => fraction(v) },
+  draft_abandon_days: { label: "Days without changes before a draft business is marked abandoned", check: (v) => intIn(v, 7, 365) },
 };
 
 // A short list of whole numbers, from "24, 72", "[24,72]" or an array. Kept unique and in the order its job reads
@@ -3133,7 +3402,7 @@ Deno.serve(withCors(async (req: Request) => {
     }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ?? DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3276,6 +3545,7 @@ Deno.serve(withCors(async (req: Request) => {
       admins_list: () => adminsList(adminClient, user.id),
       admin_invite: () => adminInvite(adminClient, fields, user.id),
       admin_update: () => adminUpdate(adminClient, fields, user.id),
+      admin_sessions_end: () => adminEndSessions(adminClient, fields, user.id),
       integrations_overview: () => integrationsOverview(adminClient),
       tickets_list: () => ticketsList(adminClient, fields),
       ticket_create: () => ticketCreate(adminClient, fields, user.id),
@@ -3295,27 +3565,46 @@ Deno.serve(withCors(async (req: Request) => {
     };
 
     const extra = settingsHandlers(adminClient, fields, { userId: user.id, role, aal, mfa: hasMfa },
-      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE });
+      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE,
+        draftAges: (a: SupabaseClient, rows: { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]) => draftAges(a, rows, Date.now(), { everyDraft: true }) });
     const onboarding = onboardingHandlers(adminClient, fields, user.id, {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
+    const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, role);
     const detail = detailHandlers(adminClient, fields, { text, requireId, InputError }, user.id, callerClient);
     const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? detail.handlers[action] ?? access.handlers[action];
+    const lifecycle = lifecycleHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? detail.handlers[action] ?? access.handlers[action] ?? lifecycle.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
-      const result = await handler();
+      const result = await trackSetup(adminClient, action, fields, handler);   // SET-ONB-RETRY: setup steps are recorded
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? detail.audited[action] ?? access.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? detail.audited[action] ?? access.audited[action] ?? lifecycle.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
-      if (entry && !unchanged && !(await writeAudit(adminClient, requestContext(req, user.id), entry)) && result && typeof result === "object") {
-        (result as Json).auditWarning = AUDIT_WARNING;
+      if (entry && !unchanged) {
+        const recorded = await writeAudit(adminClient, requestContext(req, user.id), entry);
+        // ACC-12: an export of the audit log is handed over only once the export itself is on record
+        if (!recorded && action === "audit_export") {
+          return respond({ error: "The export could not be recorded in the audit log, so it was not downloaded. Try again." }, 503);
+        }
+        // ACC-30: a new authenticator counts as recorded only once its entry is written, so the browser keeps it to retry
+        if (!recorded && action === "me_mfa_added") {
+          return respond({ error: "The new authenticator could not be recorded in the audit log yet. It is tried again later." }, 503);
+        }
+        // CFG-05: a sensitivity change that couldn't be audited is undone, so it never stays in effect unrecorded
+        const undo = config.undoUnaudited[action];
+        if (!recorded && undo) {
+          await undo(result as Json);
+          return respond({ error: "The change could not be recorded in the audit log, so it was undone. Nothing changed. Try again." }, 503);
+        }
+        // BIZ-17: any other action stands (it has already happened); the admin is told it wasn't recorded
+        if (!recorded && result && typeof result === "object") (result as Json).auditWarning = AUDIT_WARNING;
       }
 
       return respond(result);

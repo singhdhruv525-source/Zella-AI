@@ -42,9 +42,25 @@ class InputError extends Error { constructor(message: string, public status = 40
 const kit = { InputError, requireId: (v: unknown) => { if (typeof v !== "string" || !/^[0-9a-f-]{36}$/.test(v)) throw new InputError("bad id"); return v; } };
 const F1 = "11111111-1111-1111-1111-111111111111", F2 = "22222222-2222-2222-2222-222222222222", F3 = "33333333-3333-3333-3333-333333333333";
 // a fake server client: the factors of each user, and every admin call made
-function authFake(factors: Record<string, { id: string; status: string; friendly_name?: string }[]>, opts: { updateError?: string } = {}) {
+function authFake(factors: Record<string, { id: string; status: string; friendly_name?: string }[]>, opts: { updateError?: string; recorded?: string[] } = {}) {
   const calls: unknown[] = [];
-  const admin = { auth: { admin: {
+  // audit_logs reads: the admin.mfa_added entries already written (opts.recorded holds their factor ids)
+  const from = (table: string) => {
+    const f: Record<string, string> = {};
+    const q = { select: () => q, eq: (k: string, v: string) => { f[k] = v; return q; },
+      limit: async () => { calls.push(["read", f.user_id, table, f.entity_id]); return { data: table === "audit_logs" && f.action === "admin.mfa_added" && (opts.recorded ?? []).includes(f.entity_id) ? [{ id: "a1" }] : [], error: null }; } };
+    return q;
+  };
+  // zella_remove_mfa_factor as the database does it: refuses the last verified factor and anyone else's
+  const admin = { from, rpc: async (fn: string, a: { p_user_id: string; p_factor_id: string }) => {
+    if (fn !== "zella_remove_mfa_factor") return { data: null, error: { message: "unexpected rpc" } };
+    calls.push(["remove", a.p_user_id, a.p_factor_id]);
+    const mine = (factors[a.p_user_id] ?? []).filter((f) => f.status === "verified");
+    if (!mine.some((f) => f.id === a.p_factor_id)) return { data: null, error: { message: "NOT_FOUND" } };
+    if (mine.length < 2) return { data: null, error: { message: "LAST_FACTOR" } };
+    factors[a.p_user_id] = (factors[a.p_user_id] ?? []).filter((f) => f.id !== a.p_factor_id);
+    return { data: mine.length - 1, error: null };
+  }, auth: { admin: {
     mfa: {
       listFactors: async ({ userId }: { userId: string }) => { calls.push(["list", userId]); return { data: { factors: factors[userId] ?? [] }, error: null }; },
       deleteFactor: async (a: { userId: string; id: string }) => { calls.push(["delete", a.userId, a.id]); return { data: { id: a.id }, error: null }; },
@@ -62,7 +78,7 @@ Deno.test("the self service actions are for every active admin and only their ow
 Deno.test("me_mfa_added records only a verified authenticator that is really the caller's", async () => {
   const { admin, calls } = authFake({ me: [{ id: F1, status: "verified", friendly_name: "Phone" }, { id: F2, status: "unverified" }], other: [{ id: F3, status: "verified" }] });
   const h = (fields: Record<string, unknown>) => accessHandlers(admin, fields, "me", kit);
-  assertEquals(await h({ factorId: F1 }).handlers.me_mfa_added(), { factorId: F1, friendlyName: "Phone" });
+  assertEquals(await h({ factorId: F1 }).handlers.me_mfa_added(), { factorId: F1, friendlyName: "Phone", alreadyRecorded: false });
   for (const id of [F2, F3]) {                                   // not verified yet; someone else's
     const e = await h({ factorId: id }).handlers.me_mfa_added().catch((x) => x);
     assertEquals([e instanceof InputError, (e as InputError).status], [true, 404]);
@@ -70,19 +86,36 @@ Deno.test("me_mfa_added records only a verified authenticator that is really the
   // the user is always the caller: a userId in the request is ignored
   await h({ factorId: F1, userId: "other" }).handlers.me_mfa_added();
   assertEquals(calls.every((c) => (c as unknown[])[1] === "me"), true);
-  assertEquals(h({}).audited.me_mfa_added({ factorId: F1, friendlyName: "Phone" }), { action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: F1, new_data: { friendly_name: "Phone" } });
+  assertEquals(h({}).audited.me_mfa_added({ factorId: F1, friendlyName: "Phone", alreadyRecorded: false }), { action: "admin.mfa_added", entity_type: "mfa_factor", entity_id: F1, new_data: { friendly_name: "Phone" } });
 });
 
-Deno.test("me_mfa_remove refuses the last authenticator and someone else's, on the server", async () => {
+Deno.test("me_mfa_added is recorded once per authenticator: a retry after a lost answer writes nothing new", async () => {
+  const { admin } = authFake({ me: [{ id: F1, status: "verified", friendly_name: "Phone" }] }, { recorded: [F1] });
+  const h = accessHandlers(admin, { factorId: F1 }, "me", kit);
+  const r = await h.handlers.me_mfa_added();
+  assertEquals(r, { factorId: F1, friendlyName: "Phone", alreadyRecorded: true });
+  assertEquals(h.audited.me_mfa_added(r as Record<string, unknown> as never), null);
+});
+
+Deno.test("me_mfa_remove removes through the locked database function, never the last authenticator or someone else's", async () => {
   const one = authFake({ me: [{ id: F1, status: "verified" }, { id: F2, status: "unverified" }] });
   const e = await accessHandlers(one.admin, { factorId: F1 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
   assertEquals((e as InputError).status, 409);
-  assertEquals(one.calls.some((c) => (c as unknown[])[0] === "delete"), false);
-  const two = authFake({ me: [{ id: F1, status: "verified" }, { id: F2, status: "verified", friendly_name: "Old phone" }], other: [{ id: F3, status: "verified" }] });
-  const other = await accessHandlers(two.admin, { factorId: F3 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
+  const factors = () => ({ me: [{ id: F1, status: "verified" }, { id: F2, status: "verified", friendly_name: "Old phone" }], other: [{ id: F3, status: "verified" }] });
+  const other = await accessHandlers(authFake(factors()).admin, { factorId: F3 }, "me", kit).handlers.me_mfa_remove().catch((x) => x);
   assertEquals((other as InputError).status, 404);
+  const two = authFake(factors());
   assertEquals(await accessHandlers(two.admin, { factorId: F2 }, "me", kit).handlers.me_mfa_remove(), { factorId: F2, friendlyName: "Old phone", left: 1 });
-  assertEquals(two.calls.filter((c) => (c as unknown[])[0] === "delete"), [["delete", "me", F2]]);
+  assertEquals(two.calls.filter((c) => (c as unknown[])[0] === "remove"), [["remove", "me", F2]]);
+  assertEquals(two.calls.some((c) => (c as unknown[])[0] === "delete"), false);   // never Supabase Auth's unguarded delete
+  // two removals at once: the database answers one at a time, so the second finds only one left (LAST_FACTOR)
+  const race = authFake(factors());
+  const [a, b] = await Promise.all([F1, F2].map((id) => accessHandlers(race.admin, { factorId: id }, "me", kit).handlers.me_mfa_remove().catch((x) => x)));
+  assertEquals([a, b].filter((r) => r instanceof InputError && (r as InputError).status === 409).length, 1);
+  // and the other one really went through: it names the authenticator it removed, with one left
+  const done = [a, b].find((r) => !(r instanceof InputError) && !(r instanceof Error)) as { factorId: string; left: number } | undefined;
+  assertEquals([[F1, F2].includes(done?.factorId ?? ""), done?.left], [true, 1]);
+  assertEquals(race.calls.filter((c) => (c as unknown[])[0] === "remove").length, 2);
   assertEquals(accessHandlers(two.admin, {}, "me", kit).audited.me_mfa_remove({ factorId: F2, friendlyName: "Old phone", left: 1 }),
     { action: "admin.mfa_removed", entity_type: "mfa_factor", entity_id: F2, old_data: { friendly_name: "Old phone" }, new_data: { left: 1 } });
 });
@@ -153,8 +186,12 @@ Deno.test("audit filters: checked, a malformed one refused, the end date covers 
   assertEquals(auditFilters({ action: "audit_export" }, InputError), {});   // the function's own action is never a filter
   assertEquals(auditFilters({}, InputError), {});
   assertEquals(auditFilters({ search: "Admin. Up-dated!" }, InputError), { search: "admin.updated" });
+  // days in the admin's time zone: 1 Nov starts at midnight New York (still summer time), 16 Nov ends at the next midnight
+  assertEquals(auditFilters({ from: "2026-11-01", to: "2026-11-16", timeZone: "America/New_York" }, InputError),
+    { from: "2026-11-01T04:00:00.000Z", to: "2026-11-17T05:00:00.000Z", timeZone: "America/New_York" });
+  assertEquals(auditFilters({ timeZone: "America/New_York" }, InputError), {});
   for (const bad of [{ businessId: "x" }, { actorId: "1; drop" }, { auditAction: "a,b" }, { entityType: "x y" }, { entityId: "nope" }, { from: "2026-13-01" }, { to: "16/11/2026" },
-    { from: "2026-11-10", to: "2026-11-01" }, { from: "2026-02-30" }]) {
+    { from: "2026-11-10", to: "2026-11-01" }, { from: "2026-02-30" }, { from: "2026-11-01", timeZone: "Mars/Base" }, { businessId: 7 }, { auditAction: ["a"] }]) {
     let threw = false;
     try { auditFilters(bad, InputError); } catch (e) { threw = e instanceof InputError; }
     assertEquals(threw, true, JSON.stringify(bad));
@@ -183,7 +220,7 @@ Deno.test("filters and the cursor become the query: newest first, ties ordered b
 
 Deno.test("CSV cells: formulas are defused, quotes and line breaks are quoted, objects become JSON", () => {
   assertEquals(csvCell("plain"), "plain");
-  for (const f of ["=SUM(A1)", "+1", "-2", "@cmd", "\tx", "\rx"]) assertEquals(csvCell(f).replace(/^"|"$/g, "").startsWith("'"), true, f);
+  for (const f of ["=SUM(A1)", "+1", "-2", "@cmd", "\tx", "\rx", "\uFF1DSUM(A1)", "\uFF0B1", "\uFF0D2", "\uFF20cmd"]) assertEquals(csvCell(f).replace(/^"|"$/g, "").startsWith("'"), true, f);
   assertEquals(csvCell("=1+1"), "'=1+1");
   assertEquals(csvCell('say "hi", ok'), '"say ""hi"", ok"');
   assertEquals(csvCell("two\nlines"), '"two\nlines"');
@@ -200,11 +237,18 @@ function exportFake(n: number) {
   const admin = {
     from: () => {
       let after: string | null = null, lim = 1000;
+      const where: [string, unknown][] = [];
       const q: Record<string, unknown> = {};
-      for (const m of ["select", "order", "eq", "ilike", "gte", "lt"]) q[m] = () => q;
+      for (const m of ["select", "order", "ilike", "gte", "lt"]) q[m] = () => q;
+      q.eq = (k: string, v: unknown) => { where.push([k, v]); return q; };   // filters really filter
       q.or = (s: string) => { after = /id\.lt\.([0-9a-f-]{36})/.exec(s)?.[1] ?? null; return q; };
       q.limit = (l: number) => { lim = l; return q; };
-      q.then = (res: (v: unknown) => void) => { reads++; const start = after ? all.findIndex((r) => r.id === after) + 1 : 0; res({ data: all.slice(start, start + lim), error: null }); };
+      q.then = (res: (v: unknown) => void) => {
+        reads++;
+        const rows = all.filter((r) => where.every(([k, v]) => (r as Record<string, unknown>)[k] === v));
+        const start = after ? rows.findIndex((r) => r.id === after) + 1 : 0;
+        res({ data: rows.slice(start, start + lim), error: null });
+      };
       return q;
     },
     auth: { admin: { getUserById: async () => ({ data: { user: null } }) } },
@@ -221,22 +265,27 @@ Deno.test("audit export: owner and super admin only, by default", async () => {
 });
 
 Deno.test("audit export: every row once, defused, capped at 10,000 and said so, and audited without the file", async () => {
+  // the action filter: only the 1,250 admin.updated rows, each exactly once and in order
   const small = (await accessHandlers(exportFake(2500).admin, { auditAction: "admin.updated" }, "me", kit, "zella_owner").handlers.audit_export()) as { csv: string; rows: number; truncated: boolean; filters: unknown };
-  assertEquals([small.rows, small.truncated], [2500, false]);
+  assertEquals([small.rows, small.truncated], [1250, false]);
   const lines = small.csv.trimEnd().split("\r\n");
-  assertEquals(lines.length, 2501);
-  assertEquals(new Set(lines.slice(1).map((l) => l.split(",")[2])).size, 2);     // the action names column
-  assertEquals(lines.some((l) => /,=evil/.test(l)), false);
-  assertEquals(lines.some((l) => l.includes(",'=evil()")), true);
+  assertEquals(lines.length, 1251);
+  assertEquals(new Set(lines.slice(1).map((l) => l.split(",")[2])), new Set(["admin.updated"]));     // the action names column
+  // the After column holds each row's own number: every matching row appears once, in order (1, 3, 5, ... 2499)
+  assertEquals(lines.slice(1).map((l) => JSON.parse(l.split(",").slice(-1)[0].replace(/^"|"$/g, "").replace(/""/g, '"')).n), Array.from({ length: 1250 }, (_, k) => 2 * k + 1));
+  // no filter: formulas in cells are defused
+  const all = (await accessHandlers(exportFake(4).admin, {}, "me", kit, "zella_owner").handlers.audit_export()) as { csv: string };
+  assertEquals(all.csv.split("\r\n").some((l) => /,=evil/.test(l)), false);
+  assertEquals(all.csv.split("\r\n").some((l) => l.includes(",'=evil()")), true);
   assertEquals(AUDIT_EXPORT_MAX_ROWS, 10_000);
   const big = (await accessHandlers(exportFake(10_050).admin, {}, "me", kit, "super_admin").handlers.audit_export()) as { rows: number; truncated: boolean };
   assertEquals([big.rows, big.truncated], [10_000, true]);
   const entry = accessHandlers(exportFake(1).admin, {}, "me", kit, "zella_owner").audited.audit_export(small as unknown as Record<string, unknown>);
-  assertEquals(entry, { action: "audit.exported", entity_type: "audit_logs", new_data: { filters: { auditAction: "admin.updated" }, rows: 2500, truncated: false } });
+  assertEquals(entry, { action: "audit.exported", entity_type: "audit_logs", new_data: { filters: { auditAction: "admin.updated" }, rows: 1250, truncated: false } });
   assertEquals(actionText("admin.updated"), "Changed platform admin access");
 });
 
-import { businessHoursBetween, SUPPORT_HOURS_DEFAULT, supportHours, ticketTiming } from "./access.ts";
+import { businessHoursBetween, dayStart, SUPPORT_HOURS_DEFAULT, supportHours, ticketTiming } from "./access.ts";
 Deno.test("business hours: weekdays 9 to 5 in New York, across nights, weekends and the clock change", () => {
   const H = SUPPORT_HOURS_DEFAULT;
   // Monday 16 Nov 2026, New York is UTC-5
@@ -249,6 +298,27 @@ Deno.test("business hours: weekdays 9 to 5 in New York, across nights, weekends 
   assertEquals(businessHoursBetween("2026-10-30T13:00:00Z", "2026-11-02T15:00:00Z", H), 9);
   assertEquals(businessHoursBetween("2026-11-16T18:00:00Z", "2026-11-16T14:00:00Z", H), 0);
   assertEquals(businessHoursBetween("bad", "2026-11-16T14:00:00Z", H), 0);
+  // long spans are exact, not cut off: whole weeks are 40 hours each, whatever the clocks did in between
+  assertEquals(businessHoursBetween("2024-11-18T14:00:00Z", "2026-11-16T14:00:00Z", H), 104 * 40);   // Monday 9:00 to Monday 9:00, 104 weeks
+  assertEquals(businessHoursBetween("2024-11-18T14:00:00Z", "2026-11-16T18:00:00Z", H), 104 * 40 + 4);
+  const London = { ...H, timezone: "Europe/London", days: [1, 2, 3, 4, 5, 6] };
+  assertEquals(businessHoursBetween("2025-01-06T09:00:00Z", "2025-12-29T09:00:00Z", London), 51 * 48);   // through both clock changes
+  // hours that cross the clock change itself (Sundays 01:00 to 04:00 in New York, 8 March 2026 lost 02:00 to 03:00):
+  // a long span counts exactly what its days, one by one, count (elapsed time: that Sunday has 2 hours, not 3)
+  const night = { ...H, days: [7], start: "01:00", end: "04:00" };
+  const from = Date.parse("2026-01-04T00:00:00Z"), to = Date.parse("2026-04-26T12:00:00Z");
+  let byDay = 0;
+  for (let t = from; t < to; t += 86_400_000) byDay += businessHoursBetween(new Date(t).toISOString(), new Date(Math.min(t + 86_400_000, to)).toISOString(), night);
+  assertEquals(businessHoursBetween(new Date(from).toISOString(), new Date(to).toISOString(), night), Math.round(byDay * 100) / 100);
+  assertEquals(businessHoursBetween("2026-03-08T05:00:00Z", "2026-03-08T09:00:00Z", night), 2);
+});
+
+Deno.test("audit days start at the first instant of the local day, also when midnight is skipped", () => {
+  // America/Santiago skipped midnight on 6 September 2026 (23:59 went to 01:00): the day starts at 01:00 local, 04:00Z
+  assertEquals(new Date(dayStart(2026, 9, 6, "America/Santiago")).toISOString(), "2026-09-06T04:00:00.000Z");
+  assertEquals(auditFilters({ from: "2026-09-05", to: "2026-09-05", timeZone: "America/Santiago" }, InputError),
+    { from: "2026-09-05T04:00:00.000Z", to: "2026-09-06T04:00:00.000Z", timeZone: "America/Santiago" });
+  assertEquals(new Date(dayStart(2026, 11, 16, "America/New_York")).toISOString(), "2026-11-16T05:00:00.000Z");
 });
 
 Deno.test("the setting is read safely, and overdue means no first reply after 4 business hours", () => {

@@ -6,6 +6,7 @@ import { Pill } from "./OwnerOverview";
 import { Icon } from "./BusinessUI";
 import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
+import MissingDocuments from "./MissingDocuments";
 
 // Every business's verification documents in one place: the business registration and the owner's photo ID
 // collected in the Create Business wizard. Files are private; "View" asks the server for a link that works for one
@@ -23,7 +24,7 @@ const STATUS = {
   verified: ["success", "Verified"],
   rejected: ["danger", "Rejected"],
 };
-const TABS = [["pending_review", "Waiting"], ["rejected", "Rejected"], ["verified", "Verified"], ["all", "All"]];
+const TABS = [["pending_review", "Waiting"], ["rejected", "Rejected"], ["verified", "Verified"], ["all", "All"], ["missing", "Missing documents"]];
 const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "None");
 
 export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
@@ -70,12 +71,15 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   }, [verifying, rejecting, closeDialog]);
 
   const request = useRef(0);
+  const [refreshes, setRefreshes] = useState(0);   // Refresh also reloads the Missing documents list
   const load = useCallback(async () => {
     const id = ++request.current;
     setLoading(true);
     setError("");
     try {
-      const result = await callOwnerFunction("documents_queue", business ? { status, businessId: business } : { status });
+      // Missing documents has its own list (MissingDocuments); the counts above it still come from the queue
+      const queueStatus = status === "missing" ? "pending_review" : status;
+      const result = await callOwnerFunction("documents_queue", business ? { status: queueStatus, businessId: business } : { status: queueStatus });
       if (id === request.current) setData(result);
     } catch (err) {
       if (id === request.current) { setData(null); setError(friendlyError(err)); }
@@ -137,7 +141,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
           <p>Documents that prove each business is real and that the person who registered it may act for it.</p>
         </div>
         <div className="op-heading-actions">
-          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
+          <button type="button" className="owner-secondary-button" onClick={() => { setRefreshes((n) => n + 1); load(); }} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
         </div>
       </div>
 
@@ -176,6 +180,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             ))}
           </div>
 
+          {status === "missing" ? <MissingDocuments onOpenBusiness={onOpenBusiness} refreshKey={refreshes} /> : (
           <section className="owner-panel">
             <div className="owner-table-wrap" tabIndex={0}>
               <table className="owner-table">
@@ -220,6 +225,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
               </table>
             </div>
           </section>
+          )}
         </>
       )}
 

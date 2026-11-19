@@ -73,9 +73,29 @@ The public link pages:
 | `/u/<code>` Unsubscribe | Stop emails from that one business. If the link was opened very often in a few minutes, the page can't show the business name for a while, but the Unsubscribe button still works (opt-out always wins). |
 | `/status` | The Zella Voice service status and public incidents. It says "Everything is working" only when every part is checked and working; while any part isn't checked it says "Not every part is checked right now", and reminders and follow ups read Working only while the dispatch job is on and running (`sql/zella_status_honest.sql`, built, not applied). |
 | `/continue-plan` | An owner who scheduled a cancellation keeps their plan, from the email link. |
-| `/welcome` | Accepting an invitation and finishing sign-in from an email link. |
+| `/welcome` | Accepting an invitation and finishing sign-in from an email link. A business owner invited by the Zella Voice team goes on to the onboarding journey (below) when the server has one waiting; everyone else keeps the plain password page. |
+| `/welcome/setup` | The owner onboarding journey (§8.8). Needs the owner's own sign in. |
 
 A malformed private link shows a "this link isn't valid" page, never the admin sign-in.
+
+**Owner onboarding journey** (from the `/welcome` link; contract `docs/OWNER_ONBOARDING_CONTRACT.md`). The server side
+is **built, not applied** (`sql/zella_owner_onboarding.sql`, the `owner-onboarding` and `identity-webhook` edge
+functions; nothing deployed); the screens are being built separately. Progress is saved per business after every
+step, and "Finish later" brings the owner back to the same step.
+
+| # | Step | What the server does now | Status |
+|---|---|---|---|
+| 1 | Welcome | Shows the business name and the steps | Built, not applied |
+| 2 | Password and two step sign in | Done only when the account has a password and a verified authenticator and the session was verified with a code, read from the auth records | Built, not applied |
+| 3 | Check your details | Business, hours and services, team, AI receptionist and phone, each "Looks right" or "Change" with a note. A note reaches Zella Voice as an admin alert; once the change is made the owner checks that section again. A section that changed after "Looks right" asks again | Built, not applied |
+| 4 | Verify your identity | Manual upload: the owner uploads their ID and business registration; Zella Voice checks them in Verification. Shows Documents needed, Checking, Verified, Try again (a rejected document, upload a new copy) or In review (after 2 failed checks Zella Voice reviews it by hand). The owner can't pass until it is verified. A provider (Persona) can be connected later; its receiver is built and off | Partial: manual path built, not applied; provider not connected |
+| 5 | Your plan | Shows the plan Zella Voice saved for the business (price, minutes, texts, emails, seats, numbers); the owner accepts it. No switching | Built, not applied |
+| 6 | Pay or start a trial | Shows "waiting": payments aren't connected (Stripe Checkout isn't built). Opens only after identity is verified | Partial: waiting only |
+| 7 | You're all set | Records the end of the journey; the CRM's go live checks follow | Built, not applied |
+
+Going live now also needs the owner's identity verified and a confirmed first payment, in both the CRM's checklist and
+the server's own go live check (built, not applied). Admins see each business's step through
+`zella_admin_onboarding_overview()` and `zella_admin_onboarding_progress(id)`; the business page doesn't show it yet.
 
 ## 5. Status words used in this document
 
@@ -99,6 +119,11 @@ One product serves 28 industries. Nothing in the code branches on the industry: 
 decides the words, booking model, CRM modules, record types, automations, templates, receptionist focus and privacy
 rules (`BIZ-4`, `BIZ-10`). A business customises within its industry's bounds, and its changes survive industry
 upgrades.
+
+Each industry's booking model, whether it is sensitive and its default automations are stored with the industry
+(`industries.booking_model`, `industries.sensitive`, `industry_configurations.automation_defaults`; CFG-05, built, not applied)
+and edited on Industry configuration. The receptionist's industry safety lines are stored there too
+(`industry_configurations.safety_rules`), read by the receptionist once `sql/zella_brain_safety_rules.sql` is applied.
 
 | Industry | Words (customer / booking / staff) | Booking model | Regulated |
 |---|---|---|---|
@@ -293,6 +318,31 @@ the same rules; hiding an item is never the protection.
 
 Multi-factor sign-in is enforced on the server for the roles that require it. Every Zella Voice admin must use two step sign in (an authenticator app): an admin without one is walked through setting it up at sign in, can't use any page until then, and can't remove their only authenticator (built, not live: needs the web app, `owner-provision-business` and `sql/zella_admin_mfa.sql`, in that order).
 
+### 8.8 Owner onboarding journey
+
+What a business owner sees after opening their invitation, at `/welcome/setup` (`web/src/onboarding/`). The server
+side is described in `docs/OWNER_ONBOARDING_CONTRACT.md` (built on its own branch, not applied or deployed); the
+screens call only what it lists and the database decides every rule. Every screen has a progress bar (step n of 7),
+Finish later (the owner comes back to the same step, from the email link or from a "Finish setting up" banner in the
+CRM), loading, error, empty and "This step isn't ready yet" states, a phone first layout, the Classic and Glass looks,
+and focus moving to each new step's heading. The CRM banner shows nothing if it fails to load. If the password saves but
+reading the next step fails, trying again (or Carry on now after Finish later) reads the step again without saving the
+password a second time.
+
+| # | Screen | What the owner does | Status |
+|---|---|---|---|
+| 1 | Welcome | Sees their business name and the steps ahead | Screens built (not deployed); need the onboarding database functions |
+| 2 | Password and two step sign in | Chooses a password, then adds an authenticator app (the same set up calls as the admin sign in, through the shared `AuthenticatorSetup` component) | Screens built (not deployed) |
+| 3 | Check your details | Reviews business, hours and services, team, and AI receptionist and phone, one part at a time, with Looks right or Change; Change sends a note to the Zella Voice team, who make the change and send it back to check | Screens built (not deployed) |
+| 4 | Verify your identity | Uploads their photo ID and business registration (manual upload, checked by Zella Voice in Verification); sees Documents needed, Checking, Verified, Try again or In review | Screens built (not deployed); needs the `owner-onboarding` edge function for uploads. No identity provider is chosen (owner decision open); the screen has one place reserved for a provider's widget |
+| 5 | Your plan | Sees the plan, price and allowances exactly as the admin saved them, and accepts it (no switching) | Screens built (not deployed) |
+| 6 | Pay | Sees "Payment opens here soon": payments aren't connected. "Payment received" shows only when the server confirms a payment | Waiting state built; paying needs Stripe Checkout (step 4 of billing) |
+| 7 | You're all set | Sees what happens next (test call, go live checks from the server) and opens their CRM | Screens built (not deployed) |
+
+Tested locally only: unit tests of the step rules (`web/tests/ownerOnboarding.test.mjs`) and a browser walk through
+every screen against a stand in that follows the contract (`tests/browser/owner-onboarding-journey.cjs`). The stand in
+(`web/src/onboarding/fakeApi.js`) is built in only with `VITE_ONBOARDING_FAKE=1` and never ships.
+
 ---
 
 ## 9. Platform admin (Zella Voice staff)
@@ -304,23 +354,25 @@ only the pages they can use. Every admin action is written to the audit log.
 |---|---|---|---|
 | — | **Overview** | Platform health, businesses, calls, alerts at a glance | `businesses.view` |
 | Businesses | **Businesses** | Every business, paged on the server (25 a page) with exact totals: search by name, owner, email or phone; filter by industry, stage, saved plan and "has a problem"; sort by newest, oldest, name or most problems. Each row shows the owner and their invitation, the saved plan ("Pro, v2" or "No plan saved") with the subscription status beside it, the stage (a draft names the step setup reopens at), the last call and open problems (warning or urgent platform alerts, a failed or expired owner invitation, a broken integration, failed setup). "Need attention" lists the businesses with a problem in one click. View is the main action once setup is done; create and setup buttons show only with `businesses.manage`, and suspend, reactivate and cancel on the business only with `businesses.lifecycle` (the server checks both again). Reads `businesses_list`; against an older server it falls back to the old unpaged list and says so. | `businesses.view` |
-| Businesses | **Verification** | Business and owner verification documents (private storage) | `businesses.manage` |
-| Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Plan & pricing → Review. The ten steps show in two rows of five (numbers that wrap on a phone), Back is hidden on the first step, and the time zone search suggests a US zone. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. | `businesses.manage` |
-| Configuration | **Industry configuration** | The 28 industries' configurations | `businesses.view` |
+| Businesses | **Verification** | Business and owner verification documents (private storage). A **Missing documents** tab lists every business that hasn't sent its business registration or owner's photo ID, including ones already live (Live without documents), with Request documents: audited, at most once a day per business, and the Documents needed email (S4) is queued for the owner when the platform outbox is installed; nothing is sent until email sending is live, and the page says so (UI-11; built, needs the owner-provision-business deploy). Uploads never confirmed are deleted after 24 hours by the record-files function's server only documents cleanup, audited (BIZ-18a; built, needs `sql/zella_document_orphans.sql` and the record-files deploy; not scheduled until the owner switches it on) | `businesses.manage` |
+| Businesses | **Create Business wizard** | Business → Owner & verification → Hours & services → Team → AI receptionist → Phone & integrations (spam protection) → Automations → CRM setup → Plan & pricing → Review. The ten steps show in two rows of five (numbers that wrap on a phone), Back is hidden on the first step, and the time zone search suggests a US zone. Adapts its fields to the industry, saves drafts, guards unsaved changes, and invites the owner only once setup finishes. Before the draft is made it warns about businesses that may be the same one (same name, phone number or website, cancelled ones left out) and offers Change details or Create anyway; one creation key per wizard session means a retry after a timeout returns the business the first try made, never a second one (BIZ-14; built, needs `sql/zella_business_creation_key.sql` and the owner-provision-business deploy). | `businesses.manage` |
+| Configuration | **Industry configuration** | The 28 industries' configurations: words, receptionist wording, modules. Switching a module off removes it at once from every business in the industry that has it on; the page shows "N businesses lose X" and asks for a reason first (audited). An industry can be deactivated and reactivated (audited, marked Inactive): it is then not offered for new businesses, and the businesses already in it keep working. Each industry also stores whether it is sensitive (staff never see call transcripts; a new industry starts sensitive; only a Zella Voice owner changes it, with a reason and a typed confirmation to turn it off, audited), its booking model, and the automations a new business starts with (CFG-05, `sql/zella_industry_data.sql`, built, not applied) | `businesses.view`; changes `platform.configure` |
 | Configuration | **Modules & features** | Modules per industry and business | `businesses.view` |
-| Configuration | **Plans & subscriptions** | Plans and subscriptions (policy decided in architecture §17; no plan created yet). Each plan card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js` | `billing.view` |
+| Configuration | **Plans & subscriptions** | Every business with its own plan (business_plans), a page at a time: tier and version in short ("Pro v3"), price and interval, allowances, subscription status, and one action per row (Details, or Set up plan when the business has none); on phones each business is a card. A details drawer (eyebrow Plan, the business name as title) with every allowance ("Version 3 of 3"), this period's balances, the saved versions as a small table, and Open business in its footer. Payments aren't connected, so nothing is charged. The shared plans are shown as Fallback limits (used only for a business with no plan of its own); each card lists every allowance in words ("AI voice minutes per period: No limit", "Languages the receptionist speaks: 2"), from `web/src/copy/planAllowances.js`; their editors show only with `plans.manage` | `billing.view` |
 | Configuration | **Offers & promotions** | Offers, rules, redemptions | `billing.view` |
-| AI & communications | **AI agents** | Receptionist agents and configurations | `businesses.view` |
+| AI & communications | **AI agents** | Receptionist agents and configurations; Live and Answering per receptionist from the one definition (§9.1), with what is missing before it can be live; what calls actually got in the last 7 days (served, not ready, unknown number, over its limit), the version served and the published one, and a drawer of recent calls with their problems. An AI testing tab runs each business's test questions against its knowledge (knowledge retrieval only, not live calls; nothing sent or charged), stores every run, and shows Passes (at least 3 questions, all passing) or a Warning; a failing run never blocks going live (AI-TESTING, `sql/zella_ai_eval_admin.sql`, built, not applied; running needs `businesses.manage`) | `businesses.view` |
 | AI & communications | **Voice & numbers** | Assign and release phone numbers, voice usage, alerts. Provider connection checks are on Overview only; Providers & costs shows keys, AI voice usage (the 20 businesses with most calls, then "See all") and pricing. Call lengths read "45 s", "1 min", "2 min 5 s" | `businesses.view` |
-| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries. Live switches read in words ("Texts and emails are in test mode"), with the setting key only in a tooltip | `businesses.view` |
-| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied). Incidents: opening, publishing and resolving ask in a dialog (the public status text starts empty, never copied from internal details); a second incident for a problem already open shows the open one first (Open anyway is still possible); open incidents can be edited (nobody is notified) and have a timeline of updates, internal unless Tell affected businesses is ticked; older incidents load 20 at a time. Updates and edits need `sql/zella_incident_updates.sql` (built, not applied; the public status page doesn't show updates yet) | `businesses.view` (changes: `support.manage`) |
+| AI & communications | **Messaging** | Messages across businesses, templates, compliance, retries. Live switches read in words ("Texts and emails are in test mode"), with the setting key only in a tooltip. On Templates, an admin with `comms.manage` can add an industry or Spanish version of a platform template (a Spanish version is kept but not sent yet: every sender asks for English today; how a send picks its language is waiting on the owner) and retire such a version (senders fall back to the platform version; the English platform version can't be retired), each with a reason and audited; variables go in at the cursor, and script tags are refused in any case (UI-20, COM-27; built, needs `sql/zella_admin_templates_manage.sql`). On Consent & opt outs, an admin with `comms.manage` can look up why one number or address of one business gets no messages (at least 4 digits or a full email, and a reason): masked results (last 4 digits), consent, do not contact flags, block lists and the last blocked message, every lookup audited (COM-29; built, needs `sql/zella_admin_contact_lookup.sql`) | `businesses.view` |
+| Operations | **Platform operations** | Scheduler health, dispatcher, provider health, failed work. Sending a failed event back needs `integrations.manage` and a reason, and is refused (with the reason in words) when a run of it is running or succeeded, had a step succeed or reached a provider, so a retry never repeats a message (`sql/zella_retry_event_safe.sql`, built, not applied). Incidents: opening, publishing and resolving ask in a dialog (the public status text starts empty, never copied from internal details); a second incident for a problem already open shows the open one first (Open anyway is still possible); open incidents can be edited (nobody is notified) and have a timeline of updates, internal unless Tell all active businesses is ticked (incidents don't record which businesses they affect, so the notice goes to every active business); older incidents load 20 at a time. Updates and edits need `sql/zella_incident_updates.sql` (built, not applied; the public status page doesn't show updates yet) | `businesses.view` (changes: `support.manage`) |
 | Operations | **Automations** | Automations and runs across businesses, retry, pause. Scheduler & n8n lists the scheduled jobs once, then the go live checklist in words (setting keys in tooltips) | `businesses.view` |
-| Operations | **Integrations** | Provider connections and their state | `businesses.view` |
+| Operations | **Integrations** | What each business asked for in setup against what is connected (numbers, Vapi link, calendar, lead sources from §9.1; email reads Not tracked), plus store and other integration records | `businesses.view` |
 | Operations | **Support** | Support tickets: a conversation with the business (replies it sees in Settings > Help and support > Support requests, where owners, admins and managers answer) kept apart from internal notes; age and first reply in business hours (Monday to Friday 9 to 5 New York by default, `support_business_hours`); Waiting too long filter (no reply after 4 business hours); alerts for cancellation, plan change and urgent requests; assignees limited to people who may work tickets. Replies need `sql/zella_support_replies.sql` (built, not applied); the business is told in the app only | `support.manage` |
 | Operations | **Security & abuse** | Spam and abuse across the platform: the tabs first, then (on Overview) the period's six totals, three a row | `security.view` |
 | Administration | **Users & access** | Platform admins and their roles | `security.view` |
 | Administration | **Audit logs** | Every privileged action; append-only. Filters by business, action (every action in the shared list), person, dates and record; Details show the record id, address and browser. Export CSV (at most 10,000 entries, cells that could run as spreadsheet formulas defused) for a Zella Voice owner or super admin; each export is audited | `audit.view` (export: also owner or super admin) |
 | Administration | **Settings** | 17 categories: general, tenants, users, plans, offers, billing, AI providers, voice and usage, communications, integrations, security, alerts, support, analytics, legal, developer, administrator profile. Platform settings are labelled in words, with the setting key as small help text; Communication templates previews the templates and links to Messaging, Templates, where they are edited | per category |
+| Administration | **Settings, Business onboarding** | Every business still in setup with what it has in place and when it last changed. Every setup save records its step in provisioning_steps (pending, then done or failed; a refused input puts the step back), so Failed steps and Provisioning errors show real failures, and a failed owner invitation email is its own step (SET-ONB-RETRY part 1; built, needs the owner-provision-business deploy). A failed internal step (modules, AI receptionist, automations) has **Retry step**, which only adds what is missing and is audited; a failed invitation email has Send owner invite; anything else is finished with Continue setup. A timed retry of the internal steps (at most 3 tries each) exists but is off until the owner switches it on (SET-ONB-RETRY part 2; built, needs `sql/zella_provisioning_retry.sql`). A draft with no change for 30 days (Operational rules, `draft_abandon_days`) shows as **Abandoned** and raises one alert; nothing is deleted automatically (BIZ-13b; built, needs the owner-provision-business deploy). A Zella Voice owner or super admin can **Delete draft** for a business that never finished setup: they type its name and give a reason; the database refuses a business that is live, active, in testing or ready, cancelled, has an accepted owner, team members, calls, phone numbers, billing, a delivered receptionist or offer history. Its uploaded documents are removed; its audit history stays (audit rows are never deleted with a business: ACC-10, the owner's decision), and the deletion's own audit record keeps its id and name (BIZ-13a, ACC-10; built, needs `sql/zella_draft_delete.sql` and the owner-provision-business deploy) | `businesses.manage` and the zella_owner or super_admin role to delete |
+| Administration | **Settings, Data lifecycle** | How long a canceled business's records are kept (`retention_days`; labelled Pending legal review, since the architecture says 30 days and the database falls back to 90), every canceled business with its retention date and state, and a **Past their retention date** list. Read only: nothing is deleted automatically; a purge waits for the owner and legal (BIZ-13c; built, needs the owner-provision-business deploy) Whole business export: an admin requests it, a Zella Voice owner other than the requester approves, and it is downloadable for 7 days through signed links that end with it, for the person who asked or an owner; the Whole business export card lists exports with their state and progress. The business-export worker writes one JSON file per table plus the business's stored files and a manifest, resumes after an interruption, and leaves out secret tables and columns, recording links and sensitive industries' transcripts (SET-DL-EXPORT; built, needs `sql/zella_business_export.sql`, the business-export and owner-provision-business deploys; nothing runs until the owner turns the worker's timed call on) | `security.view` |
 
 When the window is too short for the whole menu, its bottom fades and says "More below" above the Platform status
 footer, until the list is scrolled to the end.
@@ -332,8 +384,10 @@ platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its 
 later, not before launch (owner, 16 Nov 2026).
 
 When an owner removes an admin or changes their role, that person is signed out on every device, and Users & access
-says how many devices were signed out (needs `sql/zella_admin_sessions.sql`, built, not applied). Anyone can sign out
-their other devices, and that is recorded in the audit log as "Signed out other devices". Adding an admin and changing an admin's
+says how many devices were signed out (needs `sql/zella_admin_sessions.sql`, built, not applied). The change is saved
+even if signing the devices out fails: the page then shows a warning that their devices could not be signed out, no
+device count, and a Sign out everywhere button that tries again. Anyone can sign out
+their other devices, and that is recorded in the audit log as "Signed out other devices" (through `zella_revoke_my_other_sessions`; before that function is applied, Supabase Auth signs the other devices out without an audit entry). Adding an admin and changing an admin's
 role or access need an authenticator code entered in the last 5 minutes: Users & access asks for a new code and then
 makes the change (only a fresh code, no second owner's approval). Changing what a restricted role may do (Platform
 roles in Settings) gets the same check once that page's open changes have merged. An admin's own security changes in
@@ -414,6 +468,28 @@ scrolls (BIZ-30, UI-34). What each tab shows and what an admin can do there:
   waits and starts at go live. Until the switch is on, saving behaves as before (built, off).
 
 ---
+
+### 9.1 Connected, answering and live (one definition)
+
+Overview, AI agents, Integrations and the operations health count all read the same definition, from the database
+(`zella_business_connections` and `zella_connection_counts`, `sql/zella_connection_state.sql`, built, not applied). Before it,
+each page worked it out from the integrations table, which only the store connection writes, so the four pages gave
+four answers about the same business (COM-01, OPS-07, UI-02).
+
+| State | Means |
+|---|---|
+| Phone | The business has an active phone number (`business_phone_numbers`) |
+| Voice linked | An active number has its Vapi number id |
+| Answering | Zella Voice served the receptionist for a call to this business in the last 7 days (`assistant_deliveries`, outcome served). Shown on its own, never folded into Live: it can honestly be 0 until the numbers send their calls through voice-rules (a provider change that needs the owner's approval) |
+| Calendar | An active Google or Outlook calendar connection |
+| Leads | An enabled website form, a connected Meta account or an enabled Google lead key |
+| Email | Not tracked: there is no mailbox connection to check, so no page says connected or not connected |
+| Needs attention | Integrations in error or disconnected, calendars in error or disconnected, Meta accounts that need reconnecting |
+| Live | The business is active (setup finished, switched on, not suspended or cancelled), its receptionist is switched on, and it has an active number linked to Vapi |
+
+**Defaults taken (owner can change):** the 7 day answering window (`ANSWERING_DAYS` in the SQL); Live needs the
+receptionist switched on and a number linked to Vapi, but not a recent answered call; a suspended or cancelled business
+is never live. The real values in production still need an owner approved read only count.
 
 ## 10. Messaging and follow-ups
 
@@ -521,7 +597,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Five notification tones with a short label (Record, New lead, Still answering, On call, Urgent), worded in each industry's terms, no emoji | Built |
 | Admin alerts bell | Built |
 | Push notifications for the installed web app | Planned (D-40) |
-| Emails from Zella Voice to businesses: 92 emails (account and setup, sign in, summaries, alerts, usage, service, billing) in one catalogue and layout, with an admin preview (Admin, Messaging, Emails to businesses) | Built; sending not connected (`docs/BUSINESS_EMAILS.md`) |
+| Emails from Zella Voice to businesses: 92 emails (account and setup, sign in, summaries, alerts, usage, service, billing) in one catalogue and layout, with an admin preview (Admin, Messaging, Emails to businesses). The outbox there filters by business, status and email; a row opens the email itself (sandboxed preview and plain text, each view audited), and an email held after 5 failed tries can be released (back in the queue, tries reset) or discarded (shown as Discarded) with a reason, under `comms.manage`, which also closes its held alert (COM-18, COM-22) | Built; sending not connected (`docs/BUSINESS_EMAILS.md`); release, discard and the drawer need `sql/zella_platform_email_actions.sql` (built, not applied) |
 | Platform outbox for those emails: sent once per key, test mode while email sending is off, retries then held for a person | Built and applied 15 Nov 2026 (`sql/zella_platform_emails.sql`); empty until delivery is set up, email sending off |
 | Email delivery for notifications (summaries, warnings, urgent alerts): written from the catalogue, queued once per person, sent through Resend by the `platform-emails` edge function, which the database wakes only when there is work; replaces the n8n Owner Emails path | Built, not applied or deployed (`sql/zella_email_delivery.sql`, `platform-emails`); sending also needs `email_live`, a sender address and the Resend key |
 
@@ -548,6 +624,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Item | Waiting on |
 |---|---|
 | Self-service sign-up | Later phase (D-06) |
+| Owner onboarding: Stripe Checkout and the payment webhook (step 6), the identity provider's live connection (step 4) | Build after the owner sets up the Stripe and Persona accounts; the gates and the receiver are built (`sql/zella_owner_onboarding.sql`) |
 | Billing build (plans in the database, usage rules, Billing & Subscription page, Stripe) | Build, in steps (architecture §17); open billing decisions D-45 to D-51 |
 | Two-way AI messaging | Build (architecture §14.3) |
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |

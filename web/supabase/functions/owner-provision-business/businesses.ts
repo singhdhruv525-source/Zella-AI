@@ -188,7 +188,11 @@ export async function businessesList(admin: SupabaseClient, fields: Json, k: Lis
   const subOf = new Map((subscriptions ?? []).map((s) => [s.business_id, s]));
   const group = (rows: Row[] | null) => {
     const m = new Map<string, Row[]>();
-    for (const r of rows ?? []) m.set(r.business_id, [...(m.get(r.business_id) ?? []), r]);
+    for (const r of rows ?? []) {
+      const list = m.get(r.business_id);
+      if (list) list.push(r);
+      else m.set(r.business_id, [r]);
+    }
     return m;
   };
   const alertsOf = group(alerts), failingOf = group(integrations);

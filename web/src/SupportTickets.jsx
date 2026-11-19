@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./OwnerPages.css";
 import "./SupportTickets.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -34,26 +34,59 @@ export default function SupportTickets({ onOpenBusiness }) {
   const [note, setNote] = useState("");
   const [reply, setReply] = useState("");
   // drafts belong to one ticket: switching tickets (or closing) starts fresh ones
-  const selectTicket = (id) => { setSelectedId(id); setNote(""); setReply(""); };
+  // a ticket just created, opened as soon as a regular list holding it arrives (the overdue tab never holds it)
+  const [openWhenListed, setOpenWhenListed] = useState(null);
+  const selectTicket = (id) => { setSelectedId(id); setNote(""); setReply(""); setOpenWhenListed(null); };
 
+  // only the latest load may show its result, so an older refresh can't replace the list read after a reply
+  const request = useRef(0);
+  // Waiting too long asks the server for the overdue tickets themselves (every waiting ticket is judged there), not
+  // a filter of the newest tickets loaded for the other tabs
+  const overdueTab = statusFilter === "overdue";
   const load = useCallback(async () => {
+    const mine = ++request.current;
     setLoading(true);
     setError("");
     try {
-      setData(await callOwnerFunction("tickets_list"));
+      const next = await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {});
+      if (mine === request.current) setData({ ...next, overdueOnly: overdueTab });
     } catch (err) {
-      setError(friendlyError(err));
+      if (mine === request.current) setError(friendlyError(err));
     } finally {
-      setLoading(false);
+      if (mine === request.current) setLoading(false);
     }
-  }, []);
+  }, [overdueTab]);
 
   useEffect(() => {
     load();
   }, [load]);
+  // a refresh after a change uses the tab shown when it finishes, not the one shown when the change was sent
+  const loadRef = useRef(load);
+  const overdueRef = useRef(overdueTab);
+  useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
+  // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
+  // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.
+  const createRefresh = useRef(false);
+  useEffect(() => {
+    if (!openWhenListed) return;
+    if (overdueTab && createRefresh.current) { createRefresh.current = false; setStatusFilter("active"); return; }
+    if (!loading && data && data.overdueOnly === false && (data.tickets ?? []).some((t) => t.id === openWhenListed)) {
+      setSelectedId(openWhenListed);
+      setOpenWhenListed(null);
+    }
+  }, [openWhenListed, overdueTab, loading, data]);
+  // reply times are known only once the server says conversations are available (sql/zella_support_replies.sql)
+  const timesKnown = data?.conversations === true;
 
-  const tickets = (data?.tickets ?? []).filter((t) =>
-    statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
+  // the list shown is only ever the answer for this kind of tab (overdue only, or the regular list); until that answer
+  // arrives the table says loading or the error, never "No tickets here"
+  const listMatches = Boolean(data) && data.overdueOnly === overdueTab;
+  // an empty list is "No tickets here" only when the latest read for this tab succeeded and nothing is loading
+  const emptyIsCurrent = listMatches && !loading && !error;
+  // without reply times (sql/zella_support_replies.sql not applied) the server can't tell which tickets are overdue
+  const overdueUnknown = overdueTab && listMatches && !timesKnown;
+  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).filter((t) =>
+    statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue === true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
   // with the detail panel open the table is narrow: Business moves into each row's second line and Assigned is in the panel
@@ -63,10 +96,13 @@ export default function SupportTickets({ onOpenBusiness }) {
     setBusy(true);
     setError("");
     try {
-      await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
-      if (payload.note) setNote("");
-      if (payload.reply) setReply("");
-      await load();
+      const r = await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
+      // clear only the text that was sent; anything typed since stays
+      if (payload.note) setNote((current) => (current === payload.note ? "" : current));
+      // the other changes were saved but the reply wasn't: say so, and keep the reply to send again on its own
+      if (r?.replyFailed) setError(`The other changes were saved, but the reply wasn't sent: ${r.replyFailed}`);
+      else if (payload.reply) setReply((current) => (current === payload.reply ? "" : current));
+      await loadRef.current();
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -82,8 +118,11 @@ export default function SupportTickets({ onOpenBusiness }) {
       const result = await callOwnerFunction("ticket_create", draft);
       setCreating(false);
       setDraft(EMPTY_TICKET);
-      await load();
-      setSelectedId(result.ticketId);
+      // a new ticket isn't overdue: decided by the tab shown now (it may have changed while saving). From Waiting too
+      // long, show the regular list, which reads it; otherwise read the regular list again. Then open it there.
+      setOpenWhenListed(result.ticketId);
+      if (overdueRef.current) setStatusFilter("active");
+      else { createRefresh.current = true; await loadRef.current(); createRefresh.current = false; }
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -112,7 +151,7 @@ export default function SupportTickets({ onOpenBusiness }) {
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
 
       <div className="ag-filters op-gap" role="tablist">
-        {[["active", "Open & in progress"], ["overdue", `Waiting too long${data ? ` (${data.tickets.filter((t) => t.overdue).length})` : ""}`], ...STATUSES, ["all", "All"]].map(([key, text]) => (
+        {[["active", "Open & in progress"], ["overdue", "Waiting too long"], ...STATUSES, ["all", "All"]].map(([key, text]) => (
           <button key={key} type="button" role="tab" aria-selected={statusFilter === key} className={statusFilter === key ? "active" : ""} onClick={() => setStatusFilter(key)}>
             {text}
           </button>
@@ -131,7 +170,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                     <tr key={t.id} className={`st-row ${t.id === selectedId ? "selected" : ""}`} onClick={open}>
                       <td>
                         <div className="st-ticket-cell">
-                          <button type="button" className="st-title owner-table-primary" aria-pressed={t.id === selectedId} onClick={(e) => { e.stopPropagation(); open(); }}>{t.subject}</button>
+                          <button type="button" className="st-title owner-table-primary" title={t.subject} aria-pressed={t.id === selectedId} onClick={(e) => { e.stopPropagation(); open(); }}>{t.subject}</button>
                           <span className="owner-table-secondary st-sub">
                             <span className="st-sub-business">{t.business_name} · </span>
                             {t.category ? `${categoryText(t.category)} · ` : ""}{timeAgo(t.created_at)}
@@ -143,7 +182,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                       <td>
                         <span className="st-status">
                           <Pill tone={STATUS_TONE[t.status]}>{label(STATUSES, t.status)}</Pill>
-                          {t.overdue && <Pill tone="danger">No reply yet</Pill>}
+                          {timesKnown && t.overdue === true && <Pill tone="danger">No reply yet</Pill>}
                         </span>
                       </td>
                       {!detailOpen && (
@@ -157,7 +196,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                   );
                 })}
                 {!tickets.length && (
-                  <tr><td colSpan={detailOpen ? 3 : 5}><div className="op-empty">{loading && !data ? "Loading tickets..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No tickets here."}</div></td></tr>
+                  <tr><td colSpan={detailOpen ? 3 : 5}><div className="op-empty">{overdueUnknown ? "Overdue tracking is unavailable until reply times are recorded (a database update is needed)." : emptyIsCurrent ? "No tickets here." : loading ? "Loading tickets..." : "Couldn't load this list. Try again with Refresh, or reload the page."}</div></td></tr>
                 )}
               </tbody>
             </table>
@@ -217,9 +256,11 @@ export default function SupportTickets({ onOpenBusiness }) {
 
             {selected.description && <p className="st-description">{selected.description}</p>}
             <p className="op-muted st-response">
-              {selected.firstResponseHours !== null && selected.firstResponseHours !== undefined
+              {!timesKnown
+                ? "Reply times aren't available yet (they need the latest database update)."
+                : selected.firstResponseHours !== null && selected.firstResponseHours !== undefined
                 ? firstReplyText(selected.firstResponseHours)
-                : `No reply yet: open for ${businessHoursText(selected.ageHours) || "under a business hour"}${selected.overdue ? `, past the ${data?.supportHours?.first_response_hours ?? 4} business hour goal` : ""}.`}
+                : `No reply yet: open for ${businessHoursText(selected.ageHours) || "under a business hour"}${selected.overdue === true ? `, past the ${data?.supportHours?.first_response_hours ?? 4} business hour goal` : ""}.`}
             </p>
 
             <div className="st-fields">
@@ -246,7 +287,9 @@ export default function SupportTickets({ onOpenBusiness }) {
 
             <div className="st-notes">
               <h4>Conversation with the business</h4>
-              {selected.messages?.length ? (
+              {data?.conversations !== true ? (
+                <p className="op-muted">Conversations with businesses aren't available yet: they need the latest database update (sql/zella_support_replies.sql).</p>
+              ) : selected.messages?.length ? (
                 <ul>
                   {selected.messages.map((m, i) => (
                     <li key={i}>
@@ -256,10 +299,14 @@ export default function SupportTickets({ onOpenBusiness }) {
                   ))}
                 </ul>
               ) : <p className="op-muted">No replies yet. The business sees everything in this conversation.</p>}
-              <textarea className="wiz-textarea" aria-label="Reply to the business" value={reply} placeholder="Write a reply the business will see" onChange={(e) => setReply(e.target.value)} />
-              <button type="button" className="owner-primary-button op-gap-top" disabled={busy || !reply.trim()} onClick={() => update({ reply })}>
-                {busy ? "Sending..." : "Send reply"}
-              </button>
+              {data?.conversations === true && (
+                <>
+                  <textarea className="wiz-textarea" aria-label="Reply to the business" value={reply} maxLength={4000} placeholder="Write a reply the business will see" onChange={(e) => setReply(e.target.value)} />
+                  <button type="button" className="owner-primary-button op-gap-top" disabled={busy || !reply.trim() || reply.length > 4000} onClick={() => update({ reply })}>
+                    {busy ? "Sending..." : "Send reply"}
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="st-notes">

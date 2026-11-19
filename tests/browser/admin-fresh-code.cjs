@@ -2,6 +2,8 @@
 // real browser against the local stand in over an ISOLATED test database. The stand in signs in with a password
 // only (ZTEST_PASSWORD_AAL2=1 gives aal2 without a code time), so the first change is refused and asks for a code.
 // Desktop (1440x900) and phone (390 wide). Nothing is sent: the stand in records the invitation only.
+// Needs: the stand in PROCESS (local-backend.mjs, not this journey) started with ZTEST_PASSWORD_AAL2=1, and the test
+// owner (admin@zella.test) with a verified authenticator in auth.mfa_factors.
 // Usage: ZDB=<test db> APP_URL=... BACKEND_URL=... SHOTS=<folder> node tests/browser/admin-fresh-code.cjs
 const path = require("path");
 const k = require("./real-kit.cjs");

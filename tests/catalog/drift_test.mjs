@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { inventory, ROOT } from "./scan.mjs";
+import { inventory, ROOT, stripJsComments } from "./scan.mjs";
 
 export const CATALOG_PATH = join(ROOT, "web/supabase/functions/_shared/catalog.json");
 
@@ -21,6 +21,8 @@ export function check(found, catalog, extra = {}) {
     permission: { names: catalog.permissions ?? {}, prefixes: [], what: "permission", key: "permissions" },
   };
   const used = { audit: new Set(), alert: new Set(), permission: new Set() };
+  // own entries only: "constructor" or "toString" are never catalog names
+  const has = (names, n) => Object.prototype.hasOwnProperty.call(names, n);
   const usedPrefixes = { audit: new Set(), alert: new Set() };
 
   for (const f of found) {
@@ -28,17 +30,19 @@ export function check(found, catalog, extra = {}) {
     const l = lists[kind];
     if (f.unresolved) { problems.push(`${f.where}: can't tell which ${l.what} "${f.name}" is; write it as a literal or a case`); continue; }
     if (f.kind === "audit_read") {
-      const ok = f.prefix ? Object.keys(l.names).some((n) => n.startsWith(f.name)) : f.name in l.names;
+      const ok = f.prefix ? Object.keys(l.names).some((n) => n.startsWith(f.name)) : has(l.names, f.name);
       if (!ok) problems.push(`${f.where}: reads ${l.what} "${f.name}${f.prefix ? "%" : ""}", which nothing in ${l.key} matches`);
       continue;
     }
     if (f.prefix) {
+      // permissions are only ever literal names: one built at run time is reported, never tracked as a prefix
+      if (kind === "permission") { problems.push(`${f.where}: builds a permission starting "${f.name}" at run time; write each permission as a literal`); continue; }
       if (!l.prefixes.includes(f.name)) problems.push(`${f.where}: builds ${l.what}s starting "${f.name}" at run time; add "${f.name}" to ${kind === "audit" ? "audit_action_prefixes" : "alert_kind_prefixes"} and each name it makes to ${l.key}`);
       usedPrefixes[kind].add(f.name);
       continue;
     }
     used[kind].add(f.name);
-    if (!(f.name in l.names)) problems.push(`${f.where}: ${l.what} "${f.name}" is not in ${l.key} in catalog.json; add it with a label`);
+    if (!has(l.names, f.name)) problems.push(`${f.where}: ${l.what} "${f.name}" is not in ${l.key} in catalog.json; add it with a label`);
   }
 
   for (const [kind, l] of Object.entries(lists)) {
@@ -66,9 +70,62 @@ export function check(found, catalog, extra = {}) {
   }
   // Labels the web app keeps today (ownerFormat.js) must be for real actions.
   for (const a of extra.webLabels ?? []) {
-    if (!(a in lists.audit.names)) problems.push(`web/src/ownerFormat.js ACTION_LABELS: "${a}" is not an audit action in catalog.json`);
+    if (!has(lists.audit.names, a)) problems.push(`web/src/ownerFormat.js ACTION_LABELS: "${a}" is not an audit action in catalog.json`);
   }
   return [...new Set(problems)];
+}
+
+// The keys of an object literal's body, at its own level and outside comments: quoted with matching single or double
+// quotes ("a.b": or 'a.b':), or a static computed key (["a.b"]:), wherever a property starts (also after another one
+// on the same line). A computed key that isn't a plain string isn't a label name and is left out.
+export function labelKeys(body) {
+  const src = stripJsComments(body), out = [];
+  const KEY = /\s*(?:(["'])([^"'\n]+)\1|\[\s*(["'])([^"'\n]+)\3\s*\])\s*:/y;
+  let i = 0;
+  while (i < src.length) {
+    KEY.lastIndex = i;
+    const m = KEY.exec(src);
+    if (m) out.push(m[2] ?? m[4]);
+    // on to the next property: past this one's value, to the next comma at this level (strings and regular
+    // expression literals are skipped whole, so brackets or commas inside them count for nothing)
+    let depth = 0, quote = null, prev = ":";
+    // For each open brace: "statement" when it is the body of if / for / while / switch / catch / with (after their
+    // brackets) or of else / do / try / finally: a slash after it starts a regex. Any other brace (an object, a
+    // function or arrow body inside a value) ends a value: a slash after it divides.
+    const braces = [];
+    const parens = [];   // where each open bracket started, to read the word before it
+    let lastParen = -1, word = "";
+    for (; i < src.length; i++) {
+      const c = src[i];
+      if (quote) { if (c === "\\") { i++; continue; } if (c === quote) quote = null; continue; }
+      if (c === "'" || c === '"' || c === "`") { quote = c; prev = c; continue; }
+      // a regular expression literal, through its closing slash: only where a value starts (after ( , = : [ ! & | ? {);
+      // after a value (a name, a number, ) ] or }) a slash divides
+      if (c === "/" && "(,=:[!&|?{;".includes(prev)) {
+        let cls = false;
+        for (i++; i < src.length && src[i] !== "\n"; i++) {
+          if (src[i] === "\\") { i++; continue; }
+          if (src[i] === "[") cls = true; else if (src[i] === "]") cls = false; else if (src[i] === "/" && !cls) break;
+        }
+        prev = "/";
+        continue;
+      }
+      if (c === "(") parens.push(i);
+      if (c === ")") lastParen = parens.pop() ?? -1;
+      if (c === "{") {
+        const before = prev === ")" && lastParen >= 0 ? /([A-Za-z_$][\w$]*)\s*$/.exec(src.slice(Math.max(0, lastParen - 20), lastParen))?.[1] : null;
+        const statement = (before && /^(?:if|for|while|switch|catch|with)$/.test(before)) || (/^[\w$]$/.test(prev) && /^(?:else|do|try|finally)$/.test(word));
+        braces.push(statement ? "statement" : "value");
+      }
+      if (/[\w$]/.test(c)) word = /[\w$]/.test(prev) ? word + c : c;
+      if (!/\s/.test(c)) prev = c;
+      if (c === "}" && braces.pop() === "statement") prev = ";";   // after a statement block a slash starts a regex
+      if ("([{".includes(c)) depth++;
+      else if (")]}".includes(c)) depth--;
+      else if (c === "," && depth <= 0) { i++; break; }
+    }
+  }
+  return out;
 }
 
 export function extras(root = ROOT) {
@@ -77,7 +134,7 @@ export function extras(root = ROOT) {
   const permissionCatalog = block ? [...block[1].matchAll(/\[\s*"([a-z]+\.[a-z_]+)"/g)].map((m) => m[1]) : [];
   const fmt = readFileSync(join(root, "web/src/ownerFormat.js"), "utf8");
   const labels = fmt.match(/ACTION_LABELS\s*=\s*\{([\s\S]*?)\n\};/);
-  const webLabels = labels ? [...labels[1].matchAll(/^\s*"([^"]+)"\s*:/gm)].map((m) => m[1]) : [];
+  const webLabels = labels ? labelKeys(labels[1]) : [];
   return { permissionCatalog, webLabels };
 }
 

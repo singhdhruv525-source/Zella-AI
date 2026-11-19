@@ -847,7 +847,8 @@ function SupportTickets({ w, kind = "support" }) {
             ["", (t) => <button type="button" className="zs-btn sm" onClick={() => setOpen(t)}>Conversation</button>]]} />
         </Card>
       )}</LoadState>
-      {open && <TicketThread ticket={open} businessName={w.name} canReply={roleIn(w, ["owner", "admin", "manager"])} onClose={() => setOpen(null)} />}
+      {/* one thread per request (keyed by its id), so a draft written for one request is never sent with another */}
+      {open && <TicketThread key={open.id} ticket={open} businessName={w.name} canReply={roleIn(w, ["owner", "admin", "manager"])} onClose={() => setOpen(null)} onAnswered={() => state.reload()} />}
       <Needs title="Attachments inside Zella Voice aren't available" have="Describe the problem in words, or ask support for an email address to send files to.">Attachments need file storage for support requests.</Needs>
     </>
   );

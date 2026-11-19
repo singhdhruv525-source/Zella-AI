@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { passwordProblems } from "../formValidation";
 import { changeAdminPassword, finishMfaEnrollment, mfaStatus, removeMfaFactor, startMfaEnrollment } from "../mfa";
@@ -144,7 +144,40 @@ function PasswordCard({ email, admin = false }) {
   );
 }
 
-function MfaCard({ required = false }) {
+// required: the page says this person is a Zella Voice admin. The card also asks the database, so the same rule as
+// removeMfaFactor (mfa.js) applies on business settings pages too: an admin removes an authenticator with a code,
+// through the server, and can't remove the last one.
+// Until the role is known (or when it can't be read) removing is not offered: an admin without the code field would be
+// refused by removeMfaFactor anyway.
+function MfaCard({ required: requiredByPage = false }) {
+  const [role, setRole] = useState(requiredByPage ? "admin" : "checking");   // "checking" | "admin" | "member" | "error"
+  const [roleTry, setRoleTry] = useState(0);
+  useEffect(() => {
+    if (requiredByPage) { setRole("admin"); return undefined; }
+    let live = true;
+    setRole("checking");
+    supabase.rpc("zella_admin_role").then(
+      ({ data, error }) => { if (live) setRole(error ? "error" : data ? "admin" : "member"); },
+      () => { if (live) setRole("error"); });
+    return () => { live = false; };
+  }, [requiredByPage, roleTry]);
+  const required = role === "admin";
+  const roleKnown = role === "admin" || role === "member";
+  // the role is read again just before the dialog opens (access may have changed while the page was open), so the
+  // dialog asks for a code exactly when the removal will need one; Remove stays off while it is read
+  const removeOpener = useRef(null);   // the Remove button that opened the dialog, to take focus back when it closes
+  // after a removal that button's row is gone: focus goes to this note instead, which stays in the card
+  const removedNote = useRef(null);
+  const [removedText, setRemovedText] = useState("");
+  const openRemove = async (f, count, button) => {
+    removeOpener.current = button;
+    if (requiredByPage) { setRemoving(f); return; }
+    setRole("checking");
+    const { data, error } = await supabase.rpc("zella_admin_role").then((r) => r, () => ({ error: true }));
+    setRole(error ? "error" : data ? "admin" : "member");
+    // an admin's last authenticator stays (the row then says Required for admins)
+    if (!error && !(data && count < 2)) setRemoving(f);
+  };
   const state = useAsync(mfaStatus, []);
   const [setup, setSetup] = useState(null);
   const [code, setCode] = useState("");
@@ -159,6 +192,7 @@ function MfaCard({ required = false }) {
   };
   return (
     <Card title="Two step sign in" sub="After your password, enter a code from an authenticator app (Google Authenticator, 1Password, Authy and similar).">
+      <p ref={removedNote} tabIndex={-1} role="status" className="zs-muted" style={removedText ? undefined : { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>{removedText}</p>
       <LoadState state={state}>{(s) => (
         <>
           <Facts rows={[["Status", s.enrolled ? "On" : "Off"], ["This session", s.level === "aal2" ? "Verified with a code" : "Password only"]]} />
@@ -168,9 +202,15 @@ function MfaCard({ required = false }) {
               {/* every Zella Voice admin needs two step sign in (ACC-01): the last authenticator can't be removed here */}
               {required && s.factors.length < 2
                 ? <span className="zs-muted">Required for admins</span>
-                : <button type="button" className="zs-btn danger-outline sm" onClick={() => setRemoving(f)}>Remove</button>}
+                : <button type="button" className="zs-btn danger-outline sm" disabled={!roleKnown} title={roleKnown ? undefined : "Checking your account first"} onClick={(e) => openRemove(f, s.factors.length, e.currentTarget)}>Remove</button>}
             </div>
           ))}
+          {role === "error" && (
+            <Banner tone="error">
+              Your account couldn&apos;t be checked, so authenticators can&apos;t be removed right now.{" "}
+              <button type="button" className="zs-link" onClick={() => setRoleTry((n) => n + 1)}>Try again</button>
+            </Banner>
+          )}
           {required && <p className="zs-muted">Every Zella Voice admin needs two step sign in. To change phones, add the new authenticator first, then remove the old one.</p>}
           {(!s.enrolled || (required && s.factors.length < 3)) && !setup && <button type="button" className="zs-btn primary" style={{ marginTop: 12 }} disabled={busy}
             onClick={() => step(async () => setSetup(await startMfaEnrollment()))}>{s.enrolled ? "Add another authenticator app" : "Set up an authenticator app"}</button>}
@@ -185,7 +225,19 @@ function MfaCard({ required = false }) {
               <div className="zs-savebar">
                 <span className="zs-savebar-state" />
                 <button type="button" className="zs-btn" onClick={() => { setSetup(null); setCode(""); }} disabled={busy}>Cancel</button>
-                <button type="button" className="zs-btn primary" disabled={busy} onClick={() => step(async () => { await finishMfaEnrollment(setup.factorId, code); setSetup(null); setCode(""); state.reload(); })}>Turn on</button>
+                <button type="button" className="zs-btn primary" disabled={busy} onClick={() => step(async () => {
+                  try { await finishMfaEnrollment(setup.factorId, code); }
+                  catch (err) {
+                    // the check may have turned it on without an answer: read the status again, and if it is on, close the set up
+                    if (err?.maybeOn) {
+                      state.reload();
+                      const now = await mfaStatus().catch(() => null);
+                      if (now?.factors?.some((f) => f.id === setup.factorId)) { setSetup(null); setCode(""); return; }
+                    }
+                    throw err;
+                  }
+                  setSetup(null); setCode(""); state.reload();
+                })}>Turn on</button>
               </div>
             </div>
           )}
@@ -193,8 +245,8 @@ function MfaCard({ required = false }) {
         </>
       )}</LoadState>
       {removing && <Confirm title={required ? "Remove this authenticator?" : "Remove two step sign in?"} danger confirmLabel="Remove"
-        onClose={() => { setRemoving(null); setRemoveCode(""); }}
-        onConfirm={async () => { await removeMfaFactor(removing.id, { admin: required, code: removeCode }); setRemoveCode(""); state.reload(); }}>
+        onClose={() => { setRemoving(null); setRemoveCode(""); setTimeout(() => { if (removeOpener.current?.isConnected) removeOpener.current.focus(); }, 0); }}
+        onConfirm={async () => { await removeMfaFactor(removing.id, { admin: required, code: removeCode }); setRemoveCode(""); removeOpener.current = removedNote.current; setRemovedText("Authenticator removed."); state.reload(); }}>
         {required ? (
           <>
             <p>Your other authenticator app keeps working. Enter a code from the authenticator app you sign in with to confirm.</p>
@@ -246,7 +298,11 @@ function SessionsCard() {
           // signs the other devices out as before, without the audit entry.
           const { data: ended, error: rpcError } = await supabase.rpc("zella_revoke_my_other_sessions");
           if (rpcError) {
-            if (!/does not exist|schema cache|Could not find the function/i.test(rpcError.message ?? "")) throw new Error(say(rpcError));
+            // only PGRST202 (the function is missing, or PostgREST's schema cache hasn't caught up) falls back to
+            // Supabase Auth's own sign out, which works but writes no audit entry; any error raised while the
+            // function ran is shown instead of falling back
+            const missing = rpcError.code === "PGRST202" || /Could not find the function/i.test(rpcError.message ?? "");
+            if (!missing) throw new Error(/NO_SESSION/.test(rpcError.message ?? "") ? "This device's session couldn't be found. Sign in again, then try once more." : say(rpcError));
             const { error } = await supabase.auth.signOut({ scope: "others" });
             if (error) throw error;
           }

@@ -43,6 +43,7 @@ export function useBusinessList({ active, authorized, search }) {
     const req = ++request.current;
     const { settled: q, page: p } = query.current;
     let f = query.current.filters;
+    const key = JSON.stringify([q, f]);   // the same key the hook pages by
     setLoading(true);
     try {
       let next;
@@ -66,7 +67,8 @@ export function useBusinessList({ active, authorized, search }) {
         next = legacyList(await legacy.current.data, q, f, p);
       }
       if (mine !== epoch.current || req !== request.current) return;
-      setList({ ...next, filtered: hasFilters(q, f) });   // what this answer was asked for, not what is typed now
+      // what this answer was asked for (not what is typed now), and the search and filters it is a page of
+      setList({ ...next, filtered: hasFilters(q, f), key });
       setError("");
       setLoadedAt(new Date());
     } catch (err) {
@@ -99,11 +101,14 @@ export function useBusinessList({ active, authorized, search }) {
   const setFilters = useCallback((patch) => setFiltersState((f) => ({ ...f, ...patch })), []);
   const clearFilters = useCallback(() => setFiltersState(EMPTY_FILTERS), []);
   const setPage = useCallback((n) => setPageAt({ key, page: n }), [key]);
-  return { list, loading, error, loadedAt, filters, setFilters, clearFilters, page: list?.page ?? page, setPage, reload: load };
+  // The pager moves through the result on screen only while it belongs to the current search and filters; while a
+  // new search is loading (or failed), Previous and Next are off, so a page number never carries over to it.
+  const pageable = Boolean(list) && list.key === key;
+  return { list, loading, error, loadedAt, filters, setFilters, clearFilters, page: list?.page ?? page, setPage, pageable, reload: load };
 }
 
 export default function BusinessesPage({ state, search, onSearch, canManage, onCreate, onOpen, onSetup }) {
-  const { list, loading, error, loadedAt, filters, setFilters, clearFilters, setPage, reload } = state;
+  const { list, loading, error, loadedAt, filters, setFilters, clearFilters, setPage, pageable, reload } = state;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const stale = Boolean(error && loadedAt);
   const legacy = list?.mode === "legacy";
@@ -272,10 +277,10 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
           <span className="bl-foot-text">{footerText({ list, loading, loadedAt, filtered, stats, stale })}</span>
           {loadedAt && list.total > PAGE_SIZE && (
             <div className="bl-pager">
-              <button type="button" className="owner-secondary-button sm bl-btn-sm" disabled={list.page === 0} onClick={() => setPage(list.page - 1)} aria-label="Previous page">
+              <button type="button" className="owner-secondary-button sm bl-btn-sm" disabled={!pageable || list.page === 0} onClick={() => setPage(list.page - 1)} aria-label="Previous page">
                 <Icon name="chevron_left" size="sm" /><span className="bl-pager-word">Previous</span>
               </button>
-              <button type="button" className="owner-secondary-button sm bl-btn-sm" disabled={(list.page + 1) * PAGE_SIZE >= list.total} onClick={() => setPage(list.page + 1)} aria-label="Next page">
+              <button type="button" className="owner-secondary-button sm bl-btn-sm" disabled={!pageable || (list.page + 1) * PAGE_SIZE >= list.total} onClick={() => setPage(list.page + 1)} aria-label="Next page">
                 <span className="bl-pager-word">Next</span><Icon name="chevron_right" size="sm" />
               </button>
             </div>
