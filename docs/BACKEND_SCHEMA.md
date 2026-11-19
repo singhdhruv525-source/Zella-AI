@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 188 |
-| Tables with row security on | 188 of 188 |
+| Tables (schema `public`) | 189 |
+| Tables with row security on | 189 of 189 |
 | Row security policies | 353 |
-| Columns | 2190 |
+| Columns | 2197 |
 | Views | 1 |
-| Functions | 1007 (932 security definer, 26 callable by `anon`) |
+| Functions | 1010 (935 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -60,7 +60,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 
 ## Contents
 
-- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `zella_text_archive`, `rate_limits`
+- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `platform_report_runs`, `zella_text_archive`, `rate_limits`
 - [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `business_export_jobs`, `business_export_tables`, `business_export_rows`, `business_document_cleanup`, `activation_tests`, `owner_onboarding`, `owner_onboarding_steps`, `owner_onboarding_sections`, `identity_verification_events`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
@@ -400,6 +400,24 @@ Original function definitions a migration replaced, kept for its exact rollback 
 | `saved_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `migration, signature`.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
+### `platform_report_runs`
+
+One weekly platform summary per week for Zella Voice admins (counts only; server only, read through zella_admin_weekly_reports with reports.view).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `id` | uuid | yes | gen_random_uuid() |
+| `kind` | text | yes | 'weekly_platform_summary' |
+| `period_start` | date | yes |  |
+| `period_end` | date | yes |  |
+| `summary` | jsonb | yes |  |
+| `alert_id` | uuid |  |  |
+| `created_at` | timestamp with time zone | yes | now() |
+
+- Primary key: `id`.
+- Unique: `(kind, period_start)`.
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ### `zella_text_archive`
@@ -4602,7 +4620,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (68)
+### `zella_admin_*` (69)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4674,6 +4692,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_ticket_reply(p_ticket uuid, p_author uuid, p_body text)` | jsonb | yes | server only |
 | `zella_admin_voice_alerts()` | jsonb | yes | signed in |
 | `zella_admin_voice_overview(p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
+| `zella_admin_weekly_reports(p_limit integer)` | jsonb | yes | signed in |
 
 ### `zella_ai_*` (7)
 
@@ -5386,7 +5405,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_people_panel(p_business_id uuid, p_customer_id uuid, p_record_id uuid)` | jsonb | yes | signed in |
 | `zella_people_subject_ok(p_business_id uuid, p_customer_id uuid, p_record_id uuid)` | boolean | yes | server only |
 
-### `zella_platform_*` (8)
+### `zella_platform_*` (9)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5398,14 +5417,16 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_platform_health_summary()` | jsonb | yes | signed in |
 | `zella_platform_metrics(p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | server only |
 | `zella_platform_public_info()` | jsonb | yes | anon, signed in |
+| `zella_platform_weekly_summary(p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | server only |
 
-### `zella_post_*` (4)
+### `zella_post_*` (5)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_post_callback_digests()` | integer | yes | server only |
 | `zella_post_daily_summaries()` | integer | yes | server only |
 | `zella_post_team_summaries()` | integer | yes | server only |
+| `zella_post_weekly_platform_report(p_now timestamp with time zone)` | integer | yes | server only |
 | `zella_post_weekly_reviews()` | integer | yes | server only |
 
 ### `zella_process_*` (3)
