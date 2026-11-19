@@ -60,6 +60,7 @@ Deno.test("document confirmation accepts matching storage metadata", async () =>
   const document = { id: "doc", status: "pending_review" };
   let inserted: unknown;
   let replaced = false;
+  const order: string[] = [];
   const admin = {
     storage: { from: (bucket: string) => {
       assertEquals(bucket, "business-documents");
@@ -71,13 +72,29 @@ Deno.test("document confirmation accepts matching storage metadata", async () =>
     from: (table: string) => {
       assertEquals(table, "business_verification_documents");
       return {
-        update: () => ({ eq: () => ({ eq: () => ({ neq: async () => { replaced = true; return { error: null }; } }) }) }),
-        insert: (row: unknown) => { inserted = row; return { select: () => ({ single: async () => ({ data: document, error: null }) }) }; },
+        update: () => ({ eq: () => ({ eq: () => ({ neq: () => ({ neq: async (col: string, id: string) => { order.push("replace"); replaced = col === "id" && id === "doc"; return { error: null }; } }) }) }) }),
+        insert: (row: unknown) => { order.push("insert"); inserted = row; return { select: () => ({ single: async () => ({ data: document, error: null }) }) }; },
       };
     },
   } as unknown as SupabaseClient;
   const result = await onboardingHandlers(admin, { kind: "owner_identity", fileName: name, mimeType: "application/pdf", size: 2, path }, "u", kit).handlers.setup_document_confirm();
-  assertEquals(replaced, true);
+  assertEquals(replaced, true, "the older ones are replaced, never the new row");
+  assertEquals(order, ["insert", "replace"], "the new row goes in first");
   assertEquals(inserted, { business_id: B, kind: "owner_identity", file_path: path, file_name: name, mime_type: "application/pdf", size_bytes: 2, uploaded_by: "u" });
   assertEquals(result, { businessId: B, document });
+});
+
+Deno.test("document confirmation refused by the cleanup (FILE_REMOVED) keeps the earlier document", async () => {
+  const name = "11111111-2222-3333-4444-555555555555.pdf";
+  const path = `${B}/owner_identity/${name}`;
+  let replacedAny = false;
+  const admin = {
+    storage: { from: () => ({ list: async () => ({ data: [{ name, metadata: { size: 2, mimetype: "application/pdf" } }], error: null }) }) },
+    from: () => ({
+      update: () => { replacedAny = true; return { eq: () => ({ eq: () => ({ neq: () => ({ neq: async () => ({ error: null }) }) }) }) }; },
+      insert: () => ({ select: () => ({ single: async () => ({ data: null, error: { message: "FILE_REMOVED: this upload was removed as never confirmed" } }) }) }),
+    }),
+  } as unknown as SupabaseClient;
+  await assertRejects(() => onboardingHandlers(admin, { kind: "owner_identity", fileName: name, mimeType: "application/pdf", size: 2, path }, "u", kit).handlers.setup_document_confirm(), InputError, "Upload the document again");
+  assertEquals(replacedAny, false, "nothing marked replaced");
 });

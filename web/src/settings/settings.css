@@ -24,7 +24,7 @@
 .zs-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; align-items: start; margin-top: 16px; }
 
 /* Secondary navigation */
-.zs-nav { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding: 10px; border: 1px solid var(--zs-border); border-radius: var(--zs-radius); background: var(--zs-surface); }
+.zs-nav { align-self: start; position: sticky; top: var(--zella-space-6); max-height: calc(100vh - var(--zella-space-6) * 2); overflow: auto; padding: 10px; border: 1px solid var(--zs-border); border-radius: var(--zs-radius); background: var(--zs-surface); }
 .zs-search { display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--zs-border-strong); border-radius: var(--zs-radius-sm); color: var(--zs-muted); }
 .zs-search input { flex: 1; min-width: 0; height: 34px; border: 0; outline: none; background: transparent; color: var(--zs-text); font: inherit; font-size: 13px; }
 .zs-search:focus-within { border-color: var(--zs-accent); box-shadow: 0 0 0 3px var(--zs-accent-soft); }
@@ -93,7 +93,6 @@
 .zs-btn.danger { border-color: var(--zs-danger); background: var(--zs-danger); color: #fff; }
 .zs-btn.danger-outline { border-color: var(--zs-danger); color: var(--zs-danger); }
 .zs-btn.sm { min-height: 28px; padding: 0 10px; font-size: 12px; }
-.zs-btn:disabled { opacity: .5; cursor: not-allowed; }
 .zs-link { padding: 0; border: 0; background: none; color: var(--zs-accent); font: inherit; text-decoration: underline; cursor: pointer; }
 
 .zs-savebar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--zs-border); }

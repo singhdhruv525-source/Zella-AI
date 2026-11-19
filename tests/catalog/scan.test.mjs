@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   sqlAuditActions, sqlAlertKinds, sqlPermissions, resolveSql, tsAuditActions, tsAuditReads, tsPermissions,
-  n8nAlertKinds, webPermissions, sqlExprNames,
+  n8nAlertKinds, webPermissions, sqlExprNames, tsAlertKinds,
 } from "./scan.mjs";
 import { check } from "./drift_test.mjs";
 import { jsValueBranches } from "./scan.mjs";
@@ -142,6 +142,11 @@ test("check: reads that match nothing, label rules, order and the role editor li
   assert.ok(p.some((x) => x.includes('"gone.label" is not an audit action')));
 });
 
+test("edge function alert kinds: p_kind passed to zella_platform_alert", () => {
+  const src = `await admin.rpc("zella_platform_alert", {\n  p_kind: "audit_write_failed", p_title: "x" });\n// p_kind: "commented_out"\nconst other = { p_kind: "not_an_alert" };`;
+  assert.deepEqual(tsAlertKinds(src).map((x) => x.name), ["audit_write_failed"]);
+});
+
 test("review fixes: comments, case branches that aren't literals, every alert tuple, double quoted n8n kinds", () => {
   assert.deepEqual(names(sqlAuditActions(`-- insert into public.audit_logs (action) values ('removed.action');
     /* insert into audit_logs (action) values ('block.action'); */
@@ -173,4 +178,200 @@ test("review fixes: a TypeScript audit action held in a variable is reported, ty
   assert.deepEqual(names(tsAuditActions(`const nextAction = "plan.new"; const e = { action: nextAction, entity_type: "plan" };`)), ["?nextAction"]);
   assert.deepEqual(names(tsAuditActions(`const e = { action: r.ok ? "plan.created" : other };`)), ["?r.ok ? \"plan.created\" : other", "plan.created"]);
   assert.deepEqual(names(tsAuditActions(`type T = { action: string; }; const n = { action: null };`)), []);
+});
+
+test("review fixes 2: parenthesised branches are values, named types are not", () => {
+  assert.deepEqual(jsValueBranches(`(r.ok ? "a.b" : "c.d")`), ["S", "S"]);
+  assert.deepEqual(jsValueBranches(`r.ok ? ("a.b") : (other)`), ["S", "other"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: (r.ok ? "plan.created" : "plan.updated") };`)), ["plan.created", "plan.updated"]);
+  assert.deepEqual(names(tsAuditActions(`type RequestAction = "lookup" | "start"; function handle(action: RequestAction) {} type T = { action: Action[] };`)), []);
+  assert.deepEqual(names(tsAuditActions(`const e = { action: (next) };`)), ["?(next)"]);
+});
+
+test("review fixes 3: a PascalCase value in an object literal is a value, not a type", () => {
+  assert.deepEqual(names(tsAuditActions(`const NextAction = "plan.new"; const e = { action: NextAction, entity_type: "plan" };`)), ["?NextAction"]);
+  assert.deepEqual(names(tsAuditActions(`await audit({ action: NextAction }); const z = { entry: { action: Other } };`)), ["?NextAction", "?Other"]);
+  assert.deepEqual(names(tsAuditActions(`interface I { action: Foo; } const f = (p: { action: Foo }) => p; const x: { action: Foo } = y;`)), []);
+  assert.deepEqual(names(tsAuditActions(`const g = async (n: number, action: Foo): Promise<void> => {}; function h(): { action: Foo } { return y; }`)), []);
+});
+
+test("review fixes 4: whole case arms, the outer select list, quoted keys, audit queries only, alert objects of any length", () => {
+  // a case arm joined to a column: its known start, not just the first token
+  assert.deepEqual(names(sqlExprNames(`case when x then 'attendance.' || new_status else 'attendance.none' end`)), ["attendance.*", "attendance.none"]);
+  // a from inside brackets doesn't end the select list, so the action after it is still read
+  assert.deepEqual(names(sqlAuditActions(`insert into audit_logs (entity_id, action) select (select id from t limit 1), 'a.after' from x;`)), ["a.after"]);
+  assert.deepEqual(names(tsAuditActions(`const e = { "action": "plan.quoted" }; const f = { 'action': "plan.single" };`)), ["plan.quoted", "plan.single"]);
+  // an action filter on another table is not an audit read
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").select("id").eq("action", "a.read"); admin.from("jobs").select("id").eq("action", "not.audit");`)), ["a.read"]);
+  const title = "x".repeat(300);
+  assert.deepEqual(names(n8nAlertKinds(`await run("zella_platform_alert", { p_title: "${title}", p_detail: "${title}", p_kind: "long_kind" });
+    await run("zella_resolve_platform_alerts", { p_kind: "resolved_kind" }); const other = { p_kind: "not_an_alert" };`)), ["long_kind"]);
+});
+
+test("review fixes 4: drift check uses own catalog entries, refuses run time permissions, reads single quoted label keys", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  const cat = { audit_actions: { "a.one": "One" }, alert_kinds: {}, permissions: {}, owner_only_permissions: [] };
+  const p = check([{ kind: "audit", name: "a.one", where: "x:1" }, { kind: "audit", name: "constructor", where: "y:2" },
+    { kind: "permission", name: "billing.", prefix: true, where: "z:3" }], cat, { webLabels: ["toString", "a.one"] });
+  assert.ok(p.some((x) => x.includes('"constructor" is not in audit_actions')), p.join("\n"));
+  assert.ok(p.some((x) => x.includes("builds a permission")), p.join("\n"));
+  assert.ok(p.some((x) => x.includes('"toString" is not an audit action')), p.join("\n"));
+  assert.deepEqual(labelKeys(`\n  "a.one": "One",\n  'a.stale': "Stale",\n  "a.mixed': "x",\n`), ["a.one", "a.stale"]);
+});
+
+test("review fixes 5: quoted names, query receivers, quoted alert keys, computed label keys", async () => {
+  // a "from" or "end" used as a quoted column name doesn't end the select list or a case
+  assert.deepEqual(names(sqlAuditActions(`insert into audit_logs (x, action) select "from", 'a.after' from t;`)), ["a.after"]);
+  assert.deepEqual(names(sqlExprNames(`case when "end" = 1 then 'a.one' else 'a.two' end`)), ["a.one", "a.two"]);
+  // the receiver decides: a chain, a name bound to a query, and one that can't be told
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs").select("id"); q = q.order("x"); q = q.eq("action", "a.bound");`)), ["a.bound"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("jobs").select("id"); q = q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`function f(query) { return query.eq("action", "a.unknown"); }`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(n8nAlertKinds(`return { json: { "alert": { p_kind: "quoted_kind", p_title: "x" } } };`)), ["quoted_kind"]);
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  ["gone.label"]: "Gone",\n  [dynamic]: "x",\n  "a.one": "One",\n`), ["gone.label", "a.one"]);
+});
+
+
+test("review fixes 6: dollar quotes, filter calls only, branch assignments, alert keys past comments, label keys anywhere", async () => {
+  // double quotes inside a dollar quoted string are text, not a quoted name
+  assert.deepEqual(names(sqlExprNames(`case when note = $msg$"\\""$msg$ then 'a.new' else 'a.old' end`)), ["a.new", "a.old"]);
+  // a LIKE pattern that isn't in a filter call is not a query; one in a filter call on an unknown receiver still is
+  assert.deepEqual(tsAuditReads(`const example = "action.like.demo.%";`), []);
+  assert.deepEqual(names(tsAuditReads(`function f(query) { return query.or("action.like.demo.%"); }`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").select("id").or("action.like.a.pre.%")`)), ["a.pre.*"]);
+  // an assignment in a branch can reach the filter: audit_logs if any can, ignored only when all are other tables
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (useJobs) q = admin.from("jobs"); q.eq("action", "a.branch");`)), ["a.branch"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("jobs"); if (x) q = admin.from("tasks"); q.eq("action", "not.audit");`)), []);
+  // a long comment between alert: and the object
+  assert.deepEqual(names(n8nAlertKinds(`const x = { alert: /* ${"a long note ".repeat(12)} */ { p_kind: "new_kind" } };`)), ["new_kind"]);
+  // several static keys on one line, and none from a block comment
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  ["a.one"]: "One", ["gone.label"]: "Gone",\n  /*\n  ["c.comment"]: "C",\n  */\n  "b.x": f("a, b", { "in.side": 1 }),\n`), ["a.one", "gone.label", "b.x"]);
+});
+
+test("review fixes 7: regex values, any dollar tag, nested filter arguments, conditional and overwritten queries, RPC calls only", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": /[(]/.source, "gone.label": "Gone",\n  "b.two": x / 2, "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  // dollar quote tags in any language, of any length
+  assert.deepEqual(names(sqlExprNames(`case when note = $réponse$"$réponse$ then 'a.new' else 'a.old' end`)), ["a.new", "a.old"]);
+  const tag = "$" + "t".repeat(80) + "$";
+  assert.deepEqual(names(sqlExprNames("case when note = " + tag + '"' + tag + " then 'a.new' else 'a.old' end")), ["a.new", "a.old"]);
+  // a pattern inside an argument expression of .or(...)
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").or(["action.like.a.new.%"].join(","))`)), ["a.new.*"]);
+  // both arms of a conditional assignment; an overwritten binding doesn't reach the call
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : admin.from("audit_logs"); q.eq("action", "a.cond");`)), ["a.cond"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); q = admin.from("jobs"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (x) { q = admin.from("jobs"); } q.eq("action", "a.maybe");`)), ["a.maybe"]);
+  // an RPC name in an array is not a call
+  assert.deepEqual(names(n8nAlertKinds(`const x = ["zella_platform_alert", /* note */ { p_kind: "sample_kind" }];`)), []);
+  assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", /* note */ { p_kind: "real_kind" });`)), ["real_kind"]);
+});
+
+test("review fixes 8: division after an object, comments before a filter call, property writes, unknown arms, bracketed bodies, keywords", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": { valueOf() { return 6; } } / 2, "gone.label": "Gone",\n  "b.re": /[(]/.source, "c.three": "C",\n`), ["a.one", "gone.label", "b.re", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`admin.from("audit_logs").or ${" ".repeat(40)} ("action.like.a.missing.%")`)), ["a.missing.*"]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); state.q = admin.from("jobs"); q.eq("action", "a.prop");`)), ["a.prop"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : fallback; q.eq("action", "a.arm");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`let q = admin.from("audit_logs"); if (useJobs) (q = admin.from("jobs")); q.eq("action", "a.paren");`)), ["a.paren"]);
+  assert.deepEqual(names(n8nAlertKinds(`function f() { return ("zella_platform_alert", { p_kind: "sample_kind" }); }`)), []);
+  assert.deepEqual(names(n8nAlertKinds(`await rpc("zella_platform_alert", { p_kind: "real_kind" });`)), ["real_kind"]);
+});
+
+test("review fixes 9: a regex after a block, a wrapped conditional", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": (() => { if (false) {} /[(]/.test("x"); return "One"; })(), "gone.label": "Gone",\n  "b.two": { valueOf() { return 6; } } / 2, "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : fallback); q.eq("action", "a.wrapped");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = (useJobs ? admin.from("jobs") : admin.from("tasks")); q.eq("action", "not.audit");`)), []);
+});
+
+test("review fixes 10: division after a function value, nested conditional arms", async () => {
+  const { labelKeys } = await import("./drift_test.mjs");
+  assert.deepEqual(labelKeys(`\n  "a.one": function () {} / 2, "gone.label": "Gone",\n  "b.two": (() => { if (false) {} /[(]/.test("x"); return "B"; })(), "c.three": "C",\n`), ["a.one", "gone.label", "b.two", "c.three"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : (useTasks ? admin.from("tasks") : audit); q.eq("action", "a.nested");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : (useTasks ? admin.from("tasks") : admin.from("audit_logs")); q.eq("action", "a.deep");`)), ["a.deep"]);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : admin.from("tasks"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`const q = useJobs ? admin.from("jobs") : audit; q.eq("action", "a.unknown");`)).map((n) => n.startsWith("?")), [true]);
+});
+
+test("review fixes 11: a conditional nested in a conditional's first arm, nullish arms", async () => {
+  assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? (a ? b ? admin.from("jobs") : admin.from("tasks") : audit) : admin.from("jobs"); q.eq("action", "a.inner");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? a ? admin.from("jobs") : admin.from("audit_logs") : admin.from("tasks"); q.eq("action", "a.first");`)), ["a.first"]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? a ? admin.from("jobs") : admin.from("tasks") : admin.from("jobs"); q.eq("action", "not.audit");`)), []);
+  assert.deepEqual(names(tsAuditReads(`const q = cached ?? admin.from("jobs"); q.eq("action", "a.nullish");`)).map((n) => n.startsWith("?")), [true]);
+});
+
+test("review fixes 12: ?? inside a conditional arm", async () => {
+  assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? cached ?? admin.from("jobs") : audit; q.eq("action", "a.coalesced");`)).map((n) => n.startsWith("?")), [true]);
+  assert.deepEqual(names(tsAuditReads(`const q = gate ? admin.from("audit_logs") : admin.from("jobs"); q.eq("action", "a.gate");`)), ["a.gate"]);
+});
+
+test("edge function alert kinds: p_kind after a nested object, at the payload's own level only", () => {
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { a: { b: 1 } }, p_kind: "new_alert" });`).map((x) => x.name), ["new_alert"]);
+  // a p_kind only inside a nested object isn't the payload's: the kind can't be read, so it is unresolved
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { p_kind: "inner" }, p_title: "x" });`).map((x) => (x.unresolved ? "?" : x.name)), ["?"]);
+});
+
+test("edge function alert kinds: a p_kind inside a string is text, not the kind", () => {
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_title: 'p_kind: "fake_alert"', p_kind: "real_alert" });`).map((x) => x.name), ["real_alert"]);
+});
+
+test("edge function alert kinds: quoted keys, property names only, every branch, unresolved values", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { "p_kind": "new_alert" });`), ["new_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_title: flag ? p_kind : "fallback", p_kind: "real_alert" });`), ["real_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? "first_alert" : "second_alert" });`), ["first_alert", "second_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: kindFor(x) });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? "known_alert" : other });`), ["?", "known_alert"]);
+});
+
+test("edge function alert kinds: nested conditional branches, never the condition's strings", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? (other ? "first_alert" : "second_alert") : "third_alert" });`), ["first_alert", "second_alert", "third_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: state === "ready" ? "first_alert" : "second_alert" });`), ["first_alert", "second_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: a ? b ? "x_alert" : kindFor(x) : "y_alert" });`), ["?", "x_alert", "y_alert"]);
+});
+
+test("edge function alert kinds: brackets inside strings don't hide a wrapped conditional", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: (reason.includes(")") ? "first_alert" : "second_alert") });`), ["first_alert", "second_alert"]);
+});
+
+test("edge function alert kinds: a payload passed by name, computed and shorthand keys, spreads", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", payload);`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ["p_kind"]: "computed_alert", p_title: "x" });`), ["computed_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind, p_title: "x" });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...base, p_title: "x" });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_title: "x" });`), ["?"]);
+});
+
+test("edge function alert kinds: the last p_kind wins; a spread after it is unresolved, one before it isn't", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ...payload });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...payload, p_kind: "known_alert" });`), ["known_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "first_alert", p_kind: "second_alert" });`), ["second_alert"]);
+});
+
+test("edge function alert kinds: a computed key that may be p_kind leaves it unresolved until a later p_kind", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "new_alert" });`), ["?"]);
+  assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { [key]: "new_alert", p_kind: "known_alert" });`), ["known_alert"]);
+});
+
+test("edge function alert kinds: a known computed key that isn't p_kind keeps the kind", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_title"]: "x" });`), ["known_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_kind"]: "later_alert" });`), ["later_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "x" });`), ["?"]);
+});
+
+test("edge function alert kinds: an escaped computed key may be p_kind, so the kind is unresolved", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  // the key is written with an escape: p_kin then backslash u0064 (a "d")
+  const escaped = 'admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_kin' + "\\" + 'u0064"]: "new_alert" });';
+  assert.ok(escaped.includes("\\u0064"), escaped);
+  assert.deepEqual(kinds(escaped), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_title"]: "x" });`), ["known_alert"]);
 });

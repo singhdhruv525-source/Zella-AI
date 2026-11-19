@@ -32,8 +32,12 @@ const OPERATIONAL = [
     ["invitation_reminder_hours", "Invitation reminders at", "Hours after an owner invitation, for example 24, 72.", "list"],
     ["setup_incomplete_after_days", "Flag an unfinished setup after", "Days after the business was created.", "number"],
     ["trial_notice_days", "Trial ending notices at", "Days before a trial ends, for example 7, 3, 1.", "list"],
+    ["draft_abandon_days", "Draft shows as Abandoned after", "Days without any change before a draft business shows as Abandoned on Business onboarding, with one alert. Nothing is deleted automatically.", "number"],
   ]],
 ];
+
+// Settings the server reads with a default when no row exists yet (lane B, draft clean up).
+const UNSET_DEFAULTS = { draft_abandon_days: 30 };
 
 const NUMBER_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 const countWord = (n) => NUMBER_WORDS[n] ?? String(n);
@@ -44,6 +48,8 @@ export default function OperationalRules({ me }) {
   return (
     <LoadState state={state}>{(s) => {
       const byKey = new Map(s.settings.map((x) => [x.key, x]));
+      // a setting the server reads with a built in default shows that default until it is stored; saving stores it
+      for (const [k, v] of Object.entries(UNSET_DEFAULTS)) if (!byKey.has(k)) byKey.set(k, { key: k, value: v });
       const missing = OPERATIONAL.flatMap(([, keys]) => keys).filter(([k]) => !byKey.has(k));
       return (
         <div className="or-page">
@@ -72,10 +78,19 @@ function Section({ me, group, keys, byKey }) {
   // the values last saved, so Save sends only the settings that changed (one checked save per setting)
   const base = useRef(initial);
   const changed = present.filter(([k]) => form.values[k] !== base.current[k]).length;
+  // Each setting saves on its own; if one fails, the ones already stored are reported back (err.acknowledged), so they
+  // stop showing as unsaved and Discard only reverts the rest (useForm in SettingsKit).
   const save = () => form.save(async (v) => {
+    const acknowledged = {};
     for (const [k] of present) {
       if (v[k] !== base.current[k]) {
-        await call("platform_setting_save", { key: k, value: v[k] });
+        try {
+          await call("platform_setting_save", { key: k, value: v[k] });
+        } catch (err) {
+          if (Object.keys(acknowledged).length) err.acknowledged = acknowledged;
+          throw err;
+        }
+        acknowledged[k] = v[k];
         base.current = { ...base.current, [k]: v[k] };
       }
     }

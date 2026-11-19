@@ -9,7 +9,7 @@ import OauthAppsPanel from "./panels/OauthApps";
 import N8nStatus from "./panels/N8nStatus";
 import AlertRulesPanel from "./panels/AlertRules";
 import { GO_LIVE_PATH } from "../admin/GoLiveChecklist";
-import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
+import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, MissingSettings, Needs, Pill, SaveBar, SectionSaveBar, SettingRow, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
 
 // Admin Settings content. Every panel reads and writes through the
@@ -275,40 +275,8 @@ export function TenantSummary({ businessId }) {
   );
 }
 
-const CHECKS = [["profile", "Profile"], ["industry", "Industry"], ["receptionist", "AI receptionist"], ["phone", "Phone"], ["owner_invited", "Owner invited"], ["billing", "Billing"]];
-
-export function Onboarding({ me, openSetup, openBusiness }) {
-  const state = useAsync(() => call("onboarding_overview"), []);
-  const [notice, setNotice] = useState({ text: "", error: "" });
-  async function resend(id) {
-    try { await call("invitation_resend", { businessId: id }); setNotice({ text: "Invitation sent again.", error: "" }); state.reload(); }
-    catch (err) { setNotice({ text: "", error: err.message }); }
-  }
-  return (
-    <>
-      <Banner tone="success">{notice.text}</Banner>
-      <Banner tone="error">{notice.error}</Banner>
-      <Card title="Businesses still in setup" sub="Each check reads the business's real records. A tick means it's in place.">
-        <LoadState state={state}>{(d) => (
-          <Table rows={d.rows} empty="Every business has finished setup." columns={[
-            ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
-            ["Step", (b) => words(b.onboarding_status)],
-            ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success">✓</Pill> : <Pill tone="warning">Missing</Pill>)]),
-            ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => `${words(f.step)}${f.error ? `: ${f.error}` : ""}`).join("; ") : "None")],
-            ["", (b) => can(me, "businesses.manage") ? (
-              <span className="zs-actions">
-                <button type="button" className="zs-btn sm" onClick={() => openSetup(b.id)}>Continue setup</button>
-                {!b.checks.owner_invited && <button type="button" className="zs-btn sm" onClick={() => resend(b.id)}>Send owner invite</button>}
-              </span>) : null],
-          ]} />
-        )}</LoadState>
-      </Card>
-      <Needs title="Automatic retry of failed provisioning steps isn't built" have="Steps stuck for 30 minutes are marked failed every hour and shown above; Continue setup reruns the setup wizard, which only adds what's missing.">
-        A safe automatic retry needs each provisioning step (agent, phone number, integrations) to be re-runnable on its own.
-      </Needs>
-    </>
-  );
-}
+// Business onboarding: its own file (Lane B)
+export { default as Onboarding } from "./panels/Onboarding";
 
 export function Lifecycle({ openBusiness }) {
   const state = useAsync(() => Promise.all(["suspended", "cancelling", "cancelled"].map((status) => call("tenants_search", { status }))), []);
@@ -378,34 +346,19 @@ export function Provisioning({ openBusiness }) {
   );
 }
 
-export function DataLifecycle({ me }) {
-  const state = useAsync(() => Promise.all([call("privacy_overview"), call("tenants_search", { status: "cancelled" })]), []);
-  return (
-    <LoadState state={state}>{([p, c]) => (
-      <>
-        <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
-        <Card title="Canceled businesses" sub="Their records stay until the retention date.">
-          <Table rows={c.rows} empty="No canceled businesses." columns={[["Business", (b) => b.name], ["Canceled", (b) => when(b.cancelled_at)]]} />
-        </Card>
-        <Card title="Customer data requests across businesses" sub="Counts only. Each business handles its own requests.">
-          <Facts rows={[["Open", p.requests.open], ["Overdue", p.requests.overdue], ...Object.entries(p.requests.byKind).map(([k, v]) => [words(k), v])]} />
-        </Card>
-        <Needs title="Whole business export and deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Canceled businesses are kept, never deleted automatically.">
-          Exporting or deleting a whole business needs a job that runs in the background, records its progress, and can be approved and stopped.
-        </Needs>
-      </>
-    )}</LoadState>
-  );
-}
+// Data lifecycle: its own file (Lane B)
+export { default as DataLifecycle } from "./panels/DataLifecycle";
 
 // One editable platform setting (owner only on the server).
 export function SettingNumber({ me, keyName, label, current, hint }) {
   const form = useForm({ value: String(current ?? "") });
   const owner = me?.role === "zella_owner";
   return (
-    <Card title={label} sub={hint}>
-      <div className="zs-grid"><Field label={label} hint={owner ? `Setting ${keyName}` : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} /></Field></div>
-      {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: keyName, value: v.value }); })} />}
+    <Card>
+      <SettingRow label={label} help={owner ? hint : [hint, "Only a Zella Voice owner can change this."].filter(Boolean).join(" ")} technical={<>Setting key <code>{keyName}</code></>}>
+        <input className="zs-input zs-input-num" aria-label={label} value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} />
+      </SettingRow>
+      {owner && <SectionSaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: keyName, value: v.value }); })} />}
     </Card>
   );
 }
@@ -744,13 +697,54 @@ export function AiProviders({ me }) {
   );
 }
 
+const settingText = (value) => (typeof value === "string" ? value : Array.isArray(value) ? value.join(", ") : JSON.stringify(value));
+
 function SettingText({ me, row, hint = "Checked by the provider on first use." }) {
-  const form = useForm({ value: typeof row.value === "string" ? row.value : Array.isArray(row.value) ? row.value.join(", ") : JSON.stringify(row.value) });
+  const form = useForm({ value: settingText(row.value) });
   const owner = me?.role === "zella_owner";
+  const label = row.label ?? settingLabel(row.key);
   return (
-    <Card title={row.label ?? settingLabel(row.key)} sub={<>Setting key <code>{row.key}</code> · changed {when(row.updated_at)}</>}>
-      <div className="zs-grid"><Field label="Value" hint={owner ? hint : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
-      {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
+    <Card>
+      <SettingRow label={label} help={owner ? hint : "Only a Zella Voice owner can change this."}
+        technical={<>Setting key <code>{row.key}</code>, changed {when(row.updated_at)}</>}>
+        <input className="zs-input" aria-label={label} value={form.values.value} onChange={form.set("value")} disabled={!owner} />
+      </SettingRow>
+      {owner && <SectionSaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
+    </Card>
+  );
+}
+
+// A group of settings in one card, with one save bar for the whole group. Saving sends each changed setting.
+function SettingGroup({ me, title, rows }) {
+  const form = useForm(Object.fromEntries(rows.map(({ row }) => [row.key, settingText(row.value)])));
+  const owner = me?.role === "zella_owner";
+  // Each setting saves on its own; if one fails, the ones already stored are reported back so they stop showing as
+  // unsaved and Discard only reverts the rest.
+  const save = () => form.save(async (v) => {
+    const acknowledged = {};
+    for (const { row } of rows) {
+      if (v[row.key] === form.saved[row.key]) continue;
+      try {
+        await call("platform_setting_save", { key: row.key, value: v[row.key] });
+      } catch (err) {
+        if (Object.keys(acknowledged).length) err.acknowledged = acknowledged;
+        throw err;
+      }
+      acknowledged[row.key] = v[row.key];
+    }
+  });
+  return (
+    <Card title={title}>
+      {rows.map(({ row, hint, unavailable, key }) => {
+        const label = settingLabel(key ?? row.key);
+        return (
+          <SettingRow key={key ?? row.key} label={label} help={hint} unavailable={unavailable}
+            technical={<>Setting key <code>{key ?? row.key}</code>{row?.updated_at ? <>, changed {when(row.updated_at)}</> : null}</>}>
+            {!unavailable && <input className="zs-input zs-input-num" aria-label={label} value={form.values[row.key] ?? ""} onChange={form.set(row.key)} disabled={!owner} />}
+          </SettingRow>
+        );
+      })}
+      {owner && <SectionSaveBar form={form} onSave={save} />}
     </Card>
   );
 }

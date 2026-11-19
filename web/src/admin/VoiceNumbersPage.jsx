@@ -5,7 +5,7 @@ import { TelephonyProviders, VoiceCosts, VoiceUsage } from "../settings/AdminPan
 import { switchHint } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
-  ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
+  ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words, whenText, durationText, numText
 } from "./adminOps";
 import { alertCallFilter, callDetailsCollapsed, formatPhone, formatTimeZone, initialCallFilter, tileFilter, voiceSwitches } from "./voiceView";
 import "./VoiceNumbersPage.css";
@@ -35,7 +35,7 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
   const openCalls = (filter) => { setCallFilter(filter); setTab("calls"); };
   return (
     <section className="owner-page ao-page vn-page">
-      <PageHeader title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
+      <PageHeader eyebrow="AI and communications" title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
         actions={manage && <button type="button" className="owner-primary-button" onClick={() => setAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button>} />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
@@ -70,11 +70,11 @@ function Overview({ onTab, onOpenCalls }) {
             <Tile onOpen={() => onOpenCalls(tileFilter("inbound", days))} label="Open the inbound calls"><Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} /></Tile>
             <Tile onOpen={() => onOpenCalls(tileFilter("outbound", days))} label="Open the outbound calls"><Metric label="Outbound calls" value={num(o.outbound)} /></Tile>
             <Metric label="In progress now" value={num(o.in_progress)} />
-            <Tile onOpen={() => onOpenCalls(tileFilter("completed", days))} label="Open the completed calls"><Metric label="Completed" value={num(o.completed)} note={o.avg_seconds == null ? "No average yet" : `Average ${duration(o.avg_seconds)}`} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("completed", days))} label="Open the completed calls"><Metric label="Completed" value={num(o.completed)} note={o.avg_seconds == null ? "No average yet" : `Average ${durationText(o.avg_seconds)}`} /></Tile>
             <Tile onOpen={() => onOpenCalls(tileFilter("missed", days))} label="Open the missed calls"><Metric label="Missed" value={num(o.missed)} tone={o.missed ? "warning" : null} /></Tile>
             <Tile onOpen={() => onOpenCalls(tileFilter("failed", days))} label="Open the failed calls"><Metric label="Failed" value={num(o.failed)} tone={o.failed ? "danger" : null} /></Tile>
             <Metric label="Transfers that didn't connect" value={num(o.transfers_failed)} tone={o.transfers_failed ? "warning" : null} />
-            {o.refusals_24h != null && <Tile onOpen={() => onTab("providers")} label="Open Providers for the Vapi sign in check"><Metric label="Refused Vapi requests (24 h)" value={num(o.refusals_24h)} tone={o.refusals_24h ? "warning" : null} note={o.last_refusal_at ? `Last ${when(o.last_refusal_at)}` : "None"} /></Tile>}
+            {o.refusals_24h != null && <Tile onOpen={() => onTab("providers")} label="Open Providers for the Vapi sign in check"><Metric label="Refused Vapi requests (24 h)" value={num(o.refusals_24h)} tone={o.refusals_24h ? "warning" : null} note={o.last_refusal_at ? `Last ${whenText(o.last_refusal_at)}` : "No refusals yet"} /></Tile>}
           </div>
           {o.numbers_active === 0 && (
             <NotAvailable title="No phone numbers yet">Numbers bought in Telnyx or Vapi are assigned to a business with "Assign a number". Until then no calls can reach Zella Voice.</NotAvailable>
@@ -284,7 +284,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
               .filter(([, t]) => t).map(([l, t]) => <li key={l}><strong>{l}</strong><span>{when(t)}</span></li>)}
             {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? `: ${t.error}` : ""} · {when(t.at)}</span></li>)}
             {d.data.messages.map((m, i) => <li key={`m${i}`}><strong>Message taken ({words(m.kind)})</strong><span>{words(m.status)} · {when(m.at)}</span></li>)}
-            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${when(k.due_at)}` : ""}</span></li>)}
+            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${whenText(k.due_at)}` : ""}</span></li>)}
           </ol>
           {d.data.usage.length > 0 && <Facts rows={d.data.usage.map((u, i) => [`Usage ${i + 1}`, `${words(u.kind)}: ${u.billable_seconds ?? 0} s (${words(u.status)})`])} />}
           <h3 className="ao-h3">Summary, transcript and recording</h3>
@@ -328,7 +328,7 @@ function MissingRouting({ onOpen }) {
   const open = (r) => { onOpen(r.business_id); window.scrollTo({ top: 0, behavior: "smooth" }); };
   return (
     <section className="ao-section" aria-label="Missing routing" data-missing-routing={list.data?.total ?? ""}>
-      <h3 className="ao-h3">Missing routing{list.data ? ` (${num(list.data.total)})` : ""}</h3>
+      <h3 className="ao-h3">Missing routing{list.data ? ` (${numText(list.data.total)})` : ""}</h3>
       <p className="op-muted">Businesses with an AI receptionist and no number to put callers through to, or no fallback number. Cancelled businesses aren't listed.</p>
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => r.business_id} onRow={open}
