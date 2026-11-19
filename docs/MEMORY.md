@@ -269,6 +269,33 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Member support from the Business page (lane E review, 19 Nov 2026, defaults the owner can change):** a two step
+  reset is refused for someone who also belongs to another business, because an authenticator protects the person's
+  sign in everywhere, not one membership. Deactivate, Reactivate and Cancel invitation run in one database step each
+  (`sql/zella_business_member_admin.sql`, built, not applied) and only from what the page showed; until that file is
+  applied they answer that the database update is needed. Pack grants by RPC rely on `sql/zella_admin_mfa.sql` (lane A)
+  for two step sign in in the database: apply it before the pack grant page is used.
+- **Admin Business page reads (lane E defaults, 16 Nov 2026, owner can change):** the Activity list and who did each
+  action go only to admins with `audit.view` (BIZ-04); caller numbers and connection account details are masked by
+  default with the `zella_admin_mask` rule (`mask.ts`), the Spam page keeps its older rule for now (BIZ-22). The
+  permission set comes from `adminPermissions` in `owner-provision-business/detail.ts`, the same answer `me_admin` gives.
+
+- **Business size goes through the admin function (BIZ-08, 16 Nov 2026):** `business_size_save` (businesses.manage).
+  Until EXECUTE on `zella_set_business_size` is revoked from signed in users (deferred: after
+  `sql/zella_admin_permissions.sql` is applied or dropped, whose version guard covers that function), an owner or
+  super admin can still call the old RPC by hand from a browser, skipping the two step check.
+
+- **Admin audit rows record before and after (BIZ-17, lane E default, 16 Nov 2026):** a failed audit write alerts
+  (`audit_write_failed`, urgent) and warns the admin; it does not fail the action. Failing closed for suspend and
+  cancel would need the audit row written first inside the handler (the dispatcher writes it after the action has
+  committed); not built, the database trigger already records those changes. COM-04 confirmed from the function
+  definitions: a receptionist edit reaches the next call (`zella_assistant_for_call` reads the live configuration);
+  the audit row records `config_hash` before and after.
+
+- **Automations' live rule is behind a switch (BIZ-07, 16 Nov 2026):** `ZELLA_AUTOMATIONS_START_ON_SAVE=on` (an
+  edge function secret) makes an automation turned on for a live business start at once (real messages), because
+  every deploy is cut from main and production's four businesses are all `onboarding_status` active. Off by default:
+  saves behave as before. No backfill of automations already left paused on live businesses (owner decision).
 - **Deleting a draft business (Lane B, BIZ-13a, 16 Nov 2026):** only a Zella Voice owner or super admin, with the
   name typed and a reason, and only a business that never finished setup and has no calls, numbers, billing or
   accepted owner. Audit history is never deleted with a business (ACC-10, owner decision, 16 Nov 2026):
@@ -326,6 +353,14 @@ most often needed:
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
+- the identity check written for a member's two step reset (REQ-LC-19) and whether a fresh admin code is required
+  once ACC-19 exists (UI-06);
+- the owner invitation defaults (BIZ-21): resend cooldown 5 minutes, a reason to cancel, `businesses.manage`, and a
+  never used account kept after a cancel;
+- the support access defaults on the Business page (BIZ-22): every open audited with a 30 minute dedupe, a reason
+  to reveal contacts, `businesses.manage` to reveal, member and invitee emails masked;
+- when to turn on `ZELLA_AUTOMATIONS_START_ON_SAVE`, and whether to start automations already left paused on live
+  businesses (BIZ-07);
 - whether to remove the never-used super-admin account that looks like a typo;
 - the trademark check for "Zella Voice";
 - an Anthropic key for knowledge drafting, when the budget allows;

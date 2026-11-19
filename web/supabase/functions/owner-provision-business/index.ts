@@ -8,6 +8,13 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import {
+  DETAIL_PERMISSIONS, RESEND_COOLDOWN_MINUTES, adminPermissions, beforeOf, businessChange, businessDetail, detailHandlers, lifecycleOf,
+  resendAllowedAt, withBefore,
+} from "./detail.ts";
+import { MODULE_DEPENDENCIES, businessModuleProblems } from "./module_deps.ts";
+import { mask, maskText } from "./mask.ts";
+import { START_ON_SAVE_SWITCH, savedStatus, startOnSave, type LiveBusiness } from "./live.ts";
 import { BOOKING_MODELS, CONFIG_PERMISSIONS, allRows, cleanAutomationDefaults, missingColumn, configHandlers, connectionCounts, connectionsFor, deliveriesFor, moduleUsage, switchOffCheck, switchOffMessage } from "./config.ts";
 import { supportHours, ticketTiming } from "./access.ts";
 import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
@@ -123,13 +130,6 @@ const TRANSFER_TYPES = ["owner", "manager", "team_member", "phone_number"] as co
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-const MODULE_DEPENDENCIES: Record<string, string[]> = {
-  "ai-receptionist": ["calls"],
-  "ai-appointments": ["calendar"],
-  "ai-follow-up": ["automations"],
-  "ai-sales": ["calls"],
-  "ai-support": ["calls"],
-};
 
 // Automations managed by the setup wizard. n8n runs them once they are active.
 const AUTOMATIONS = {
@@ -329,6 +329,13 @@ async function getReceptionist(admin: SupabaseClient, businessId: string) {
   return { agent, config };
 }
 
+// What a call gets now: md5 of the assistant configuration, worked out in SQL by zella_assistant_delivery_status (the
+// same hash assistant_deliveries record). Null when it can't be read (COM-04).
+async function configHash(admin: SupabaseClient, businessId: string): Promise<string | null> {
+  const { data, error } = await admin.rpc("zella_assistant_delivery_status", { p_business_id: businessId });
+  return error ? null : (obj(data).current_config_hash as string | null) ?? null;
+}
+
 async function advance(admin: SupabaseClient, businessId: string, status: string) {
   const { error } = await admin.rpc("zella_advance_onboarding", {
     p_business_id: businessId,
@@ -391,7 +398,7 @@ async function industryRuleList(admin: SupabaseClient, businessId: string) {
     );
 }
 
-async function saveIndustryRules(admin: SupabaseClient, businessId: string, rules: unknown, live: boolean) {
+async function saveIndustryRules(admin: SupabaseClient, businessId: string, rules: unknown, business: LiveBusiness, switchOn: boolean) {
   if (!Array.isArray(rules)) return;
   const list = await industryRuleList(admin, businessId);
   const known = new Map(list.map((r) => [r.name, r]));
@@ -408,17 +415,20 @@ async function saveIndustryRules(admin: SupabaseClient, businessId: string, rule
     const preset = presetByName.get(name);
     if (!known.has(name) || !preset) continue;
     const enabled = bool(item.enabled, false);
-    const status = !enabled ? "disabled" : live ? "active" : "paused";
+    // BIZ-07: live.ts savedStatus; with the switch off, exactly as before (active whenever is_active)
+    const saved = savedStatus({ kind: "rule", enabled, current: null, business, switchOn });
+    const status = saved.status;
+    const flag = switchOn ? { paused_by_suspension: saved.pausedBySuspension } : {};
     const notify = oneOf(item.notifyVia, ["sms", "email", "both"] as const, "both");
     const { data: current, error: currentError } = await admin
       .from("automations").select("id, trigger_config").eq("business_id", businessId).eq("name", name).maybeSingle();
     if (currentError) throw currentError;
     const config = { ...obj(current?.trigger_config ?? preset.trigger_config), notify_via: notify };
     const { error: writeError } = current
-      ? await admin.from("automations").update({ status, trigger_config: config, updated_at: now }).eq("id", current.id)
+      ? await admin.from("automations").update({ status, trigger_config: config, updated_at: now, ...flag }).eq("id", current.id)
       : await admin.from("automations").insert({
         business_id: businessId, name, description: preset.description, trigger_type: preset.trigger_type,
-        status, trigger_config: config, actions: [], conditions: {},
+        status, trigger_config: config, actions: [], conditions: {}, ...flag,
       });
     if (writeError) throw writeError;
   }
@@ -484,6 +494,7 @@ async function loadSetup(admin: SupabaseClient, businessId: string) {
     modules: (modulesResult.data ?? []).map((module) => ({
       ...module,
       enabled: enabled.has(module.id),
+      requires: MODULE_DEPENDENCIES[module.slug] ?? [],   // slugs it needs (module_deps.ts); not offered when absent here
     })),
     receptionist: {
       agentId: agent?.id ?? null,
@@ -586,7 +597,7 @@ async function saveBusiness(admin: SupabaseClient, fields: Json) {
     .eq("id", businessId);
   if (error) throw error;
 
-  return { businessId, created: false, industryChanged, values };
+  return withBefore({ businessId, created: false, industryChanged, values }, Object.fromEntries(Object.keys(values).map((k) => [k, business[k] ?? null])));
 }
 
 async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: string) {
@@ -669,7 +680,7 @@ async function saveOwner(admin: SupabaseClient, fields: Json, adminUserId: strin
   await mergeSetupData(admin, businessId, "owner", { phone: ownerPhone });
   await advance(admin, businessId, "owner_setup");
   await syncSetupToLive(admin, businessId);   // its transfer number may be the one calls use (D4)
-  return { businessId };
+  return withBefore({ businessId }, { email: current?.email ?? null, status: current?.status ?? null });
 }
 
 async function saveTerminology(admin: SupabaseClient, fields: Json) {
@@ -682,7 +693,7 @@ async function saveTerminology(admin: SupabaseClient, fields: Json) {
     if (value) overrides[key] = value;
   }
 
-  await getBusiness(admin, businessId);
+  const prior = await getBusiness(admin, businessId);
 
   const { error } = await admin
     .from("businesses")
@@ -691,7 +702,7 @@ async function saveTerminology(admin: SupabaseClient, fields: Json) {
   if (error) throw error;
 
   await advance(admin, businessId, "industry_setup");
-  return { businessId };
+  return withBefore({ businessId }, { overrides: obj(prior.terminology_overrides) });
 }
 
 async function saveModules(admin: SupabaseClient, fields: Json) {
@@ -709,20 +720,16 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
     .eq("is_active", true);
   if (modulesError) throw modulesError;
 
-  // Enforce dependencies on the server, not only in the UI.
+  // Enforce dependencies on the server, not only in the UI (module_deps.ts, CFG-02): a dependency the industry
+  // doesn't offer refuses too, instead of being skipped.
   const enabled = new Set(requested);
-  const bySlug = new Map((modules ?? []).map((m) => [m.slug, m]));
+  const problems = businessModuleProblems(modules ?? [], enabled);
+  if (problems.length) throw new InputError(`${problems.join("; ")}.`);
 
-  for (const module of modules ?? []) {
-    if (!enabled.has(module.id)) continue;
-    for (const dependency of MODULE_DEPENDENCIES[module.slug] ?? []) {
-      const required = bySlug.get(dependency);
-      if (required && !enabled.has(required.id)) {
-        throw new InputError(`${module.name} requires ${required.name}`);
-      }
-    }
-  }
-
+  // the state before, read before anything changes: a failed read stops the save instead of recording an empty list
+  const { data: priorRows, error: priorError } = await admin.from("business_modules").select("module_id").eq("business_id", businessId).eq("enabled", true);
+  if (priorError) throw priorError;
+  const priorIds = (priorRows ?? []).map((r: { module_id: string }) => r.module_id).sort();
   const { data: count, error } = await admin.rpc("zella_set_business_modules", {
     p_business_id: businessId,
     p_enabled: [...enabled],
@@ -737,7 +744,7 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
 
   // Changing modules from a business's details page (advance: false) must not move its setup progress.
   if (fields.advance !== false) await advance(admin, businessId, "industry_setup");
-  return { businessId, enabledModules: count };
+  return withBefore({ businessId, enabledModules: count }, { enabled_module_ids: priorIds });
 }
 
 async function saveReceptionist(admin: SupabaseClient, fields: Json) {
@@ -745,6 +752,11 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
   const input = obj(fields.receptionist);
   const business = await getBusiness(admin, businessId);
   const { agent, config } = await getReceptionist(admin, businessId);
+  const kbBefore = obj(config?.knowledge_base);
+  const before = {
+    services: Array.isArray(kbBefore.services) ? kbBefore.services.length : 0, faqs: Array.isArray(kbBefore.faqs) ? kbBefore.faqs.length : 0,
+    personality: config?.personality ?? null, config_hash: await configHash(admin, businessId),
+  };
 
   const services = list(input.services, 100)
     .map((item) => {
@@ -868,7 +880,10 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
 
   await advance(admin, businessId, "ai_setup");
   const live = await syncSetupToLive(admin, businessId);
-  return { businessId, services: services.length, faqs: faqs.length, ...live };
+  // COM-04 option B: edits apply to the next call; the audit row shows which configuration calls got before and after
+  // what was saved: services kept from before when this request didn't carry them
+  const savedServices = Array.isArray(configValues.knowledge_base.services) ? (configValues.knowledge_base.services as unknown[]).length : 0;
+  return withBefore({ businessId, services: savedServices, faqs: faqs.length, ...live, configHash: await configHash(admin, businessId) }, before);
 }
 
 // Setup answers that the live receptionist reads from somewhere else (docs/SETUP_FIELD_TRACE_2026-11-05.md):
@@ -965,10 +980,14 @@ async function saveIntegrations(admin: SupabaseClient, fields: Json) {
     },
   };
 
+  const priorChoices = obj(obj((await getBusiness(admin, businessId)).setup_data).integrations);
   await mergeSetupData(admin, businessId, "integrations", choices);
   await advance(admin, businessId, "communications_setup");
   await syncSetupToLive(admin, businessId);   // its transfer number may be the one calls use (D4)
-  return { businessId };
+  return withBefore({ businessId }, {
+    phone_mode: obj(priorChoices.phone).mode ?? null, calendar: priorChoices.calendar ?? null, email: priorChoices.email ?? null,
+    lead_sources: priorChoices.lead_sources ?? null,
+  });
 }
 
 async function saveAutomations(
@@ -989,6 +1008,7 @@ async function saveAutomations(
 
   const byType = new Map((existing ?? []).map((row) => [row.trigger_type, row]));
   const now = new Date().toISOString();
+  const switchOn = startOnSave(Deno.env.get(START_ON_SAVE_SWITCH));
 
   for (const type of AUTOMATION_TYPES) {
     const definition = AUTOMATIONS[type];
@@ -996,13 +1016,10 @@ async function saveAutomations(
     const enabled = bool(item.enabled, false);
     const current = byType.get(type);
 
-    // Enabled automations wait as "paused" until the business goes live.
-    // A live automation that stays enabled keeps running.
-    const status = !enabled
-      ? "disabled"
-      : current?.status === "active"
-      ? "active"
-      : "paused";
+    // BIZ-07 (live.ts): with the switch on, an enabled automation of a live business starts at once. With it off, as
+    // before: an enabled automation waits as "paused" until the business goes live; a live one that stays enabled runs.
+    const saved = savedStatus({ kind: "standard", enabled, current: current?.status, business, switchOn });
+    const status = saved.status;
 
     const values = {
       name: definition.name,
@@ -1017,6 +1034,7 @@ async function saveAutomations(
       actions: definition.actions,
       conditions: {},
       updated_at: now,
+      ...(switchOn ? { paused_by_suspension: saved.pausedBySuspension } : {}),
     };
 
     const { error } = current
@@ -1029,12 +1047,14 @@ async function saveAutomations(
     if (error) throw error;
   }
 
-  await saveIndustryRules(admin, businessId, fields.industryRules, business.is_active === true);
+  await saveIndustryRules(admin, businessId, fields.industryRules, business, switchOn);
   await saveDailyReport(admin, businessId, input.daily_report);
 
   // The early on/off step passes early: true, so it doesn't move setup progress forward.
   if (fields.early !== true) await advance(admin, businessId, "automation_setup");
-  return { businessId };
+  return withBefore({ businessId }, {
+    enabled: (existing ?? []).filter((r) => r.status !== "disabled").map((r) => r.trigger_type).sort(),
+  });
 }
 
 // The daily report: sent at the hour chosen here (business time), never at an assumed one. Nothing is saved when the
@@ -1120,14 +1140,18 @@ async function finishSetup(admin: SupabaseClient, fields: Json) {
         return problem.message;
       },
       async activate() {
-        // the AI receptionist stays disabled until the phone number and voice agent are connected and tested
-        const { error } = await admin.from("businesses").update({ is_active: true, updated_at: iso() }).eq("id", businessId);
+        // the AI receptionist stays disabled until the phone number and voice agent are connected and tested.
+        // Never while suspended (BIZ-06): a suspension that lands during the finish wins, and the finish says so.
+        const { data: rows, error } = await admin.from("businesses").update({ is_active: true, updated_at: iso() })
+          .eq("id", businessId).is("suspended_at", null).is("cancelled_at", null).select("id");
         if (error) throw error;
+        if (!rows?.length) return false;
         await advance(admin, businessId, "testing");
+        return true;
       },
       now: () => new Date(),
     });
-    return { businessId, businessName: business.name, ...result };
+    return withBefore({ businessId, businessName: business.name, ...result, after: lifecycleOf(await getBusiness(admin, businessId)) }, lifecycleOf(business));
   } catch (e) {
     if (e instanceof FinishError) throw new InputError(e.message, e.status);
     throw e;
@@ -1149,17 +1173,33 @@ type AuditEntry = {
 
 type AuditContext = { userId: string; ip: string | null; userAgent: string | null };
 
-// Audit failures are logged but never block the admin's action (except an audit log export, below). Returns whether
-// the row was written.
-async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry): Promise<boolean> {
+// The permission one action needs, from every module's table (the dispatcher's one lookup; tests use it too).
+export function permissionFor(action: string): string | undefined {
+  return PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ??
+    DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action];
+}
+
+// One helper for every audit row; returns whether the row was written, and callers act on a failed write (an audit
+// log export, a new authenticator and a sensitivity change fail closed; see the dispatcher). A failed write also raises
+// an urgent audit_write_failed platform alert, and an action that stands carries auditWarning so the admin knows
+// (BIZ-17). Suspensions and cancellations are also recorded by the database's own trigger (zella_audit_privileged).
+export const AUDIT_WARNING = "Saved, but it could not be recorded in the activity log. The Zella Voice team has been alerted.";
+export async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry: AuditEntry): Promise<boolean> {
   const { error } = await admin.from("audit_logs").insert({
     ...entry,
     user_id: ctx.userId,
     ip_address: ctx.ip,
     user_agent: ctx.userAgent,
   });
-  if (error) console.error("Audit log write failed", error);
-  return !error;
+  if (!error) return true;
+  console.error("Audit log write failed", error);
+  const { error: alertError } = await admin.rpc("zella_platform_alert", {
+    p_kind: "audit_write_failed", p_title: "An admin action was not recorded in the audit log",
+    p_detail: `${entry.action} by admin ${ctx.userId}`, p_severity: "urgent", p_business_id: entry.business_id ?? null,
+    p_dedupe_key: entry.action, p_meta: { audit_action: entry.action, entity_type: entry.entity_type ?? null },
+  });
+  if (alertError) console.error("Audit failure alert failed", alertError);
+  return false;
 }
 
 function requestContext(req: Request, userId: string): AuditContext {
@@ -1171,13 +1211,15 @@ function requestContext(req: Request, userId: string): AuditContext {
 // What each setup action records. Large content (FAQs, policies) is
 // summarised as counts so the log stays readable.
 // deno-lint-ignore no-explicit-any
-const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
+export const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
   platform_setting_save: (_fields, r) => ({
     action: "platform.setting_updated",
     entity_type: "platform_setting",
     old_data: { key: r.key, value: r.previous },
     new_data: { key: r.key, value: r.value },
   }),
+  // BIZ-17: every setup and lifecycle row records the state before (old_data, from beforeOf) as well as after. A
+  // business's contact details and people's emails are recorded by name or masked, never in full (DB-13, PRV-2).
   setup_save_business: (_fields, r) => ({
     action: r.created
       ? "business.draft_created"
@@ -1187,15 +1229,18 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
-    new_data: r.values,
+    ...businessChange(r.created ? null : beforeOf(r), r.values),
   }),
   setup_save_owner: (fields, r) => {
     const owner = obj(fields.owner);
+    const email = text(owner.email, 254).toLowerCase();
+    const before = beforeOf(r);
     return {
       action: "owner.saved",
       business_id: r.businessId,
       entity_type: "business_invitation",
-      new_data: { name: text(owner.name, 200), email: text(owner.email, 254).toLowerCase() },
+      old_data: before ? { email: mask(before.email), invitation_status: before.status ?? null } : null,
+      new_data: { name: text(owner.name, 200), email: mask(email), email_changed: (before?.email ?? null) !== email },
     };
   },
   setup_save_terminology: (fields, r) => ({
@@ -1203,22 +1248,29 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
     new_data: { overrides: obj(fields.overrides) },
   }),
-  setup_save_modules: (_fields, r) => ({
+  setup_save_modules: (fields, r) => ({
     action: "modules.updated",
     business_id: r.businessId,
     entity_type: "business_modules",
-    new_data: { enabled_modules: r.enabledModules },
+    old_data: beforeOf(r),
+    new_data: {
+      enabled_modules: r.enabledModules,
+      enabled_module_ids: list(fields.enabledModuleIds, 100).map((id) => text(id, 64)).filter((id) => UUID_RE.test(id)).sort(),
+    },
   }),
   setup_save_receptionist: (fields, r) => ({
     action: "ai_receptionist.updated",
     business_id: r.businessId,
     entity_type: "ai_agent",
+    old_data: beforeOf(r),
     new_data: {
       services: r.services,
       faqs: r.faqs,
       personality: text(obj(fields.receptionist).personality, 40),
+      config_hash: r.configHash ?? null,
     },
   }),
   setup_save_integrations: (fields, r) => {
@@ -1228,6 +1280,7 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
       business_id: r.businessId,
       entity_type: "business",
       entity_id: r.businessId,
+      old_data: beforeOf(r),
       new_data: {
         phone_mode: text(obj(input.phone).mode, 40),
         calendar: text(input.calendar, 20),
@@ -1240,6 +1293,7 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     action: "automations.updated",
     business_id: r.businessId,
     entity_type: "automations",
+    old_data: beforeOf(r),
     new_data: {
       enabled: AUTOMATION_TYPES.filter((type) => bool(obj(obj(fields.automations)[type]).enabled)),
     },
@@ -1312,19 +1366,23 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
-    new_data: { reason: r.reason || null },
+    old_data: beforeOf(r),
+    new_data: { ...(r.after ?? {}), reason: r.reason || null },
   }),
   business_reactivate: (_fields, r) => ({
     action: "business.reactivated",
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
+    new_data: r.after ?? null,
   }),
   business_cancel: (_fields, r) => ({
     action: "business.cancellation_scheduled",
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
     new_data: {
       cancel_at: r.cancelAt,
       reason: r.reason || null,
@@ -1336,13 +1394,15 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
-    old_data: { cancel_at: r.previousCancelAt },
+    old_data: beforeOf(r) ?? { cancel_at: r.previousCancelAt },
+    new_data: { cancel_at: null, cancellation_reason: null },
   }),
   invitation_resend: (_fields, r) => ({
     action: r.invitationStatus === "sent" ? "invitation.resent" : "invitation.failed",
     business_id: r.businessId,
     entity_type: "business_invitation",
-    new_data: { email: r.email, status: r.invitationStatus, ...(r.invitationError ? { error: r.invitationError } : {}) },
+    old_data: beforeOf(r),
+    new_data: { email: mask(r.email), status: r.invitationStatus, ...(r.invitationError ? { error: maskText(r.invitationError) } : {}) },
   }),
   setup_finish: (_fields, r) => ({
     action: r.invitationStatus === "sent"
@@ -1353,9 +1413,11 @@ const AUDITED: Record<string, (fields: Json, result: any) => AuditEntry> = {
     business_id: r.businessId,
     entity_type: "business",
     entity_id: r.businessId,
+    old_data: beforeOf(r),
     new_data: {
+      ...(r.after ?? {}),
       invitation_status: r.invitationStatus,
-      ...(r.invitationError ? { error: r.invitationError } : {}),
+      ...(r.invitationError ? { error: maskText(r.invitationError) } : {}),
     },
   }),
 };
@@ -1548,83 +1610,6 @@ async function overviewData(admin: SupabaseClient) {
       actor: actors[l.user_id] ?? null,
       business_name: l.business_id ? nameById.get(l.business_id) ?? null : null,
     })),
-  };
-}
-
-async function businessDetail(admin: SupabaseClient, businessId: string) {
-  const setup = await loadSetup(admin, businessId);
-
-  const [
-    industryResult, invitationsResult, membersResult, integrationsResult,
-    callsResult, callCountResult, logsResult, ticketsResult,
-  ] = await Promise.all([
-    admin.from("industries").select("id, name").eq("id", setup.business.industry_id).maybeSingle(),
-    admin.from("business_invitations")
-      .select("id, email, owner_name, status, invited_at, accepted_at, expires_at, last_error, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false }),
-    admin.from("business_members")
-      .select("user_id, role, status, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: true }),
-    admin.from("integrations")
-      .select("id, provider, integration_type, status, account_email, error_message, last_synced_at, updated_at")
-      .eq("business_id", businessId),
-    admin.from("calls")
-      .select("id, direction, status, from_number, to_number, started_at, duration_seconds, ai_handled, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(10),
-    admin.from("calls").select("id", { count: "exact", head: true }).eq("business_id", businessId),
-    admin.from("audit_logs")
-      .select("id, action, user_id, entity_type, new_data, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(30),
-    admin.from("support_tickets")
-      .select("id, subject, status, priority, category, created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false })
-      .limit(10),
-  ]);
-
-  const queryError = industryResult.error ?? invitationsResult.error ??
-    membersResult.error ?? integrationsResult.error ?? callsResult.error ??
-    callCountResult.error ?? logsResult.error ?? ticketsResult.error;
-  if (queryError) throw queryError;
-
-  const members = membersResult.data ?? [];
-  const logs = logsResult.data ?? [];
-  const userIds = [...members.map((m) => m.user_id), ...logs.map((l) => l.user_id)];
-
-  const [emails, profilesResult] = await Promise.all([
-    resolveUsers(admin, userIds),
-    members.length
-      ? admin.from("profiles").select("id, first_name, last_name, phone")
-        .in("id", members.map((m) => m.user_id))
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (profilesResult.error) throw profilesResult.error;
-
-  const profileById = new Map((profilesResult.data ?? []).map((p) => [p.id, p]));
-
-  return {
-    ...setup,
-    industryName: industryResult.data?.name ?? "Unassigned",
-    invitations: invitationsResult.data ?? [],
-    members: members.map((m) => {
-      const profile = profileById.get(m.user_id);
-      return {
-        ...m,
-        email: emails[m.user_id] ?? null,
-        name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || null,
-      };
-    }),
-    integrations: integrationsResult.data ?? [],
-    calls: callsResult.data ?? [],
-    callCount: callCountResult.count ?? 0,
-    tickets: ticketsResult.data ?? [],
-    activity: logs.map((l) => ({ ...l, actor: emails[l.user_id] ?? null })),
   };
 }
 
@@ -3006,16 +2991,18 @@ async function ownerContact(admin: SupabaseClient, businessId: string) {
 async function businessSuspend(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const reason = text(fields.reason, 500);
+  const before = lifecycleOf(await getBusiness(admin, businessId));
   const { error } = await admin.rpc("zella_suspend_business", { p_business_id: businessId, p_reason: reason });
   if (error) throw lifecycleError(error);
-  return { businessId, reason };
+  return withBefore({ businessId, reason, after: lifecycleOf(await getBusiness(admin, businessId)) }, before);
 }
 
 async function businessReactivate(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
+  const before = lifecycleOf(await getBusiness(admin, businessId));
   const { error } = await admin.rpc("zella_reactivate_business", { p_business_id: businessId });
   if (error) throw lifecycleError(error);
-  return { businessId };
+  return withBefore({ businessId, after: lifecycleOf(await getBusiness(admin, businessId)) }, before);
 }
 
 async function businessCancel(admin: SupabaseClient, fields: Json) {
@@ -3076,13 +3063,13 @@ async function businessCancel(admin: SupabaseClient, fields: Json) {
     });
   }
 
-  return {
+  return withBefore({
     businessId,
     cancelAt: cancelAt.toISOString(),
     reason,
     emailSent: email.sent,
     emailError: email.reason,
-  };
+  }, { cancel_at: business.cancel_at ?? null, cancellation_reason: business.cancellation_reason ?? null });
 }
 
 async function businessUndoCancel(admin: SupabaseClient, fields: Json) {
@@ -3111,24 +3098,48 @@ async function businessUndoCancel(admin: SupabaseClient, fields: Json) {
     previous_cancel_at: business.cancel_at,
   });
 
-  return { businessId, previousCancelAt: business.cancel_at };
+  return withBefore({ businessId, previousCancelAt: business.cancel_at }, { cancel_at: business.cancel_at, cancellation_reason: business.cancellation_reason ?? null });
 }
 
+// A resend holds the invitation for SEND_LEASE_MS, longer than an edge function can run (150 s on the Free plan, 400 s
+// on paid plans), so the send always finishes (and records what happened) while its lease is held: no second send can
+// start meanwhile, and no deadline drops a send that is still under way. A run that is stopped part way frees the
+// invitation when the lease ends.
+const SEND_LEASE_MS = 7 * 60 * 1000;
 async function invitationResend(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const business = await getBusiness(admin, businessId);
   if (business.cancelled_at) throw new InputError("This business has been cancelled", 409);
 
-  const { data: invitation, error: invitationError } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status");
+  const { data: invitation, error: invitationError } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status, invited_at, updated_at");
   if (invitationError) throw invitationError;
   if (!invitation) throw new InputError("This business has no owner invitation yet");
   if (invitation.status === "accepted") throw new InputError("The owner has already accepted the invitation", 409);
   // before anything changes: without the app address the link would not open (BIZ-01)
   const appUrl = appUrlUsable(Deno.env.get("ZELLA_APP_URL"));
   if (!appUrl) throw new InputError(APP_URL_MISSING, 503);
+  // BIZ-21: one resend per RESEND_COOLDOWN_MINUTES after the last one that went out (invited_at, set only on success),
+  // claimed with a compare and set on updated_at so two clicks at once send one email. invited_at and
+  // last_reminded_at (the reminder job's clock) are not touched by the claim.
+  const inv = invitation as typeof invitation & { invited_at?: string | null; updated_at?: string | null };
+  const retryAt = resendAllowedAt(inv.invited_at, new Date());
+  if (retryAt) {
+    const minutes = Math.max(1, Math.ceil((retryAt.getTime() - Date.now()) / 60000));
+    throw new InputError(`An invitation was sent less than ${RESEND_COOLDOWN_MINUTES} minutes ago. It can be sent again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, 429);
+  }
+  // The claim is a lease: updated_at is set SEND_LEASE_MS ahead, and a request that finds updated_at in the future
+  // knows a send is in progress and stops. The send's outcome (sent or failed) sets updated_at to now, ending the
+  // lease, and only while the lease is still this request's; a run that is stopped frees it when the lease runs out.
+  const ALREADY_SENDING = "The invitation is already being sent from another window. Reload the page to see the result.";
+  if (inv.updated_at && Date.parse(inv.updated_at) > Date.now()) throw new InputError(ALREADY_SENDING, 409);
+  const lease = new Date(Date.now() + SEND_LEASE_MS).toISOString();
+  const claim = admin.from("business_invitations").update({ updated_at: lease }).eq("id", invitation.id);
+  const { data: claimed, error: claimError } = await (inv.updated_at ? claim.eq("updated_at", inv.updated_at) : claim.is("updated_at", null)).select("id");
+  if (claimError) throw claimError;
+  if (!claimed?.length) throw new InputError(ALREADY_SENDING, 409);
   if (invitation.status === "sent") {
-    // Re-open it so the guarded write below applies; a cancel in between still wins.
-    await admin.from("business_invitations").update({ status: "pending", updated_at: new Date().toISOString() })
+    // Re-open it so the guarded write below applies (keeping the lease); a cancel in between still wins.
+    await admin.from("business_invitations").update({ status: "pending", updated_at: lease })
       .eq("id", invitation.id).eq("status", "sent");
   }
 
@@ -3137,19 +3148,22 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
 
   if ("error" in sent) {
     const reason = sent.error;
-    await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now });
-    return { businessId, email: invitation.email, invitationStatus: "failed", invitationError: reason };
+    // only while this request's lease is still the invitation's
+    await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now }, lease);
+    return withBefore({ businessId, email: invitation.email, invitationStatus: "failed", invitationError: reason }, { status: invitation.status });
   }
   const invited = { user: { id: sent.userId } };
+  // the cooldown counts from when the send succeeded, not from when it started
+  const sentAt = new Date().toISOString();
 
   const moved = await moveOwnerInvitation(admin, invitation.id, {
     status: "sent",
     auth_user_id: invited.user.id,
-    invited_at: now,
+    invited_at: sentAt,
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     last_error: null,
-    updated_at: now,
-  });
+    updated_at: sentAt,
+  }, lease);
   if (!moved) {
     return {
       businessId,
@@ -3172,10 +3186,16 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
       role: "owner",
       status: "invited",
     });
-    if (memberError) console.error("Owner membership insert failed", memberError);
+    if (memberError) {
+      // BIZ-02: the email went out but the owner has no seat to accept, so say so and keep it on the invitation
+      console.error("Owner membership insert failed", memberError);
+      await admin.from("business_invitations").update({ last_error: `Seat not created: ${memberError.message}`.slice(0, 500) }).eq("id", invitation.id);
+      return withBefore({ businessId, email: invitation.email, invitationStatus: "sent", warning: "The invitation was sent, but the owner's seat could not be created. Check the invitation before they sign in.",
+        ...(sent.existingAccount ? { existingAccount: true } : {}) }, { status: invitation.status });
+    }
   }
 
-  return { businessId, email: invitation.email, invitationStatus: "sent", ...(sent.existingAccount ? { existingAccount: true } : {}) };
+  return withBefore({ businessId, email: invitation.email, invitationStatus: "sent", ...(sent.existingAccount ? { existingAccount: true } : {}) }, { status: invitation.status });
 }
 
 // ---------------------------------------------------------------------------
@@ -3406,7 +3426,7 @@ Deno.serve(withCors(async (req: Request) => {
     }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action];
+    const permission = permissionFor(action);
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3539,7 +3559,8 @@ Deno.serve(withCors(async (req: Request) => {
         await processCancellations(adminClient);   // as dashboard_data did when Businesses opened (BIZ-03)
         return businessesList(adminClient, fields, { text, InputError, UUID_RE });
       },
-      business_detail: () => businessDetail(adminClient, requireId(fields.businessId)),
+      business_detail: async () =>
+        businessDetail(adminClient, requireId(fields.businessId), await adminPermissions(adminClient, role), { loadSetup, viewerId: user.id }),
       audit_logs: () => auditLogList(adminClient, fields, role),
       industries_list: () => industriesList(adminClient),
       industry_save: () => industrySave(adminClient, fields),
@@ -3575,9 +3596,10 @@ Deno.serve(withCors(async (req: Request) => {
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
     const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, role);
+    const detail = detailHandlers(adminClient, fields, { text, requireId, InputError }, user.id, callerClient);
     const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
     const lifecycle = lifecycleHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? access.handlers[action] ?? lifecycle.handlers[action];
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? detail.handlers[action] ?? access.handlers[action] ?? lifecycle.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3585,7 +3607,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? access.audited[action] ?? lifecycle.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? detail.audited[action] ?? access.audited[action] ?? lifecycle.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;
@@ -3605,6 +3627,8 @@ Deno.serve(withCors(async (req: Request) => {
           await undo(result as Json);
           return respond({ error: "The change could not be recorded in the audit log, so it was undone. Nothing changed. Try again." }, 503);
         }
+        // BIZ-17: any other action stands (it has already happened); the admin is told it wasn't recorded
+        if (!recorded && result && typeof result === "object") (result as Json).auditWarning = AUDIT_WARNING;
       }
 
       return respond(result);

@@ -62,7 +62,7 @@ export function setupProblems(f: SetupFacts): string[] {
 // atomically before the email (a second request can't send too) -> the workspace becomes active only after the
 // owner's invitation went out (or was already sent / accepted). A failed email gives the claim back for Retry.
 export interface FinishDeps {
-  business(): Promise<{ name: string | null; industry_id: string | null; cancelled_at: string | null }>;
+  business(): Promise<{ name: string | null; industry_id: string | null; cancelled_at: string | null; suspended_at?: string | null }>;
   ownerInvitation(): Promise<OwnerInvitation | null>;
   documents(): Promise<{ ready: boolean; missing: string[] }>;
   openDays(): Promise<number>;
@@ -75,14 +75,20 @@ export interface FinishDeps {
   release(invitationId: string, reason: string): Promise<void>;        // sent (unsent, ours) -> failed
   // links the account; "closed" when the invitation was cancelled meanwhile, or a bookkeeping error message
   recordSent(invitationId: string, userId: string): Promise<null | "closed" | string>;
-  activate(): Promise<void>;
+  // false when the business could not be activated because it was suspended or cancelled meanwhile
+  activate(): Promise<boolean | void>;
   now(): Date;
 }
+export const SUSPENDED_FINISH = "This business is suspended. Reactivate it on the business page before finishing setup.";
+export const SUSPENDED_DURING_FINISH = "The business was suspended or cancelled while setup was being finished, so its workspace was not turned on. Check the business page.";
 export class FinishError extends Error { constructor(message: string, public status: number) { super(message); } }
 
 export async function finishSetupWith(d: FinishDeps) {
   const business = await d.business();
   if (business.cancelled_at) throw new FinishError("This business has been cancelled", 409);
+  // BIZ-06: finishing would make a suspended workspace active and send its owner an invitation. Refused before
+  // anything is claimed or sent; reactivate the business first.
+  if (business.suspended_at) throw new FinishError(SUSPENDED_FINISH, 409);
   const inv = await d.ownerInvitation();
   const plan = finishPlan(inv, d.now());
   if (plan.kind in FINISH_STOP) { const [status, message] = FINISH_STOP[plan.kind]; throw new FinishError(message, status); }
@@ -115,6 +121,9 @@ export async function finishSetupWith(d: FinishDeps) {
     invitationStatus = "sent";
     if (sent.existingAccount) existingAccount = true;
   }
-  await d.activate();
+  if ((await d.activate()) === false) {
+    // suspended or cancelled while the invitation was going out: the suspension wins and the workspace stays off
+    return { completed: false, invitationStatus, warning: SUSPENDED_DURING_FINISH, ...(existingAccount ? { existingAccount: true } : {}) };
+  }
   return { completed: true, invitationStatus, warning, ...(existingAccount ? { existingAccount: true } : {}) };
 }

@@ -1749,6 +1749,45 @@ Owner decisions of 16 Nov 2026 on platform admin pages (§23.1a):
   (Create Business step 5, industry presets in REQ-ADM-17).
 - **Weekly platform summary report for Zella Voice admins: yes.** Being built in `claude/weekly-admin-report`.
 
+**REQ-ADM-02 detail data (one business):** `business_detail` (`owner-provision-business/detail.ts`) returns, beside the
+setup data: the server's readiness ladder (`zella_business_readiness`), the latest plan (prices only with
+`billing.view`), this period's balances from `billing_periods` and `allowance_buckets` (never
+`zella_billing_overview`, which can open a period: opening the page writes nothing), the business's numbers (20),
+unresolved alerts (10 and a count), the go live checklist (`zella_activation_report` and the latest test call, with
+`businesses.manage`), call routing worked out like `zella_admin_routing_get`, what calls get
+(`zella_assistant_delivery_status`, the 10 latest deliveries without caller data, 7 day not ready counts), each
+member's last sign in and two step status (with `businesses.manage`), the activity total (with `audit.view`) and the
+shared connection state (`zella_business_connections`, lane C's one definition of connected and live). Each
+part reports `available: false` on its own when its table or function is missing, so one card never fails the page.
+
+**REQ-ADM-02 audit rows (BIZ-17):** every setup and lifecycle action on a business records the state before
+(`old_data`) and after (`new_data`). A business's contact fields are recorded by name only (`contact_fields_changed`)
+and people's emails masked. Receptionist edits record `config_hash` before and after (what calls got; edits apply to
+the next call, COM-04 option B). The before values travel to the audit builder on a Symbol key, which JSON leaves out,
+so they never reach the browser. A failed audit write never undoes the action (it has already happened): it raises an
+urgent `audit_write_failed` platform alert (deduplicated per action) and the response carries `auditWarning`.
+Suspensions, reactivations and cancellations are also recorded by the database trigger `zella_audit_privileged` on the
+businesses row, so they are never unrecorded.
+
+**REQ-LC-19 audited support access (admin Business page):** each open of a business writes one `business.viewed`
+row per admin and business in 30 minutes (`VIEW_DEDUPE_MINUTES`). People's emails, caller numbers and connection
+accounts are masked on the page; `business_contacts_reveal` (`businesses.manage`) needs a reason of 10 to 300
+characters, writes `support.contacts_revealed` (reason and field names, no values) first and reveals nothing if that
+write fails. Both actions stay out of the business's Activity list and appear in its Support access list for
+`audit.view` holders. Gap: `setup_load` (the wizard's read, `businesses.view`) still returns the owner's email
+unmasked.
+
+**REQ-LC-19 two step reset for a business member (identity check):** before an admin removes a member's two step
+sign in (`member_mfa_reset`, `businesses.manage`), they confirm who is asking: the request comes from the member's
+own email address on file (or the business owner's, for a member of their team), and the admin calls back the
+business phone number on record, never a number given in the request, and confirms the member's name and role. The
+admin ticks "I checked who is asking" and gives a reason (10 to 300 characters). The audit row
+(`member.mfa_reset`: who, the reason, the number of authenticators) is written first; if it can't be, nothing is
+removed. Only that person's verified authenticators are removed, never a Zella Voice admin's (those are reset through
+Users & access), never the acting admin's own, and never for someone who also belongs to another business (their
+authenticator protects that business's sign in too; lane E default, owner can change). A fresh admin code (ACC-19) will be required in front of it once
+built. Built, needs the owner's approval of this procedure before deploy.
+
 **REQ-ADM-21 One definition of connected, answering and live:** every admin page that says whether a business's
 phone, voice, calendar or leads are connected, whether its receptionist is answering, or whether it is live reads it
 from the database (`zella_business_connections(p_business_ids uuid[])` per business, at most 1000 ids per call, and

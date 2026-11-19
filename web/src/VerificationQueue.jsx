@@ -29,6 +29,8 @@ const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "med
 
 export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
   const [status, setStatus] = useState("pending_review");
+  // BIZ-31: opened from a business's page with ?business=<id>: only that business, until "Show all"
+  const [business, setBusiness] = useState(() => new URLSearchParams(window.location.search).get("business"));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -76,14 +78,15 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     setError("");
     try {
       // Missing documents has its own list (MissingDocuments); the counts above it still come from the queue
-      const result = await callOwnerFunction("documents_queue", { status: status === "missing" ? "pending_review" : status });
+      const queueStatus = status === "missing" ? "pending_review" : status;
+      const result = await callOwnerFunction("documents_queue", business ? { status: queueStatus, businessId: business } : { status: queueStatus });
       if (id === request.current) setData(result);
     } catch (err) {
       if (id === request.current) { setData(null); setError(friendlyError(err)); }
     } finally {
       if (id === request.current) setLoading(false);
     }
-  }, [status]);
+  }, [status, business]);
 
   useEffect(() => {
     setData(null);
@@ -125,8 +128,11 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     }
   }
 
-  const docs = data?.documents ?? [];
-  const totals = data?.totals ?? {};
+  // One business only when the server says the answer is for it (businessId in the answer). An older server ignores
+  // the filter: its list and totals are for every business, so they are not shown as this business's.
+  const scopeUnsupported = Boolean(business && data?.available && data.businessId !== business);
+  const docs = scopeUnsupported ? [] : data?.documents ?? [];
+  const totals = scopeUnsupported ? {} : data?.totals ?? {};
 
   return (
     <section className="owner-page">
@@ -149,6 +155,19 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       )}
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
       {notice && <div className="vq-notice op-gap" role="status">{notice}</div>}
+      {/* The one business filter, with Show all, on every view and also when the list failed to load, so it can always be
+          cleared. The text says what is scoped: the queue and the counts, never Missing documents (every business). */}
+      {business && (
+        <div className="ic-notice op-gap" role="status">
+          <span>{status === "missing"
+            ? "The counts are for one business. Missing documents lists every business."
+            : data?.available && !scopeUnsupported ? `Showing one business: ${docs[0]?.business_name ?? "this business"}.` : "Filtered to one business."}</span>{" "}
+          <button type="button" className="owner-secondary-button op-small" onClick={() => {
+            setBusiness(null);
+            window.history.replaceState(null, "", window.location.pathname);
+          }}>Show all</button>
+        </div>
+      )}
 
       {data?.available && (
         <>
@@ -156,7 +175,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             {[["pending_review", "pending_actions"], ["rejected", "block"], ["verified", "verified"]].map(([key, icon]) => (
               <button key={key} type="button" className={`vq-stat ${status === key ? "active" : ""}`} onClick={() => setStatus(key)}>
                 <span className={`vq-stat-icon ${STATUS[key][0]}`}><Icon name={icon} /></span>
-                <span><strong>{totals[key] ?? 0}</strong><small>{STATUS[key][1]}</small></span>
+                <span><strong>{scopeUnsupported ? "?" : totals[key] ?? 0}</strong><small>{STATUS[key][1]}</small></span>
               </button>
             ))}
           </div>
@@ -206,7 +225,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
                     );
                   })}
                   {!docs.length && (
-                    <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading documents..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : status === "pending_review" ? "Nothing waiting for review." : "No documents here."}</div></td></tr>
+                    <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading documents..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : scopeUnsupported ? "Showing one business's documents needs the latest Zella Voice update. Use Show all for now." : status === "pending_review" ? "Nothing waiting for review." : "No documents here."}</div></td></tr>
                   )}
                 </tbody>
               </table>

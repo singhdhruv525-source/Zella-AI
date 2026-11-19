@@ -1,167 +1,49 @@
-import { VoicePanel } from "./settings/VoicePanel";
 import { DialogFocus } from "./useDialogFocus";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
-import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { Pill } from "./OwnerOverview";
-import AutomationOverview from "./AutomationOverview";
-import { BusinessModulesCard, BusinessRecordsCard } from "./BusinessAdminControls";
-import {
-  actionLabel, businessState, formatDate, formatDateTime, timeAgo, formatDuration, setupDone as isSetupDone,
-} from "./ownerFormat";
+import { businessState, formatDate, formatDateTime, setupDone as isSetupDone } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
+import { DAYS, Empty } from "./business/shared";
+import { DEFAULT_TAB, DETAIL_TABS, tabKeyTarget } from "./business/tabs";
+import OverviewTab from "./business/OverviewTab";
+import ConfigurationTab from "./business/ConfigurationTab";
+import PeopleTab from "./business/PeopleTab";
+import ReceptionistTab from "./business/ReceptionistTab";
+import PhoneTab from "./business/PhoneTab";
+import AutomationsTab from "./business/AutomationsTab";
+import CallsTab from "./business/CallsTab";
+import ActivityTab from "./business/ActivityTab";
+import "./business/businessDetail.css";
 
-const TABS = [
-  "Overview", "Configuration", "People", "AI receptionist",
-  "Phone & integrations", "Automations", "Calls", "Activity",
-];
-
-const TERM_ROWS = [
-  ["customer", "customers", "Customers"],
-  ["staff", "staff_plural", "Staff"],
-  ["service", "services", "Services"],
-  ["appointment", "appointments", "Appointments"],
-  ["job", "jobs", "Jobs"],
-  ["visit", "visits", "Visits"],
-];
-
-const DAYS = [
-  ["mon", "Monday"], ["tue", "Tuesday"], ["wed", "Wednesday"], ["thu", "Thursday"],
-  ["fri", "Friday"], ["sat", "Saturday"], ["sun", "Sunday"],
-];
-
-const LABELS = {
-  answer_questions: "Answer questions", answer_calls: "Answer calls", handle_sms: "Reply to texts",
-  send_emails: "Send emails", book_appointments: "Book appointments",
-  reschedule_appointments: "Reschedule appointments", cancel_appointments: "Cancel appointments",
-  collect_customer_info: "Collect customer details", follow_up_leads: "Follow up with leads",
-  take_messages: "Take messages",
-  customer_requests_human: "Customer asks for a person", unknown_answer: "AI doesn't know the answer",
-  upset_customer: "Customer is upset", emergency: "Emergency", sensitive_issue: "Sensitive issue",
-  complex_request: "Complex request", billing_question: "Billing question",
-  owner: "Business owner", manager: "Manager", team_member: "Team member", phone_number: "Phone number",
-  "en-US": "English", "es-US": "Spanish", "en-US+es-US": "English and Spanish",
-  new_number: "New Zella Voice number", call_forwarding: "Call forwarding", existing_number: "Call forwarding",
-  always: "All calls", no_answer: "When nobody answers", busy_or_no_answer: "When busy or nobody answers",
-  after_hours: "After business hours",
-  google: "Google", outlook: "Outlook", gmail: "Gmail", none: "None",
+const TAB_COMPONENTS = {
+  overview: OverviewTab, configuration: ConfigurationTab, people: PeopleTab, receptionist: ReceptionistTab,
+  phone: PhoneTab, automations: AutomationsTab, calls: CallsTab, activity: ActivityTab,
 };
 
-const label = (key) => LABELS[key] ?? key;
-
-const POLICY_LABELS = {
-  cancellation: "Cancellation", refund: "Refund", payment: "Payment",
-  emergency: "Emergency", appointment: "Appointment", other: "Other information",
-};
-
-const beforeText = (h) => (h < 1 ? `${Math.round(h * 60)} min` : `${h} h`);
-
-function describeSettings(settings = {}) {
-  const parts = [];
-  if (Array.isArray(settings.hours_before)) {
-    parts.push(settings.hours_before.length ? `${settings.hours_before.map(beforeText).join(", ")} before` : "no reminder times");
-  } else if (settings.hours_before) parts.push(`${beforeText(settings.hours_before)} before`);
-  if (settings.hours_after) parts.push(`${settings.hours_after} h after`);
-  if (settings.minutes_after != null) parts.push(settings.minutes_after === 0 ? "immediately" : `after ${settings.minutes_after} min`);
-  if (settings.max_attempts) parts.push(`up to ${settings.max_attempts} tries`);
-  if (settings.retry_after_hours) parts.push(`retry after ${settings.retry_after_hours} h`);
-  if (settings.channel) parts.push(`by ${settings.channel.replace("sms_and_call", "text and call").replace("sms", "text")}`);
-  if (settings.fallback_sms) parts.push("text if unanswered");
-  return parts.join(" · ") || "Default settings";
-}
-
-// Small, Medium or Large: set by a Zella Voice admin, never guessed from the industry. Offers can target it.
-function BusinessSizeCard({ businessId, size, onSaved, canEdit }) {
-  const [value, setValue] = useState(size ?? "");
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-  useEffect(() => setValue(size ?? ""), [size]);
-  async function save() {
-    setBusy(true);
-    setMsg("");
-    const { error } = await supabase.rpc("zella_set_business_size", { p_business_id: businessId, p_size: value || null });
-    setBusy(false);
-    if (error) { setMsg("Couldn't save the size. Please try again."); return; }
-    setMsg("Saved.");
-    onSaved();
-  }
-  return (
-    <Card title="Business size" description="Used to decide which offers this business can get.">
-      <div className="bd-inline">
-        <select value={value} onChange={(e) => setValue(e.target.value)} aria-label="Business size" disabled={!canEdit}>
-          <option value="">Not set</option>
-          <option value="small">Small</option>
-          <option value="medium">Medium</option>
-          <option value="large">Large</option>
-        </select>
-        {canEdit && (
-          <button type="button" className="owner-secondary-button op-small" onClick={save} disabled={busy || value === (size ?? "")}>
-            {busy ? "Saving..." : "Save size"}
-          </button>
-        )}
-        {msg && <span className="op-muted">{msg}</span>}
-      </div>
-    </Card>
-  );
-}
-
-function Facts({ items }) {
-  return (
-    <dl className="op-facts">
-      {items.map(([term, value]) => (
-        <div key={term}>
-          <dt>{term}</dt>
-          <dd>{value || <span className="op-muted">Not set</span>}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function Card({ title, description, action, children }) {
-  return (
-    <section className="owner-panel op-card">
-      <div className="owner-panel-heading">
-        <div>
-          <h2>{title}</h2>
-          {description && <p>{description}</p>}
-        </div>
-        {action}
-      </div>
-      <div className="op-card-body">{children}</div>
-    </section>
-  );
-}
-
-function Empty({ children }) {
-  return <div className="op-empty">{children}</div>;
-}
-
-function Check({ ok, later, title, detail }) {
-  return (
-    <li className="op-check">
-      <span className={`op-check-dot ${ok ? "ok" : later ? "later" : "missing"}`}>{ok ? "✓" : later ? "None" : "!"}</span>
-      <div>
-        <strong>{title}</strong>
-        <span>{detail}</span>
-      </div>
-    </li>
-  );
-}
 
 // can(permission): what the signed in admin may do (hasPermission in adminPermissions.js). Write buttons show only with
 // businesses.manage (setup, documents, invitations, size, modules, record types) or businesses.lifecycle (suspend,
 // reactivate, cancel); the server checks the same permission again. Without it, nothing is offered (fails closed).
-export default function BusinessDetails({ businessId, onBack, onOpenSetup, can = () => false }) {
+// tab: the tab slug from the address (business/tabs.js); onTab(slug) changes the address. Without them (an older
+// shell) the page keeps its own tab.
+export default function BusinessDetails({ businessId, onBack, onOpenSetup, can = () => false, tab: routeTab, onTab }) {
   const canManage = can("businesses.manage");
   const canLifecycle = can("businesses.lifecycle");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("Overview");
+  const [ownTab, setOwnTab] = useState(DEFAULT_TAB);
+  const tab = routeTab ?? ownTab;
+  const setTab = onTab ?? setOwnTab;
+  const tabRefs = useRef([]);
+  // On a phone the tab row scrolls: keep the open tab in view (UI-34).
+  useEffect(() => {
+    document.getElementById(`bd-tab-${tab}`)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [tab, data]);
   const [pending, setPending] = useState(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -199,7 +81,8 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
     setNotice("");
     try {
       const result = await callOwnerFunction(action, { businessId, reason });
-      setNotice(success(result));
+      // BIZ-17: the change happened, but its audit row didn't save; the team was alerted
+      setNotice(success(result) + (result?.auditWarning ? ` ${result.auditWarning}` : ""));
       setPending(null);
       setReason("");
       await load();
@@ -239,6 +122,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
   const state = businessState(b);
   const isCancelled = Boolean(b.cancelled_at);
   const isSuspended = Boolean(b.suspended_at);
+  const isLive = b.onboarding_status === "active" && !isSuspended && !isCancelled;
 
   const ACTIONS = {
     suspend: {
@@ -263,8 +147,9 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
       reason: true,
       run: () => runAction("business_cancel", (r) =>
         `${b.name} will be canceled on ${formatDate(r.cancelAt)}. ` +
+        // emailSent: the email workflow accepted the request (the send itself happens there)
         (r.emailSent
-          ? `The "continue my plan" email was handed to n8n for ${invitation?.email ?? "the owner"}.`
+          ? `The "continue my plan" email was handed to the email service for ${invitation?.email ?? "the owner"}.`
           : `The owner was not emailed: ${r.emailError}.`)
       ),
     },
@@ -273,6 +158,12 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
       body: "The scheduled cancellation is removed and nothing will stop.",
       button: "Undo cancellation",
       run: () => runAction("business_undo_cancel", () => `Cancellation removed. ${b.name} will keep running.`),
+    },
+    editLive: {
+      title: "Edit a live business?",
+      body: "This business is live. What you save in setup, including the AI receptionist, applies from its next call.",
+      button: "Open setup",
+      run: () => { setPending(null); onOpenSetup(b.id); },
     },
     resend: {
       title: "Resend the owner invitation?",
@@ -294,6 +185,17 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
     .filter(Boolean).join(", ");
 
   const term = (key) => terms.overrides?.[key] || terms.industry?.[key] || key;
+  // BIZ-04: Activity only when this admin has audit.view now AND the server said so for this response (fails closed;
+  // the server checks again on its own).
+  const tabs = DETAIL_TABS.filter((t) => t.slug !== "activity" || (can("audit.view") && data.activityAllowed === true));
+  const shown = tabs.some((t) => t.slug === tab) ? tab : DEFAULT_TAB;
+  const Panel = TAB_COMPONENTS[shown] ?? OverviewTab;
+  // every way into setup from this page asks first for a live business (the header and the tabs alike)
+  const openSetup = (id = b.id) => (isLive ? setPending("editLive") : onOpenSetup(id));
+  const panelProps = {
+    data, b, setupData, r, kb, esc, voice, terms, term, invitation, phone, enabledModules, enabledAutomations, isCancelled,
+    isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup: openSetup, businessId, load, telnyx, hoursSet, address, setupDone, can,
+  };
 
   return (
     <section className="owner-page">
@@ -314,12 +216,19 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
           {!isCancelled && canManage && (
-            <button type="button" className="owner-primary-button" onClick={() => onOpenSetup(b.id)}>
+            // BIZ-06: setup can't be finished while suspended (the server refuses too). COM-04 option B: on a live
+            // business, changes reach the next call, so the admin confirms first.
+            <button type="button" className="owner-primary-button" disabled={isSuspended && !setupDone}
+              title={isSuspended && !setupDone ? "Reactivate the business before finishing setup" : undefined}
+              onClick={() => openSetup()}>
               {setupDone ? "Edit setup" : "Continue setup"}
             </button>
           )}
         </div>
       </div>
+      {!isCancelled && canManage && isSuspended && !setupDone && (
+        <p className="op-muted bd-hint">Continue setup is off while this business is suspended. Reactivate it first.</p>
+      )}
 
       {notice && <div className="ic-notice" role="status">{notice}</div>}
       {error && <div className="owner-form-error op-gap">{error}</div>}
@@ -391,398 +300,42 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
         document.body
       )}
 
-      <div className="op-tabs" role="tablist">
-        {TABS.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            aria-selected={tab === name}
-            className={tab === name ? "active" : ""}
-            onClick={() => setTab(name)}
-          >
-            {name}
-          </button>
-        ))}
+      {/* Tabs (WAI-ARIA): arrow keys, Home and End move between them, one tab stop, each panel labelled by its tab. */}
+      <div className="bd-tabs-wrap">
+        <div className="op-tabs bd-tabs" role="tablist" aria-label="Business sections">
+          {tabs.map((t, i) => (
+            <button
+              key={t.slug}
+              ref={(el) => { tabRefs.current[i] = el; }}
+              id={`bd-tab-${t.slug}`}
+              type="button"
+              role="tab"
+              aria-selected={shown === t.slug}
+              aria-controls={`bd-panel-${t.slug}`}
+              tabIndex={shown === t.slug ? 0 : -1}
+              className={shown === t.slug ? "active" : ""}
+              onClick={() => setTab(t.slug)}
+              onKeyDown={(event) => {
+                const next = tabKeyTarget(event.key, i, tabs.length);
+                if (next === null) return;
+                event.preventDefault();
+                setTab(tabs[next].slug);
+                tabRefs.current[next]?.focus();
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {tab === "Overview" && (
-        <div className="op-grid">
-          <Card title="Verification" description="The business's registration and the owner's photo ID."
-            action={canManage && <button type="button" className="owner-secondary-button" onClick={() => onOpenSetup(businessId)}>{data.documents?.length ? "Review" : "Upload"}</button>}>
-            {data.documentsAvailable === false ? (
-              <Empty>Document storage isn't set up yet (apply sql/zella_onboarding.sql).</Empty>
-            ) : (
-              <ul className="op-checks">
-                {[["business_registration", "Business registration"], ["owner_identity", "Owner's photo ID"]].map(([kind, label]) => {
-                  const doc = (data.documents ?? []).find((d) => d.kind === kind);
-                  const state = !doc ? "Not uploaded" : doc.status === "verified" ? "Verified" : doc.status === "rejected" ? `Rejected: ${doc.review_note ?? "no reason given"}` : "Waiting for review";
-                  return <Check key={kind} ok={doc?.status === "verified"} title={label} detail={state} />;
-                })}
-              </ul>
-            )}
-          </Card>
-          <Card title="Setup progress" description="What's done and what's left before this business goes live.">
-            <ul className="op-checks">
-              <Check ok title="Business details" detail={`${data.industryName} · ${b.timezone}`} />
-              <Check
-                ok={Boolean(invitation)}
-                title="Owner"
-                detail={invitation ? `${invitation.owner_name} · invitation ${invitation.status}` : "Owner not added"}
-              />
-              <Check ok={enabledModules.length > 0} title="Modules" detail={`${enabledModules.length} of ${data.modules.length} enabled`} />
-              <Check
-                ok={(kb.services?.length || 0) + (kb.faqs?.length || 0) > 0}
-                later
-                title="AI receptionist knowledge"
-                detail={`${kb.services?.length || 0} ${term("services").toLowerCase()} · ${kb.faqs?.length || 0} FAQs · hours ${hoursSet ? "set" : "not set"}`}
-              />
-              <Check ok={Boolean(phone)} later title="Phone setup choice" detail={phone ? label(phone.mode) : "Not chosen"} />
-              <Check
-                ok={Boolean(telnyx)}
-                later
-                title="Phone number connected"
-                detail={telnyx ? `Connected${telnyx.account_email ? ` · ${telnyx.account_email}` : ""}` : "Not connected yet"}
-              />
-              <Check ok={r.status === "active"} later title="AI receptionist live" detail={r.status === "active" ? "Answering calls" : "Off until phone and voice agent are connected"} />
-              <Check ok={invitation?.status === "accepted"} later title="Owner accepted invitation" detail={invitation?.status === "accepted" ? `Accepted ${formatDate(invitation.accepted_at)}` : "Not yet"} />
-            </ul>
-          </Card>
-
-          <Card title="Business information">
-            <Facts items={[
-              ["Business name", b.name],
-              ["Legal name", b.legal_name],
-              ["Industry", data.industryName],
-              ["Timezone", b.timezone],
-              ["Business email", b.email],
-              ["Business phone", b.phone],
-              ["Website", b.website],
-              ["Address", address],
-              ["Created", formatDate(b.created_at)],
-              ["Calls recorded", String(data.callCount)],
-              ["Support tickets", String(data.tickets.length)],
-            ]} />
-          </Card>
-
-          <BusinessSizeCard businessId={businessId} size={b.business_size} onSaved={load} canEdit={canManage} />
-
-          {!isCancelled && canLifecycle && (
-            <Card title="Manage business" description="Stop a business now, or end its membership when its month is over.">
-              <div className="bd-manage">
-                {isSuspended ? (
-                  <div>
-                    <strong>Reactivate</strong>
-                    <span>Start everything that was running before the suspension.</span>
-                    <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("reactivate")} disabled={busy}>Reactivate</button>
-                  </div>
-                ) : (
-                  <div>
-                    <strong>Suspend now</strong>
-                    <span>Stops the workspace, receptionist and automations immediately. For example, a payment problem.</span>
-                    <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("suspend")} disabled={busy}>Suspend</button>
-                  </div>
-                )}
-                {b.cancel_at ? (
-                  <div>
-                    <strong>Undo cancellation</strong>
-                    <span>Currently cancels on {formatDate(b.cancel_at)}.</span>
-                    <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("undo")} disabled={busy}>Undo</button>
-                  </div>
-                ) : (
-                  <div>
-                    <strong>Cancel membership</strong>
-                    <span>Keeps working until the end of their current month, then stops automatically.</span>
-                    <button type="button" className="wiz-link-danger bd-inline" onClick={() => setPending("cancel")} disabled={busy}>Cancel at end of month</button>
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
+      {/* a panel for every tab (each tab's aria-controls has a target); only the open one is shown and mounted, so the
+          others start no reads. The panel is a tab stop, so a panel with no controls can still be reached. */}
+      {tabs.map((t) => (
+        <div key={t.slug} role="tabpanel" id={`bd-panel-${t.slug}`} aria-labelledby={`bd-tab-${t.slug}`} tabIndex={0} hidden={t.slug !== shown}>
+          {t.slug === shown && <Panel {...panelProps} />}
         </div>
-      )}
-
-      {tab === "Configuration" && (
-        <div className="op-grid">
-          <Card title="Terminology" description="How this business's CRM names things.">
-            <div className="owner-table-wrap" tabIndex={0}>
-              <table className="owner-table">
-                <thead><tr><th>Term</th><th>Used here</th><th>Industry default</th></tr></thead>
-                <tbody>
-                  {TERM_ROWS.map(([singular, plural, name]) => {
-                    const custom = terms.overrides?.[singular] || terms.overrides?.[plural];
-                    return (
-                      <tr key={singular}>
-                        <td>{name}</td>
-                        <td>
-                          <strong className="op-strong">{term(singular)} / {term(plural)}</strong>
-                          {custom && <Pill tone="info">Custom</Pill>}
-                        </td>
-                        <td>{terms.industry?.[singular] || "None"} / {terms.industry?.[plural] || "None"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          <Card title="Modules" description={`${enabledModules.length} of ${data.modules.length} switched on. Only modules its industry offers are listed.`}>
-            <BusinessModulesCard key={data.modules.map((m) => `${m.id}${m.enabled}`).join()} businessId={businessId} modules={data.modules} onSaved={load} canEdit={canManage} />
-          </Card>
-
-          <Card title="Industry records" description="Record types from its industry, such as tables, recalls or vehicles. Switching one off hides it; records are kept.">
-            <BusinessRecordsCard businessId={businessId} canEdit={canManage} />
-          </Card>
-        </div>
-      )}
-
-      {tab === "People" && (
-        <div className="op-stack">
-          <Card title="Members" description="People with access to this business's workspace.">
-            {data.members.length ? (
-              <div className="owner-table-wrap" tabIndex={0}>
-                <table className="owner-table">
-                  <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Added</th></tr></thead>
-                  <tbody>
-                    {data.members.map((m) => (
-                      <tr key={m.user_id}>
-                        <td>{m.name || "None"}</td>
-                        <td>{m.email || "None"}</td>
-                        <td className="op-cap">{m.role}</td>
-                        <td><Pill tone={m.status === "active" ? "success" : "neutral"}>{m.status}</Pill></td>
-                        <td>{formatDate(m.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <Empty>No members yet. The owner is added when their invitation is sent.</Empty>
-            )}
-          </Card>
-
-          <Card
-            title="Invitations"
-            action={
-              canManage && invitation && invitation.status !== "accepted" && !isCancelled && (
-                <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("resend")} disabled={busy}>
-                  Resend invitation
-                </button>
-              )
-            }
-          >
-            {data.invitations.length ? (
-              <div className="owner-table-wrap" tabIndex={0}>
-                <table className="owner-table">
-                  <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Sent</th><th>Expires</th><th>Last error</th></tr></thead>
-                  <tbody>
-                    {data.invitations.map((i) => (
-                      <tr key={i.id}>
-                        <td>{i.owner_name}</td>
-                        <td>{i.email}</td>
-                        <td>{i.role === "owner" || !i.role ? "Owner" : i.role[0].toUpperCase() + i.role.slice(1)}</td>
-                        <td>
-                          <Pill tone={i.status === "accepted" ? "success" : i.status === "failed" || i.status === "expired" ? "danger" : "neutral"}>
-                            {i.status}
-                          </Pill>
-                        </td>
-                        <td>{formatDateTime(i.invited_at)}</td>
-                        <td>{formatDate(i.expires_at)}</td>
-                        <td className="op-muted">{i.last_error || "None"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <Empty>No invitations yet.</Empty>
-            )}
-          </Card>
-        </div>
-      )}
-
-      {tab === "AI receptionist" && (
-        <div className="op-stack">
-          <div className="op-grid">
-            <Card title="Identity & voice">
-              <Facts items={[
-                ["Status", r.status === "active" ? "Live" : "Off (not connected)"],
-                ["Name", r.name],
-                ["Personality", r.personality ? r.personality[0].toUpperCase() + r.personality.slice(1) : ""],
-                ["Language", voice.language ? label(voice.language) : ""],
-                ["Greeting", voice.greeting],
-                ["Extra instructions", r.tone],
-              ]} />
-            </Card>
-            <Card title="About & hours">
-              <Facts items={[
-                ["Description", kb.about],
-                ["Service area", kb.service_area],
-                ...DAYS.map(([day, name]) => {
-                  const h = kb.hours?.[day];
-                  return [name, h?.closed ? "Closed" : h?.open ? `${h.open} to ${h.close}` : ""];
-                }),
-              ]} />
-            </Card>
-          </div>
-
-          <div className="zs ao-embed"><VoicePanel businessId={businessId} /></div>
-
-          <Card title={term("services")} description={`${kb.services?.length || 0} added`}>
-            {kb.services?.length ? (
-              <div className="owner-table-wrap" tabIndex={0}>
-                <table className="owner-table">
-                  <thead><tr><th>Name</th><th>Price</th><th>Duration</th><th>Description</th></tr></thead>
-                  <tbody>
-                    {kb.services.map((s, i) => (
-                      <tr key={i}><td><strong className="op-strong">{s.name}</strong></td><td>{s.price || "None"}</td><td>{s.duration || "None"}</td><td>{s.description || "None"}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <Empty>No {term("services").toLowerCase()} added yet.</Empty>}
-          </Card>
-
-          <Card title="FAQs" description={`${kb.faqs?.length || 0} added`}>
-            {kb.faqs?.length ? (
-              <div className="op-faqs">
-                {kb.faqs.map((f, i) => (
-                  <details key={i}>
-                    <summary>{f.question}</summary>
-                    <p>{f.answer}</p>
-                  </details>
-                ))}
-              </div>
-            ) : <Empty>No FAQs added yet.</Empty>}
-          </Card>
-
-          <div className="op-grid">
-            <Card title="Policies">
-              {Object.keys(kb.policies || {}).length ? (
-                <Facts items={Object.entries(kb.policies).map(([k, v]) => [POLICY_LABELS[k] ?? k, v])} />
-              ) : <Empty>No policies added yet.</Empty>}
-            </Card>
-            <Card title="Rules">
-              <div className="op-rule-block">
-                <h4>Can do</h4>
-                {r.capabilities?.length ? (
-                  <ul className="op-tag-list">{r.capabilities.map((c) => <li key={c} className="on">{label(c)}</li>)}</ul>
-                ) : <p className="op-muted">Nothing selected</p>}
-              </div>
-              <div className="op-rule-block">
-                <h4>Hands over to a person when</h4>
-                {esc.triggers?.length ? (
-                  <ul className="op-tag-list">{esc.triggers.map((t) => <li key={t}>{label(t)}</li>)}</ul>
-                ) : <p className="op-muted">Nothing selected</p>}
-                <p className="op-muted">
-                  Transfers to {label(esc.transfer_to?.type || "owner")}
-                  {esc.transfer_to?.name ? ` (${esc.transfer_to.name})` : ""}
-                  {esc.transfer_to?.phone ? ` at ${esc.transfer_to.phone}` : ""}
-                </p>
-              </div>
-              <div className="op-rule-block">
-                <h4>Must never</h4>
-                {kb.restrictions?.length ? (
-                  <ul className="op-bullets">{kb.restrictions.map((x, i) => <li key={i}>{x}</li>)}</ul>
-                ) : <p className="op-muted">No restrictions added</p>}
-              </div>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {tab === "Phone & integrations" && (
-        <div className="op-stack">
-          <Card title="Setup choices" description="What the business asked for during setup.">
-            {setupData.integrations ? (
-              <Facts items={[
-                ["Phone setup", label(phone?.mode)],
-                ...(phone?.mode !== "new_number"
-                  ? [["Forward from", phone?.forward_from || phone?.existing_number], ["Forward when", label(phone?.forward_when)]]
-                  : []),
-                ["Preferred area code", phone?.area_code],
-                ["Call transfer number", setupData.integrations.transfer_number],
-                ["Calendar", label(setupData.integrations.calendar)],
-                ["Email", label(setupData.integrations.email)],
-                ["Lead sources", Object.entries(setupData.integrations.lead_sources || {})
-                  .filter(([, on]) => on).map(([k]) => ({ meta: "Meta", website: "Website", google: "Google" })[k]).join(", ")],
-              ]} />
-            ) : <Empty>Phone & integrations step not completed yet.</Empty>}
-          </Card>
-
-          <Card title="Live connections" description="Services actually connected and verified for this business.">
-            {data.integrations.length ? (
-              <div className="owner-table-wrap" tabIndex={0}>
-                <table className="owner-table">
-                  <thead><tr><th>Provider</th><th>Type</th><th>Status</th><th>Account</th><th>Last sync</th><th>Error</th></tr></thead>
-                  <tbody>
-                    {data.integrations.map((i) => (
-                      <tr key={i.id}>
-                        <td className="op-cap">{i.provider}</td>
-                        <td>{i.integration_type}</td>
-                        <td><Pill tone={i.status === "active" ? "success" : i.status === "error" ? "danger" : "neutral"}>{i.status}</Pill></td>
-                        <td>{i.account_email || "None"}</td>
-                        <td>{formatDateTime(i.last_synced_at)}</td>
-                        <td className="op-muted">{i.error_message || "None"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <Empty>Nothing connected yet. Telnyx, Vapi, calendar and lead sources appear here once connected.</Empty>}
-          </Card>
-        </div>
-      )}
-
-      {tab === "Automations" && (
-        <Card title="Automations" description="Run by n8n. Paused automations start when the business goes live.">
-          <AutomationOverview rows={data.automations} industryName={data.industryName} appointmentWord={String(term("appointment")).toLowerCase()} describeSettings={describeSettings} />
-          {enabledAutomations.length > 0 && <p className="op-muted op-gap-top">{enabledAutomations.length} turned on.</p>}
-        </Card>
-      )}
-
-      {tab === "Calls" && (
-        <Card title="Recent calls" description={`${data.callCount} calls recorded`}>
-          {data.calls.length ? (
-            <div className="owner-table-wrap" tabIndex={0}>
-              <table className="owner-table">
-                <thead><tr><th>When</th><th>Direction</th><th>From</th><th>To</th><th>Duration</th><th>Handled by</th><th>Status</th></tr></thead>
-                <tbody>
-                  {data.calls.map((c) => (
-                    <tr key={c.id}>
-                      <td>{formatDateTime(c.started_at || c.created_at)}</td>
-                      <td className="op-cap">{c.direction}</td>
-                      <td>{c.from_number || "None"}</td>
-                      <td>{c.to_number || "None"}</td>
-                      <td>{formatDuration(c.duration_seconds)}</td>
-                      <td>{c.ai_handled ? "AI" : "Team"}</td>
-                      <td className="op-cap">{c.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <Empty>No calls yet. Calls appear once the phone number and AI receptionist are connected.</Empty>}
-        </Card>
-      )}
-
-      {tab === "Activity" && (
-        <Card title="Activity" description="Admin actions on this business.">
-          {data.activity.length ? (
-            <ul className="op-list op-activity">
-              {data.activity.map((log) => (
-                <li key={log.id}>
-                  <div>
-                    <strong>{actionLabel(log.action)}</strong>
-                    <span>{log.actor ?? "Unknown user"} · {formatDateTime(log.created_at)} ({timeAgo(log.created_at)})</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : <Empty>No activity recorded yet.</Empty>}
-        </Card>
-      )}
+      ))}
     </section>
   );
 }

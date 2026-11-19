@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   sqlAuditActions, sqlAlertKinds, sqlPermissions, resolveSql, tsAuditActions, tsAuditReads, tsPermissions,
-  n8nAlertKinds, webPermissions, sqlExprNames,
+  n8nAlertKinds, webPermissions, sqlExprNames, tsAlertKinds,
 } from "./scan.mjs";
 import { check } from "./drift_test.mjs";
 import { jsValueBranches } from "./scan.mjs";
@@ -140,6 +140,11 @@ test("check: reads that match nothing, label rules, order and the role editor li
   assert.ok(p.some((x) => x.includes("keep audit_actions sorted")));
   assert.ok(p.some((x) => x.includes('"admins.manage" is not a catalog.json permission')));
   assert.ok(p.some((x) => x.includes('"gone.label" is not an audit action')));
+});
+
+test("edge function alert kinds: p_kind passed to zella_platform_alert", () => {
+  const src = `await admin.rpc("zella_platform_alert", {\n  p_kind: "audit_write_failed", p_title: "x" });\n// p_kind: "commented_out"\nconst other = { p_kind: "not_an_alert" };`;
+  assert.deepEqual(tsAlertKinds(src).map((x) => x.name), ["audit_write_failed"]);
 });
 
 test("review fixes: comments, case branches that aren't literals, every alert tuple, double quoted n8n kinds", () => {
@@ -300,4 +305,73 @@ test("review fixes 11: a conditional nested in a conditional's first arm, nullis
 test("review fixes 12: ?? inside a conditional arm", async () => {
   assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? cached ?? admin.from("jobs") : audit; q.eq("action", "a.coalesced");`)).map((n) => n.startsWith("?")), [true]);
   assert.deepEqual(names(tsAuditReads(`const q = gate ? admin.from("audit_logs") : admin.from("jobs"); q.eq("action", "a.gate");`)), ["a.gate"]);
+});
+
+test("edge function alert kinds: p_kind after a nested object, at the payload's own level only", () => {
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { a: { b: 1 } }, p_kind: "new_alert" });`).map((x) => x.name), ["new_alert"]);
+  // a p_kind only inside a nested object isn't the payload's: the kind can't be read, so it is unresolved
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { p_kind: "inner" }, p_title: "x" });`).map((x) => (x.unresolved ? "?" : x.name)), ["?"]);
+});
+
+test("edge function alert kinds: a p_kind inside a string is text, not the kind", () => {
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_title: 'p_kind: "fake_alert"', p_kind: "real_alert" });`).map((x) => x.name), ["real_alert"]);
+});
+
+test("edge function alert kinds: quoted keys, property names only, every branch, unresolved values", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { "p_kind": "new_alert" });`), ["new_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_title: flag ? p_kind : "fallback", p_kind: "real_alert" });`), ["real_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? "first_alert" : "second_alert" });`), ["first_alert", "second_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: kindFor(x) });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? "known_alert" : other });`), ["?", "known_alert"]);
+});
+
+test("edge function alert kinds: nested conditional branches, never the condition's strings", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? (other ? "first_alert" : "second_alert") : "third_alert" });`), ["first_alert", "second_alert", "third_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: state === "ready" ? "first_alert" : "second_alert" });`), ["first_alert", "second_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: a ? b ? "x_alert" : kindFor(x) : "y_alert" });`), ["?", "x_alert", "y_alert"]);
+});
+
+test("edge function alert kinds: brackets inside strings don't hide a wrapped conditional", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: (reason.includes(")") ? "first_alert" : "second_alert") });`), ["first_alert", "second_alert"]);
+});
+
+test("edge function alert kinds: a payload passed by name, computed and shorthand keys, spreads", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", payload);`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ["p_kind"]: "computed_alert", p_title: "x" });`), ["computed_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind, p_title: "x" });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...base, p_title: "x" });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_title: "x" });`), ["?"]);
+});
+
+test("edge function alert kinds: the last p_kind wins; a spread after it is unresolved, one before it isn't", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ...payload });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...payload, p_kind: "known_alert" });`), ["known_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "first_alert", p_kind: "second_alert" });`), ["second_alert"]);
+});
+
+test("edge function alert kinds: a computed key that may be p_kind leaves it unresolved until a later p_kind", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "new_alert" });`), ["?"]);
+  assert.deepEqual(kinds(`const key = "p_kind"; admin.rpc("zella_platform_alert", { [key]: "new_alert", p_kind: "known_alert" });`), ["known_alert"]);
+});
+
+test("edge function alert kinds: a known computed key that isn't p_kind keeps the kind", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_title"]: "x" });`), ["known_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_kind"]: "later_alert" });`), ["later_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", [key]: "x" });`), ["?"]);
+});
+
+test("edge function alert kinds: an escaped computed key may be p_kind, so the kind is unresolved", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  // the key is written with an escape: p_kin then backslash u0064 (a "d")
+  const escaped = 'admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_kin' + "\\" + 'u0064"]: "new_alert" });';
+  assert.ok(escaped.includes("\\u0064"), escaped);
+  assert.deepEqual(kinds(escaped), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: "known_alert", ["p_title"]: "x" });`), ["known_alert"]);
 });

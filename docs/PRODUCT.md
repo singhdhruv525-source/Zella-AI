@@ -398,6 +398,75 @@ keep the same screens as before. Refused calls to the admin server (not an admin
 missing, or a role without that permission) are recorded as "Refused admin request" with the address and browser, at
 most 5 times per person and reason in 10 minutes, and listed on Users & access for the last 24 hours.
 
+### 9.1 One business's page (`/businesses/<id>`)
+
+Opened from Businesses. Each tab has its own address (`/businesses/<id>/people`, `/receptionist`, `/phone`,
+`/automations`, `/calls`, `/activity`, `/configuration`; Overview is the plain address), so a reload or a link keeps
+it. The tabs work with the keyboard (arrow keys, Home, End; one tab stop) and their edges fade on a phone when the row
+scrolls (BIZ-30, UI-34). What each tab shows and what an admin can do there:
+
+- **Header:** "Continue setup" is off while a suspended business's setup isn't finished; "Edit setup" on a live
+  business asks first, because what is saved applies from its next call (BIZ-06, COM-04). A change whose audit row
+  failed says so in the notice (BIZ-17).
+- **Activity:** each row shows what changed, before and after; the tab is hidden without `audit.view`; a separate
+  Support access list shows who opened the business or revealed contacts.
+- **Activity (labels):** admin and system changes to this business, each with a readable label from the shared catalog
+  (`web/supabase/functions/_shared/catalog.json`, read by `web/src/copy/auditActions.js`, BIZ-25). Changes the
+  database records on its own name the table, for example "Changed business (system record)".
+  Only admins with `audit.view` get it: the server leaves the list and who did each action out for anyone else
+  (BIZ-04).
+- **Overview cards:** the server's readiness ladder, the go live checklist (read only, `businesses.manage`), plan
+  (price with `billing.view`), usage this period, phone numbers and open alerts (with a link to Platform operations)
+  (BIZ-11, BIZ-12 phase 1). **People:** last sign in and two step columns with `businesses.manage` (UI-06).
+  **AI receptionist:** call routing as the Voice page shows it, and what callers get: the settings the last call got
+  against the next call's (UI-07, COM-03). **Phone & integrations:** the numbers card with "Assign a number" for
+  `telephony.manage`, the fallback number, and honest wording for the connection records (UI-08).
+- **Calls:** calls from the last 365 days (the tab says so), 25 a page, from the same masked list as Voice & numbers (`zella_admin_calls`), with no
+  search box (a digit search could confirm a caller's number); the number column shows the business's own number
+  when the called number wasn't recorded; "See all in Voice & numbers" (UI-10).
+- **Actions on the page** (each in a dialog with a reason, each recorded): Show contact details (People), Cancel the
+  owner's invitation and Resend (greyed for 5 minutes after one went out), Deactivate or Reactivate a member, Reset
+  two step (with the identity check box), Pause and Resume an automation (`integrations.manage`; Resume only for a
+  live business), Set up for an automation not set up yet, and Grant a pack (`billing.manage`, Overview). Most need
+  the owner's approval before their server half is deployed.
+- **Contact details:** caller numbers on Calls, people's emails, and the account email and error text of Live
+  connections are masked the way the Voice page masks them (`…0123`, `a…@example.com`; `mask.ts`, the
+  `zella_admin_mask` rule). A member's own phone number is not read. Showing them needs a reason (10 to 300
+  characters) and `businesses.manage`, is recorded before anything is shown, and lasts for that response only. Each
+  open of the page is recorded once per admin in 30 minutes; both appear under Support access, not Activity (BIZ-22;
+  built, needs the owner's approval to deploy).
+- **Setup while suspended:** finishing setup is refused for a suspended business before the owner's invitation is
+  claimed or sent ("Reactivate it on the business page before finishing setup"); a suspension that lands while the
+  invitation is going out wins, the workspace stays off and the finish says so (BIZ-06).
+- **Modules:** the server refuses a module whose dependency is switched off for the business or isn't offered by its
+  industry at all ("AI receptionist needs Calls, which this industry doesn't offer"); the list of dependencies lives
+  in `module_deps.ts` and is sent with each module as `requires` (CFG-02).
+- **Owner invitation:** Resend is refused for 5 minutes after an invitation actually went out ("It can be sent again
+  in N minutes"), and two clicks at once send one email; a failed send can be retried at once. Cancel needs a reason:
+  the link stops working, the invited seat is removed (so the same person can be invited again) and the audit row
+  keeps the before and after status. If the email went out but the owner's seat couldn't be created, Resend says so
+  and records it on the invitation (BIZ-21, BIZ-02; built, needs the owner's approval to deploy).
+- **Member access:** an admin with `businesses.manage` can deactivate or reactivate one member's access to the
+  business, with a reason; the business's only active owner can't be deactivated; the audit row keeps the status
+  before and after (UI-06; built, needs the owner's approval to deploy).
+- **Two step reset:** an admin with `businesses.manage` can remove a member's two step sign in after the identity
+  check in `docs/ARCHITECTURE.md` (REQ-LC-19), with a reason; recorded first, never a Zella Voice admin's (UI-06;
+  built, needs the owner's approval to deploy).
+- **Packs:** an admin with `billing.manage` can grant one add on pack with a reason (not charged), as themselves, so
+  the database checks their permission and records `billing.pack_granted`; a business with no current billing period
+  is refused, never worked around (CFG-22; built, needs the owner's approval to deploy, and each real grant needs it
+  too).
+- **Business size:** Small, Medium, Large or not set, saved through the admin function (`business_size_save`,
+  `businesses.manage`, two step sign in checked) with the before and after in the audit log; a change made by someone
+  else meanwhile is refused (BIZ-08).
+- **Automations:** every standard automation and industry rule, with one status language shared with the Automations
+  page: Active, Paused, Turned off (`AUTOMATION_STATUS` in `web/src/automationCatalog.js`, OPS-22). Names always start
+  with a capital (UI-09).
+  One rule for when an automation runs (BIZ-07, `live.ts`): a business is live when it went live and is neither
+  suspended nor cancelled. Once the owner turns on `ZELLA_AUTOMATIONS_START_ON_SAVE`, an automation turned on for a live
+  business starts at once; one turned on while it is suspended starts again when it is reactivated; before go live it
+  waits and starts at go live. Until the switch is on, saving behaves as before (built, off).
+
 ---
 
 ### 9.1 Connected, answering and live (one definition)

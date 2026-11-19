@@ -134,3 +134,27 @@ Deno.test("BIZ-02: an owner who already has an account is linked and told to sig
   assertEquals([r.completed, r.invitationStatus, (r as { existingAccount?: boolean }).existingAccount], [true, "sent", true]);
   assertEquals([w.st.emails, w.st.activated, w.st.inv.auth_user_id], [1, 1, "existing-user"]);
 });
+
+// BIZ-06: a suspended business can't be finished; a suspension that lands mid finish wins and is reported.
+Deno.test("finish: a suspended business is refused before any claim or email", async () => {
+  let claimed = 0;
+  const w = world("pending", { extra: {
+    business: () => Promise.resolve({ name: "Glow", industry_id: "ind", cancelled_at: null, suspended_at: "2026-11-04T10:00:00Z" }),
+    claim: () => { claimed++; return Promise.resolve(true); },
+  } });
+  const e = await rejects(finishSetupWith(w.deps));
+  assertEquals(e?.status, 409);
+  assertEquals(e?.message.includes("suspended"), true);
+  assertEquals([claimed, w.st.emails, w.st.activated, w.st.inv.status], [0, 0, 0, "pending"]);
+});
+
+Deno.test("finish: suspended while the invitation was going out leaves the workspace off, with a warning", async () => {
+  const w = world("pending", { extra: { activate: () => Promise.resolve(false) } });
+  const out = await finishSetupWith(w.deps);
+  assertEquals(out.completed, false);
+  assertEquals(out.invitationStatus, "sent");
+  const warning = (out as { warning?: string }).warning ?? "";
+  assertEquals(warning.includes("suspended"), true);
+  const ok = await finishSetupWith(world("accepted").deps);
+  assertEquals(ok.completed, true);
+});
