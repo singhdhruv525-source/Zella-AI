@@ -311,3 +311,7 @@ test("edge function alert kinds: p_kind after a nested object, at the payload's 
   assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { a: { b: 1 } }, p_kind: "new_alert" });`).map((x) => x.name), ["new_alert"]);
   assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { p_kind: "inner" }, p_title: "x" });`).map((x) => x.name), []);
 });
+
+test("edge function alert kinds: a p_kind inside a string is text, not the kind", () => {
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_title: 'p_kind: "fake_alert"', p_kind: "real_alert" });`).map((x) => x.name), ["real_alert"]);
+});

@@ -155,6 +155,19 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       )}
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
       {notice && <div className="vq-notice op-gap" role="status">{notice}</div>}
+      {/* The one business filter, with Show all, on every view and also when the list failed to load, so it can always be
+          cleared. The text says what is scoped: the queue and the counts, never Missing documents (every business). */}
+      {business && (
+        <div className="ic-notice op-gap" role="status">
+          <span>{status === "missing"
+            ? "The counts are for one business. Missing documents lists every business."
+            : data?.available && !scopeUnsupported ? `Showing one business: ${docs[0]?.business_name ?? "this business"}.` : "Filtered to one business."}</span>{" "}
+          <button type="button" className="owner-secondary-button op-small" onClick={() => {
+            setBusiness(null);
+            window.history.replaceState(null, "", window.location.pathname);
+          }}>Show all</button>
+        </div>
+      )}
 
       {data?.available && (
         <>
@@ -167,16 +180,6 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             ))}
           </div>
 
-          {/* the scope notice only on the document queue, which is the scoped list (Missing documents lists every business) */}
-          {business && status !== "missing" && (
-            <div className="ic-notice op-gap" role="status">
-              <span>Showing one business: {docs[0]?.business_name ?? "this business"}.</span>{" "}
-              <button type="button" className="owner-secondary-button op-small" onClick={() => {
-                setBusiness(null);
-                window.history.replaceState(null, "", window.location.pathname);
-              }}>Show all</button>
-            </div>
-          )}
           <div className="op-tabs" role="tablist">
             {TABS.map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={status === key} className={status === key ? "active" : ""} onClick={() => setStatus(key)}>{label}</button>

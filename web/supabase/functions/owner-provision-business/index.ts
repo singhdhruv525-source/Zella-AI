@@ -3101,7 +3101,10 @@ async function businessUndoCancel(admin: SupabaseClient, fields: Json) {
   return withBefore({ businessId, previousCancelAt: business.cancel_at }, { cancel_at: business.cancel_at, cancellation_reason: business.cancellation_reason ?? null });
 }
 
-const SEND_LEASE_MS = 2 * 60 * 1000;   // how long a resend in progress holds the invitation (see invitationResend)
+// A resend holds the invitation for SEND_LEASE_MS; the email send is given at most SEND_TIMEOUT_MS of it, so it ends
+// (sent, failed, or timed out) while the lease is still held. Both stay under the edge function's 150 s limit.
+const SEND_LEASE_MS = 2 * 60 * 1000;
+const SEND_TIMEOUT_MS = 60 * 1000;
 async function invitationResend(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const business = await getBusiness(admin, businessId);
@@ -3140,11 +3143,17 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   }
 
   const now = new Date().toISOString();
-  const sent = await sendOwnerEmail(admin, invitation.email, invitation.owner_name, businessId, appUrl);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<{ error: string }>((resolve) => {
+    timer = setTimeout(() => resolve({ error: "The email service took too long to answer. Try again in a few minutes." }), SEND_TIMEOUT_MS);
+  });
+  const sent = await Promise.race([sendOwnerEmail(admin, invitation.email, invitation.owner_name, businessId, appUrl), timedOut]);
+  clearTimeout(timer);
 
   if ("error" in sent) {
     const reason = sent.error;
-    await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now });
+    // only while this request's lease is still the invitation's
+    await moveOwnerInvitation(admin, invitation.id, { status: "failed", last_error: reason, updated_at: now }, lease);
     return withBefore({ businessId, email: invitation.email, invitationStatus: "failed", invitationError: reason }, { status: invitation.status });
   }
   const invited = { user: { id: sent.userId } };
@@ -3156,7 +3165,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     last_error: null,
     updated_at: now,
-  });
+  }, lease);
   if (!moved) {
     return {
       businessId,

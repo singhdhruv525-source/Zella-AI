@@ -60,15 +60,16 @@ const setStatus = (w: ReturnType<typeof world>, userId: string, status: string, 
   detailHandlers(w.client, { businessId: BIZ, userId, status, reason, expected: expected ?? w.st.members.find((m) => m.user_id === userId)?.status ?? "active", seenAt: SEEN }, kit, "admin-1")
     .handlers.member_set_status() as Promise<Record<string, unknown>>;
 
-Deno.test("member_set_status: deactivates and reactivates with old and new in the audit row", async () => {
+Deno.test("member_set_status: deactivates and reactivates; the database writes the audit row", async () => {
   const w = world([OWNER, STAFF]);
   const r = await setStatus(w, "s1", "suspended");
   assertEquals(w.st.members[1].status, "suspended");
-  assertEquals(w.st.calls[0], ["zella_admin_member_set_status", { p_business_id: BIZ, p_user_id: "s1", p_status: "suspended", p_expected: "active", p_seen_at: SEEN }]);
-  const entry = detailHandlers(w.client, {}, kit).audited.member_set_status(r);
-  assertEquals([entry?.action, (entry?.old_data as Record<string, unknown>).status, (entry?.new_data as Record<string, unknown>).status], ["member.suspended", "active", "suspended"]);
+  // the database function gets the admin and the reason and writes the audit row in its own transaction
+  assertEquals(w.st.calls[0], ["zella_admin_member_set_status", { p_business_id: BIZ, p_user_id: "s1", p_status: "suspended", p_expected: "active", p_seen_at: SEEN, p_actor: "admin-1", p_reason: REASON }]);
+  assertEquals([r.before, r.status], ["active", "suspended"]);
+  assertEquals(detailHandlers(w.client, {}, kit).audited.member_set_status(r), null);
   const back = await setStatus(w, "s1", "active");
-  assertEquals(detailHandlers(w.client, {}, kit).audited.member_set_status(back)?.action, "member.reactivated");
+  assertEquals([back.before, back.status], ["suspended", "active"]);
 });
 
 Deno.test("member_set_status: refuses a short reason, the last owner, another business's person, a stale page and a change meanwhile", async () => {

@@ -210,6 +210,7 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
       if (problem) throw new k.InputError(problem.message, problem.status);
       const { data, error: rpcError } = await admin.rpc("zella_admin_member_set_status", {
         p_business_id: businessId, p_user_id: memberId, p_status: next, p_expected: expected, p_seen_at: seenAt,
+        p_actor: userId, p_reason: reason,
       });
       if (rpcError) {
         const m = rpcError.message ?? "";
@@ -284,11 +285,7 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
   const audited: Record<string, (r: Row) => Audit | null> = {
     business_pack_grant: () => null,   // zella_admin_pack_grant records billing.pack_granted itself
     member_mfa_reset: () => null,   // recorded before anything was removed
-    member_set_status: (r) => ({
-      action: r.status === "suspended" ? "member.suspended" : "member.reactivated", business_id: r.businessId as string,
-      entity_type: "business_member", entity_id: null,
-      old_data: { user_id: r.userId, role: r.role, status: r.before }, new_data: { user_id: r.userId, role: r.role, status: r.status, reason: r.reason },
-    }),
+    member_set_status: () => null,   // zella_admin_member_set_status writes member.suspended / member.reactivated itself
     invitation_cancel: (r) => ({
       action: "invitation.revoked", business_id: r.businessId as string, entity_type: "business_invitation", entity_id: r.invitationId as string,
       old_data: { status: r.before ?? null }, new_data: { status: "revoked", reason: r.reason ?? null, seat_removed: r.seatRemoved ?? false, email: mask(r.email) },

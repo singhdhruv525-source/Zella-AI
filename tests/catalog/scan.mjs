@@ -692,7 +692,8 @@ export function tsAlertKinds(raw) {
       const k = /\bp_kind\s*:\s*(["'])([a-z][a-z0-9_]*)\1/y;
       k.lastIndex = i;
       const hit = k.exec(src);
-      if (hit && (i === 0 || !/[\w$]/.test(src[i - 1]))) { out.push({ name: hit[2], line: lineAt(src, i) }); break; }
+      // a property name, not text inside a string (string contents are blanked in masked)
+      if (hit && masked.startsWith("p_kind", i) && (i === 0 || !/[\w$]/.test(src[i - 1]))) { out.push({ name: hit[2], line: lineAt(src, i) }); break; }
     }
   }
   return out;
