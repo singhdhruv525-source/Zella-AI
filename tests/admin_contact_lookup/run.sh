@@ -68,6 +68,9 @@ q "insert into public.contact_consents (business_id, customer_id, phone_digits, 
      ('$B', null, null, 'casey.test@example.org', 'email', 'marketing', 'opted_out', 'email_link', now() - interval '1 hour')" > /dev/null
 r3=$(as $OWN "select public.zella_admin_contact_lookup('$B', 'casey.test@example.org', 'Email consent check')")
 [ "$(q "select string_agg((c ->> 'channel') || ':' || (c ->> 'status'), '+') from jsonb_array_elements('$r3'::jsonb -> 'consents') c where c ->> 'channel' = 'email'")" = "email:opted_out" ] && ok "email consents of one address are one contact, whatever else a row stored: only the latest shows" || bad "email identity: $(q "select '$r3'::jsonb -> 'consents'")"
+# by phone: the older email row matches the number, the newer one doesn't store it; the latest still shows
+r4=$(as $OWN "select public.zella_admin_contact_lookup('$B', '7788', 'Phone consent check')")
+[ "$(q "select string_agg((c ->> 'channel') || ':' || (c ->> 'status'), '+') from jsonb_array_elements('$r4'::jsonb -> 'consents') c where c ->> 'channel' = 'email'")" = "email:opted_out" ] && ok "found by phone: that contact's email consent is still its latest, from all its rows" || bad "phone query: $(q "select '$r4'::jsonb -> 'consents'")"
 for who in "$RO" "$BO"; do out=$(as $who "select public.zella_admin_contact_lookup('$B', '7788', 'x reason')"); [[ "$out" == *NOT_ALLOWED* ]] || bad "allowed for $who: $out"; done
 out=$("${P[@]}" -d $DB -c "begin; set local role anon; select public.zella_admin_contact_lookup('$B', '7788', 'x reason'); commit;" 2>&1); [[ "$out" == *"permission denied"* ]] || bad "anon: $out"
 ok "a role without comms.manage, a business owner and anonymous are refused"
