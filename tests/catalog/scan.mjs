@@ -675,6 +675,25 @@ export function n8nAlertKinds(raw) {
 }
 
 // Edge functions: p_kind given to zella_platform_alert through admin.rpc("zella_platform_alert", { p_kind: "x", ... }).
+// The end results of a value expression: for cond ? a : b (nested, bracketed or not) those of a and b, never cond;
+// a plain string literal gives its text; anything else (a name, a call, a template with a hole) gives null.
+export function valueLeaves(expr, depth = 0) {
+  const t = unwrap(expr);
+  if (depth > 8) return [null];
+  const m = maskStrings(t);
+  let d = 0, q = -1, colon = -1, tern = 0;
+  for (let i = 0; i < m.length; i++) {
+    const c = m[i];
+    if ("([{".includes(c)) d++;
+    else if (")]}".includes(c)) d--;
+    else if (d === 0 && c === "?" && m[i + 1] !== "." && m[i + 1] !== "?" && m[i - 1] !== "?") { if (q < 0) q = i; else if (colon < 0) tern++; }
+    else if (d === 0 && c === ":" && q >= 0 && colon < 0) { if (tern > 0) tern--; else colon = i; }
+  }
+  if (q >= 0 && colon > q) return [...valueLeaves(t.slice(q + 1, colon), depth + 1), ...valueLeaves(t.slice(colon + 1), depth + 1)];
+  const lit = /^(["'])([^"'\\\n]*)\1$/.exec(t.trim()) ?? /^`([^`$\\]*)`$/.exec(t.trim());
+  return [lit ? (lit[2] ?? lit[1]) : null];
+}
+
 export function tsAlertKinds(raw) {
   const src = stripJsComments(raw);
   const out = [];
@@ -697,10 +716,11 @@ export function tsAlertKinds(raw) {
       const from = i + 1 + hit[0].length;
       const expr = exprAfter(src, from);
       const line = lineAt(src, from);
-      const loose = jsValueBranches(expr).some((b) => !/^S$/.test(b));
-      const names = jsExprNames(expr).filter((n) => !n.prefix);
-      if (loose || !names.length) out.push({ name: `alert kind at line ${line}`, unresolved: true, line });
-      for (const n of names) if (/^[a-z][a-z0-9_]*$/.test(n.name)) out.push({ name: n.name, line });
+      // the value's end results only (each branch of a conditional, nested ones too), never its conditions
+      const leaves = valueLeaves(expr);
+      const names = leaves.filter((l) => l !== null && /^[a-z][a-z0-9_]*$/.test(l));
+      if (leaves.some((l) => l === null) || names.length !== leaves.length) out.push({ name: `alert kind at line ${line}`, unresolved: true, line });
+      for (const n of names) out.push({ name: n, line });
       break;
     }
   }

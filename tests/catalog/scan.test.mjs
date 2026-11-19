@@ -324,3 +324,10 @@ test("edge function alert kinds: quoted keys, property names only, every branch,
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: kindFor(x) });`), ["?"]);
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? "known_alert" : other });`), ["?", "known_alert"]);
 });
+
+test("edge function alert kinds: nested conditional branches, never the condition's strings", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? (other ? "first_alert" : "second_alert") : "third_alert" });`), ["first_alert", "second_alert", "third_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: state === "ready" ? "first_alert" : "second_alert" });`), ["first_alert", "second_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: a ? b ? "x_alert" : kindFor(x) : "y_alert" });`), ["?", "x_alert", "y_alert"]);
+});

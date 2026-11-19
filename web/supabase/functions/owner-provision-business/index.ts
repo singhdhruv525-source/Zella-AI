@@ -3153,14 +3153,16 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
     return withBefore({ businessId, email: invitation.email, invitationStatus: "failed", invitationError: reason }, { status: invitation.status });
   }
   const invited = { user: { id: sent.userId } };
+  // the cooldown counts from when the send succeeded, not from when it started
+  const sentAt = new Date().toISOString();
 
   const moved = await moveOwnerInvitation(admin, invitation.id, {
     status: "sent",
     auth_user_id: invited.user.id,
-    invited_at: now,
+    invited_at: sentAt,
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     last_error: null,
-    updated_at: now,
+    updated_at: sentAt,
   }, lease);
   if (!moved) {
     return {
