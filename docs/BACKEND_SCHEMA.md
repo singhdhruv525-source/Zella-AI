@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 353 |
 | Columns | 2161 |
 | Views | 1 |
-| Functions | 994 (922 security definer, 26 callable by `anon`) |
+| Functions | 996 (924 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4543,7 +4543,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (59)
+### `zella_admin_*` (61)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4565,7 +4565,9 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_contact_lookup(p_business uuid, p_query text, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_eval_overview(p_limit integer, p_offset integer)` | jsonb | yes | signed in |
 | `zella_admin_eval_run(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_admin_invitation_cancel(p_business_id uuid, p_invitation_id uuid)` | jsonb | yes | server only |
 | `zella_admin_mask(p text)` | text |  | server only |
+| `zella_admin_member_set_status(p_business_id uuid, p_user_id uuid, p_status text, p_expected text, p_seen_at timestamp with time zone)` | jsonb | yes | server only |
 | `zella_admin_message_detail(p_channel text, p_id uuid, p_with_content boolean)` | jsonb | yes | signed in |
 | `zella_admin_message_retry(p_channel text, p_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_message_retry_check(p_channel text, p_id uuid)` | jsonb | yes | server only |
