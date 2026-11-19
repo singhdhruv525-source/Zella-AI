@@ -16,7 +16,7 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 188 |
 | Tables with row security on | 188 of 188 |
 | Row security policies | 353 |
-| Columns | 2189 |
+| Columns | 2190 |
 | Views | 1 |
 | Functions | 1007 (932 security definer, 26 callable by `anon`) |
 
@@ -3568,6 +3568,7 @@ How often the dispatcher called each n8n worker, and the stuck-item guard.
 | `last_status_code` | integer |  |  |
 | `last_response_at` | timestamp with time zone |  |  |
 | `last_error` | text |  |  |
+| `pending_request_ids` | bigint[] | yes | '{}'::bigint[] |
 
 - Primary key: `workflow`.
 - Row security: on; policies: zella_mfa_required (all).
