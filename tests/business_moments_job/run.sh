@@ -20,8 +20,9 @@ fresh() {
   "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
   for f in zella_writing_cleanup $1; do "${P[@]}" -d $DB -f "$REPO/sql/$f.sql" > /dev/null 2>&1 || { bad "$f applies"; exit 1; }; done
 }
-for stack in "" zella_weekly_platform_report; do
-  label=${stack:-production}; fresh "$stack"
+# the weekly report needs the shared definition of live (lane C) first
+for stack in "" "zella_admin_permissions zella_connection_state zella_weekly_platform_report"; do
+  label=$([ -n "$stack" ] && echo "with the weekly report" || echo production); fresh "$stack"
   before=$(md5); others=$(q "select string_agg(public.zella_run_scheduled_job(j), ',' order by j) from unnest(array['no_such_job', 'zella_check_milestones; select 1']) j")
   [ "$(q "select public.zella_run_scheduled_job('zella_check_business_moments')")" = not_allowed ] && ok "$label: before, the hourly job can't run zella_check_business_moments (the gap)" || bad "$label: before"
   "${P[@]}" -d $DB -f "$FILE" > /dev/null 2>&1 && ok "$label: applies" || bad "$label: applies"
