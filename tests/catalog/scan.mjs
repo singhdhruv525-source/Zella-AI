@@ -700,31 +700,39 @@ export function tsAlertKinds(raw) {
   const src = stripJsComments(raw);
   const out = [];
   const masked = maskStrings(src);
-  for (const m of src.matchAll(/zella_platform_alert["']\s*,\s*\{/g)) {
+  const unresolved = (at) => { const line = lineAt(src, at); out.push({ name: `alert kind at line ${line}`, unresolved: true, line }); };
+  for (const m of src.matchAll(/zella_platform_alert["']\s*,\s*/g)) {
+    const at = m.index + m[0].length;
+    // a payload that isn't written here (a variable, a call) can't be read: unresolved, never skipped
+    if (src[at] !== "{") { unresolved(at); continue; }
     // The payload object, walked to its own closing brace (nested objects and strings skipped). At each property
-    // boundary of its own level (after { or ,) the key is read, bare or quoted; for p_kind its value expression gives
-    // the kinds, every branch of a conditional; a branch that isn't a string literal is reported as unresolved.
-    const open = m.index + m[0].length - 1;
-    let depth = 0;
-    for (let i = open; i < src.length; i++) {
+    // boundary of its own level (after { or ,) the key is read: bare, quoted or a computed string (["p_kind"]); for
+    // p_kind its value gives the kinds (every end result of a conditional). A shorthand p_kind, a spread or a payload
+    // without p_kind can't be read here: unresolved.
+    let depth = 0, found = false;
+    for (let i = at; i < src.length; i++) {
       const c = masked[i];
       if (c === "{" || c === "(" || c === "[") depth++;
       else if (c === "}" || c === ")" || c === "]") { depth--; if (depth === 0) break; }
       if (depth !== 1 || (c !== "{" && c !== ",")) continue;
-      const key = /\s*(?:(["'])(p_kind)\1|(p_kind)\b)\s*:\s*/y;
+      const rest = src.slice(i + 1);
+      if (/^\s*\.\.\./.test(rest) || /^\s*p_kind\s*[,}]/.test(rest)) { unresolved(i + 1); found = true; break; }
+      const key = /\s*(?:(["'])(p_kind)\1|(p_kind)\b|\[\s*(["'])p_kind\4\s*\])\s*:\s*/y;
       key.lastIndex = i + 1;
       const hit = key.exec(src);
       if (!hit) continue;
+      found = true;
       const from = i + 1 + hit[0].length;
       const expr = exprAfter(src, from);
       const line = lineAt(src, from);
       // the value's end results only (each branch of a conditional, nested ones too), never its conditions
       const leaves = valueLeaves(expr);
       const names = leaves.filter((l) => l !== null && /^[a-z][a-z0-9_]*$/.test(l));
-      if (leaves.some((l) => l === null) || names.length !== leaves.length) out.push({ name: `alert kind at line ${line}`, unresolved: true, line });
+      if (leaves.some((l) => l === null) || names.length !== leaves.length) unresolved(from);
       for (const n of names) out.push({ name: n, line });
       break;
     }
+    if (!found) unresolved(at);
   }
   return out;
 }

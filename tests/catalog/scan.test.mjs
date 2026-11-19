@@ -309,7 +309,8 @@ test("review fixes 12: ?? inside a conditional arm", async () => {
 
 test("edge function alert kinds: p_kind after a nested object, at the payload's own level only", () => {
   assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { a: { b: 1 } }, p_kind: "new_alert" });`).map((x) => x.name), ["new_alert"]);
-  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { p_kind: "inner" }, p_title: "x" });`).map((x) => x.name), []);
+  // a p_kind only inside a nested object isn't the payload's: the kind can't be read, so it is unresolved
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { p_kind: "inner" }, p_title: "x" });`).map((x) => (x.unresolved ? "?" : x.name)), ["?"]);
 });
 
 test("edge function alert kinds: a p_kind inside a string is text, not the kind", () => {
@@ -335,4 +336,13 @@ test("edge function alert kinds: nested conditional branches, never the conditio
 test("edge function alert kinds: brackets inside strings don't hide a wrapped conditional", () => {
   const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: (reason.includes(")") ? "first_alert" : "second_alert") });`), ["first_alert", "second_alert"]);
+});
+
+test("edge function alert kinds: a payload passed by name, computed and shorthand keys, spreads", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", payload);`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ["p_kind"]: "computed_alert", p_title: "x" });`), ["computed_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind, p_title: "x" });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { ...base, p_title: "x" });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_title: "x" });`), ["?"]);
 });
