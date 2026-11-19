@@ -365,10 +365,12 @@ function unwrap(t) {
   for (;;) {
     t = t.trim();
     if (!t.startsWith("(")) return t;
+    // brackets inside strings don't count (their contents are blanked); the text itself is kept as written
+    const m = maskStrings(t);
     let depth = 0, closes = -1;
-    for (let i = 0; i < t.length; i++) {
-      if (t[i] === "(") depth++;
-      else if (t[i] === ")" && --depth === 0) { closes = i; break; }
+    for (let i = 0; i < m.length; i++) {
+      if (m[i] === "(") depth++;
+      else if (m[i] === ")" && --depth === 0) { closes = i; break; }
     }
     if (closes !== t.length - 1) return t;
     t = t.slice(1, -1);

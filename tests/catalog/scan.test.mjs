@@ -331,3 +331,8 @@ test("edge function alert kinds: nested conditional branches, never the conditio
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: state === "ready" ? "first_alert" : "second_alert" });`), ["first_alert", "second_alert"]);
   assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: a ? b ? "x_alert" : kindFor(x) : "y_alert" });`), ["?", "x_alert", "y_alert"]);
 });
+
+test("edge function alert kinds: brackets inside strings don't hide a wrapped conditional", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: (reason.includes(")") ? "first_alert" : "second_alert") });`), ["first_alert", "second_alert"]);
+});
