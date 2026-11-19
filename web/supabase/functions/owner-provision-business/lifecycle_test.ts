@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DRAFT_ABANDON_DAYS_DEFAULT, LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers, trackSetup, type LifecycleKit } from "./lifecycle.ts";
+import { DRAFT_ABANDON_DAYS_DEFAULT, LIFECYCLE_PERMISSIONS, createDraft, draftAges, latestAuditAt, lifecycleHandlers, trackSetup, type LifecycleKit } from "./lifecycle.ts";
 import { PERMISSIONS } from "./settings.ts";
 import { ONBOARDING_PERMISSIONS } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS } from "./platform.ts";
@@ -145,6 +145,10 @@ Deno.test("business_delete_draft explains why a business is not a draft, and kee
 });
 
 // A small stand in for the tables draftAges reads: platform_settings, audit_logs and platform_alerts.
+// what zella_latest_audit_at answers for these audit rows: each business's newest time
+const latestFrom = (audit: { business_id: string; created_at: string }[], ids: string[]) =>
+  ids.map((id) => ({ business_id: id, latest: audit.filter((a) => a.business_id === id).map((a) => a.created_at).sort().at(-1) ?? null }));
+
 function agesAdmin(opts: { setting?: unknown; audit?: { business_id: string; created_at: string }[]; raised?: string[]; alertFails?: boolean; drafts?: Record<string, unknown>[] }) {
   const alerts: Record<string, unknown>[] = [];
   const admin = {
@@ -162,7 +166,10 @@ function agesAdmin(opts: { setting?: unknown; audit?: { business_id: string; cre
       };
       return chain;
     },
-    rpc: async (fn: string, args: Record<string, unknown>) => { alerts.push({ fn, ...args }); return { data: null, error: null }; },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn === "zella_latest_audit_at") return { data: latestFrom(opts.audit ?? [], args.p_business_ids as string[]), error: null };
+      alerts.push({ fn, ...args }); return { data: null, error: null };
+    },
   } as unknown as SupabaseClient;
   return { admin, alerts };
 }
@@ -243,7 +250,12 @@ function tables(data: Record<string, unknown>, rpc: (fn: string, args: Record<st
       chain.then = (resolve: (v: unknown) => void) => resolve(answer());
       return chain;
     },
-    rpc: async (fn: string, args: Record<string, unknown>) => { calls.push({ fn, args }); return rpc(fn, args); },
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      calls.push({ fn, args });
+      // zella_latest_audit_at answers from the audit_logs rows given, unless the test answers it itself
+      if (fn === "zella_latest_audit_at") return { data: latestFrom((data.audit_logs ?? []) as { business_id: string; created_at: string }[], args.p_business_ids as string[]), error: null };
+      return rpc(fn, args);
+    },
   } as unknown as SupabaseClient;
   return { admin, calls };
 }
@@ -298,7 +310,7 @@ Deno.test("document_request queues S4 to the owner and is audited; it waits out 
   const recent = tables({ ...base, audit_logs: [{ business_id: A, created_at: new Date(Date.now() - 3_600_000).toISOString() }] }, beforeAtomic(() => ({ data: null, error: null })));
   const err = await assertRejects(() => lifecycleHandlers(recent.admin, { businessId: A }, kit).handlers.document_request(), InputError);
   assertEquals((err as InputError).status, 429);
-  assertEquals(recent.calls.filter((c) => c.fn).map((c) => c.fn), ["zella_request_documents"], "nothing queued");
+  assertEquals(recent.calls.some((c) => c.fn === "zella_queue_platform_email"), false, "nothing queued");
 
   const complete = tables({ ...base, business_verification_documents: [{ kind: "business_registration", status: "verified" }, { kind: "owner_identity", status: "pending_review" }] });
   assertEquals(((await assertRejects(() => lifecycleHandlers(complete.admin, { businessId: A }, kit).handlers.document_request(), InputError)) as InputError).status, 409);
@@ -560,4 +572,18 @@ Deno.test("documents_missing reads every business, 1000 at a time, so the oldest
   assertEquals(pages, [0, 1000]);
   assertEquals(r.rows.length, 1001);
   assertEquals(r.rows.at(-1)!.id, "b01000");
+});
+
+Deno.test("latestAuditAt: one batched read per 500 businesses, the newest per business, and one by one before the migration", async () => {
+  const ids = Array.from({ length: 501 }, (_, i) => `b${i}`);
+  const calls: number[] = [];
+  const admin = { rpc: async (_fn: string, a: Record<string, unknown>) => { const part = a.p_business_ids as string[]; calls.push(part.length);
+    return { data: part.map((id) => ({ business_id: id, latest: id === "b500" ? "2026-11-18T00:00:00Z" : null })), error: null }; } } as unknown as SupabaseClient;
+  const got = await latestAuditAt(admin, ids, "business.documents_requested");
+  assertEquals([calls, [...got.entries()]], [[500, 1], [["b500", "2026-11-18T00:00:00Z"]]]);
+  const old = tables({ audit_logs: [{ business_id: A, created_at: "2026-11-17T00:00:00Z" }] }, () => ({ data: null, error: null }));
+  const legacy = { ...old.admin, rpc: async () => ({ data: null, error: { code: "PGRST202", message: "missing" } }) } as unknown as SupabaseClient;
+  assertEquals([...(await latestAuditAt(legacy, [A])).entries()], [[A, "2026-11-17T00:00:00Z"]]);
+  const down = { rpc: async () => ({ data: null, error: { code: "57014", message: "timeout" } }) } as unknown as SupabaseClient;
+  await assertRejects(() => latestAuditAt(down, [A]));
 });

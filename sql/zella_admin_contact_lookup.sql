@@ -21,7 +21,7 @@ begin
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   if to_regprocedure('public.zella_admin_contact_lookup(uuid,text,text)') is not null
-     and md5(pg_get_functiondef(to_regprocedure('public.zella_admin_contact_lookup(uuid,text,text)'))) <> '4ea03aaa7e28d16f4dbc2f03e0c56bff' then
+     and md5(pg_get_functiondef(to_regprocedure('public.zella_admin_contact_lookup(uuid,text,text)'))) <> '21553f09db0cc90c75eb2ed310578212' then
     raise exception 'VERSION_MISMATCH: zella_admin_contact_lookup is not a version this file was written for';
   end if;
 end $$;
@@ -59,18 +59,23 @@ begin
   -- the latest consent per contact, channel and purpose: a short query can match several contacts, and one contact's
   -- opt out must never be hidden by another's opt in. Each carries its contact, masked, so they can be told apart.
   cons as (
-    select distinct on (coalesce(k.phone_digits, k.email_lower, k.customer_id::text), k.channel, k.purpose)
-           coalesce(k.phone_digits, k.email_lower, k.customer_id::text) as ident,
-           case when k.phone_digits is not null then '…' || right(k.phone_digits, 4)
-                when k.email_lower is not null then left(k.email_lower, 1) || '…@' || split_part(k.email_lower, '@', 2)
-                else 'a customer record' end as masked,
-           k.channel, k.purpose, k.status, k.source, k.recorded_at
-      from contact_consents k
+    -- the contact is the identity that channel uses (the address for email, the number otherwise), whatever else a row
+    -- also stores, so one contact's rows for a channel and purpose always share one group
+    select distinct on (x.ident, x.channel, x.purpose) x.*
+      from (select case when k.channel = 'email' then coalesce('e:' || k.email_lower, 'c:' || k.customer_id::text, 'p:' || k.phone_digits)
+                        else coalesce('p:' || k.phone_digits, 'c:' || k.customer_id::text, 'e:' || k.email_lower) end as ident,
+                   case when k.channel = 'email' and k.email_lower is not null then left(k.email_lower, 1) || '…@' || split_part(k.email_lower, '@', 2)
+                        when k.channel <> 'email' and k.phone_digits is not null then '…' || right(k.phone_digits, 4)
+                        when k.phone_digits is not null then '…' || right(k.phone_digits, 4)
+                        when k.email_lower is not null then left(k.email_lower, 1) || '…@' || split_part(k.email_lower, '@', 2)
+                        else 'a customer record' end as masked,
+                   k.channel, k.purpose, k.status, k.source, k.recorded_at
+              from contact_consents k
      where k.business_id = p_business
        and ((v_digits is not null and right(coalesce(k.phone_digits, ''), length(v_digits)) = v_digits)
          or (v_email is not null and k.email_lower = v_email)
-         or k.customer_id in (select id from cust))
-     order by coalesce(k.phone_digits, k.email_lower, k.customer_id::text), k.channel, k.purpose, k.recorded_at desc),
+         or k.customer_id in (select id from cust))) x
+     order by x.ident, x.channel, x.purpose, x.recorded_at desc),
   lists as (
     select s.list, s.channel, s.value_type, s.reason, s.source, s.created_at, s.expires_at, (s.business_id is null) as platform_wide
       from spam_list_entries s

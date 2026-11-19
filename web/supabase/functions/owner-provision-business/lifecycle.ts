@@ -86,6 +86,31 @@ export type DraftAge = { lastActivityAt: string; abandoned: boolean };
 // lists the newest ones), so an older abandoned draft is still marked and alerted.
 const ID_CHUNK = 100;
 const chunks = <T>(list: T[], n = ID_CHUNK) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
+// Each business's newest audit row time (of one action, or any), from zella_latest_audit_at in batches of 500, so no
+// business is left out by a row limit. Before sql/zella_document_requests.sql (PGRST202) it reads one business at a
+// time instead. A failed read throws: a missing answer is never shown as "never".
+export async function latestAuditAt(admin: SupabaseClient, ids: string[], action: string | null = null): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const part = ids.slice(i, i + 500);
+    const { data, error } = await admin.rpc("zella_latest_audit_at", { p_business_ids: part, p_action: action });
+    if (error?.code === "PGRST202") {
+      for (const id of part) {
+        let q = admin.from("audit_logs").select("created_at").eq("business_id", id);
+        if (action) q = q.eq("action", action);
+        const { data: row, error: e } = await q.order("created_at", { ascending: false }).limit(1);
+        if (e) throw e;
+        const at = ((row ?? []) as { created_at: string }[])[0]?.created_at;
+        if (at) out.set(id, at);
+      }
+      continue;
+    }
+    if (error) throw error;
+    for (const r of (data ?? []) as { business_id: string; latest: string | null }[]) if (r.latest) out.set(r.business_id, r.latest);
+  }
+  return out;
+}
+
 async function everyUnfinishedDraft(admin: SupabaseClient): Promise<DraftRow[]> {
   const out: DraftRow[] = [];
   for (let from = 0; from < 100_000; from += 1000) {
@@ -106,18 +131,8 @@ export async function draftAges(admin: SupabaseClient, shown: DraftRow[], now = 
   const rows = [...shown];
   if (opts.everyDraft) { const seen = new Set(rows.map((r) => r.id)); for (const r of await everyUnfinishedDraft(admin)) if (!seen.has(r.id)) rows.push(r); }
   if (!rows.length) return { days, ages };
-  // each business's newest audit entry, a few businesses per query (one query for all could stop at its row limit
-  // before reaching some of them)
-  const newest = new Map<string, string>();
-  for (const ids of chunks(rows.map((r) => r.id))) {
-    for (const id of ids) {
-      const { data: audit, error } = await admin.from("audit_logs").select("business_id, created_at").eq("business_id", id)
-        .order("created_at", { ascending: false }).limit(1);
-      if (error) throw error;
-      const a = ((audit ?? []) as { business_id: string; created_at: string }[])[0];
-      if (a) newest.set(id, a.created_at);
-    }
-  }
+  // each business's newest audit entry (one batched database read, never stopped short by a row limit)
+  const newest = await latestAuditAt(admin, rows.map((r) => r.id));
   const cutoff = now - days * DAY_MS;
   for (const r of rows) {
     const times = [r.updated_at, r.created_at, newest.get(r.id)].map((t) => Date.parse(String(t ?? ""))).filter((t) => Number.isFinite(t));
@@ -371,14 +386,7 @@ export function lifecycleHandlers(admin: SupabaseClient, fields: Json, kit: Life
   };
 
   const lastRequests = async (ids: string[]) => {
-    const out = new Map<string, string>();
-    for (let i = 0; i < ids.length; i += 100) {
-      const { data, error } = await admin.from("audit_logs").select("business_id, created_at").eq("action", "business.documents_requested")
-        .in("business_id", ids.slice(i, i + 100)).order("created_at", { ascending: false }).limit(2000);
-      if (error) throw error;
-      for (const a of (data ?? []) as { business_id: string; created_at: string }[]) if (!out.has(a.business_id)) out.set(a.business_id, a.created_at);
-    }
-    return out;
+    return await latestAuditAt(admin, ids, "business.documents_requested");
   };
 
   // UI-11: asks the owner for the missing documents. Queues email S4 in the platform outbox when it is installed; it

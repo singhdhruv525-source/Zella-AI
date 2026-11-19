@@ -19,10 +19,16 @@ export default function MissingDocuments({ onOpenBusiness, refreshKey = 0 }) {
   const [busy, setBusy] = useState("");
   const inFlight = useRef(false);
   const [now, setNow] = useState(() => Date.now());
+  // only the latest load is applied: an older one that answers after a newer one (or after leaving) is dropped
+  const loads = useRef(0);
+  useEffect(() => () => { loads.current += 1; }, []);
   const load = useCallback(async () => {
+    const ticket = ++loads.current;
     setError("");
-    try { setData(await callOwnerFunction("documents_missing")); setNow(Date.now()); }   // waits read against the time of the load
-    catch (err) { setData(null); setError(friendlyError(err)); }
+    try {
+      const fresh = await callOwnerFunction("documents_missing");
+      if (ticket === loads.current) { setData(fresh); setNow(Date.now()); }   // waits read against the time of the load
+    } catch (err) { if (ticket === loads.current) { setData(null); setError(friendlyError(err)); } }
   }, []);
   useEffect(() => { load(); }, [load, refreshKey]);   // the page's Refresh reloads this list too
   // the wait shown on a button ends on its own: the page redraws when the earliest wait is over

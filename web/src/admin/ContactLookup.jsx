@@ -6,7 +6,7 @@ import { lookupProblem } from "../contactLookup";
 // at least 4 digits or a full email address and a reason are required; the answer is masked (last 4 digits, first
 // letter and domain) and every lookup is audited. Needs comms.manage; the database checks it again.
 
-export default function ContactLookup({ options, optionsProblem = "", onRetryOptions }) {
+export default function ContactLookup({ options, optionsLoading = false, optionsProblem = "", onRetryOptions }) {
   const [business, setBusiness] = useState(null);
   const [query, setQuery] = useState("");
   const [reason, setReason] = useState("");
@@ -36,7 +36,8 @@ export default function ContactLookup({ options, optionsProblem = "", onRetryOpt
       <h3 className="ao-h3">Why does one contact get no messages?</h3>
       <p className="op-muted">For one business. Shows masked results only, and the lookup goes in the audit log with your reason.</p>
       <form onSubmit={look}>
-        <Select label="Business" value={business} any="Choose a business" onChange={choose} options={businesses.map((b) => [b.id, b.name])} />
+        <Select label="Business" value={business} any={optionsLoading ? "Loading businesses…" : "Choose a business"} disabled={optionsLoading || Boolean(optionsProblem)} onChange={choose} options={businesses.map((b) => [b.id, b.name])} />
+        {optionsLoading && <p className="op-muted" role="status">Loading the list of businesses…</p>}
         {optionsProblem && <div className="owner-form-error" role="alert">{optionsProblem} <button type="button" className="ba-link" onClick={onRetryOptions}>Try again</button></div>}
         <label className="owner-field"><span>Phone (at least the last 4 digits) or full email</span>
           <input value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" /></label>

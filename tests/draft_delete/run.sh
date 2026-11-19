@@ -123,8 +123,8 @@ for fnrole in "zella_accept_my_invitations owner" "zella_accept_staff_invitation
   b=$(draft "Delete First $role"); u=$(invitee "$b" "$role")
   PGAPPNAME=zlb_del1 "${P[@]}" -d $DB -c "begin; select public.zella_delete_draft_business('$b', '$OWN', 'Delete First $role', 'Clean up test'); select pg_sleep(3); commit;" > /dev/null 2>&1 & bgp=$!
   for i in $(seq 1 100); do [ "$(q "select count(*) from pg_stat_activity where application_name = 'zlb_del1' and wait_event = 'PgSleep'")" = "1" ] && break; sleep 0.1; done
-  acc=$(printf '%s\n' "begin;" "$(accept_sql $fn $u);" "commit;" | timeout 20 "${P[@]}" -d $DB 2>&1); wait $bgp
-  [[ "$acc" != *deadlock* && "$acc" != *ERROR* ]] && [ "$(q "select count(*) from public.businesses where id = '$b'")" = "0" ] \
+  acc=$(printf '%s\n' "begin;" "$(accept_sql $fn $u);" "commit;" | timeout 20 "${P[@]}" -d $DB 2>&1); acc_rc=$?; wait $bgp
+  [ "$acc_rc" = "0" ] && [[ "$acc" != *deadlock* && "$acc" != *ERROR* ]] && [ "$(q "select count(*) from public.businesses where id = '$b'")" = "0" ] \
     && [ "$(q "select count(*) from public.business_members where user_id = '$u' and status = 'active'")" = "0" ] && ok "delete first: $fn waits, then accepts nothing (no deadlock, no member left)" || bad "delete first $fn: $acc"
 done
 [ "$(q "select convalidated::text from pg_constraint where conname = 'audit_logs_business_id_fkey'")" = "true" ] && ok "the audit foreign key was added without a scan and validated after the commit" || bad "not validated"

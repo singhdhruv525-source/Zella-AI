@@ -21,8 +21,8 @@ drop function if exists public.zella_document_orphans_removed(text[]);
 drop trigger if exists zella_document_cleanup_guard on public.business_verification_documents;
 drop function if exists public.zella_document_cleanup_guard();
 do $$ begin
-  if to_regclass('public.business_document_cleanup') is not null and not exists (select 1 from public.business_document_cleanup) then
-    drop table public.business_document_cleanup;
+  if to_regclass('public.business_document_cleanup') is not null then
+    if not exists (select 1 from public.business_document_cleanup) then drop table public.business_document_cleanup; end if;
   end if;
 end $$;
 commit;

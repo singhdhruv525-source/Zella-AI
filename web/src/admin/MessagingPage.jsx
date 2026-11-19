@@ -40,7 +40,7 @@ export default function MessagingPage({ me, sub, onOpenBusiness }) {
       {tab === "templates" && <Templates options={options.data} say={say} />}
       {tab === "business-emails" && <BusinessEmails onOpenBusiness={onOpenBusiness} />}
       {tab === "providers" && <Providers me={me} />}
-      {tab === "compliance" && <Compliance options={options.data} optionsProblem={options.loading ? "" : options.error || (!options.data ? "The list of businesses didn't load." : "")} onRetryOptions={options.reload} />}
+      {tab === "compliance" && <Compliance options={options.data} optionsLoading={options.loading} optionsProblem={options.loading ? "" : options.error || (!options.data ? "The list of businesses didn't load." : "")} onRetryOptions={options.reload} />}
       {toast}
     </section>
   );
@@ -312,7 +312,7 @@ function Providers({ me }) {
   );
 }
 
-function Compliance({ options, optionsProblem, onRetryOptions }) {
+function Compliance({ options, optionsLoading, optionsProblem, onRetryOptions }) {
   const d = useLoad(() => rpc("zella_admin_messaging_compliance"), []);
   const c = d.data;
   return (
@@ -334,7 +334,7 @@ function Compliance({ options, optionsProblem, onRetryOptions }) {
             ["STOP / START / HELP", "Handled automatically on inbound texts"]]} />
         </>
       )}
-      <ContactLookup options={options} optionsProblem={optionsProblem} onRetryOptions={onRetryOptions} />
+      <ContactLookup options={options} optionsLoading={optionsLoading} optionsProblem={optionsProblem} onRetryOptions={onRetryOptions} />
     </Panel>
   );
 }

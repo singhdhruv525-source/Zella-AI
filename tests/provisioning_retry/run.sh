@@ -76,6 +76,14 @@ a2=$(q "select public.zella_provisioning_begin('$V', 'modules')"); A2=$(q "selec
 a3=$(q "select public.zella_provisioning_begin('$V', 'modules')"); A3=$(q "select '$a3'::jsonb ->> 'attempt'")
 q "select public.zella_retry_provisioning('$V', 'modules', null)" > /dev/null
 [ "$(q "select public.zella_provisioning_end('$V', 'modules', '$A3', 'failed', 'stale', 'done', null)")" = "f" ] && ok "a retry that recorded the step meanwhile wins over a stale attempt" || bad "retry wins"
+# overlapping attempts: A is pending, B begins over it (so B's "before" is pending), A finishes (ignored), B is refused:
+# the row isn't left pending with no owner; it reads failed, so it can be retried
+aa=$(q "select public.zella_provisioning_begin('$V', 'automations')"); AA=$(q "select '$aa'::jsonb ->> 'attempt'")
+ab=$(q "select public.zella_provisioning_begin('$V', 'automations')"); AB=$(q "select '$ab'::jsonb ->> 'attempt'")
+[ "$(q "select '$ab'::jsonb ->> 'before_status'")" = "pending" ] || bad "B's before is pending"
+q "select public.zella_provisioning_end('$V', 'automations', '$AA', 'done', null, null, null)" > /dev/null
+[ "$(q "select public.zella_provisioning_end('$V', 'automations', '$AB', 'restore', null, 'pending', null)")" = "t" ] \
+  && [ "$(q "select status || ',' || coalesce(attempt_id::text, 'none') from public.provisioning_steps where business_id = '$V' and step = 'automations'")" = "failed,none" ] && ok "a refused attempt over an earlier pending one leaves the step failed (retryable), never pending with no owner" || bad "overlap: $(q "select status || coalesce(attempt_id::text, 'none') from public.provisioning_steps where business_id = '$V' and step = 'automations'")"
 a4=$(q "select public.zella_provisioning_begin('$V', 'receptionist')"); A4=$(q "select '$a4'::jsonb ->> 'attempt'")
 [ "$(q "select public.zella_provisioning_end('$V', 'receptionist', '$A4', 'restore', null, null, null)")" = "t" ] && [ "$(q "select count(*) from public.provisioning_steps where business_id = '$V' and step = 'receptionist'")" = "0" ] && ok "a refusal with nothing before removes its own pending mark" || bad "restore none"
 A=$(mk "Stubborn Studio"); q "delete from public.automations where business_id = '$A'" > /dev/null

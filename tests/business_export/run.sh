@@ -96,9 +96,18 @@ g=$(q "select bool_or(has_function_privilege('authenticated', p.oid, 'execute') 
 out=$("${P[@]}" -d $DB -f "$RB" 2>&1); [[ "$out" == *EXPORTS_EXIST* ]] && ok "the rollback refuses while an export is ready" || bad "rollback guard: $out"
 q "update public.business_export_jobs set expires_at = now() - interval '1 minute' where id = '$J'" > /dev/null; q "select public.zella_export_claim()" > /dev/null
 [ "$(q "select status from public.business_export_jobs where id = '$J'")" = "expired" ] && ok "a ready export past 7 days expires" || bad "expire"
-out=$("${P[@]}" -d $DB -f "$RB" 2>&1) && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback: $(echo "$out" | grep ERROR)"
+# an approved export (it would resume from saved progress) when the rollback runs: it is ended, its request kept
+JA=$(q "select public.zella_export_request('$O', '$ADM', 'Approved before the rollback')"); q "select public.zella_export_decide('$JA', '$OWN', true, null)" > /dev/null
+q "update public.business_export_jobs set progress = '{\"tables_done\": [\"calls\"], \"parts\": [\"x\"]}' where id = '$JA'" > /dev/null
+out=$("$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $DB -q 2>&1) && "$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $DB -q > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback: $(echo "$out" | grep ERROR)"
+[ "$(q "select status || ',' || progress::text || ',' || request_reason from public.business_export_jobs where id = '$JA'")" = "failed,{},Approved before the rollback" ] && ok "a resumable export is ended by the rollback (no stale progress), its request kept" || bad "retired: $(q "select status || progress::text from public.business_export_jobs where id = '$JA'")"
+# with no exports at all, the rollback drops the table, and runs again
+E="${DB}_empty"; "${P[@]}" -d postgres -c "drop database if exists $E" -c "create database $E template $TEMPLATE" > /dev/null
+"${P[@]}" -d $E -f "$MIG" > /dev/null 2>&1; RBE=("$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $E -q)
+"${RBE[@]}" > /dev/null 2>&1 && "${RBE[@]}" > /dev/null 2>&1 && [ -z "$("${P[@]}" -d $E -c "select to_regclass('public.business_export_jobs')")" ] && ok "with no exports, the rollback drops the table and runs again" || bad "empty rollback twice"
+"${P[@]}" -d postgres -c "drop database if exists $E" > /dev/null
 [ "$(q "select count(*) from pg_proc where proname in ('zella_export_request', 'zella_export_decide', 'zella_export_claim', 'zella_export_progress', 'zella_export_pause', 'zella_export_finish', 'zella_export_tables', 'zella_export_rows', 'zella_export_files')")$(q "select count(*) from storage.buckets where id = 'business-exports'")" = "00" ] && ok "rollback removes the functions and the bucket" || bad "after rollback"
-[ "$(q "select count(*) || ',' || count(*) filter (where request_reason = 'Owner asked for a copy') from public.business_export_jobs")" = "2,1" ] && ok "and keeps every export record, with who asked and why" || bad "records: $(q "select count(*) from public.business_export_jobs")"
+[ "$(q "select count(*) || ',' || count(*) filter (where request_reason = 'Owner asked for a copy') from public.business_export_jobs")" = "3,1" ] && ok "and keeps every export record, with who asked and why" || bad "records: $(q "select count(*) from public.business_export_jobs")"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_export_claim() returns jsonb language sql as \$f\$ select null::jsonb \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); [[ "$out" == *VERSION_MISMATCH* ]] && ok "a changed function stops the file" || bad "drift: $out"

@@ -51,7 +51,11 @@ q "select public.zella_document_orphans_removed('{}')" > /dev/null
 [ "$(q "select count(*) from public.audit_logs where action = 'platform.document_orphans_removed'")" = "1" ] && ok "an empty run writes nothing" || bad "empty run audited"
 g=$(q "select has_function_privilege('authenticated', 'public.zella_document_orphans(integer)', 'execute')::text || has_function_privilege('anon', 'public.zella_document_orphans_removed(text[])', 'execute')::text || has_function_privilege('service_role', 'public.zella_document_orphans(integer)', 'execute')::text")
 [ "$g" = "falsefalsetrue" ] && ok "only the server may call them" || bad "grants: $g"
-"${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
+"$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $DB -q > /dev/null 2>&1 && "$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $DB -q > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
+E="${DB}_empty"; "${P[@]}" -d postgres -c "drop database if exists $E" -c "create database $E template $TEMPLATE" > /dev/null
+"${P[@]}" -d $E -f "$MIG" > /dev/null 2>&1; RBE=("$REPO/sql/rollback/run.sh" "$RB" -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -d $E -q)
+"${RBE[@]}" > /dev/null 2>&1 && "${RBE[@]}" > /dev/null 2>&1 && [ -z "$("${P[@]}" -d $E -c "select to_regclass('public.business_document_cleanup')")" ] && ok "with no claims, the rollback drops the table and runs again" || bad "empty rollback twice"
+"${P[@]}" -d postgres -c "drop database if exists $E" > /dev/null
 [ "$(q "select count(*) from pg_proc where proname in ('zella_document_orphans', 'zella_document_orphans_removed', 'zella_document_cleanup_guard')")" = "0" ] && ok "rollback drops the functions and the guard" || bad "after rollback"
 [ "$(q "select count(*) from public.business_document_cleanup")" = "2" ] && ok "and keeps the cleanup claims (they aren't deleted)" || bad "claims after rollback"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"

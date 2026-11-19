@@ -51,11 +51,18 @@ q "update public.audit_logs set created_at = now() - interval '25 hours' where b
 r=$(req "$B" ""); [ "$(q "select '$r'::jsonb ->> 'email'")" = "no_address" ] && [ "$(emails)" = "2" ] && [ "$(audits)" = "3" ] && ok "no address: no email, the request is still recorded" || bad "no address: $r"
 out=$(req "$C" "x@closed.test"); [[ "$out" == *NOT_FOUND* ]] && ok "a cancelled business is refused" || bad "cancelled: $out"
 out=$(q "select public.zella_request_documents('$B', '$ADM', '{}', 24, null, null, null, null)" 2>&1); [[ "$out" == *INVALID_INPUT* ]] && ok "nothing missing is invalid" || bad "invalid: $out"
+# the newest audit row per business, every business listed (never cut short by other businesses' rows)
+O2=$(q "insert into public.businesses (name) values ('Quiet Test Studio') returning id" | head -1)
+q "insert into public.audit_logs (business_id, action, entity_type, created_at) select '$C', 'business.documents_requested', 'business', now() - (g || ' minutes')::interval from generate_series(1, 2500) g" > /dev/null
+l=$(q "select string_agg(coalesce(to_char(latest, 'YYYY'), 'none'), ',' order by n) from (select l.*, case l.business_id when '$B' then 1 when '$C' then 2 else 3 end n from public.zella_latest_audit_at(array['$B', '$C', '$O2']::uuid[], 'business.documents_requested') l) x")
+[ "$l" = "$(date -u +%Y),$(date -u +%Y),none" ] && ok "latest request per business, for every business given (many rows of another business never hide one)" || bad "latest: $l"
+g2=$(q "select has_function_privilege('authenticated', 'public.zella_latest_audit_at(uuid[],text)', 'execute')::text")
+[ "$g2" = "false" ] && ok "only the server may read it" || bad "latest grants: $g2"
 g=$(q "select has_function_privilege('authenticated', 'public.zella_request_documents(uuid,uuid,text[],integer,text,text,text,text)', 'execute')::text || has_function_privilege('anon', 'public.zella_request_documents(uuid,uuid,text[],integer,text,text,text,text)', 'execute')::text")
 [ "$g" = "falsefalse" ] && ok "only the server may call it" || bad "grants: $g"
 
 "${RBRUN[@]}" > /dev/null 2>&1 && "${RBRUN[@]}" > /dev/null 2>&1 && ok "rollback runs twice (through the rollback runner)" || bad "rollback"
-[ -z "$(q "select to_regprocedure('public.zella_request_documents(uuid,uuid,text[],integer,text,text,text,text)')")" ] && [ "$(audits)" = "3" ] && [ "$(emails)" = "2" ] && ok "rollback drops the function, keeps the audit rows and emails" || bad "after rollback"
+[ -z "$(q "select to_regprocedure('public.zella_request_documents(uuid,uuid,text[],integer,text,text,text,text)')")" ] && [ -z "$(q "select to_regprocedure('public.zella_latest_audit_at(uuid[],text)')")" ] && [ "$(audits)" = "3" ] && [ "$(emails)" = "2" ] && ok "rollback drops the function, keeps the audit rows and emails" || bad "after rollback"
 "${P[@]}" -d $DB -f "$MIG" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_request_documents(p_business uuid, p_actor uuid, p_missing text[], p_cooldown_hours integer, p_to text, p_subject text, p_html text, p_text text) returns jsonb language sql as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$MIG" 2>&1); [[ "$out" == *VERSION_MISMATCH* ]] && ok "a changed function stops the file" || bad "drift: $out"

@@ -44,8 +44,16 @@ drop function if exists public.zella_export_files(uuid, uuid);
 drop table if exists public.business_export_rows;
 drop table if exists public.business_export_tables;
 do $$ begin
-  if to_regclass('public.business_export_jobs') is not null and not exists (select 1 from public.business_export_jobs) then
-    drop table public.business_export_jobs;
+  if to_regclass('public.business_export_jobs') is not null then
+    if not exists (select 1 from public.business_export_jobs) then
+      drop table public.business_export_jobs;
+    else
+      -- kept records: an approved export's saved progress pointed at parts and copies that are gone now, so it is ended
+      -- (its request and decision stay) and can't resume from them if the file is applied again
+      update public.business_export_jobs set status = 'failed', progress = '{}'::jsonb, claim_token = null, finished_at = coalesce(finished_at, now()),
+             last_error = 'Stopped when business exports were rolled back. Request a new export.'
+       where status = 'approved';
+    end if;
   end if;
 end $$;
 delete from storage.buckets where id = 'business-exports';

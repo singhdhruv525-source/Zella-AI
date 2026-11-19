@@ -62,6 +62,12 @@ q "insert into public.contact_consents (business_id, phone_digits, channel, purp
 r2=$(as $OWN "select public.zella_admin_contact_lookup('$B', '7788', 'Two contacts check')")
 [ "$(q "select string_agg((c ->> 'contact') || ':' || (c ->> 'status'), '+' order by c ->> 'contact') from jsonb_array_elements('$r2'::jsonb -> 'consents') c")" = "…7788, contact 1:opted_out+…7788, contact 2:opted_in" ] && ok "two matching contacts: each keeps its own latest consent, told apart" || bad "two contacts: $(q "select '$r2'::jsonb -> 'consents'")"
 q "delete from public.contact_consents where phone_digits = '15559997788'" > /dev/null
+# an email consent that also stored the phone number, then a later email only one for the same address: one contact
+q "insert into public.contact_consents (business_id, customer_id, phone_digits, email_lower, channel, purpose, status, source, recorded_at) values
+     ('$B', '$C', '15552017788', 'casey.test@example.org', 'email', 'marketing', 'opted_in', 'web_form', now() - interval '2 days'),
+     ('$B', null, null, 'casey.test@example.org', 'email', 'marketing', 'opted_out', 'email_link', now() - interval '1 hour')" > /dev/null
+r3=$(as $OWN "select public.zella_admin_contact_lookup('$B', 'casey.test@example.org', 'Email consent check')")
+[ "$(q "select string_agg((c ->> 'channel') || ':' || (c ->> 'status'), '+') from jsonb_array_elements('$r3'::jsonb -> 'consents') c where c ->> 'channel' = 'email'")" = "email:opted_out" ] && ok "email consents of one address are one contact, whatever else a row stored: only the latest shows" || bad "email identity: $(q "select '$r3'::jsonb -> 'consents'")"
 for who in "$RO" "$BO"; do out=$(as $who "select public.zella_admin_contact_lookup('$B', '7788', 'x reason')"); [[ "$out" == *NOT_ALLOWED* ]] || bad "allowed for $who: $out"; done
 out=$("${P[@]}" -d $DB -c "begin; set local role anon; select public.zella_admin_contact_lookup('$B', '7788', 'x reason'); commit;" 2>&1); [[ "$out" == *"permission denied"* ]] || bad "anon: $out"
 ok "a role without comms.manage, a business owner and anonymous are refused"

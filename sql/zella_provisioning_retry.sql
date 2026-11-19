@@ -33,9 +33,9 @@ begin
   end if;
   for f in select * from (values
       ('public.zella_retry_provisioning(uuid,text,uuid)', 'b5b05c27d48b7c001a8f6b453c484b78'),
-      ('public.zella_retry_provisioning_due()', '654dbd4bd7d3e4d25e978355f82d0aad'),
+      ('public.zella_retry_provisioning_due()', '1504ba6ce453432daccbe72f67f59000'),
       ('public.zella_provisioning_begin(uuid,text)', 'ea7cafd97b8324ddcc36a1d6fa174c42'),
-      ('public.zella_provisioning_end(uuid,text,uuid,text,text,text,text)', '627142dd2cb33c7d2b4511870594aa95')) as t(sig, want) loop
+      ('public.zella_provisioning_end(uuid,text,uuid,text,text,text,text)', '29d2bd7fd0e7e11fd3c7254b20ed42b7')) as t(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(to_regprocedure(f.sig))) <> f.want then
       raise exception 'VERSION_MISMATCH: % is not a version this file was written for', f.sig;
     end if;
@@ -103,6 +103,9 @@ begin
     continue when not exists (select 1 from (select 1 from businesses where id = s.business_id and cancelled_at is null for update skip locked) x);
     continue when not exists (select 1 from (select 1 from provisioning_steps where business_id = s.business_id and step = s.step and status = 'failed'
                                               for update skip locked) y);
+    -- the timer's 3 tries, counted again under the locks (an overlapping run may have retried it meanwhile)
+    continue when (select count(*) from audit_logs a where a.business_id = s.business_id and a.action = 'provisioning.step_retried'
+                    and a.user_id is null and a.new_data ->> 'step' = s.step) >= 3;
     perform zella_retry_provisioning(s.business_id, s.step, null);
     n := n + 1;
   end loop;
@@ -144,7 +147,12 @@ begin
   perform 1 from businesses where id = p_business_id for update;
   select * into r from provisioning_steps where business_id = p_business_id and step = p_step for update;
   if r.business_id is null or r.status <> 'pending' or r.attempt_id is distinct from p_attempt then return false; end if;
-  if p_outcome = 'restore' then
+  if p_outcome = 'restore' and p_before_status = 'pending' then
+    -- this attempt began over another one still pending, whose end is now ignored: put back nothing that no attempt
+    -- owns; it reads failed, so it can be retried and shows that the earlier save didn't finish
+    perform zella_track_provisioning(p_business_id, p_step, 'failed', 'An earlier save of this step didn''t finish. Save it again.');
+    update provisioning_steps set attempt_id = null where business_id = p_business_id and step = p_step;
+  elsif p_outcome = 'restore' then
     if p_before_status is null then delete from provisioning_steps where business_id = p_business_id and step = p_step;
     else update provisioning_steps set status = p_before_status, error = p_before_error, attempt_id = null, updated_at = now()
           where business_id = p_business_id and step = p_step;

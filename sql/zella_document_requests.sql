@@ -6,7 +6,10 @@
 -- only, does it as one transaction under the business row lock: refuses (TOO_SOON, with the last request's time) a
 -- request inside the wait, queues S4 in the platform outbox when it is installed and an address is given, and writes
 -- the business.documents_requested audit row; if any part fails, none of it happens. The server renders the email.
--- Nothing existing is replaced. The function must be absent or exactly this file's version, otherwise
+-- Also zella_latest_audit_at(p_business_ids, p_action), server only: each listed business's newest audit row time (of
+-- one action, or any), up to 1000 businesses a call, for Missing documents (the last request) and Business onboarding
+-- (a draft's last activity), so no business is left out by a row limit.
+-- Nothing existing is replaced. Each function must be absent or exactly this file's version, otherwise
 -- VERSION_MISMATCH. Rollback: sql/rollback/zella_document_requests_rollback.sql
 begin;
 
@@ -18,6 +21,10 @@ begin
   if to_regprocedure('public.zella_request_documents(uuid,uuid,text[],integer,text,text,text,text)') is not null
      and md5(pg_get_functiondef(to_regprocedure('public.zella_request_documents(uuid,uuid,text[],integer,text,text,text,text)'))) <> '2d17e7456746cc5d9796f73806e6267f' then
     raise exception 'VERSION_MISMATCH: zella_request_documents is not a version this file was written for';
+  end if;
+  if to_regprocedure('public.zella_latest_audit_at(uuid[],text)') is not null
+     and md5(pg_get_functiondef(to_regprocedure('public.zella_latest_audit_at(uuid[],text)'))) <> 'fe6dca53934f0c9b7483767a71099ed6' then
+    raise exception 'VERSION_MISMATCH: zella_latest_audit_at is not a version this file was written for';
   end if;
 end $$;
 
@@ -54,6 +61,19 @@ begin
 end
 $function$;
 
+CREATE OR REPLACE FUNCTION public.zella_latest_audit_at(p_business_ids uuid[], p_action text DEFAULT NULL)
+ RETURNS TABLE(business_id uuid, latest timestamp with time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select b.id, (select max(a.created_at) from public.audit_logs a where a.business_id = b.id and (p_action is null or a.action = p_action))
+    from unnest(coalesce(p_business_ids, '{}')) with ordinality b(id, n)
+   where b.n <= 1000
+$function$;
+
+revoke all on function public.zella_latest_audit_at(uuid[], text) from public, anon, authenticated;
+grant execute on function public.zella_latest_audit_at(uuid[], text) to service_role;
 revoke all on function public.zella_request_documents(uuid, uuid, text[], integer, text, text, text, text) from public, anon, authenticated;
 grant execute on function public.zella_request_documents(uuid, uuid, text[], integer, text, text, text, text) to service_role;
 
