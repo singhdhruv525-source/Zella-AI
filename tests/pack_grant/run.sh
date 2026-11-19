@@ -51,4 +51,20 @@ v=$(as $BILL "public.zella_admin_pack_grant('$BARE', '$PACK', 'Goodwill for an o
 after=$(q "select count(*) from public.billing_periods where business_id = '$BARE'") || after="read failed"
 [[ "$v" == *NO_CURRENT_PERIOD* ]] && [ "$before" = "0" ] && [ "$after" = "0" ] && ok "no current period is refused and no period is opened ($before -> $after)" || bad "no period: $v ($before -> $after)"
 
+# Two step sign in in the database (lane A's sql/zella_admin_mfa.sql, built, not applied): a request runs
+# zella_pre_request first (production's PostgREST db-pre-request hook, in the same transaction), then the RPC. With the
+# file applied, an active admin's aal1 request is refused (MFA_REQUIRED) even without an authenticator set up, and an
+# aal2 request reaches the normal permission checks.
+"${P[@]}" -d $DB -f "$REPO/sql/zella_admin_mfa.sql" > /dev/null 2>&1 || { bad "sql/zella_admin_mfa.sql did not apply"; exit 1; }
+[ "$(q "select count(*) from auth.mfa_factors where user_id in ('$BILL', '$RO')")" = "0" ] || bad "the test admins must have no authenticator"
+viahook() { q "do \$\$ declare v text; begin perform set_config('request.jwt.claims', json_build_object('sub', '$1', 'role', 'authenticated', 'aal', '$2')::text, true);
+  set local role authenticated; begin perform public.zella_pre_request(); v := ($3)::text; exception when others then v := 'ERR:' || sqlerrm; end; reset role; raise notice 'V=%', v; end \$\$" 2>&1 | sed -n 's/.*V=//p'; }
+before=$(q "select count(*) from public.allowance_buckets where business_id = '$BIZ' and kind = 'pack'") || before="read failed"
+v=$(viahook $BILL aal1 "public.zella_admin_pack_grant('$BIZ', '$PACK', 'Goodwill for an outage', 'dialog-key-0004')")
+after=$(q "select count(*) from public.allowance_buckets where business_id = '$BIZ' and kind = 'pack'") || after="read failed"
+[[ "$v" == *MFA_REQUIRED* ]] && [ "$before" = "1" ] && [ "$after" = "1" ] && ok "with sql/zella_admin_mfa.sql, a billing admin without an authenticator on an aal1 session is refused (MFA_REQUIRED) and nothing is granted" || bad "aal1 direct call: $v ($before -> $after)"
+v=$(viahook $RO aal2 "public.zella_admin_pack_grant('$BIZ', '$PACK', 'Goodwill for an outage', 'dialog-key-0005')")
+[[ "$v" == *NOT_ALLOWED* ]] && ok "an aal2 request reaches the normal permission check (a read only admin: NOT_ALLOWED)" || bad "aal2 read only: $v"
+v=$(viahook $BILL aal2 "public.zella_admin_pack_grant('$BIZ', '$PACK', 'Goodwill for an outage', 'dialog-key-0006')")
+[[ "$v" == *'"granted"'* ]] && ok "and a billing.manage admin's aal2 request grants" || bad "aal2 grant: $v"
 [ $fails -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }
