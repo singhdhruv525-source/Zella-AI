@@ -11,10 +11,14 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zle_invitation_cancel}; TEMPLATE=${TEMPLATE:-zprod3}
 . "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
 # this suite drops and recreates DB: only a database named for this suite, and never the template
-[[ "$DB" =~ ^z[a-z0-9_]*invitation_cancel$ ]] && [ "$DB" != "$TEMPLATE" ] || { echo "REFUSED: DB must be this suite's own database (z..._invitation_cancel), not '$DB'" >&2; exit 1; }
+[[ "$DB" =~ ^z[a-z0-9_]*invitation_cancel$ ]] && [[ "$TEMPLATE" =~ ^[a-z_][a-z0-9_]*$ ]] && [ "$DB" != "$TEMPLATE" ] \
+  || { echo "REFUSED: DB must be this suite's own database (z..._invitation_cancel) and TEMPLATE a lowercase name, not '$DB' / '$TEMPLATE'" >&2; exit 1; }
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+# on any exit this suite's database goes; a failed drop fails an otherwise passing run
+cleanup() { local rc=$?; "${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null 2>&1 || { echo "FAIL dropping $DB"; [ $rc -eq 0 ] && rc=1; }; exit $rc; }
+trap cleanup EXIT
 q() { "${P[@]}" -d $DB -c "$1"; }
 OWNER=e9000000-0000-0000-0000-0000000000b1; ADMIN=e9000000-0000-0000-0000-0000000000a1; BIZ=e9000000-0000-0000-0000-00000000b000
 q "insert into auth.users (id, email, email_confirmed_at) values ('$OWNER', 'ola@cancel.test', now()), ('$ADMIN', 'admin@cancel.test', now());
@@ -42,5 +46,4 @@ q "delete from public.business_members where business_id = '$BIZ' and user_id = 
 v=$(accept); s=$(q "select status from public.business_members where business_id = '$BIZ' and user_id = '$OWNER'")
 [ "$v" = "1" ] && [ "$s" = "active" ] && ok "inviting the same person again after a cancel works: signing in activates the seat" || bad "reinvite: accepted=$v seat=$s"
 
-"${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null
 [ $fails -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

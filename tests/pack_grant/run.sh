@@ -10,10 +10,14 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zle_pack_grant}; TEMPLATE=${TEMPLATE:-zprod3}
 . "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
 # this suite drops and recreates DB: only a database named for this suite, and never the template
-[[ "$DB" =~ ^z[a-z0-9_]*pack_grant$ ]] && [ "$DB" != "$TEMPLATE" ] || { echo "REFUSED: DB must be this suite's own database (z..._pack_grant), not '$DB'" >&2; exit 1; }
+[[ "$DB" =~ ^z[a-z0-9_]*pack_grant$ ]] && [[ "$TEMPLATE" =~ ^[a-z_][a-z0-9_]*$ ]] && [ "$DB" != "$TEMPLATE" ] \
+  || { echo "REFUSED: DB must be this suite's own database (z..._pack_grant) and TEMPLATE a lowercase name, not '$DB' / '$TEMPLATE'" >&2; exit 1; }
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+# on any exit this suite's database goes; a failed drop fails an otherwise passing run
+cleanup() { local rc=$?; "${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null 2>&1 || { echo "FAIL dropping $DB"; [ $rc -eq 0 ] && rc=1; }; exit $rc; }
+trap cleanup EXIT
 q() { "${P[@]}" -d $DB -c "$1"; }
 BILL=ea000000-0000-0000-0000-0000000000a1; RO=ea000000-0000-0000-0000-0000000000a2; BIZ=ea000000-0000-0000-0000-00000000b000; BARE=ea000000-0000-0000-0000-00000000b001
 q "insert into auth.users (id, email, email_confirmed_at) values ('$BILL', 'billing@grant.test', now()), ('$RO', 'reader@grant.test', now());
@@ -42,10 +46,9 @@ a=$(q "select count(*) from public.audit_logs where business_id = '$BIZ' and act
 [ "$a" = "1" ] && ok "one billing.pack_granted row, with the admin's id" || bad "audit rows: $a"
 v=$(as $RO "public.zella_admin_pack_grant('$BIZ', '$PACK', 'Goodwill for an outage', 'dialog-key-0002')")
 [[ "$v" == *NOT_ALLOWED* ]] && ok "an admin without billing.manage is refused" || bad "read only: $v"
-before=$(q "select count(*) from public.billing_periods where business_id = '$BARE'")
+before=$(q "select count(*) from public.billing_periods where business_id = '$BARE'") || before="read failed"
 v=$(as $BILL "public.zella_admin_pack_grant('$BARE', '$PACK', 'Goodwill for an outage', 'dialog-key-0003')")
-after=$(q "select count(*) from public.billing_periods where business_id = '$BARE'")
-[[ "$v" == *NO_CURRENT_PERIOD* ]] && [ "$before" = "$after" ] && ok "no current period is refused and no period is opened ($before -> $after)" || bad "no period: $v ($before -> $after)"
+after=$(q "select count(*) from public.billing_periods where business_id = '$BARE'") || after="read failed"
+[[ "$v" == *NO_CURRENT_PERIOD* ]] && [ "$before" = "0" ] && [ "$after" = "0" ] && ok "no current period is refused and no period is opened ($before -> $after)" || bad "no period: $v ($before -> $after)"
 
-"${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null
 [ $fails -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

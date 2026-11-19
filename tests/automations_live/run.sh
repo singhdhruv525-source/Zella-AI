@@ -12,10 +12,14 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zle_automations_live}; TEMPLATE=${TEMPLATE:-zprod3}
 . "$REPO/tests/lib/isolated_guard.sh"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
 # this suite drops and recreates DB: only a database named for this suite, and never the template
-[[ "$DB" =~ ^z[a-z0-9_]*automations_live$ ]] && [ "$DB" != "$TEMPLATE" ] || { echo "REFUSED: DB must be this suite's own database (z..._automations_live), not '$DB'" >&2; exit 1; }
+[[ "$DB" =~ ^z[a-z0-9_]*automations_live$ ]] && [[ "$TEMPLATE" =~ ^[a-z_][a-z0-9_]*$ ]] && [ "$DB" != "$TEMPLATE" ] \
+  || { echo "REFUSED: DB must be this suite's own database (z..._automations_live) and TEMPLATE a lowercase name, not '$DB' / '$TEMPLATE'" >&2; exit 1; }
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 "${P[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
+# on any exit this suite's database goes; a failed drop fails an otherwise passing run
+cleanup() { local rc=$?; "${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null 2>&1 || { echo "FAIL dropping $DB"; [ $rc -eq 0 ] && rc=1; }; exit $rc; }
+trap cleanup EXIT
 q() { "${P[@]}" -d $DB -c "$1"; }
 OWNER=e8000000-0000-0000-0000-0000000000b1; LIVE=e8000000-0000-0000-0000-00000000b001; TEST=e8000000-0000-0000-0000-00000000b002
 q "insert into auth.users (id, email, email_confirmed_at) values ('$OWNER', 'owner@live.test', now());
@@ -52,5 +56,4 @@ v=$(q "do \$\$ declare v text; begin perform set_config('request.jwt.claims', js
 v=$(q "select string_agg(name || '=' || status, ', ' order by name) from public.automations where business_id = '$TEST'")
 [ "$v" = "Industry rule=active, Standard=active" ] && ok "going live activates industry rules saved paused during testing, and standard ones ($v)" || bad "after go live: $v"
 
-"${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null
 [ $fails -eq 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }
