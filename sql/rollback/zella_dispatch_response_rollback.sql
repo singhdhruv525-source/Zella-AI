@@ -11,7 +11,7 @@ begin
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_dispatch_response') then
     return;   -- not applied, or already rolled back
   end if;
-  if md5(pg_get_functiondef(s::regprocedure)) <> 'd830c8fb2bacf67fa05246e1b2bcd3e1' then
+  if md5(pg_get_functiondef(s::regprocedure)) <> '48ebbf41429852c7f5a04a35bd09ff4f' then
     raise exception 'ROLLBACK_DRIFT: % has changed since this migration', s;
   end if;
   for a in select definition from public.zella_function_archive where migration = 'zella_dispatch_response' loop

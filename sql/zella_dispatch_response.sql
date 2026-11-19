@@ -28,7 +28,7 @@ begin
   if md5(d) = '4333da07a5c57d91aa8f018e75368345' then          -- production's version (after zella_email_delivery.sql): archive it
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_dispatch_response', s, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> 'd830c8fb2bacf67fa05246e1b2bcd3e1' then                               -- nor exactly this file's version (already applied)
+  elsif md5(d) <> '48ebbf41429852c7f5a04a35bd09ff4f' then                               -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
 end $$;
@@ -52,7 +52,7 @@ declare
   v_base text := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '');
   v_on boolean := coalesce(public.zella_setting('n8n_dispatch_enabled', 'false'::jsonb) = 'true'::jsonb, false);
   v_secret text; w record; n integer; st public.n8n_dispatch_state; v_same integer; v_res jsonb := '{}'::jsonb; v_spam integer := 0; v_reconcile integer := 0; v_reviews integer := 0;
-  v_req bigint; v_resp jsonb; v_code integer; prev record;
+  v_req bigint; v_resp jsonb; v_code integer; prev record; v_written integer;
   v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer', 'cross_sell'];
   v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'cross_sell'];
 begin
@@ -84,18 +84,20 @@ begin
       exception when others then v_resp := null;
       end;
       continue when v_resp is null;
-      -- an answer older than the one already recorded only leaves the queue: it never overwrites the newer answer,
-      -- raises or resolves an alert
-      if exists (select 1 from public.n8n_dispatch_state x where x.workflow = prev.workflow and x.response_request_id > prev.rid) then
-        update public.n8n_dispatch_state set pending_request_ids = array_remove(pending_request_ids, prev.rid) where workflow = prev.workflow;
-        continue;
-      end if;
       v_code := case when coalesce(v_resp ->> 'status_code', '') ~ '^[0-9]{1,3}$' then (v_resp ->> 'status_code')::integer end;
       update public.n8n_dispatch_state set response_request_id = prev.rid, last_status_code = v_code,
              last_response_at = coalesce(case when v_resp ->> 'created' is not null then (v_resp ->> 'created')::timestamptz end, now()),
              last_error = left(coalesce(nullif(v_resp ->> 'error_msg', ''), case when (v_resp ->> 'timed_out') = 'true' then 'Timed out' end), 200),
              pending_request_ids = array_remove(pending_request_ids, prev.rid)
-       where workflow = prev.workflow;
+       -- only an answer newer than the one recorded is written; the condition is checked by the write itself, so two
+       -- overlapping runs can never put an older answer over a newer one
+       where workflow = prev.workflow and (response_request_id is null or response_request_id < prev.rid);
+      get diagnostics v_written = row_count;
+      if v_written = 0 then
+        -- an older answer only leaves the queue: no overwrite, no alert raised or resolved from it
+        update public.n8n_dispatch_state set pending_request_ids = array_remove(pending_request_ids, prev.rid) where workflow = prev.workflow;
+        continue;
+      end if;
       if v_code in (401, 403, 404) then
         perform public.zella_platform_alert('n8n_dispatch_refused',
           case when v_code = 404 then 'n8n has no published workflow for ' || prev.workflow else 'n8n refused the dispatcher (wrong secret?)' end,
