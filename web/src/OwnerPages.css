@@ -271,7 +271,7 @@
   place-items: center;
   border-radius: var(--radius-full);
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .op-check-dot.ok { background: var(--status-success-bg); color: var(--status-success); }
@@ -309,7 +309,7 @@
   margin: 0 0 8px;
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: 0.65px;
   text-transform: uppercase;
 }
@@ -768,7 +768,7 @@
   margin: 0 0 10px;
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 750;
+  font-weight: 600;
   letter-spacing: 0.65px;
   text-transform: uppercase;
 }
@@ -868,7 +868,7 @@
   gap: 10px;
   margin-bottom: 26px;
   font-size: 18px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .cp-ai { color: var(--color-primary); }
@@ -899,14 +899,14 @@
   border-radius: var(--radius-full);
   background: var(--status-warning-bg);
   color: var(--status-warning);
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .cp-icon.ok { background: var(--status-success-bg); color: var(--status-success); }
 
 .st-layout .owner-table td:first-child { min-width: 190px; }
 .st-layout .owner-table td:nth-child(2) { min-width: 110px; }
-.st-layout .owner-table td:last-child { max-width: 160px; overflow-wrap: anywhere; }
+.st-layout .owner-table td:last-child { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .op-list li > .po-count {
   flex-direction: row;
@@ -1132,8 +1132,12 @@
 .ao-search input[type="search"] { min-width: 230px; }
 .ao-check { display: inline-flex; align-items: center; gap: 6px; height: 36px; font-size: 13px; color: var(--text-primary); }
 .ao-pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; font-size: 13px; }
-.ao-table td { vertical-align: top; }
 .ao-clickable { cursor: pointer; }
+/* a stat tile that opens the list behind its number (Voice overview, UI-14) */
+.ao-tile { display: block; width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--zella-radius-lg); }
+.ao-tile .owner-stat-card { height: 100%; }
+.ao-tile:hover .owner-stat-card { border-color: var(--color-primary); }
+.ao-tile:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .ao-clickable:hover td, .ao-clickable:focus-visible td { background: var(--color-primary-subtle); }
 .ao-flags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .ao-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
@@ -1150,11 +1154,19 @@
 .ao-provider { padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
 .ao-provider-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .ao-facts { display: grid; gap: 0; margin: 8px 0 0; }
-.ao-facts > div { display: grid; grid-template-columns: minmax(120px, 38%) 1fr; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border-subtle); font-size: 13px; }
-.ao-facts dt { color: var(--text-secondary); }
+.ao-facts > div { display: grid; grid-template-columns: minmax(140px, 40%) 1fr; column-gap: 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); }
+.ao-facts dt { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.ao-facts dd { color: var(--zella-text); font-size: var(--zella-text-base); font-weight: 500; }
 .ao-facts dd { margin: 0; overflow-wrap: anywhere; }
 .ao-drawer-overlay { justify-content: flex-end; align-items: stretch; padding: 0; }
-.ao-drawer { width: min(600px, 100vw); max-height: 100vh; height: 100vh; border-radius: 0; padding: 20px 22px 28px; overflow: auto; }
+.ao-drawer { width: min(600px, 100vw); max-height: 100vh; height: 100vh; border-radius: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; }
+.ao-drawer-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--zella-border); background: var(--zella-card); }
+.ao-drawer-title { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ao-drawer-eyebrow { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); font-weight: 500; }
+.ao-drawer-title h3 { margin: 0; color: var(--zella-text); font-family: var(--zella-font); font-size: var(--zella-text-xl); font-weight: 600; letter-spacing: 0; line-height: var(--zella-leading-tight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ao-drawer-body { flex: 1 0 auto; padding: 16px 20px 24px; }
+.ao-drawer-foot { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--zella-border); background: var(--zella-card); }
+.drawer-section h3, .ao-drawer-body h3 { margin: 16px 0 8px; color: var(--zella-text); font-family: var(--zella-font); font-size: var(--zella-text-lg); font-weight: 600; letter-spacing: 0; }
 .ao-dialog-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .ao-dialog-head h3 { flex: 1; margin: 0; font-size: 16px; overflow-wrap: anywhere; }
 .ao-dialog-icon { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--color-primary-subtle); color: var(--color-primary); }
@@ -1172,7 +1184,7 @@
 .ao-pre { white-space: pre-wrap; font: inherit; font-size: 13px; margin: 6px 0; padding: 10px 12px; border-radius: var(--radius-md, 8px); background: var(--zella-subtle, rgba(127,127,127,.08)); max-height: 360px; overflow: auto; }
 .ao-content audio { width: 100%; margin: 6px 0; }
 .ao-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; font-size: 12px; }
-.ao-chip { border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--color-primary); border-radius: 999px; padding: 2px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.ao-chip { border: 1px solid var(--zella-border-strong); background: var(--zella-card); color: var(--zella-text-2); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
 .ao-chip:disabled { cursor: default; opacity: .6; }
 .ao-preview { padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
 .ao-diff td, .ao-diff th { font-size: 13px; }

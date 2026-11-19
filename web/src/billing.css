@@ -58,7 +58,6 @@
 .bp-warn li b { font-weight: 600; }
 .bp-primary { width: 100%; height: 42px; border: 0; border-radius: var(--zella-radius-md); background: var(--zella-primary); color: var(--zella-on-primary); font: inherit; font-weight: 600; cursor: pointer; }
 .bp-primary:hover:not(:disabled) { background: var(--zella-primary-hover); }
-.bp-primary:disabled { opacity: 0.5; cursor: default; }
 .bp-muted { font-size: var(--zella-text-xs); color: var(--zella-text-secondary); margin: 0; }
 .bp-versions { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: var(--zella-text-sm); }
 .bp-versions li { display: flex; justify-content: space-between; gap: var(--zella-space-3); color: var(--zella-text-secondary); }

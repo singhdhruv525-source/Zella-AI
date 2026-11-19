@@ -5,7 +5,11 @@ import { callOwnerFunction } from "../CreateBusinessWizard";
 import { TimeZoneSelect } from "../formFields";
 import { switchHint } from "../copy/liveSwitches";
 import { uploadImage } from "./PersonalPanels";
-import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
+import OauthAppsPanel from "./panels/OauthApps";
+import N8nStatus from "./panels/N8nStatus";
+import AlertRulesPanel from "./panels/AlertRules";
+import { GO_LIVE_PATH } from "../admin/GoLiveChecklist";
+import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, MissingSettings, Needs, Pill, SaveBar, SectionSaveBar, SettingRow, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
 import { figureRows, reportError, scheduleFacts, weekLabel } from "./weeklyReport";
 
@@ -272,40 +276,8 @@ export function TenantSummary({ businessId }) {
   );
 }
 
-const CHECKS = [["profile", "Profile"], ["industry", "Industry"], ["receptionist", "AI receptionist"], ["phone", "Phone"], ["owner_invited", "Owner invited"], ["billing", "Billing"]];
-
-export function Onboarding({ me, openSetup, openBusiness }) {
-  const state = useAsync(() => call("onboarding_overview"), []);
-  const [notice, setNotice] = useState({ text: "", error: "" });
-  async function resend(id) {
-    try { await call("invitation_resend", { businessId: id }); setNotice({ text: "Invitation sent again.", error: "" }); state.reload(); }
-    catch (err) { setNotice({ text: "", error: err.message }); }
-  }
-  return (
-    <>
-      <Banner tone="success">{notice.text}</Banner>
-      <Banner tone="error">{notice.error}</Banner>
-      <Card title="Businesses still in setup" sub="Each check reads the business's real records. A tick means it's in place.">
-        <LoadState state={state}>{(d) => (
-          <Table rows={d.rows} empty="Every business has finished setup." columns={[
-            ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
-            ["Step", (b) => words(b.onboarding_status)],
-            ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success">✓</Pill> : <Pill tone="warning">Missing</Pill>)]),
-            ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => `${words(f.step)}${f.error ? `: ${f.error}` : ""}`).join("; ") : "None")],
-            ["", (b) => can(me, "businesses.manage") ? (
-              <span className="zs-actions">
-                <button type="button" className="zs-btn sm" onClick={() => openSetup(b.id)}>Continue setup</button>
-                {!b.checks.owner_invited && <button type="button" className="zs-btn sm" onClick={() => resend(b.id)}>Send owner invite</button>}
-              </span>) : null],
-          ]} />
-        )}</LoadState>
-      </Card>
-      <Needs title="Automatic retry of failed provisioning steps isn't built" have="Steps stuck for 30 minutes are marked failed every hour and shown above; Continue setup reruns the setup wizard, which only adds what's missing.">
-        A safe automatic retry needs each provisioning step (agent, phone number, integrations) to be re-runnable on its own.
-      </Needs>
-    </>
-  );
-}
+// Business onboarding: its own file (Lane B)
+export { default as Onboarding } from "./panels/Onboarding";
 
 export function Lifecycle({ openBusiness }) {
   const state = useAsync(() => Promise.all(["suspended", "cancelling", "cancelled"].map((status) => call("tenants_search", { status }))), []);
@@ -375,34 +347,19 @@ export function Provisioning({ openBusiness }) {
   );
 }
 
-export function DataLifecycle({ me }) {
-  const state = useAsync(() => Promise.all([call("privacy_overview"), call("tenants_search", { status: "cancelled" })]), []);
-  return (
-    <LoadState state={state}>{([p, c]) => (
-      <>
-        <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
-        <Card title="Canceled businesses" sub="Their records stay until the retention date.">
-          <Table rows={c.rows} empty="No canceled businesses." columns={[["Business", (b) => b.name], ["Canceled", (b) => when(b.cancelled_at)]]} />
-        </Card>
-        <Card title="Customer data requests across businesses" sub="Counts only. Each business handles its own requests.">
-          <Facts rows={[["Open", p.requests.open], ["Overdue", p.requests.overdue], ...Object.entries(p.requests.byKind).map(([k, v]) => [words(k), v])]} />
-        </Card>
-        <Needs title="Whole business export and deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Canceled businesses are kept, never deleted automatically.">
-          Exporting or deleting a whole business needs a job that runs in the background, records its progress, and can be approved and stopped.
-        </Needs>
-      </>
-    )}</LoadState>
-  );
-}
+// Data lifecycle: its own file (Lane B)
+export { default as DataLifecycle } from "./panels/DataLifecycle";
 
 // One editable platform setting (owner only on the server).
 export function SettingNumber({ me, keyName, label, current, hint }) {
   const form = useForm({ value: String(current ?? "") });
   const owner = me?.role === "zella_owner";
   return (
-    <Card title={label} sub={hint}>
-      <div className="zs-grid"><Field label={label} hint={owner ? `Setting ${keyName}` : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} /></Field></div>
-      {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: keyName, value: v.value }); })} />}
+    <Card>
+      <SettingRow label={label} help={owner ? hint : [hint, "Only a Zella Voice owner can change this."].filter(Boolean).join(" ")} technical={<>Setting key <code>{keyName}</code></>}>
+        <input className="zs-input zs-input-num" aria-label={label} value={form.values.value} onChange={form.set("value")} inputMode="numeric" disabled={!owner} />
+      </SettingRow>
+      {owner && <SectionSaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: keyName, value: v.value }); })} />}
     </Card>
   );
 }
@@ -741,13 +698,54 @@ export function AiProviders({ me }) {
   );
 }
 
+const settingText = (value) => (typeof value === "string" ? value : Array.isArray(value) ? value.join(", ") : JSON.stringify(value));
+
 function SettingText({ me, row, hint = "Checked by the provider on first use." }) {
-  const form = useForm({ value: typeof row.value === "string" ? row.value : Array.isArray(row.value) ? row.value.join(", ") : JSON.stringify(row.value) });
+  const form = useForm({ value: settingText(row.value) });
   const owner = me?.role === "zella_owner";
+  const label = row.label ?? settingLabel(row.key);
   return (
-    <Card title={row.label ?? settingLabel(row.key)} sub={<>Setting key <code>{row.key}</code> · changed {when(row.updated_at)}</>}>
-      <div className="zs-grid"><Field label="Value" hint={owner ? hint : "Only a Zella Voice owner can change this."}><input value={form.values.value} onChange={form.set("value")} disabled={!owner} /></Field></div>
-      {owner && <SaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
+    <Card>
+      <SettingRow label={label} help={owner ? hint : "Only a Zella Voice owner can change this."}
+        technical={<>Setting key <code>{row.key}</code>, changed {when(row.updated_at)}</>}>
+        <input className="zs-input" aria-label={label} value={form.values.value} onChange={form.set("value")} disabled={!owner} />
+      </SettingRow>
+      {owner && <SectionSaveBar form={form} onSave={() => form.save(async (v) => { await call("platform_setting_save", { key: row.key, value: v.value }); })} />}
+    </Card>
+  );
+}
+
+// A group of settings in one card, with one save bar for the whole group. Saving sends each changed setting.
+function SettingGroup({ me, title, rows }) {
+  const form = useForm(Object.fromEntries(rows.map(({ row }) => [row.key, settingText(row.value)])));
+  const owner = me?.role === "zella_owner";
+  // Each setting saves on its own; if one fails, the ones already stored are reported back so they stop showing as
+  // unsaved and Discard only reverts the rest.
+  const save = () => form.save(async (v) => {
+    const acknowledged = {};
+    for (const { row } of rows) {
+      if (v[row.key] === form.saved[row.key]) continue;
+      try {
+        await call("platform_setting_save", { key: row.key, value: v[row.key] });
+      } catch (err) {
+        if (Object.keys(acknowledged).length) err.acknowledged = acknowledged;
+        throw err;
+      }
+      acknowledged[row.key] = v[row.key];
+    }
+  });
+  return (
+    <Card title={title}>
+      {rows.map(({ row, hint, unavailable, key }) => {
+        const label = settingLabel(key ?? row.key);
+        return (
+          <SettingRow key={key ?? row.key} label={label} help={hint} unavailable={unavailable}
+            technical={<>Setting key <code>{key ?? row.key}</code>{row?.updated_at ? <>, changed {when(row.updated_at)}</> : null}</>}>
+            {!unavailable && <input className="zs-input zs-input-num" aria-label={label} value={form.values[row.key] ?? ""} onChange={form.set(row.key)} disabled={!owner} />}
+          </SettingRow>
+        );
+      })}
+      {owner && <SectionSaveBar form={form} onSave={save} />}
     </Card>
   );
 }
@@ -1027,55 +1025,40 @@ export function IntegrationRegistry({ onNavigate }) {
 }
 
 export function OauthApps() {
-  return <Needs title="OAuth app settings are kept outside Zella Voice" have="Google Calendar connections are stored per business (calendar_connections), with tokens in the database vault; only status and the account email are ever shown.">Client IDs and secrets live in Google Cloud and in Supabase secrets. Showing whether they're set needs those secret names added to the server configuration check.</Needs>;
+  return <OauthAppsPanel />;
 }
 
-// The go-live checklist: each step that must be true before Zella Voice's automations really reach customers. Read from
-// the database (zella_automation_readiness, platform admins only); on/off facts only, never a key or number.
-// [check, label, what it means, the setting, secret or job behind it (shown only as a tooltip, UI-21)]
-const READINESS = [
-  ["dispatch_switch", "Dispatcher switch on", "A platform setting that lets the database hand work to n8n", "Setting n8n_dispatch_enabled"],
-  ["secret_stored", "n8n secret stored in the database", "The shared secret n8n checks, kept in the database vault (see the n8n setup guide)", "Vault secret zella_n8n_secret"],
-  ["dispatch_job", "Dispatcher job running", "The scheduled job that hands due work to n8n every minute", "Scheduled job zella_dispatch"],
-  ["n8n_address_set", "n8n address set", "Where the database sends work for n8n", "Setting n8n_base_url"],
-  ["app_address_set", "App address set (customer links)", "The https address used in links sent to customers", "Setting app_base_url"],
-  ["text_sender_set", "Text sender number set", "The number texts are sent from", "Setting sms_from_number"],
-  ["texts_live", "Texts live", "Off means test mode: nothing is sent", "Setting sms_live"],
-  ["email_sender_set", "Email sender address set", "The address emails are sent from", "Setting email_from_address"],
-  ["emails_live", "Emails live", "Off means test mode: nothing is sent", "Setting email_live"],
-  ["calls_live", "AI calls live", "Off means the AI places no outbound calls", "Setting calls_live"],
-];
+// The go live checklist moved to Platform operations (UI-23): one list for secrets, settings, scheduled jobs and live
+// switches. Here it is a link; the scheduled jobs table stays where the page doesn't list the jobs already.
+function GoLiveLink() {
+  return (
+    <Card title="Go live checklist" sub="Secrets, settings, scheduled jobs and live switches are in one list on Platform operations.">
+      <button type="button" className="zs-link" onClick={() => navigate(GO_LIVE_PATH)}>Open the go live checklist</button>
+    </Card>
+  );
+}
 
 function Readiness({ showJobs = true }) {
   const state = useAsync(async () => {
+    if (!showJobs) return { jobs: null };
     const { data, error } = await supabase.rpc("zella_automation_readiness");
-    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { missing: true };
+    // a missing reader or a missing list is "not available", never "no jobs"
+    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { unavailable: true };
     if (error) throw error;
-    return data ?? { missing: true };
-  }, []);
+    return Array.isArray(data?.jobs) ? { jobs: data.jobs } : { unavailable: true };
+  }, [showJobs]);
   return (
-    <LoadState state={state}>{(r) => r.missing ? (
-      <Needs title="The go live checklist needs a database update" have="The settings below still show what the server knows.">Once the messaging status update is applied to the database, this shows each step that must be on before messages and calls really go out.</Needs>
-    ) : (
-      <>
-        <Card title="Go live checklist" sub={`${READINESS.filter(([k]) => r[k]).length} of ${READINESS.length} ready. Until every step is ready, Zella Voice records messages as not sent and nothing reaches customers.`}>
-          <ul className="zs-checklist">
-            {READINESS.map(([key, label, hint, setting]) => (
-              <li key={key} className={r[key] ? "ok" : ""}>
-                <span className="zs-check-marker" aria-hidden="true">{r[key] ? "✓" : ""}</span>
-                <span title={setting}><strong>{label}</strong><small>{hint}</small></span>
-                <Pill tone={r[key] ? "success" : "warning"}>{r[key] ? "Ready" : "Not yet"}</Pill>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        {showJobs && (
+    <>
+      <GoLiveLink />
+      {showJobs && (
+        <LoadState state={state}>{(r) => (
           <Card title="Scheduled database jobs" sub="They run inside Supabase and hand due work to n8n.">
-            <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella Voice jobs found. The dispatcher database update adds them, and is applied last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
+            {r.unavailable ? <Banner tone="warn">Job status isn't available: the database update that reports it hasn't been applied, or it sent no list. Nothing here is confirmed.</Banner> :
+            <Table rowKey={(j) => j.name} rows={r.jobs} empty="No Zella Voice jobs found. The dispatcher database update adds them, and is applied last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />}
           </Card>
-        )}
-      </>
-    )}</LoadState>
+        )}</LoadState>
+      )}
+    </>
   );
 }
 
@@ -1087,13 +1070,13 @@ export function N8nConfig({ showJobs = true } = {}) {
       <>
         <Readiness showJobs={showJobs} />
         <Card title="n8n">
-          <Facts rows={[["Webhook address", a.n8n.url ? "Set" : "Not set"], ["Dispatcher switch", a.n8n.dispatchEnabled ? "On (the job and secret are in the checklist above)" : "Off"], ["n8n address in database", a.n8n.baseUrlSet ? "Set" : "Not set"],
+          <Facts rows={[["Webhook address", a.n8n.url ? "Set" : "Not set"], ["Dispatcher switch", a.n8n.dispatchEnabled ? "On (the job and secret are on the go live checklist)" : "Off"], ["n8n address in database", a.n8n.baseUrlSet ? "Set" : "Not set"],
             ["Dead letters", a.deadLetters]]} />
         </Card>
         <Card title="Dispatcher state" sub="What the database sent to each n8n workflow most recently.">
           <Table rowKey={(r) => r.workflow ?? r.key ?? JSON.stringify(r)} rows={a.dispatch} empty="Nothing dispatched yet." columns={Object.keys(a.dispatch[0] ?? { workflow: 1 }).slice(0, 6).map((k) => [words(k), (r) => (typeof r[k] === "string" && /T\d\d:/.test(r[k]) ? when(r[k]) : String(r[k] ?? "Not recorded"))])} />
         </Card>
-        <Needs title="n8n workflow activation and execution logs aren't read from n8n" have="Workflow runs are recorded in Zella Voice and shown under Runs and Automation monitoring.">Reading n8n's own status needs the n8n API with a server side key.</Needs>
+        <N8nStatus />
       </>
     )}</LoadState>
   );
@@ -1254,8 +1237,8 @@ export function AdminNotifications() {
   );
 }
 
-export function AlertRules() {
-  return <Needs title="Alert rules aren't editable yet" have="Each alert is raised by the database check that found the problem, with its own severity and a deduplication key so repeats are counted, not resent.">Editable rules need a rules table (condition, severity, destination, frequency, quiet window) that every check reads before raising an alert.</Needs>;
+export function AlertRules({ me }) {
+  return <AlertRulesPanel me={me} />;
 }
 
 export function NotificationChannels() {
@@ -1479,53 +1462,8 @@ export function SystemConfig() {
 
 /* ---------------- Operational rules ---------------- */
 
-// Timings and thresholds the scheduled checks read from platform_settings. Saved by a Zella Voice owner; each value is
-// checked by the admin function before it is stored, and the jobs pick it up on their next run.
-const OPERATIONAL = [
-  ["Leads and tasks", [
-    ["response_time_minutes", "How fast a new lead should get a reply. Late replies show on reports and in alerts."],
-    ["task_overdue_grace_minutes", "Extra minutes before a task counts as overdue."],
-    ["task_escalate_hours", "Overdue tasks are sent to the business owner after this long."],
-    ["team_summary_hour", "Hour of the day (business time) the daily team summary is sent."],
-  ]],
-  ["Calls", [
-    ["missed_call_max_seconds", "Calls shorter than this count as missed and get a callback."],
-    ["transfer_failure_threshold", "Failed transfers to a person, in a day, before Zella Voice flags the business."],
-    ["call_intel_monthly_limit", "Calls per business per month that the AI summarizes."],
-  ]],
-  ["AI quality and knowledge", [
-    ["ai_low_confidence_questions", "Unsure answers in one call before the call is flagged for review."],
-    ["knowledge_repeat_threshold", "Times the same question is asked before it is suggested as new knowledge."],
-    ["response_sample_rate", "Share of AI conversations picked for quality review: 0.1 is one in ten."],
-  ]],
-  ["Onboarding and trials", [
-    ["invitation_reminder_hours", "Hours after an owner invitation that reminders go out, for example 24, 72."],
-    ["setup_incomplete_after_days", "Days after creation before an unfinished setup is flagged."],
-    ["trial_notice_days", "Days before a trial ends that the owner is told, for example 7, 3, 1."],
-  ]],
-];
-
-export function OperationalRules({ me }) {
-  const state = useAsync(() => call("platform_settings_list"), []);
-  return (
-    <LoadState state={state}>{(s) => (
-      <>
-        {me?.role !== "zella_owner" && <Banner tone="warn">Only a Zella Voice owner can change these. You can see the current values.</Banner>}
-        {OPERATIONAL.map(([group, keys]) => (
-          <div key={group}>
-            <h3 className="zs-group">{group}</h3>
-            {keys.map(([k, hint]) => {
-              const row = s.settings.find((x) => x.key === k);
-              return row
-                ? <SettingText key={k} me={me} row={{ ...row, label: settingLabel(k) }} hint={hint} />
-                : <Banner key={k} tone="warn"><strong>{settingLabel(k)}</strong> isn't in platform settings yet: the database update that adds it hasn't been applied. <small className="zs-muted">Setting key <code>{k}</code></small></Banner>;
-            })}
-          </div>
-        ))}
-      </>
-    )}</LoadState>
-  );
-}
+// Rows with one save bar per section: settings/panels/OperationalRules.jsx
+export { default as OperationalRules } from "./panels/OperationalRules";
 
 /* ---------------- Offers and promotions ---------------- */
 

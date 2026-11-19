@@ -4,6 +4,8 @@ import { actionLabel, stageLabel, stageTone, timeAgo, formatDate } from "./owner
 import { humanize } from "./copy/labels";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { emptyText, metric } from "./admin/loadStatus";
+// The one KPI card shared by every admin page (docs/DESIGN_SYSTEM.md).
+import { Metric } from "./admin/adminOps";
 
 const ATTENTION_LABELS = {
   invitation_failed: "Invitation failed",
@@ -11,16 +13,6 @@ const ATTENTION_LABELS = {
   integration_error: "Integration problem",
   setup_failed: "Setup failed",
 };
-
-function Metric({ label, value, note }) {
-  return (
-    <div className="owner-stat-card">
-      <div className="owner-stat-top"><span>{label}</span></div>
-      <div className="owner-stat-value">{value}</div>
-      {note && <div className="owner-stat-note">{note}</div>}
-    </div>
-  );
-}
 
 function Panel({ title, description, action, children }) {
   return (
@@ -45,6 +37,8 @@ export function Pill({ tone = "neutral", children }) {
 
 const loadOverview = () => callOwnerFunction("overview_data");
 
+// onCreateBusiness and onContinueSetup are null for a role without businesses.manage: those buttons are not shown
+// (the server refuses the writes anyway).
 export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onContinueSetup, onNavigate }) {
   // the last good answer stays on screen when a refresh fails, marked as possibly out of date (admin/loadState.jsx)
   const r = useRefreshable(loadOverview);
@@ -70,23 +64,26 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
             {loading ? "Loading..." : "↻ Refresh"}
           </button>
-          <button type="button" className="owner-primary-button" onClick={onCreateBusiness}>
-            ＋ Create business
-          </button>
+          {onCreateBusiness && (
+            <button type="button" className="owner-primary-button" onClick={onCreateBusiness}>
+              ＋ Create business
+            </button>
+          )}
         </div>
       </div>
 
       <LoadNotice r={r} what="the overview" />
 
       <div className="owner-stat-grid">
-        <Metric label="Businesses" value={show(s?.totalBusinesses)} note={`${show(s?.live)} live`} />
+        <Metric label="Businesses" value={show(s?.totalBusinesses)} note={`${show(s?.live)} active`} />
         <Metric label="Setups in progress" value={show(s?.setupsInProgress)} note={`${show(s?.setupComplete)} setup complete`} />
         <Metric label="Owner invitations" value={show(s?.pendingInvitations)} note={`Pending · ${show(s?.acceptedInvitations)} accepted`} />
-        <Metric label="AI receptionists live" value={show(s?.receptionistsLive)} note="Answering calls" />
+        {/* the one server definition (docs/PRODUCT.md §9.1): live and answering are separate states */}
+        <Metric label="AI receptionists live" value={show(s?.receptionistsLive)} note={typeof s?.receptionistsAnswering === "number" ? `${s.receptionistsAnswering} answered a call in 7 days` : "Answering not available"} />
       </div>
 
       <div className="owner-stat-grid">
-        <Metric label="Calls (30 days)" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
+        <Metric label="Calls, last 30 days" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
         <Metric label="Open support tickets" value={show(s?.openTickets)} note="Open or in progress" />
         <Metric label="Needs attention" value={show(list("attention")?.length)} note="Failed invites, errors" />
         <Metric label="Suspended / canceling" value={r.status === "loading" ? "…" : `${show(s?.suspended)} / ${show(s?.cancelling)}`} note={`${show(s?.cancelled)} canceled`} />
@@ -151,9 +148,13 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
                     <button type="button" className="op-name" onClick={() => onOpenBusiness(b.id)}>{b.name}</button>
                     <span>{b.industry} · {stageLabel(b.status)} · updated {timeAgo(b.updatedAt)}</span>
                   </div>
-                  <button type="button" className="owner-secondary-button op-small" onClick={() => onContinueSetup(b.id)}>
-                    Continue setup
-                  </button>
+                  {onContinueSetup ? (
+                    <button type="button" className="owner-secondary-button op-small" onClick={() => onContinueSetup(b.id)}>
+                      Continue setup
+                    </button>
+                  ) : (
+                    <button type="button" className="op-link" onClick={() => onOpenBusiness(b.id)}>View</button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -231,7 +232,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           <div className="op-empty">
             {emptyText(r, list("recentBusinesses") ? "No businesses yet." : "Not reported.", "the overview")}
             {/* only after an answer that really lists no businesses */}
-            {list("recentBusinesses") && !list("recentBusinesses").length && (
+            {onCreateBusiness && list("recentBusinesses") && !list("recentBusinesses").length && (
               <button type="button" className="owner-primary-button op-gap-top" onClick={onCreateBusiness}>
                 ＋ Create your first business
               </button>

@@ -1,0 +1,93 @@
+/* Support tickets (SupportTickets.jsx). Page scoped: shared table rules live in styles/components.css. */
+
+/* Rows: the whole row opens the ticket; the title is plain bold text, not a bordered button */
+.st-page .st-row { cursor: pointer; }
+.st-page .st-row:hover td { background: var(--zella-alt); }
+.st-page .st-row.selected td { background: var(--zella-primary-soft); }
+.st-page .st-row.selected td:first-child { box-shadow: inset 3px 0 0 var(--zella-primary); }
+.st-page .owner-table td { vertical-align: middle; padding: 10px var(--zella-space-4); }
+
+.st-ticket-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.st-title {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--zella-text-base);
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) { .st-title:hover { text-decoration: underline; text-underline-offset: 2px; } }
+.st-title:focus-visible { outline: none; border-radius: var(--zella-radius-sm); box-shadow: var(--zella-focus); }
+.st-sub { display: block; }
+
+/* Business sits in the second line only while its own column is hidden (detail open, or a phone) */
+.st-layout:not(.with-detail) .st-sub-business { display: none; }
+
+.st-status { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.st-page .owner-table .op-pill,
+.st-page .owner-table .owner-badge { white-space: nowrap; }
+.st-nowrap { white-space: nowrap; }
+
+/* Long values stay on one line; the full value is in the title attribute */
+.st-page .owner-cell-truncate {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.st-page .owner-cell-truncate.st-creator { max-width: 160px; }
+
+/* Undo the shared "break anywhere" on the last column: emails truncate instead (OwnerPages.css) */
+.st-layout .owner-table td:last-child { max-width: none; overflow-wrap: normal; }
+.st-layout .owner-table td:first-child { min-width: 220px; }
+.st-layout .owner-table td:nth-child(2) { min-width: 0; }
+
+/* Detail panel */
+.st-page .st-detail .wiz-section-head { flex-direction: row; flex-wrap: nowrap; }
+.st-page .st-detail .wiz-section-head h3 {
+  font-size: var(--zella-text-xl);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+.st-page .st-response { margin: 0 0 var(--zella-space-4); font-size: var(--zella-text-sm); }
+.st-page .st-notes h4 {
+  margin: 0 0 var(--zella-space-3);
+  color: var(--zella-text);
+  font-size: var(--zella-text-base);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.st-page .st-notes li p { color: var(--zella-text); font-size: var(--zella-text-sm); }
+.st-page .st-notes li span { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+
+/* Phones: each ticket is a card (title, business and age, then the badges), not a sideways table */
+@media (max-width: 600px) {
+  .st-layout:not(.with-detail) .st-sub-business { display: inline; }
+  .st-page .owner-table, .st-page .owner-table tbody { display: block; width: 100%; min-width: 0; }
+  .st-page .owner-table thead { display: none; }
+  .st-page .owner-table tbody tr.st-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--zella-space-2);
+    padding: var(--zella-space-3) var(--zella-space-4);
+    border-bottom: 1px solid var(--zella-border);
+  }
+  .st-page .owner-table tbody tr.st-row:last-child { border-bottom: 0; }
+  .st-page .owner-table tbody tr.st-row td { padding: 0; border: 0; background: none; box-shadow: none; }
+  .st-page .owner-table tbody tr.st-row td:first-child { flex: 1 0 100%; min-width: 0; }
+  .st-page .owner-table tbody tr.st-row.selected { background: var(--zella-primary-soft); box-shadow: inset 3px 0 0 var(--zella-primary); }
+  .st-page .owner-table tbody tr.st-row td.st-col-business,
+  .st-page .owner-table tbody tr.st-row td.st-col-assigned { display: none; }
+  /* a long subject stays on one line inside the card, with an ellipsis; the full subject is in the title */
+  .st-page .st-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+}

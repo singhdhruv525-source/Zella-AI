@@ -1,6 +1,6 @@
 import { SidebarBrand } from "./navigation/SidebarBrand";
 import { pageFor } from "../supabase/functions/_shared/pageKeys.js";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { ATTENTION_START, attentionCount, attentionReduce, attentionWarning } from "./crm/attention";
 import {
   AutomationsPage, CalendarPage, CallsPage, CustomersPage, LeadsPage,
@@ -50,6 +50,7 @@ import { BusinessSwitcher, ProfileMenu, ReceptionistCard, SidebarNav, SidebarSta
 
 // The CRM each client business uses (Stitch design). Routes:
 //   /welcome  set password from an invitation or reset email
+//   /welcome/setup  the owner onboarding journey (Welcome to You're all set)
 //   /app      sign in, then the business's own workspace
 
 loadBusinessFonts();
@@ -344,6 +345,17 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
           )}
           {error && <div className="ba-banner error">{error}</div>}
           <InviteBanner status={invites} email={email} onRetry={onReload} />
+          {workspace.role === "owner" && (
+            // if the banner's code can't load, say so without blocking the CRM (a new page load fetches it again)
+            <ErrorBoundary resetKey={workspace.id} fallback={() => (
+              <div className="ba-banner" role="status">
+                <span>We couldn't check whether your setup is finished.</span>
+                <button type="button" className="ba-btn sm" onClick={() => window.location.reload()}>Try again</button>
+              </div>
+            )}>
+              <Suspense fallback={null}><OnboardingResumeBanner businessId={workspace.id} /></Suspense>
+            </ErrorBoundary>
+          )}
 
           {missing === "loading" && <p className="ba-muted">Loading…</p>}
           {missing === "config-error" && (
@@ -708,8 +720,14 @@ function Preview() {
   );
 }
 
+// The owner onboarding journey, loaded only when it is opened (web/src/onboarding/).
+const OwnerOnboarding = lazy(() => import("./onboarding/OwnerOnboarding"));
+// For an owner who left the journey part way: a way back to the same step. Shows nothing until the server says so.
+const OnboardingResumeBanner = lazy(() => import("./onboarding/ResumeBanner"));
+
 export default function BusinessApp() {
   const path = window.location.pathname;
+  if (/^\/welcome\/setup\/?$/.test(path)) return <Suspense fallback={<Loading text="Loading..." />}><OwnerOnboarding /></Suspense>;
   if (path.startsWith("/welcome")) return <Welcome />;
   if (import.meta.env.DEV && path.startsWith("/app/preview")) return <Preview />;
   return <BusinessHome />;

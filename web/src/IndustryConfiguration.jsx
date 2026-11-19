@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./OwnerPages.css";
+import "./IndustryConfiguration.css";
+import { Icon } from "./BusinessUI";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import IndustryRecords from "./IndustryRecords";
-import { friendlyError } from "./admin/adminOps";
+import { ReasonDialog, friendlyError } from "./admin/adminOps";
+import { businessWord, modulesLosingUsers, switchesOff } from "./industryModules";
+import { CATALOG } from "./automationCatalog";
+import { emptyAutomations } from "./industryAutomations";
+
+// CFG-05: how each industry books (industries.booking_model), in words.
+const BOOKING_LABELS = {
+  staff_appointment: "Appointments with a team member", class: "Classes", table: "Table reservations", stay: "Stays",
+  consultation: "Consultations", viewing: "Viewings", field_job: "Jobs at the customer's place", none: "No bookings (orders only)", general: "General appointments",
+};
 
 const TERM_ROWS = [
   { singular: "customer", plural: "customers", label: "Customers", hint: "People the business serves" },
@@ -25,6 +36,8 @@ const VOICE_FIELDS = [
 function toDraft(industry) {
   return {
     description: industry.description || "",
+    bookingModel: industry.bookingModel ?? "",
+    automationDefaults: industry.automationDefaults ? structuredClone(industry.automationDefaults) : null,
     terminology: structuredClone(industry.terminology || {}),
     modules: (industry.modules || []).map((m) => ({
       id: m.id,
@@ -36,7 +49,7 @@ function toDraft(industry) {
   };
 }
 
-function ModuleRow({ module, onChange, onRemove }) {
+function ModuleRow({ module, users, onChange, onRemove }) {
   return (
     <div className={`ic-module ${module.isActive ? "" : "off"}`}>
       <div className="ic-module-fields">
@@ -56,7 +69,10 @@ function ModuleRow({ module, onChange, onRemove }) {
       <div className="ic-module-side">
         {module.id ? (
           <>
-            <span className="op-muted">{module.isActive ? "Offered" : "Not offered"}</span>
+            <span className="op-muted">
+              {module.isActive ? "Offered" : "Not offered"}
+              {users !== undefined && ` · ${users ? `on for ${businessWord(users)}` : "no business has it on"}`}
+            </span>
             <button
               type="button"
               role="switch"
@@ -92,6 +108,16 @@ export default function IndustryConfiguration() {
   const [creating, setCreating] = useState(false);
   const [newIndustry, setNewIndustry] = useState({ name: "", description: "", copyFromId: "" });
   const [filter, setFilter] = useState("");
+  const [usageRead, setUsageRead] = useState({ id: null, at: null, modules: null });   // module id -> businesses with it on
+  const [usageTick, setUsageTick] = useState(0);   // a refused switch off counts again, keeping the draft
+  const [confirm, setConfirm] = useState(null);       // { kind: "modules" | "active" | "sensitive", ... }
+  const [me, setMe] = useState(null);
+  const [industryData, setIndustryData] = useState(false);   // the industry data migration is applied
+  useEffect(() => {
+    let live = true;
+    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch(() => live && setMe(null));
+    return () => { live = false; };
+  }, []);
 
   const selected = industries.find((i) => i.id === selectedId) || null;
 
@@ -101,6 +127,7 @@ export default function IndustryConfiguration() {
     try {
       const data = await callOwnerFunction("industries_list");
       setIndustries(data.industries ?? []);
+      setIndustryData(Boolean(data.industryData));
       setLoadFailed(false);
       const next = (data.industries ?? []).find((i) => i.id === keepId) || data.industries[0] || null;
       setSelectedId(next?.id ?? null);
@@ -116,6 +143,20 @@ export default function IndustryConfiguration() {
   useEffect(() => {
     load(null);
   }, [load]);
+
+  // Per module counts for the open industry (read in pages on the server, so they stay right past 1,000 rows).
+  useEffect(() => {
+    if (!selectedId) return undefined;
+    let live = true;
+    callOwnerFunction("industry_module_usage", { industryId: selectedId })
+      // a missing or malformed answer is "couldn't count", never "no business uses it"
+      .then((data) => live && setUsageRead({ id: selectedId, at: industries, tick: usageTick,
+        modules: data?.modules && typeof data.modules === "object" && !Array.isArray(data.modules) ? data.modules : undefined }))
+      .catch(() => live && setUsageRead({ id: selectedId, at: industries, tick: usageTick, modules: undefined }));
+    return () => { live = false; };
+  }, [selectedId, industries, usageTick]);
+  // null while counting, undefined when the count failed
+  const usage = usageRead.id === selectedId && usageRead.at === industries && usageRead.tick === usageTick ? usageRead.modules : null;
 
   const dirty = useMemo(() => {
     if (!selected || !draft) return false;
@@ -156,24 +197,55 @@ export default function IndustryConfiguration() {
   const setModule = (index, module) =>
     setDraft((d) => ({ ...d, modules: d.modules.map((m, i) => (i === index ? module : m)) }));
 
-  async function save() {
-    setSaving(true);
+  function save() {
     setError("");
     setNotice("");
+    const switchingOff = switchesOff(selected.modules, draft.modules);
+    if (switchingOff && usage === undefined) return setError("Couldn't count the businesses using these modules. Reload the page before switching one off.");
+    if (switchingOff && usage === null) return setError("Still counting the businesses using these modules. Try again in a moment.");
+    const losing = modulesLosingUsers(selected.modules, draft.modules, usage);
+    if (losing.length) return setConfirm({ kind: "modules", losing });
+    return send([], "").catch((err) => {
+      // 409: businesses started using a module since it was counted. Count again (the draft stays), so the next Save
+      // shows who loses it and asks for confirmation.
+      if (err?.status === 409) {
+        setUsageTick((t) => t + 1);
+        return setError("Some businesses have started using a module you are switching off. Save again to see who loses it.");
+      }
+      return setError(friendlyError(err));
+    });
+  }
+
+  // Errors go back to the caller: the confirm dialog shows them in place, a plain save shows them on the page.
+  async function send(confirmOff, reason) {
+    setSaving(true);
     try {
       await callOwnerFunction("industry_save", {
         industryId: selectedId,
         description: draft.description,
         terminology: draft.terminology,
         modules: draft.modules,
+        confirmOff,
+        reason,
+        ...(industryData ? { bookingModel: draft.bookingModel || null, automationDefaults: draft.automationDefaults } : {}),
       });
       setNotice(`${selected.name} saved.`);
       await load(selectedId);
-    } catch (err) {
-      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }
+  }
+
+  async function setSensitive(sensitive, reason) {
+    const data = await callOwnerFunction("industry_set_sensitive", { industryId: selectedId, sensitive, reason, confirm: true });
+    setNotice(`${data.name} is ${sensitive ? "sensitive: staff never see call transcripts" : "no longer sensitive: staff may see call transcripts where the owner allows"}.`);
+    await load(selectedId);
+  }
+
+  async function setActive(active, reason) {
+    const data = await callOwnerFunction("industry_set_active", { industryId: selectedId, active, reason });
+    setNotice(`${data.name} is ${active ? "active again and offered for new businesses" : "inactive. It isn't offered for new businesses"}.`);
+    await load(selectedId);
   }
 
   async function create(event) {
@@ -244,9 +316,9 @@ export default function IndustryConfiguration() {
                     className={industry.id === selectedId && !creating ? "active" : ""}
                     onClick={() => select(industry.id)}
                   >
-                    <strong>{industry.name}</strong>
+                    <strong>{industry.name}{!industry.is_active && <> <Pill tone="warning">Inactive</Pill></>}</strong>
                     <span>
-                      {industry.businessCount} {industry.businessCount === 1 ? "business" : "businesses"} ·{" "}
+                      {businessWord(industry.businessCount)} ·{" "}
                       {industry.modules.filter((m) => m.is_active).length} modules
                     </span>
                   </button>
@@ -322,21 +394,50 @@ export default function IndustryConfiguration() {
             <div className="owner-panel"><div className="op-empty">{loading ? "Loading..." : loadFailed ? "Industries didn't load." : "Select an industry."}</div></div>
           ) : (
             <>
-              <div className="ic-head">
-                <div>
-                  <h2>{selected.name}</h2>
-                  <span className="op-muted">
-                    {selected.businessCount} {selected.businessCount === 1 ? "business uses" : "businesses use"} this industry
-                    {selected.configUpdatedAt ? ` · updated ${formatDate(selected.configUpdatedAt)}` : ""}
-                  </span>
+              <header className="ic-detail-head">
+                <div className="ic-detail-title">
+                  <h2>
+                    {selected.name}
+                    {!selected.is_active && <Pill tone="warning">Inactive</Pill>}
+                  </h2>
+                  <p className="ic-detail-meta">
+                    {businessWord(selected.businessCount)}
+                    {selected.configUpdatedAt ? ` · Updated ${formatDate(selected.configUpdatedAt)}` : ""}
+                    {!selected.is_active && " · Not offered when a business is created"}
+                  </p>
                 </div>
-              </div>
+                {!selected.is_active && (
+                  <div className="ic-detail-actions">
+                    {dirty && <span className="ic-disabled-reason">Save or discard your changes first</span>}
+                    <button
+                      type="button"
+                      className="owner-secondary-button"
+                      onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "active", active: true }); }}
+                      disabled={saving || dirty}
+                    >
+                      Reactivate
+                    </button>
+                  </div>
+                )}
+              </header>
 
               {selected.businessCount > 0 && (
-                <div className="wiz-note">
-                  <strong>How changes apply:</strong> terminology changes show up straight away for businesses in this
-                  industry that haven't customized that word. Words a business has customized stay as they are.
-                  Module changes only affect what's offered during setup; businesses keep the modules they already have.
+                <div className="ic-apply" role="note">
+                  <Icon name="info" className="ic-apply-icon" />
+                  <div>
+                    <p>
+                      <strong>How changes apply.</strong> New words show up straight away for businesses in this
+                      industry, unless a business has customized that word.
+                      Switching a module off removes it from every business that has it on, and you see how many before it saves.
+                    </p>
+                    <details className="ic-apply-more">
+                      <summary>More about changes</summary>
+                      <p>
+                        Words a business has customized stay as they are. Switching a module off removes it at once from
+                        every business in this industry that has it on. Switching it back on gives it back to them.
+                      </p>
+                    </details>
+                  </div>
                 </div>
               )}
 
@@ -353,6 +454,42 @@ export default function IndustryConfiguration() {
                   placeholder="What kind of businesses this covers"
                 />
               </section>
+
+              {industryData && (
+                <section className="wiz-section">
+                  <div className="wiz-section-head">
+                    <div>
+                      <h3>Privacy and booking</h3>
+                      <p>Stored for this industry and read by the server, so a new industry gets them too.</p>
+                    </div>
+                  </div>
+                  <div className="ic-module">
+                    <div className="ic-module-fields">
+                      <strong>Sensitive industry</strong>
+                      <span className="op-muted">{selected.sensitive
+                        ? "Staff never see call transcripts in this industry. New industries start sensitive."
+                        : "Staff may see call transcripts where the business owner allows it."}</span>
+                    </div>
+                    <div className="ic-module-side">
+                      <Pill tone={selected.sensitive ? "warning" : "neutral"}>{selected.sensitive ? "Sensitive" : "Not sensitive"}</Pill>
+                      {me?.role === "zella_owner" ? (
+                        <button type="button" className="owner-secondary-button op-small" disabled={saving || dirty}
+                          title={dirty ? "Save or discard your changes first" : undefined}
+                          onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "sensitive", sensitive: !selected.sensitive }); }}>
+                          {selected.sensitive ? "Turn off" : "Turn on"}
+                        </button>
+                      ) : <span className="op-muted">Only a Zella Voice owner can change this</span>}
+                    </div>
+                  </div>
+                  <label className="owner-field op-gap-top">
+                    <span>Booking model</span>
+                    <select value={draft.bookingModel} onChange={(e) => setDraft({ ...draft, bookingModel: e.target.value })}>
+                      <option value="">Not set</option>
+                      {Object.entries(BOOKING_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                    </select>
+                  </label>
+                </section>
+              )}
 
               <section className="wiz-section">
                 <div className="wiz-section-head">
@@ -411,7 +548,7 @@ export default function IndustryConfiguration() {
                 <div className="wiz-section-head">
                   <div>
                     <h3>Modules</h3>
-                    <p>Modules offered to businesses in this industry. Switch one off to stop offering it; modules are never deleted.</p>
+                    <p>Modules offered to businesses in this industry. Switching one off stops offering it and removes it from every business that has it on. Modules are never deleted.</p>
                   </div>
                   <Pill>{activeModules} offered</Pill>
                 </div>
@@ -421,6 +558,7 @@ export default function IndustryConfiguration() {
                     <ModuleRow
                       key={module.id || `new-${index}`}
                       module={module}
+                      users={module.id && usage ? usage[module.id] ?? 0 : undefined}
                       onChange={(m) => setModule(index, m)}
                       onRemove={() => setDraft({ ...draft, modules: draft.modules.filter((_, i) => i !== index) })}
                     />
@@ -434,6 +572,41 @@ export default function IndustryConfiguration() {
                   ＋ Add module
                 </button>
               </section>
+
+              {industryData && (
+                <section className="wiz-section">
+                  <div className="wiz-section-head">
+                    <div>
+                      <h3>Default automations</h3>
+                      <p>Which automations a new business in this industry starts with. Each business can still change its own.
+                        {draft.automationDefaults ? "" : " Not set for this industry, so it uses the standard set below."}</p>
+                    </div>
+                  </div>
+                  <div className="ic-modules">
+                    {CATALOG.map(([type, title]) => {
+                      const set = draft.automationDefaults ?? emptyAutomations();
+                      const on = Boolean(set[type]?.enabled);
+                      return (
+                        <div key={type} className={`ic-module ${on ? "" : "off"}`}>
+                          <div className="ic-module-fields"><strong>{(([c, ...rest]) => c.toUpperCase() + rest.join(""))(title("Appointment"))}</strong></div>
+                          <div className="ic-module-side">
+                            <span className="op-muted">{on ? "On" : "Off"}</span>
+                            <button type="button" role="switch" aria-checked={on} aria-label={`Start new businesses with ${title("appointment")}`}
+                              className={`wiz-toggle ${on ? "on" : ""}`}
+                              onClick={() => {
+                                const next = structuredClone(set);
+                                next[type] = { enabled: !on, settings: next[type]?.settings ?? {} };
+                                setDraft({ ...draft, automationDefaults: next });
+                              }}>
+                              <span />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
               <div className="wiz-footer">
                 <span className="op-muted">{dirty ? "Unsaved changes" : "All changes saved"}</span>
@@ -453,6 +626,78 @@ export default function IndustryConfiguration() {
               </div>
 
               <IndustryRecords key={selected.id} industryId={selected.id} industryName={selected.name} />
+
+              {selected.is_active && (
+                <section className="wiz-section ic-danger" aria-labelledby="ic-danger-title">
+                  <h3 id="ic-danger-title">Danger zone</h3>
+                  <div className="ic-danger-row">
+                    <div>
+                      <strong>Deactivate {selected.name}</strong>
+                      <small>
+                        It stops being offered when a business is created. The {businessWord(selected.businessCount)} already
+                        in it keep working as they are.
+                      </small>
+                    </div>
+                    <div className="ic-danger-action">
+                      {dirty && <span className="ic-disabled-reason">Save or discard your changes first</span>}
+                      <button
+                        type="button"
+                        className="owner-secondary-button ic-danger-button"
+                        onClick={() => { setNotice(""); setError(""); setConfirm({ kind: "active", active: false }); }}
+                        disabled={saving || dirty}
+                      >
+                        Deactivate
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {confirm?.kind === "modules" && (
+                <ReasonDialog
+                  title="Switch modules off for every business?"
+                  icon="toggle_off"
+                  danger
+                  confirmLabel="Switch off and save"
+                  onClose={() => setConfirm(null)}
+                  onConfirm={(reason) => send(confirm.losing.map((m) => m.id), reason)}
+                >
+                  <p>Saving removes these modules at once from the businesses in {selected.name} that have them on:</p>
+                  <ul>
+                    {confirm.losing.map((m) => <li key={m.id}><strong>{businessWord(m.businesses)}</strong> lose {m.name}</li>)}
+                  </ul>
+                  <p>Their data stays. Switching a module back on gives it back to them.</p>
+                </ReasonDialog>
+              )}
+              {confirm?.kind === "sensitive" && (
+                <ReasonDialog
+                  title={confirm.sensitive ? `Make ${selected.name} sensitive?` : `Turn off sensitive for ${selected.name}?`}
+                  icon={confirm.sensitive ? "lock" : "lock_open"}
+                  danger={!confirm.sensitive}
+                  word={confirm.sensitive ? undefined : "TURN OFF"}
+                  confirmLabel={confirm.sensitive ? "Make sensitive" : "Turn off"}
+                  onClose={() => setConfirm(null)}
+                  onConfirm={(reason) => setSensitive(confirm.sensitive, reason)}
+                >
+                  {confirm.sensitive
+                    ? <p>Staff in the {businessWord(selected.businessCount)} in {selected.name} will no longer see call transcripts.</p>
+                    : <p>Staff in the {businessWord(selected.businessCount)} in {selected.name} may then read call transcripts, where each owner allows it. Only do this after checking the industry handles no private health, legal or financial details.</p>}
+                </ReasonDialog>
+              )}
+              {confirm?.kind === "active" && (
+                <ReasonDialog
+                  title={confirm.active ? `Reactivate ${selected.name}?` : `Deactivate ${selected.name}?`}
+                  icon={confirm.active ? "toggle_on" : "toggle_off"}
+                  danger={!confirm.active}
+                  confirmLabel={confirm.active ? "Reactivate" : "Deactivate"}
+                  onClose={() => setConfirm(null)}
+                  onConfirm={(reason) => setActive(confirm.active, reason)}
+                >
+                  {confirm.active
+                    ? <p>{selected.name} will be offered again when a business is created.</p>
+                    : <p>{selected.name} won't be offered when a business is created. The {businessWord(selected.businessCount)} already in it keep working as they are, with their modules and words.</p>}
+                </ReasonDialog>
+              )}
             </>
           )}
         </div>

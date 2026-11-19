@@ -5,8 +5,10 @@ import { TelephonyProviders, VoiceCosts, VoiceUsage } from "../settings/AdminPan
 import { switchHint } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
-  ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
+  ProviderHealth, ReasonDialog, Search, Select, Tabs, Toggle, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words, whenText, durationText, numText
 } from "./adminOps";
+import { alertCallFilter, callDetailsCollapsed, formatPhone, formatTimeZone, initialCallFilter, tileFilter, voiceSwitches } from "./voiceView";
+import "./VoiceNumbersPage.css";
 
 // Admin page: every business's phone numbers, its calls and its call routing, from the database (zella_admin_*
 // functions in sql/zella_admin_ops.sql). Assigning and pausing numbers goes through the owner function, as before.
@@ -15,6 +17,9 @@ import {
 const TABS = [["overview", "Overview"], ["numbers", "Numbers"], ["calls", "Calls"], ["routing", "Call routing"], ["providers", "Providers & costs"]];
 const CALL_STATUSES = ["initiated", "ringing", "answered", "completed", "missed", "failed"];
 const OUTCOMES = ["resolved", "booked", "callback_needed", "left_message", "wrong_number", "spam", "other"];
+// One quiet word for a value that isn't there (design review: one empty value). Matches the shared EmptyValue.
+const EmptyValue = ({ label = "Not set" }) => <span className="empty-value">{label}</span>;
+const phone = (v) => (v ? <span className="vn-nowrap" title={v}>{formatPhone(v)}</span> : null);
 const statusTone = (s) => (s === "completed" || s === "active" ? "success" : s === "failed" ? "danger" : s === "missed" || s === "paused" ? "warning" : "neutral");
 
 export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
@@ -29,14 +34,14 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
 
   const openCalls = (filter) => { setCallFilter(filter); setTab("calls"); };
   return (
-    <section className="owner-page ao-page">
-      <PageHeader title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
+    <section className="owner-page ao-page vn-page">
+      <PageHeader eyebrow="AI and communications" title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
         actions={manage && <button type="button" className="owner-primary-button" onClick={() => setAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button>} />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "overview" && <Overview onTab={setTab} onOpenCalls={openCalls} />}
       {tab === "numbers" && <Numbers key={refresh} me={me} options={options.data} onAssign={setAssign} onOpenCalls={openCalls} say={say} onOpenBusiness={onOpenBusiness} />}
-      {tab === "calls" && <Calls me={me} options={options.data} initial={callFilter} onOpenBusiness={onOpenBusiness} />}
+      {tab === "calls" && <Calls key={JSON.stringify(callFilter)} me={me} options={options.data} initial={callFilter} onOpenBusiness={onOpenBusiness} />}
       {tab === "routing" && <Routing me={me} options={options.data} say={say} />}
       {tab === "providers" && <Providers me={me} />}
       {assign && <AssignDialog edit={assign} options={options.data} onClose={() => setAssign(null)} onDone={(m) => { say(m); setRefresh((n) => n + 1); setTab("numbers"); }} />}
@@ -60,15 +65,16 @@ function Overview({ onTab, onOpenCalls }) {
       {o && (
         <>
           {!o.calls_live && <NotAvailable title="Outbound AI calls are off" tip={switchHint("calls_live")}>Zella Voice places no outbound calls until they are switched on at go live. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
-          <div className="owner-stat-grid ao-stats">
-            <Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} />
-            <Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} />
-            <Metric label="Outbound calls" value={num(o.outbound)} />
+          <div className="owner-stat-grid ao-stats vn-stats">
+            <Tile onOpen={() => onTab("numbers")} label="Open the numbers"><Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("inbound", days))} label="Open the inbound calls"><Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("outbound", days))} label="Open the outbound calls"><Metric label="Outbound calls" value={num(o.outbound)} /></Tile>
             <Metric label="In progress now" value={num(o.in_progress)} />
-            <Metric label="Completed" value={num(o.completed)} note={`Average ${duration(o.avg_seconds)}`} />
-            <Metric label="Missed" value={num(o.missed)} tone={o.missed ? "warning" : null} />
-            <Metric label="Failed" value={num(o.failed)} tone={o.failed ? "danger" : null} />
+            <Tile onOpen={() => onOpenCalls(tileFilter("completed", days))} label="Open the completed calls"><Metric label="Completed" value={num(o.completed)} note={o.avg_seconds == null ? "No average yet" : `Average ${durationText(o.avg_seconds)}`} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("missed", days))} label="Open the missed calls"><Metric label="Missed" value={num(o.missed)} tone={o.missed ? "warning" : null} /></Tile>
+            <Tile onOpen={() => onOpenCalls(tileFilter("failed", days))} label="Open the failed calls"><Metric label="Failed" value={num(o.failed)} tone={o.failed ? "danger" : null} /></Tile>
             <Metric label="Transfers that didn't connect" value={num(o.transfers_failed)} tone={o.transfers_failed ? "warning" : null} />
+            {o.refusals_24h != null && <Tile onOpen={() => onTab("providers")} label="Open Providers for the Vapi sign in check"><Metric label="Refused Vapi requests (24 h)" value={num(o.refusals_24h)} tone={o.refusals_24h ? "warning" : null} note={o.last_refusal_at ? `Last ${whenText(o.last_refusal_at)}` : "No refusals yet"} /></Tile>}
           </div>
           {o.numbers_active === 0 && (
             <NotAvailable title="No phone numbers yet">Numbers bought in Telnyx or Vapi are assigned to a business with "Assign a number". Until then no calls can reach Zella Voice.</NotAvailable>
@@ -78,17 +84,42 @@ function Overview({ onTab, onOpenCalls }) {
           )}
         </>
       )}
-      <div className="ao-two">
+      <div className="ao-two vn-overview-panels">
         <Panel title="Needs attention" description="From provider checks, numbers and the last 24 hours of calls.">
           <ErrorNote error={alerts.error} onRetry={alerts.reload} />
-          <AlertList error={alerts.error} alerts={alerts.data} onOpen={(a) => (a.link === "calls" ? onOpenCalls({ business: a.business_id ?? null, failedOnly: a.kind !== "call_volume_spike" }) : onTab(a.link))} />
+          <AlertList error={alerts.error} alerts={alerts.data} onOpen={(a) => (a.link === "calls" ? onOpenCalls(alertCallFilter(a)) : onTab(a.link))} />
         </Panel>
         <Panel title="Providers" description="Zella Voice's own checks of each provider, run by the provider health job." action={<button type="button" className="owner-secondary-button" onClick={() => onTab("providers")}>Keys and costs</button>}>
           {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
           {o && !o.checks_live && <NotAvailable title="Provider checks are off" tip={switchHint("provider_checks_live")}>The provider health job isn't switched on, so connection status is unknown rather than healthy. A "test connection" button isn't offered because it would need the provider keys in the browser.</NotAvailable>}
         </Panel>
       </div>
+      {o && <Switches o={o} />}
     </>
+  );
+}
+
+// A tile that opens the list behind its number (UI-14)
+function Tile({ onOpen, label, children }) {
+  return <button type="button" className="ao-tile" onClick={onOpen} aria-label={label}>{children}</button>;
+}
+
+// COM-13: the switches calls depend on, read only. Switching any of them is the owner's live switch at go live.
+function Switches({ o }) {
+  const rows = voiceSwitches(o.switches);
+  return (
+    <Panel title="Switches" description="What calls depend on, read only. Each one is switched by the owner at go live, not from this page.">
+      {rows ? (
+        <ul className="op-list" data-voice-switches>
+          {rows.map((r) => (
+            <li key={r.key} data-switch={r.key}>
+              <div><strong title={r.hint}>{r.label}</strong></div>
+              <Pill tone={r.tone}>{r.value}</Pill>
+            </li>
+          ))}
+        </ul>
+      ) : <NotAvailable title="Switches need a database update">Once the voice admin update is applied, this lists the call switches and jobs.</NotAvailable>}
+    </Panel>
   );
 }
 
@@ -113,15 +144,15 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={setOpen}
         empty={f.q || f.status || f.business ? "No numbers match these filters." : "No phone numbers are assigned to any business yet."}
         columns={[
-          ["Number", (r) => <strong>{r.e164}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? "No label"],
+          ["Number", (r) => <strong>{phone(r.e164)}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? <EmptyValue label="Not set" />],
           ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">No receptionist</Pill>],
           ["Vapi", (r) => (r.vapi_linked ? <Pill tone="success">Linked</Pill> : <Pill tone="warning">Not linked</Pill>)],
-          ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => when(r.last_call_at, "No calls yet")],
+          ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => (r.last_call_at ? when(r.last_call_at) : <EmptyValue label="Never" />)],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
 
       {open && (
-        <Drawer title={open.e164} icon="call" onClose={() => setOpen(null)}>
+        <Drawer title={formatPhone(open.e164)} icon="call" onClose={() => setOpen(null)}>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(open.business_id)}>{open.business_name}</button>],
             ["Business state", words(open.business_state)], ["Label", open.label], ["Country code", open.country_code], ["Status", <Pill key="s" tone={statusTone(open.status)}>{words(open.status)}</Pill>],
             ["Receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None. Calls can't be answered"],
@@ -140,7 +171,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
         </Drawer>
       )}
       {action?.kind === "status" && (
-        <ReasonDialog title={action.row.status === "active" ? `Pause ${action.row.e164}?` : `Activate ${action.row.e164}?`} icon="pause_circle" danger={action.row.status === "active"}
+        <ReasonDialog title={action.row.status === "active" ? `Pause ${formatPhone(action.row.e164)}?` : `Activate ${formatPhone(action.row.e164)}?`} icon="pause_circle" danger={action.row.status === "active"}
           confirmLabel={action.row.status === "active" ? "Pause" : "Activate"} onClose={() => setAction(null)}
           onConfirm={async (reason) => {
             await callOwnerFunction("number_set_status", { id: action.row.id, status: action.row.status === "active" ? "paused" : "active", reason });
@@ -152,8 +183,8 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
         </ReasonDialog>
       )}
       {action?.kind === "release" && (
-        <ReasonDialog title={`Release ${action.row.e164} from Zella Voice?`} icon="delete" danger word="RELEASE" confirmLabel="Release" onClose={() => setAction(null)}
-          onConfirm={async (reason) => { await rpc("zella_admin_number_release", { p_id: action.row.id, p_reason: reason }); done(`${action.row.e164} released from Zella Voice.`); }}>
+        <ReasonDialog title={`Release ${formatPhone(action.row.e164)} from Zella Voice?`} icon="delete" danger word="RELEASE" confirmLabel="Release" onClose={() => setAction(null)}
+          onConfirm={async (reason) => { await rpc("zella_admin_number_release", { p_id: action.row.id, p_reason: reason }); done(`${formatPhone(action.row.e164)} released from Zella Voice.`); }}>
           <p>The number is removed from {action.row.business_name}. Its past calls are kept. This doesn't cancel it at the carrier. Do that in the Telnyx or Vapi dashboard, or it keeps costing money.</p>
         </ReasonDialog>
       )}
@@ -165,7 +196,7 @@ function AssignDialog({ edit: initial, options, onClose, onDone }) {
   const [edit, setEdit] = useState(initial);
   const field = (k) => (e) => setEdit({ ...edit, [k]: e.target.value });
   return (
-    <ReasonDialog title={initial.id ? `Edit ${initial.e164}` : "Assign a number"} icon="add_call" confirmLabel="Save" onClose={onClose}
+    <ReasonDialog title={initial.id ? `Edit ${formatPhone(initial.e164)}` : "Assign a number"} icon="add_call" confirmLabel="Save" onClose={onClose}
       onConfirm={async (reason) => {
         if (!/^\+[1-9]\d{6,14}$/.test(edit.e164.replace(/[\s()-]/g, ""))) throw new Error("Enter the number with its country code, like +15551234567.");
         if (!edit.businessId) throw new Error("Choose a business.");
@@ -189,7 +220,7 @@ function AssignDialog({ edit: initial, options, onClose, onDone }) {
 }
 
 function Calls({ me, options, initial, onOpenBusiness }) {
-  const [f, setF] = useState({ days: 30, business: initial?.business ?? null, direction: null, status: null, outcome: null, failedOnly: Boolean(initial?.failedOnly), q: initial?.q ?? "", offset: 0 });
+  const [f, setF] = useState(() => initialCallFilter(initial));
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v, offset: 0 }));
   const setQ = useCallback((v) => setF((x) => ({ ...x, q: v, offset: 0 })), []);
   const list = useLoad(() => rpc("zella_admin_calls", {
@@ -197,6 +228,7 @@ function Calls({ me, options, initial, onOpenBusiness }) {
     p_failed_only: f.failedOnly, p_q: f.q || null, p_limit: PAGE, p_offset: f.offset,
   }), [f]);
   const [open, setOpen] = useState(null);
+  const collapsed = callDetailsCollapsed(list.data?.rows);
   return (
     <Panel>
       <Filters>
@@ -211,11 +243,19 @@ function Calls({ me, options, initial, onOpenBusiness }) {
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No calls in this period match these filters."
         columns={[
-          ["When", (r) => when(r.created_at)], ["Business", (r) => r.business_name], ["Direction", (r) => words(r.direction)], ["Caller", (r) => r.caller ?? "Unknown"],
-          ["Number", (r) => r.number ?? "Not recorded"], ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Length", (r) => duration(r.duration_seconds, "Not recorded")],
-          ["Outcome", (r) => (r.outcome ? words(r.outcome) : "Not recorded")],
-          ["Attention", (r) => <span className="ao-flags">{r.needs_human && <Pill tone="warning">Needs a person</Pill>}{r.failure_reason && <Pill tone="danger">Error</Pill>}
-            {["failed", "no_one_available"].includes(r.transfer_status) && <Pill tone="warning">Transfer failed</Pill>}</span>],
+          ["When", (r) => <span className="vn-nowrap">{when(r.created_at)}</span>], ["Business", (r) => r.business_name], ["Direction", (r) => words(r.direction)],
+          ["Caller", (r) => (r.caller ? <span className="vn-nowrap">{r.caller}</span> : <EmptyValue label="Unknown" />)],
+          ...(collapsed ? [] : [["Number", (r) => phone(r.number) ?? <EmptyValue label="Not recorded" />]]),
+          ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>],
+          ...(collapsed ? [["Details", () => <EmptyValue label="Not recorded" />]] : [
+            ["Length", (r) => (r.duration_seconds == null ? <EmptyValue label="Not recorded" /> : <span className="vn-nowrap">{duration(r.duration_seconds)}</span>)],
+            ["Outcome", (r) => (r.outcome ? words(r.outcome) : <EmptyValue label="Not recorded" />)],
+          ]),
+          ["Attention", (r) => {
+            const flags = [r.needs_human && <Pill key="h" tone="warning">Needs a person</Pill>, r.failure_reason && <Pill key="e" tone="danger">Error</Pill>,
+              ["failed", "no_one_available"].includes(r.transfer_status) && <Pill key="t" tone="warning">Transfer failed</Pill>].filter(Boolean);
+            return flags.length ? <span className="ao-flags">{flags}</span> : <EmptyValue />;
+          }],
         ]} />
       <Pager total={list.data?.total} offset={f.offset} onChange={(o) => setF((x) => ({ ...x, offset: o }))} />
       {open && <CallDrawer id={open} me={me} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness} />}
@@ -233,7 +273,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
       {!c ? <p className="op-muted">Loading…</p> : (
         <>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(c.business_id)}>{c.business_name}</button>],
-            ["Direction", words(c.direction)], ["From", c.from], ["To", c.to], ["Status", <Pill key="s" tone={statusTone(c.status)}>{words(c.status)}</Pill>],
+            ["Direction", words(c.direction)], ["From", phone(c.from)], ["To", phone(c.to)], ["Status", <Pill key="s" tone={statusTone(c.status)}>{words(c.status)}</Pill>],
             ["Answered by AI", c.ai_handled ? "Yes" : "No"], ["Outcome", c.outcome ? words(c.outcome) : "Not recorded"], ["Outcome note", c.outcome_note],
             ["Transfer", c.transfer_status ? words(c.transfer_status) : null], ["Length", duration(c.duration_seconds, "Not recorded")],
             c.needs_human ? ["Needs a person", c.escalation_reason ?? "Yes"] : null, c.escalation_resolved_at ? ["Resolved", when(c.escalation_resolved_at)] : null,
@@ -244,7 +284,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
               .filter(([, t]) => t).map(([l, t]) => <li key={l}><strong>{l}</strong><span>{when(t)}</span></li>)}
             {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? `: ${t.error}` : ""} · {when(t.at)}</span></li>)}
             {d.data.messages.map((m, i) => <li key={`m${i}`}><strong>Message taken ({words(m.kind)})</strong><span>{words(m.status)} · {when(m.at)}</span></li>)}
-            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${when(k.due_at)}` : ""}</span></li>)}
+            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${whenText(k.due_at)}` : ""}</span></li>)}
           </ol>
           {d.data.usage.length > 0 && <Facts rows={d.data.usage.map((u, i) => [`Usage ${i + 1}`, `${words(u.kind)}: ${u.billable_seconds ?? 0} s (${words(u.status)})`])} />}
           <h3 className="ao-h3">Summary, transcript and recording</h3>
@@ -267,19 +307,44 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
 
 function Routing({ me, options, say }) {
   const [business, setBusiness] = useState(null);
+  const [saves, setSaves] = useState(0);   // a saved form reloads Missing routing, so a fixed business leaves the list
   const manage = can(me, "telephony.manage");
   return (
     <Panel title="Call routing" description="Who the AI receptionist puts a caller through to when they ask for a person. The same rules the receptionist reads on every call.">
       <Filters>
         <Select label="Business" value={business} any="Choose a business…" onChange={setBusiness} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
       </Filters>
-      {!business ? <div className="op-empty">Choose a business to see and change its call routing.</div>
-        : <RoutingForm key={business} businessId={business} manage={manage} say={say} />}
+      {!business ? <div className="op-empty">Choose a business to see and change its call routing, or pick one from Missing routing below.</div>
+        : <RoutingForm key={business} businessId={business} manage={manage} say={say} onSaved={() => setSaves((n) => n + 1)} />}
+      <MissingRouting onOpen={setBusiness} refresh={saves} />
     </Panel>
   );
 }
 
-function RoutingForm({ businessId, manage, say }) {
+// UI-17: businesses whose receptionist has no transfer number (with transfers on) or no fallback number. A row opens
+// that business's routing form above.
+function MissingRouting({ onOpen, refresh = 0 }) {
+  const [offset, setOffset] = useState(0);
+  const list = useLoad(() => rpc("zella_admin_routing_missing", { p_limit: PAGE, p_offset: offset }), [offset, refresh]);
+  const open = (r) => { onOpen(r.business_id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  return (
+    <section className="ao-section" aria-label="Missing routing" data-missing-routing={list.data?.total ?? ""}>
+      <h3 className="ao-h3">Missing routing{list.data ? ` (${numText(list.data.total)})` : ""}</h3>
+      <p className="op-muted">Businesses with an AI receptionist and no number to put callers through to, or no fallback number. Cancelled businesses aren't listed.</p>
+      <ErrorNote error={list.error} onRetry={list.reload} />
+      <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => r.business_id} onRow={open}
+        empty={!list.data || !Number.isFinite(Number(list.data.total)) ? "Couldn't read Missing routing."
+          : Number(list.data.total) > 0 ? "Nothing on this page. Go back a page to see the businesses still missing a number."
+            : "Every business with a receptionist has a transfer and a fallback number."}
+        columns={[["Business", (r) => <strong>{r.name}</strong>],
+          ["Missing", (r) => <span className="ao-flags">{r.missing_transfer && <Pill tone="warning">Transfer number</Pill>}{r.missing_fallback && <Pill tone="warning">Fallback number</Pill>}</span>],
+          ["Business status", (r) => (r.suspended ? <Pill tone="neutral">Suspended</Pill> : "Open")]]} />
+      <Pager total={list.data?.total} offset={offset} onChange={setOffset} />
+    </section>
+  );
+}
+
+function RoutingForm({ businessId, manage, say, onSaved }) {
   const d = useLoad(() => rpc("zella_admin_routing_get", { p_business_id: businessId }), [businessId]);
   const [form, setForm] = useState(null);
   const [confirm, setConfirm] = useState(false);
@@ -304,7 +369,7 @@ function RoutingForm({ businessId, manage, say }) {
         </label>
         <label className="ao-filter ao-check"><input type="checkbox" checked={v.transfer_open_hours_only} disabled={!manage} onChange={(e) => set("transfer_open_hours_only", e.target.checked)} /><span>{label.transfer_open_hours_only}</span></label>
       </div>
-      <Facts rows={[["Time zone", r.timezone], ["Opening hours set", r.has_hours ? "Yes" : "No. Outside hours rules can't apply"],
+      <Facts rows={[["Time zone", r.timezone ? <span title={r.timezone}>{formatTimeZone(r.timezone)}</span> : null], ["Opening hours set", r.has_hours ? "Yes" : "No. Outside hours rules can't apply"],
         ["On call rota", r.on_call?.enabled ? `On (${words(r.on_call.scope)})` : "Off"]]} />
       {manage ? (
         <div className="ao-drawer-actions">
@@ -316,7 +381,7 @@ function RoutingForm({ businessId, manage, say }) {
         <ReasonDialog title="Save call routing?" icon="alt_route" confirmLabel="Save" onClose={() => setConfirm(false)}
           onConfirm={async (reason) => {
             await rpc("zella_admin_routing_save", { p_business_id: businessId, p_rules: v, p_reason: reason });
-            setForm(null); d.reload(); say("Call routing saved. The receptionist uses it from the next call.");
+            setForm(null); d.reload(); onSaved?.(); say("Call routing saved. The receptionist uses it from the next call.");
           }}>
           <table className="owner-table ao-table ao-diff"><thead><tr><th>Setting</th><th>Now</th><th>After</th></tr></thead>
             <tbody>{changes.map((k) => <tr key={k}><td>{label[k]}</td><td>{show(k, base[k])}</td><td><strong>{show(k, v[k])}</strong></td></tr>)}</tbody></table>
@@ -328,8 +393,21 @@ function RoutingForm({ businessId, manage, say }) {
 
 // Keys, costs and usage. The connection checks are on the Overview tab only (UI-18), so they aren't repeated here.
 function Providers({ me }) {
+  const ov = useLoad(() => rpc("zella_admin_voice_overview", { p_from: since(1), p_to: null }), []);
+  const o = ov.data;
   return (
     <>
+      {ov.loading && !o && <p className="op-muted">Loading the Vapi sign in check…</p>}
+      <ErrorNote error={ov.error} onRetry={ov.reload} />
+      {!ov.loading && !ov.error && o && !o.auth_mode && (
+        <NotAvailable title="Vapi sign in check not available">The database update that counts refused Vapi requests isn't applied yet.</NotAvailable>
+      )}
+      {o && o.auth_mode && (
+        <Panel title="Vapi sign in check" description="How requests from Vapi are checked, and how many failed. Only the message type, the reason and the header names of a refused request are kept.">
+          <Facts rows={[["How requests are checked", <span key="m" title={`Setting vapi_auth_mode (${o.auth_mode})`}>{voiceSwitches(o.switches)?.find((r) => r.key === "vapi_auth_mode")?.value ?? "Unknown"}</span>],
+            ["Refused in the last 24 hours", num(o.refusals_24h)], ["Last refused", o.last_refusal_at ? when(o.last_refusal_at) : "No refusals"]]} />
+        </Panel>
+      )}
       <div className="zs ao-embed">
         <TelephonyProviders />
         <VoiceUsage />

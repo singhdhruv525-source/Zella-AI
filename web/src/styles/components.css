@@ -199,9 +199,10 @@
 .op-h3,
 .ba-h2 {
   color: var(--zella-text);
+  font-family: var(--zella-font);
   font-size: var(--zella-text-lg);
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .owner-panel-header p,
@@ -258,8 +259,8 @@
 .ba-kpi-value {
   color: var(--zella-text);
   font-size: var(--zella-text-kpi);
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -270,10 +271,10 @@
   font-size: var(--zella-text-xs);
 }
 
-.owner-stat-icon,
 .ba-kpi-icon { border-radius: var(--zella-radius-sm); }
 
-.owner-stat-icon { background: var(--zella-primary-soft); color: var(--zella-primary); }
+/* One KPI card: no coloured icon tiles in the admin; the label says what it is. */
+.owner-stat-icon { display: none; }
 
 /* ---------- Buttons ---------- */
 .owner-button,
@@ -362,8 +363,37 @@
 .ba-btn.ghost { border-color: transparent; background: transparent; }
 .ba-btn.ghost:hover:not(:disabled) { background: var(--zella-nav-hover); }
 
-.ba-btn.sm { height: 30px; min-height: 30px; padding: 0 10px; font-size: var(--zella-text-xs); }
-.zs-btn.sm { min-height: 30px; height: auto; padding: 5px 10px; font-size: var(--zella-text-xs); }
+/* Small: the one size for buttons inside tables, card headers and save bars */
+.owner-secondary-button.sm,
+.zs-btn.sm,
+.ba-btn.sm {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 var(--zella-space-3);
+  gap: 6px;
+  font-size: var(--zella-text-sm);
+}
+
+/* A quiet text action: no border, underlined only on hover and focus */
+.owner-link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 var(--zella-space-2);
+  border: 0;
+  background: transparent;
+  color: var(--zella-text);
+  font: inherit;
+  font-size: var(--zella-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.owner-link-button:hover,
+.owner-link-button:focus-visible { text-decoration: underline; }
+.owner-link-button:focus-visible { outline: 2px solid var(--zella-primary); outline-offset: 2px; }
 
 .ba-link,
 .op-link,
@@ -399,12 +429,26 @@
   font-weight: 600;
 }
 
+/* Disabled secondary buttons fade; a disabled primary turns into a quiet grey surface, so it never reads as a broken
+   mid grey pill. A disabled primary always has a short reason next to it. */
 .owner-button:disabled,
-.owner-primary-button:disabled,
 .owner-secondary-button:disabled,
 .ba-btn:disabled,
-.zs-btn:disabled,
-.cp-button:disabled { cursor: not-allowed; opacity: 0.5; }
+.zs-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.owner-primary-button:disabled,
+.owner-button-primary:disabled,
+.ba-btn.primary:disabled,
+.zs-btn.primary:disabled,
+.cp-button:disabled,
+.bp-primary:disabled {
+  background: var(--zella-subtle);
+  color: var(--zella-text-faint);
+  border: 1px solid var(--zella-border);
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
+}
 
 .owner-button:focus-visible,
 .owner-primary-button:focus-visible,
@@ -420,10 +464,41 @@
 }
 
 /* Tabs and segmented controls */
-.op-tabs { border-bottom-color: var(--zella-border); }
-.op-tabs button { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); font-weight: 600; }
-.op-tabs button:hover { color: var(--zella-text); }
-.op-tabs button.active { border-bottom-color: var(--zella-primary); color: var(--zella-primary); }
+/* Page tabs: one line that scrolls sideways, the selected tab a soft tint (never a midnight fill) */
+.op-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--zella-space-1);
+  overflow-x: auto;
+  padding: 0 0 var(--zella-space-2);
+  border-bottom: 1px solid var(--zella-border);
+  scrollbar-width: none;
+}
+.op-tabs::-webkit-scrollbar { display: none; }
+.op-tabs button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--zella-space-3);
+  border: 0;
+  border-radius: var(--zella-radius-full);
+  background: transparent;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.op-tabs button:hover { background: var(--zella-nav-hover); color: var(--zella-text); }
+.op-tabs button.active,
+.op-tabs button[aria-selected="true"],
+.ao-chip.on,
+.ao-chip[aria-pressed="true"] {
+  background: var(--zella-primary-soft);
+  color: var(--zella-text);
+  box-shadow: inset 0 0 0 1px var(--zella-primary-border);
+}
+.op-tabs button:focus-visible { outline: 2px solid var(--zella-primary); outline-offset: 2px; }
 
 .ba-segment { border-radius: var(--zella-radius-md); background: var(--zella-subtle); }
 .ba-segment button { color: var(--zella-text-secondary); }
@@ -591,6 +666,26 @@
   font-size: var(--zella-text-sm);
 }
 
+/* Admin tables: one rhythm, words never broken mid word */
+.owner-table td { vertical-align: middle; padding: 10px var(--zella-space-4); }
+.owner-table th { padding: 10px var(--zella-space-4); }
+.owner-table th.num,
+.owner-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.owner-table th.col-actions,
+.owner-table td.col-actions { width: 1%; white-space: nowrap; text-align: right; }
+.owner-table td.col-actions > * + * { margin-left: var(--zella-space-2); }
+.owner-table .op-pill,
+.owner-table .owner-badge,
+.owner-table .owner-status { white-space: nowrap; }
+.owner-cell-truncate {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 .owner-table tbody tr:hover,
 .ba-table tbody tr:hover,
 .ba-table tbody tr:focus-visible { background: var(--zella-alt); }
@@ -600,7 +695,21 @@
 .owner-table-primary,
 .owner-business-cell strong { color: var(--zella-text); font-weight: 600; }
 
-.owner-table-secondary { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+.owner-table-secondary {
+  display: block;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+}
+
+/* Dates and times never break across lines */
+.owner-when { white-space: nowrap; }
+
+/* A value that is not there: a few quiet words ("Not set", "Never", "Not available"), never a blank cell or "None" */
+.empty-value { color: var(--zella-text-faint); font-weight: 400; }
 
 /* Settings tables sit inside cards: a lighter header without the fill */
 .zs-table th { padding: 8px 12px; background: transparent; }
@@ -634,6 +743,31 @@
 .ba-pill.success,
 .zs-pill.success,
 .wiz-badge-success { background: var(--zella-success-bg); color: var(--zella-success); }
+
+/* One badge shape for the admin: op-pill and owner-badge are the same 22px pill */
+.op-pill,
+.owner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--zella-radius-full);
+  background: var(--zella-subtle);
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.op-pill-neutral,
+.owner-badge.neutral { background: var(--zella-subtle); color: var(--zella-text-secondary); }
+.owner-badge.success { background: var(--zella-success-bg); color: var(--zella-success); }
+.owner-badge.info { background: var(--zella-info-bg); color: var(--zella-info); }
+.owner-badge.warning { background: var(--zella-warning-bg); color: var(--zella-warning); }
+.owner-badge.danger { background: var(--zella-danger-bg); color: var(--zella-danger); }
 
 .owner-status-info,
 .op-pill-info,
@@ -706,11 +840,39 @@
   font-size: var(--zella-text-sm);
 }
 
-.owner-info-banner {
-  border: 1px solid var(--zella-primary-border);
+/* Info and warning banners: the lead phrase carries the colour, the body stays readable body text.
+   Two lines at most; more detail goes behind a <details> disclosure. */
+.owner-info-banner,
+.banner-info,
+.banner-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--zella-space-3);
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border: 1px solid var(--zella-info-border);
   border-radius: var(--zella-radius-md);
-  background: var(--zella-primary-soft);
+  background: var(--zella-info-bg);
+  color: var(--zella-text-2);
+  font-size: var(--zella-text-sm);
+  font-weight: 400;
+  line-height: var(--zella-leading);
 }
+.banner-warning { border-color: var(--zella-warning-border); background: var(--zella-warning-bg); }
+.owner-info-banner > .ba-icon,
+.banner-info > .ba-icon,
+.banner-warning > .ba-icon { flex-shrink: 0; font-size: 20px; color: var(--zella-info); }
+.banner-warning > .ba-icon { color: var(--zella-warning); }
+.owner-info-banner strong,
+.banner-info strong { color: var(--zella-info); font-weight: 600; }
+.banner-warning strong { color: var(--zella-warning); font-weight: 600; }
+.owner-info-banner p,
+.banner-info p,
+.banner-warning p { margin: 2px 0 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); font-weight: 400; }
+.owner-info-symbol { background: var(--zella-info); color: var(--zella-on-primary); }
+.banner-info details,
+.banner-warning details { margin-top: 4px; }
+.banner-info summary,
+.banner-warning summary { cursor: pointer; color: var(--zella-text); font-weight: 600; }
 
 /* Empty and loading states */
 .owner-empty-state,
@@ -877,4 +1039,232 @@
 :is(.owner-table-wrap, .zs-table-wrap, .ba-table-wrap, .sc-table-wrap, .ba-tg):focus-visible {
   outline: 2px solid var(--zella-primary);
   outline-offset: 2px;
+}
+
+/* =========================================================
+   Shared admin patterns (docs/DESIGN_SYSTEM.md, Shared components)
+   ========================================================= */
+
+/* ---------- Page header: eyebrow, H1, description; Updated, Refresh and one primary on the right ---------- */
+.owner-page-heading .owner-eyebrow { margin-bottom: var(--zella-space-1); }
+.owner-page-heading .op-heading-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--zella-space-2); }
+.owner-page-heading .op-updated { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); white-space: nowrap; }
+
+/* ---------- KPI card: label, value, one line of note ---------- */
+.owner-stat-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 118px;
+  padding: var(--zella-space-4) var(--zella-space-5);
+  text-align: left;
+}
+.owner-stat-card .owner-stat-top > span:first-child { font-size: var(--zella-text-sm); font-weight: 500; color: var(--zella-text-secondary); }
+.owner-stat-card .owner-stat-value { margin-top: var(--zella-space-2); font-size: var(--zella-text-kpi); font-weight: 600; font-variant-numeric: tabular-nums; }
+.owner-stat-card .owner-stat-note {
+  margin-top: auto;
+  padding-top: var(--zella-space-1);
+  overflow: hidden;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.owner-stat-card--action { width: 100%; font: inherit; color: inherit; cursor: pointer; transition: border-color 0.12s ease, box-shadow 0.12s ease; }
+.owner-stat-card--action:hover { border-color: var(--zella-border-strong); }
+.owner-stat-card--action:focus-visible { outline: none; box-shadow: var(--zella-focus); border-color: var(--zella-primary); }
+.owner-stat-card--action[aria-pressed="true"] { border-color: var(--zella-primary-border); background: var(--zella-primary-soft); }
+.owner-stat-chev { color: var(--zella-text-secondary); }
+
+/* ---------- Tables: selected and clickable rows ---------- */
+.owner-table tbody tr.ao-clickable { cursor: pointer; }
+.owner-table tbody tr.ao-clickable:hover { background: var(--zella-alt); }
+.owner-table tbody tr.ao-clickable:focus-visible { outline: 2px solid var(--zella-primary); outline-offset: -2px; }
+.owner-table tbody tr.is-selected,
+.owner-table tbody tr[aria-selected="true"],
+.owner-table tbody tr.selected,
+.st-row.selected {
+  background: var(--zella-primary-soft);
+  box-shadow: inset 3px 0 0 var(--zella-primary);
+}
+.owner-table tbody tr.is-selected td,
+.owner-table tbody tr.selected td,
+.st-row.selected td { background: transparent; }
+
+/* Tables that stay tables on a phone fade at the right edge while they can scroll. The fade comes only from the scroll
+   timeline: a table that fits has no active timeline and no fade, and a browser without scroll timelines shows no fade. */
+@media (max-width: 600px) {
+  @supports (animation-timeline: scroll(inline)) {
+    .owner-table-wrap:not(.owner-table-wrap--cards) { animation: owner-edge-fade linear both; animation-timeline: scroll(self inline); }
+  }
+}
+@keyframes owner-edge-fade {
+  0%, 96% { -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent); mask-image: linear-gradient(90deg, #000 90%, transparent); }
+  100% { -webkit-mask-image: none; mask-image: none; }
+}
+
+/* Tab rows fade the same way on phones */
+@media (max-width: 600px) {
+  @supports (animation-timeline: scroll(inline)) {
+    .owner-scroll-fade { animation: owner-edge-fade linear both; animation-timeline: scroll(self inline); }
+  }
+}
+
+/* Phone tables become cards (opt in with .owner-table--cards; DataTable cards) */
+@media (max-width: 600px) {
+  .owner-table--cards thead { display: none; }
+  .owner-table--cards,
+  .owner-table--cards tbody { display: block; width: 100%; }
+  .owner-table--cards tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px var(--zella-space-3);
+    padding: var(--zella-space-3) var(--zella-space-4);
+    border-bottom: 1px solid var(--zella-border);
+  }
+  .owner-table--cards tbody tr:last-child { border-bottom: 0; }
+  .owner-table--cards td { grid-column: 1; padding: 0; border: 0; min-width: 0; text-align: left; }
+  .owner-table--cards td.num { text-align: left; }
+  .owner-table--cards td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--zella-text-secondary);
+    font-size: var(--zella-text-xs);
+  }
+  .owner-table--cards td:first-child::before { content: none; }
+  .owner-table--cards td.col-actions { grid-column: 2; grid-row: 1; width: auto; align-self: start; }
+}
+
+/* ---------- Table footer (Pager) ---------- */
+.owner-table-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--zella-space-2);
+  margin: 0;
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border-top: 1px solid var(--zella-border);
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-sm);
+}
+.ao-panel > .owner-table-foot.ao-pager { margin: 0; }
+.owner-table-foot-nav { display: flex; gap: var(--zella-space-2); }
+@media (max-width: 600px) {
+  .owner-table-foot .owner-pager-word { display: none; }
+  .owner-table-foot .owner-secondary-button.sm { width: 32px; padding: 0; justify-content: center; }
+}
+
+/* ---------- Filters: one row ---------- */
+.ao-filters,
+.op-filters {
+  display: grid;
+  grid-template-columns: minmax(240px, 2fr) repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--zella-space-3);
+  align-items: end;
+  margin-bottom: var(--zella-space-4);
+}
+.ao-filter { display: grid; gap: 4px; min-width: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); font-weight: 500; }
+.ao-filter select,
+.ao-filter input,
+.ao-search input[type="search"],
+.op-filters select,
+.op-filters input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--zella-border-strong);
+  border-radius: var(--zella-radius-sm);
+  background: var(--zella-card);
+  color: var(--zella-text);
+  font: inherit;
+  font-size: var(--zella-text-sm);
+}
+.ao-filter select:focus,
+.ao-filter input:focus,
+.op-filters select:focus,
+.op-filters input:focus { border-color: var(--zella-primary); box-shadow: var(--zella-focus); outline: none; }
+.ao-filters .owner-secondary-button,
+.ao-filters .owner-link-button,
+.op-filters .owner-secondary-button { height: 36px; min-height: 36px; justify-self: start; }
+.ao-toggle { justify-self: start; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 var(--zella-space-3); font-size: var(--zella-text-sm); }
+.ao-chip:focus-visible { outline: 2px solid var(--zella-primary); outline-offset: 2px; }
+.ao-clear { justify-self: start; }
+.ao-filters-toggle { display: none; }
+@media (max-width: 600px) {
+  .ao-filters-toggle { display: inline-flex; margin-bottom: var(--zella-space-3); }
+  .ao-filters-wrap:not(.open) > .ao-filters { display: none; }
+  .ao-filters,
+  .op-filters { grid-template-columns: 1fr; }
+}
+
+/* ---------- Drawers ---------- */
+.owner-modal.ao-drawer { padding: 0; }
+.ao-drawer-head .owner-icon-button { flex-shrink: 0; }
+.ao-drawer-body > .ao-facts:first-child { margin-top: 0; }
+.ao-drawer-body > .ao-drawer-actions:last-child { margin-bottom: 0; }
+
+/* ---------- Settings rows and the section save bar (SettingsKit) ---------- */
+.zs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+  gap: var(--zella-space-2) var(--zella-space-6);
+  align-items: start;
+  padding: var(--zella-space-3) 0;
+  border-top: 1px solid var(--zella-border);
+}
+.zs-card-body > .zs-row:first-child,
+.zs-card-body > :first-child > .zs-row:first-child { border-top: 0; padding-top: 0; }
+.zs-card-body > .zs-row:last-child { padding-bottom: 0; }
+.zs-row-text { display: grid; gap: 2px; min-width: 0; }
+.zs-row-label { color: var(--zella-text); font-size: var(--zella-text-base); font-weight: 500; }
+.zs-row-help { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.zs-row-control { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }
+.zs-row-control > .zs-input { max-width: 360px; }
+.zs-row-control > .zs-input-num { max-width: 240px; }
+.zs-tech { margin-top: 2px; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+.zs-tech summary { width: max-content; cursor: pointer; }
+.zs-tech > div { margin-top: 4px; }
+.zs-sectionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--zella-space-2);
+  margin: var(--zella-space-3) calc(var(--zella-space-4) * -1) calc(var(--zella-space-4) * -1);
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border-top: 1px solid var(--zella-border);
+  border-radius: 0 0 var(--zella-radius-lg) var(--zella-radius-lg);
+  background: var(--zella-card);
+}
+.zs-sectionbar-state { flex: 1; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.zs-missing ul { margin: 6px 0 0; padding-left: 18px; }
+.zs-missing details { margin-top: 2px; }
+@media (max-width: 600px) {
+  .zs-row { grid-template-columns: 1fr; }
+  .zs-row-control { justify-content: flex-start; }
+  .zs-row-control > .zs-input,
+  .zs-row-control > .zs-input-num { max-width: none; }
+}
+
+/* ---------- Sidebar column fills the page; only the inner nav is sticky ---------- */
+.owner-sidebar-col {
+  flex-shrink: 0;
+  align-self: stretch;
+  background: var(--zella-sidebar);
+  border-right: 1px solid var(--zella-border);
+}
+.owner-sidebar-col > .owner-sidebar:not(.open) {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: auto;
+  border-right: 0;
+  background: transparent;
+}
+@media (max-width: 600px) {
+  .owner-sidebar-col { border-right: 0; background: none; }
 }
