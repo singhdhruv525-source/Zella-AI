@@ -1,0 +1,98 @@
+/* Voice and numbers page (VoiceNumbersPage.jsx). Page scoped: every rule starts with .vn-page. Colours, sizes and
+   spacing come from the tokens in styles/tokens.css. The tab and empty value rules match the shared design system
+   branch and can go once it lands. */
+
+.vn-page .empty-value { color: var(--zella-text-faint); font-weight: 400; white-space: nowrap; }
+.vn-page .vn-nowrap { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Page tabs: the one page level pattern. One line that scrolls sideways, the selected tab a soft tint. */
+.vn-page .op-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--zella-space-1);
+  overflow-x: auto;
+  margin-bottom: var(--zella-space-4);
+  padding: 0 0 var(--zella-space-2);
+  border-bottom: 1px solid var(--zella-border);
+  scrollbar-width: none;
+}
+.vn-page .op-tabs::-webkit-scrollbar { display: none; }
+.vn-page .op-tabs button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--zella-space-3);
+  border: 0;
+  border-radius: var(--zella-radius-full);
+  background: transparent;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.vn-page .op-tabs button:hover { background: var(--zella-nav-hover); color: var(--zella-text); }
+.vn-page .op-tabs button.active,
+.vn-page .op-tabs button[aria-selected="true"] {
+  background: var(--zella-primary-soft);
+  color: var(--zella-text);
+  box-shadow: inset 0 0 0 1px var(--zella-primary-border);
+}
+.vn-page .op-tabs button:focus-visible { outline: 2px solid var(--zella-primary); outline-offset: -2px; }
+
+/* Tables: rows read on one line, at one rhythm */
+.vn-page .ao-table td { vertical-align: middle; }
+.vn-page .ao-table .op-pill { white-space: nowrap; }
+
+@media (max-width: 600px) {
+  /* The tab row fades at the right edge, so a cut off tab reads as "scroll for more" */
+  .vn-page .op-tabs {
+    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+
+  /* Tables that stay tables scroll inside their card: rows stay on one line, and the right edge fades */
+  .vn-page .ao-table td { white-space: nowrap; }
+  .vn-page .owner-table-wrap {
+    -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent);
+    mask-image: linear-gradient(90deg, #000 90%, transparent);
+  }
+
+  /* KPIs: one sideways strip instead of a two column grid that leaves one tile on its own */
+  .vn-page .vn-stats {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - var(--zella-space-3)) / 2.25);
+    grid-template-columns: none;
+    gap: var(--zella-space-3);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: var(--zella-space-1);
+    -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+  .vn-page .vn-stats::-webkit-scrollbar { display: none; }
+  .vn-page .vn-stats > * { scroll-snap-align: start; min-width: 0; }
+
+  /* Overview: no cards nested in cards. Items inside a panel lose their border and sit under a top divider. */
+  .vn-page .vn-overview-panels .ao-alerts,
+  .vn-page .vn-overview-panels .ao-providers { gap: 0; }
+  .vn-page .vn-overview-panels .ao-alert,
+  .vn-page .vn-overview-panels .ao-provider {
+    padding: var(--zella-space-3) 0;
+    border: 0;
+    border-top: 1px solid var(--zella-border);
+    border-radius: 0;
+    background: transparent;
+  }
+  .vn-page .vn-overview-panels .ao-alert.urgent { background: transparent; border-color: var(--zella-border); }
+  .vn-page .vn-overview-panels .ao-unavailable {
+    margin: var(--zella-space-3) 0 0;
+    padding: var(--zella-space-3) 0 0;
+    border: 0;
+    border-top: 1px solid var(--zella-border);
+    border-radius: 0;
+    background: transparent;
+  }
+}

@@ -1,0 +1,16 @@
+/* Automations page (AutomationsPage.jsx). Page scoped: every rule starts with .ap-page. Tokens only. */
+
+/* "Pause all for this business" is a secondary button with danger text until its confirm step, at the same height
+   as "Resume all" beside it. */
+.ap-page .owner-secondary-button.ap-danger-text { color: var(--zella-danger); }
+.ap-page .owner-secondary-button.ap-danger-text:hover:not(:disabled) { border-color: var(--zella-danger-border); background: var(--zella-danger-bg); }
+.ap-page .ap-filter-action { align-self: flex-end; min-height: 36px; height: 36px; white-space: nowrap; }
+
+.ap-page .ap-helper { margin: 0 0 var(--zella-space-4); }
+
+/* Rows are never tinted peach: hover and focus use the quiet alternate fill, the same for every status. */
+.ap-page .ao-clickable:hover td,
+.ap-page .ao-clickable:focus-visible td { background: var(--zella-alt); }
+.ap-page .ao-clickable:focus-visible { outline: 2px solid var(--zella-primary); outline-offset: -2px; }
+.ap-page .ao-table td { vertical-align: middle; }
+.ap-page .ao-table .op-pill { white-space: nowrap; }

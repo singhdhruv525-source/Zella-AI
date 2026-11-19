@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Icon as UIIcon } from "../BusinessUI";
 import "./settings.css";
 
 // The Settings workspace shared by the admin dashboard and the business app.
@@ -84,8 +85,8 @@ export default function SettingsWorkspace({ title = "Settings", description, reg
                 <li key={c.key} className={c.key === cat.key ? "current" : ""}>
                   <button type="button" className="zs-cat" aria-expanded={isOpen(c.key)} onClick={() => toggle(c.key)}>
                     <Icon name={c.icon} />
-                    <span className="zs-cat-label">{c.label}</span>
-                    <span className="zs-chev" aria-hidden="true">{isOpen(c.key) ? "▾" : "▸"}</span>
+                    <span className="zs-cat-label" title={c.label}>{c.label}</span>
+                    <span className={`zs-chev${isOpen(c.key) ? " open" : ""}`} aria-hidden="true"><UIIcon name="chevron_right" size="sm" /></span>
                   </button>
                   {isOpen(c.key) && (
                     <ul>
@@ -93,7 +94,7 @@ export default function SettingsWorkspace({ title = "Settings", description, reg
                         const active = c.key === cat.key && i.key === sub.key;
                         return (
                           <li key={i.key}>
-                            <a href={href(c, i)} className={active ? "active" : ""} aria-current={active ? "page" : undefined}
+                            <a href={href(c, i)} className={active ? "active" : ""} title={i.label} aria-current={active ? "page" : undefined}
                               onClick={(e) => { if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); pick(c, i); }}>{i.label}</a>
                           </li>
                         );

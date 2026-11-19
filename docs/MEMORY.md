@@ -248,6 +248,37 @@ most often needed:
   an older web app that sends no confirmation still works and the audit row says so; set it false once the new web app
   is live. Deactivating an industry (CFG-08) only stops it being offered for new businesses.
 
+- **Scheduled job intent (PLT-07, 16 Nov 2026, default the owner can change):** every go live job (zella_dispatch,
+  the every 5, every 15, hourly, daily and weekly jobs, zella_cron_cleanup, zella_platform_emails, zella_spam_hourly)
+  is recorded as "Deliberately off until go live" by `sql/zella_job_intent.sql`. Intents live in their own table;
+  recording one needs `platform.configure` and a reason and is audited. An intent is a record, never a switch: no
+  lane or page switches a job, which stays the owner's live switch. zella_usage_thresholds and zella_billing_reconcile
+  (on in production) have no intent recorded, so the page shows them as plain On.
+
+- **n8n answers (OPS-17, 16 Nov 2026, default the owner can change):** a 401 or 403 from n8n (wrong secret) is one
+  urgent `n8n_dispatch_refused` alert for every workflow; a 404 (workflow not published) is a warning per workflow; a
+  later 2xx resolves them. The dispatcher reads pg_net's answer on its next run and never waits for it.
+
+- **Go live checklist (UI-23, 16 Nov 2026):** one list on Platform operations. The server secret list lives in
+  `owner-provision-business/ops.ts` (`SERVER_SECRETS`), shared by Operations' Services and the checklist; add a new
+  secret there. The jobs and email triggers are read by the signed in admin (database functions), the secrets by the
+  function; a part that doesn't load reads "Not checked", never "Ready".
+
+- **n8n's own status (AUTO-N8N-STATUS, 16 Nov 2026):** read on the server (`owner-provision-business` `n8n_status`,
+  `n8n.ts`) with `N8N_API_KEY` and `N8N_API_URL` (https only) as Supabase secrets; read only, the key never leaves the
+  server. Built and tested against a stub; it shows "Not connected yet" until the owner creates the key in n8n and
+  sets both secrets.
+
+- **Voice alerts (UI-14, COM-09, 16 Nov 2026, defaults the owner can change):** missed call alert at 5 or more
+  inbound calls in 24 hours with 25% or more missed, warning (named constants in `zella_admin_voice_alerts`); a
+  refused Vapi request in the last hour is a warning. voice-rules counts refusals (type, reason, header names only)
+  without waiting; its deploy is the live call path and needs its own approval, after the "Fix Vapi call auth" work.
+
+- **Alert rules (SET-ALERT-RULES, 16 Nov 2026, the owner decision's safety default):** urgent alerts can't be switched
+  off or lowered, only rerouted, and a quiet window or repeat interval never holds them back. Protected kinds:
+  service_incident, scheduler_failed, provider_down, integration_disconnected, tenant_leak, plus anything raised as
+  urgent. `sql/zella_run_all.sql` re-creates the old `zella_platform_alert` (line 1519): never re-run it after
+  `sql/zella_alert_rules.sql`, or apply that file again.
 - **Owner decisions of 16 Nov 2026** (architecture §23.1a, and where each requirement lives):
   1. **Growth page (REQ-ADM-18, ACC-36): later**, not before launch. `growth.manage` doesn't exist yet and is not
      listed as an existing permission (`docs/PRODUCT.md`).
