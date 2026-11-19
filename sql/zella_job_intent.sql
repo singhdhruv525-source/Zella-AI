@@ -60,6 +60,8 @@ begin
   perform public.zella_admin_require('platform.configure');
   if p_job is null or p_job !~ '^zella[a-z0-9_]{0,60}$' then raise exception 'INVALID_JOB'; end if;
   if p_intended is null or p_intended not in ('on', 'off') then raise exception 'INVALID_INTENT'; end if;
+  -- one save per job at a time (also for a job with no row yet), so the audit's old value is the one this save replaced
+  perform pg_advisory_xact_lock(hashtextextended('zella_job_intent:' || p_job, 0));
   select * into v_old from public.scheduled_job_intents where job_name = p_job;
   -- a record only: cron.job is never read for writing here, and nothing is switched on or off
   insert into public.scheduled_job_intents (job_name, intended, reason, decided_by, decided_at)

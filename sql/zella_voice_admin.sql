@@ -20,8 +20,8 @@ begin;
 
 do $$
 declare s text; d text; want jsonb := jsonb_build_object(
-  'public.zella_admin_voice_overview(timestamp with time zone,timestamp with time zone)', jsonb_build_array('f2eb6462c0ff90296786252005b50d4f', 'beb55e2f313319dce5322d40561aab19'),
-  'public.zella_admin_voice_alerts()', jsonb_build_array('54adf47cf26d62aab4249243e730c548', '65c91db2da69d8137fabd822f311fe3c'));
+  'public.zella_admin_voice_overview(timestamp with time zone,timestamp with time zone)', jsonb_build_array('f2eb6462c0ff90296786252005b50d4f', '97b18e34d4c66ea2d688da3741d75181'),
+  'public.zella_admin_voice_alerts()', jsonb_build_array('54adf47cf26d62aab4249243e730c548', 'b2b66f703579a78f50cbe7e296d0e8fe'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regprocedure('public.zella_admin_require(text)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
@@ -98,7 +98,9 @@ begin
   if to_regclass('public.scheduled_job_intents') is not null then
     execute $q$select coalesce(jsonb_object_agg(job_name, intended), '{}'::jsonb) from public.scheduled_job_intents$q$ into v_intents;
   end if;
-  select jsonb_build_object('n', coalesce(sum(count), 0), 'at', max(last_at)) into v_refusals from public.vapi_refusals where hour > now() - interval '24 hours';
+  -- the counts are kept per hour: the 24 hour figure is the current hour and the 23 before it (since = where it starts)
+  select jsonb_build_object('n', coalesce(sum(count), 0), 'at', max(last_at), 'since', date_trunc('hour', now() - interval '23 hours'))
+    into v_refusals from public.vapi_refusals where hour >= date_trunc('hour', now() - interval '23 hours');
   select jsonb_build_object(
     'inbound', count(*) filter (where direction = 'inbound'),
     'outbound', count(*) filter (where direction = 'outbound'),
@@ -125,7 +127,7 @@ begin
     'calls_live', coalesce(public.zella_setting('calls_live', 'false'::jsonb) = 'true'::jsonb, false),
     -- refused Vapi requests (COM-09): counts only, never content
     'auth_mode', coalesce(nullif(public.zella_setting('vapi_auth_mode', '""'::jsonb) #>> '{}', ''), 'not set'),
-    'refusals_24h', (v_refusals ->> 'n')::int, 'last_refusal_at', v_refusals -> 'at',
+    'refusals_24h', (v_refusals ->> 'n')::int, 'last_refusal_at', v_refusals -> 'at', 'refusals_since', v_refusals -> 'since',
     -- the switches calls depend on (COM-13), read only
     'switches', jsonb_build_object(
       'calls_live', coalesce(public.zella_setting('calls_live', 'false'::jsonb) = 'true'::jsonb, false),
@@ -187,9 +189,12 @@ begin
       'detail', r.name || ': ' || r.missed || ' of ' || r.inbound || ' inbound calls missed in 24 hours', 'business_id', r.id, 'link', 'calls',
       'filter', jsonb_build_object('status', 'missed', 'direction', 'inbound', 'days', 1, 'business_id', r.id)));
   end loop;
-  for r in select sum(count) n, max(last_at) at, string_agg(distinct replace(message_type, '-', ' '), ', ') types from public.vapi_refusals where last_at > now() - refusal_window having sum(count) > 0 loop
+  -- hourly counts: the window is the current hour and the one before, and the text says where it starts
+  for r in select sum(count) n, max(last_at) at, string_agg(distinct replace(message_type, '-', ' '), ', ') types from public.vapi_refusals
+            where hour >= date_trunc('hour', now() - refusal_window) having sum(count) > 0 loop
     out := out || jsonb_build_array(jsonb_build_object('severity', 'warning', 'kind', 'vapi_refused', 'title', 'Vapi requests refused',
-      'detail', r.n || ' Vapi ' || case when r.n = 1 then 'request' else 'requests' end || ' failed the sign in check in the last hour (' || r.types || '). Check the Vapi credential and the auth mode.',
+      'detail', r.n || ' Vapi ' || case when r.n = 1 then 'request' else 'requests' end || ' failed the sign in check since '
+        || to_char(date_trunc('hour', now() - refusal_window) at time zone 'UTC', 'HH24:MI') || ' UTC (' || r.types || '). Check the Vapi credential and the auth mode.',
       'at', r.at, 'link', 'providers'));
   end loop;
   out := out || coalesce((select jsonb_agg(jsonb_build_object('severity', a.severity, 'kind', a.kind, 'title', a.title, 'detail', left(a.detail, 300),

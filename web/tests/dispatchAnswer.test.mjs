@@ -14,6 +14,14 @@ test("each answer reads in plain words with its tone", () => {
   assert.equal(dispatchAnswer({ status_code: null }).label, "Not recorded yet");
 });
 
+test("a newer request still waiting is shown beside the previous answer, never as a plain success", () => {
+  const a = dispatchAnswer({ status_code: 200, waiting: true });
+  assert.equal(a.label, "Accepted (200), a newer request is waiting");
+  assert.equal(a.tone, "neutral");
+  assert.equal(a.pending, true);
+  assert.equal(dispatchAnswer({ status_code: 401, waiting: true }).tone, "danger");
+});
+
 test("nothing known is null, never a guess", () => {
   assert.equal(dispatchAnswer(undefined), null);
   assert.equal(answersByWorkflow(null).size, 0);
@@ -21,7 +29,7 @@ test("nothing known is null, never a guess", () => {
 });
 
 test("no label has a dash", () => {
-  for (const r of [{ status_code: 200 }, { status_code: 401 }, { status_code: 404 }, { status_code: 502 }, { error: "x" }, { waiting: true }, {}]) {
+  for (const r of [{ status_code: 200 }, { status_code: 401 }, { status_code: 404 }, { status_code: 502 }, { error: "x" }, { waiting: true }, { status_code: 200, waiting: true }, {}]) {
     assert.doesNotMatch(dispatchAnswer(r).label, /[-‐–—]/);
   }
 });

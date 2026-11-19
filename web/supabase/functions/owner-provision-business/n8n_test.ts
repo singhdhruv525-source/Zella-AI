@@ -9,22 +9,24 @@ const env = (vars: Record<string, string>) => (n: string) => vars[n];
 const full = env({ N8N_API_KEY: KEY, N8N_API_URL: `${BASE}/` });
 
 // a stub of n8n's public API: records each call, answers workflows and executions
-function stubN8n(status = 200, calls: { url: string; key: string | null }[] = []): FetchLike {
+// workflows come in two pages (n8n's cursor); executions are asked for per workflow, newest first
+function stubN8n(status = 200, calls: { url: string; key: string | null; redirect?: string }[] = []): FetchLike {
   return async (url, init) => {
-    calls.push({ url, key: new Headers(init.headers).get("X-N8N-API-KEY") });
+    calls.push({ url, key: new Headers(init.headers).get("X-N8N-API-KEY"), redirect: init.redirect });
     if (status !== 200) return new Response("{}", { status });
-    if (url.includes("/api/v1/workflows")) {
+    if (url.includes("/api/v1/workflows") && !url.includes("cursor=")) {
       return Response.json({ data: [
         { id: "1", name: "Zella Voice - Follow-up Texts", active: true },
-        { id: "2", name: "Zella Voice - Event Router", active: false },
         { id: "3", name: "Someone else's workflow", active: true },
-      ] });
+      ], nextCursor: "page2" });
     }
-    return Response.json({ data: [
-      { id: "e3", workflowId: "1", status: "success", startedAt: "2026-11-16T10:00:00Z", stoppedAt: "2026-11-16T10:00:02Z" },
-      { id: "e2", workflowId: "1", status: "error", startedAt: "2026-11-16T09:00:00Z", stoppedAt: "2026-11-16T09:00:01Z" },
-      { id: "e1", workflowId: "3", status: "success", startedAt: "2026-11-16T08:00:00Z", stoppedAt: null },
-    ] });
+    if (url.includes("/api/v1/workflows")) return Response.json({ data: [{ id: "2", name: "Zella Voice - Event Router", active: false }], nextCursor: null });
+    const id = new URL(url).searchParams.get("workflowId");
+    const runs: Record<string, unknown[]> = {
+      "1": [{ id: "e3", workflowId: "1", status: "success", startedAt: "2026-11-16T10:00:00Z", stoppedAt: "2026-11-16T10:00:02Z" }],
+      "2": [],
+    };
+    return Response.json({ data: runs[id ?? ""] ?? [] });
   };
 }
 
@@ -38,12 +40,17 @@ Deno.test("without the key or the address it says not connected yet, and calls n
 });
 
 Deno.test("active flags and the last execution per Zella Voice workflow; the key is sent to n8n only and never returned", async () => {
-  const calls: { url: string; key: string | null }[] = [];
+  const calls: { url: string; key: string | null; redirect?: string }[] = [];
   const out = await n8nStatus(full, stubN8n(200, calls));
   assert(out.configured && out.ok);
   assertEquals(out.workflows.map((w) => [w.name, w.active, w.lastExecution?.status ?? null]), [["Event Router", false, null], ["Follow up Texts", true, "success"]]);
-  assertEquals(calls.map((c) => c.url).sort(), [`${BASE}/api/v1/executions?limit=250`, `${BASE}/api/v1/workflows?limit=250`]);
+  assertEquals(calls.map((c) => c.url).sort(), [
+    `${BASE}/api/v1/executions?workflowId=1&limit=1`, `${BASE}/api/v1/executions?workflowId=2&limit=1`,
+    `${BASE}/api/v1/workflows?limit=250`, `${BASE}/api/v1/workflows?limit=250&cursor=page2`,
+  ]);
   assert(calls.every((c) => c.key === KEY));
+  assert(calls.every((c) => c.redirect === "error"), "a redirect is refused, so the key never follows one");
+  assertEquals(out.complete, true);
   const text = JSON.stringify(out);
   assert(!text.includes(KEY), "key leaked");
   assert(!text.includes("n8n.example.test"), "address leaked");
@@ -71,4 +78,22 @@ Deno.test("n8n_status is an ops action with businesses.view, wired to the stub",
   assertEquals(OPS_PERMISSIONS.n8n_status, "businesses.view");
   const out = await opsHandlers({} as SupabaseClient, {}, env({}), stubN8n()).handlers.n8n_status();
   assertEquals(out, { configured: false });
+});
+
+Deno.test("a 200 without a data list is an error, not an empty success; an empty list is a real none", async () => {
+  const noEnvelope: FetchLike = async () => Response.json({});
+  assertEquals(await n8nStatus(full, noEnvelope), { configured: true, ok: false, error: "n8n sent an answer that isn't readable" });
+  const empty: FetchLike = async () => Response.json({ data: [] });
+  const out = await n8nStatus(full, empty);
+  assert(out.configured && out.ok);
+  assertEquals(out.workflows, []);
+});
+
+Deno.test("past the page limit the answer says it is incomplete", async () => {
+  let n = 0;
+  const endless: FetchLike = async (url) => url.includes("/workflows") ? Response.json({ data: [{ id: String(++n), name: "Zella Voice - W" + n, active: true }], nextCursor: "more" }) : Response.json({ data: [] });
+  const out = await n8nStatus(full, endless);
+  assert(out.configured && out.ok);
+  assertEquals(out.complete, false);
+  assertEquals(out.workflows.length, 10);
 });

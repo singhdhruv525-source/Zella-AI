@@ -1,13 +1,14 @@
 -- Undoes sql/zella_voice_admin.sql exactly: zella_admin_voice_overview and zella_admin_voice_alerts come back from
--- zella_function_archive, and zella_vapi_refusal_record and the vapi_refusals counter (with its counts) are removed.
+-- zella_function_archive, and zella_vapi_refusal_record is removed. The vapi_refusals counter and its counts are kept
+-- (a rollback never deletes data; the table stays server only), and applying the file again adds to them.
 -- Both functions must be exactly this file's versions first, otherwise ROLLBACK_DRIFT and nothing changes. Grants are
 -- kept (same signatures). Deploy the voice-rules version without the counter call first, or it logs a failed call
 -- (the 401 answer is the same either way). Safe to run twice.
 begin;
 do $$
 declare a record; want constant jsonb := jsonb_build_object(
-  'public.zella_admin_voice_overview(timestamp with time zone,timestamp with time zone)', 'beb55e2f313319dce5322d40561aab19',
-  'public.zella_admin_voice_alerts()', '65c91db2da69d8137fabd822f311fe3c'); s text;
+  'public.zella_admin_voice_overview(timestamp with time zone,timestamp with time zone)', '97b18e34d4c66ea2d688da3741d75181',
+  'public.zella_admin_voice_alerts()', 'b2b66f703579a78f50cbe7e296d0e8fe'); s text;
 begin
   if to_regclass('public.zella_function_archive') is null
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_voice_admin') then
@@ -22,7 +23,6 @@ begin
     execute a.definition;
   end loop;
   drop function if exists public.zella_vapi_refusal_record(text, text[], text);
-  drop table if exists public.vapi_refusals;
   delete from public.zella_function_archive where migration = 'zella_voice_admin';
 end $$;
 commit;

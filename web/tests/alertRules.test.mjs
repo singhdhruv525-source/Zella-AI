@@ -17,6 +17,11 @@ test("a rule reads as one plain sentence", () => {
   assert.equal(ruleSummary(offer), "Info, email to admins with billing.view, at most every hour, quiet 22:00 to 07:00");
   assert.equal(ruleSummary(provider), "As raised, always urgent");
   assert.equal(ruleSummary({ rule: { enabled: false } }), "Off");
+  // a protected kind set to bell only with quiet hours is still emailed and never held back, and the summary says so
+  assert.equal(ruleSummary({ protected: true, rule: { enabled: true, destination: "bell", quiet_start: "22:00", quiet_end: "07:00", repeat_minutes: 60 } }),
+    "As raised, email to every admin, protected: always emailed, never held back");
+  assert.equal(ruleSummary({ rule: { enabled: true, severity: "urgent", destination: "bell", quiet_start: "22:00", quiet_end: "07:00" } }),
+    "Urgent, email to every admin, urgent: always emailed, never held back");
 });
 
 test("a protected kind can't be switched off or lowered from the form", () => {

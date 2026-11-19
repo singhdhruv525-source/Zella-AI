@@ -90,9 +90,12 @@ for who in $SUP $MEMBER; do
 done
 [[ "$(as "" "select public.zella_admin_voice_alerts()")" == *"permission denied"* ]] && ok "the wrong role, a business member and anonymous are refused" || bad "anon reads"
 
+KEPT=$(q "select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) || '|' || count(*) from public.vapi_refusals t")   # before the rollback
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_voice_admin_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_voice_admin_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores both functions and their grants exactly" || bad "after rollback: $(fp)"
-[ "$(q "select to_regclass('public.vapi_refusals') is null and to_regprocedure('public.zella_vapi_refusal_record(text,text[],text)') is null")" = "t" ] && ok "rollback removes the counter and the record function" || bad "leftovers"
+[ "$(q "select to_regprocedure('public.zella_vapi_refusal_record(text,text[],text)') is null")" = "t" ] && ok "rollback removes the record function" || bad "leftovers"
+[ "$(q "select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) || '|' || count(*) from public.vapi_refusals t")" = "$KEPT" ] && [ "$(q "select relrowsecurity from pg_class where oid = 'public.vapi_refusals'::regclass")" = t ] \
+  && ok "rollback keeps the refusal counts exactly, still server only" || bad "vapi_refusals after rollback"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_voice_admin.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_admin_voice_alerts() returns jsonb language sql stable as \$f\$ select '[]'::jsonb \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_voice_admin_rollback.sql" 2>&1)

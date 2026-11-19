@@ -7,7 +7,7 @@
 # its severity and respects its repeat interval; an alert raised as urgent and a protected kind ignore all three; the
 # save refuses to switch off or lower a protected kind, validates every field, is audited and needs platform.configure
 # (the wrong role, a business member and anonymous are refused); the list shows rules and protected kinds; the
-# rollback (twice) restores the function exactly and removes the rules; applies again; a changed function stops both.
+# rollback (twice) restores the function exactly, removes the rule functions and keeps the saved rules; applies again; a changed function stops both.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zld_alertrules}; REF=${REF:-zld_alertrules_ref}; TEMPLATE=${TEMPLATE:-zprod3}
@@ -56,6 +56,8 @@ q "delete from public.platform_alerts; insert into public.platform_alert_rules (
 raise t_up warning > /dev/null; [ "$(sev t_up)" = "urgent:1" ] && ok "a rule can raise the severity" || bad "up: $(sev t_up)"
 raise t_down warning > /dev/null; [ "$(sev t_down)" = "info:1" ] && ok "a rule can lower a warning" || bad "down: $(sev t_down)"
 raise t_down urgent x > /dev/null; [ "$(q "select severity from public.platform_alerts where kind = 't_down' and dedupe_key = 'x'")" = "urgent" ] && ok "an alert raised as urgent is never lowered" || bad "urgent lowered"
+raise t_down urgent > /dev/null; [ "$(sev t_down | tr ',' '\n' | grep -v '^urgent:1$' | head -1)" = "urgent:2" ] && ok "the same open alert raised again as urgent becomes urgent (it was info by the rule)" || bad "same key urgent: $(sev t_down)"
+raise t_down warning > /dev/null; [ "$(q "select severity || ':' || occurrences from public.platform_alerts where kind = 't_down' and dedupe_key = ''")" = "urgent:3" ] && ok "and a later warning never lowers it again" || bad "lowered again"
 raise service_incident warning > /dev/null; [ "$(sev service_incident)" = "warning:1" ] && ok "a protected kind ignores a rule that switches it off" || bad "protected: $(sev service_incident)"
 raise t_repeat warning > /dev/null; raise t_repeat warning > /dev/null
 [ "$(sev t_repeat)" = "warning:2" ] && ok "while open, repeats are counted as before" || bad "repeat open: $(sev t_repeat)"
@@ -90,9 +92,12 @@ v=$(as $RO "select (x -> 'protected') ? 'service_incident' and jsonb_array_lengt
 [[ "$(as $OWNER "select count(*) from public.platform_alert_rules")" == *"permission denied"* ]] && ok "the rules table can't be read directly" || bad "table readable"
 [[ "$(as $OWNER "select public.zella_platform_alert('t', 'x')")" == *"permission denied"* ]] && ok "raising an alert stays server only" || bad "admin raises"
 
+KEPT=$(q "select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) || '|' || count(*) from public.platform_alert_rules t")   # before the rollback
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_alert_rules_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_alert_rules_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && [ "$(sig)" = "$sig0" ] && ok "rollback restores the function, its signature and grants exactly" || bad "after rollback: $(fp)"
-[ "$(q "select to_regclass('public.platform_alert_rules') is null and to_regprocedure('public.zella_admin_alert_rule_save(text,jsonb,text)') is null")" = "t" ] && ok "rollback removes the rules and their functions" || bad "leftovers"
+[ "$(q "select to_regprocedure('public.zella_admin_alert_rule_save(text,jsonb,text)') is null")" = "t" ] && ok "rollback removes the rule functions" || bad "leftovers"
+[ "$(q "select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) || '|' || count(*) from public.platform_alert_rules t")" = "$KEPT" ] && [ "$(q "select relrowsecurity from pg_class where oid = 'public.platform_alert_rules'::regclass")" = t ] \
+  && ok "rollback keeps the saved rules exactly, still server only" || bad "platform_alert_rules after rollback"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_alert_rules.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_platform_alert(p_kind text, p_title text, p_detail text default null, p_severity text default 'warning', p_business_id uuid default null, p_dedupe_key text default '', p_meta jsonb default '{}') returns uuid language sql as \$f\$ select null::uuid \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_alert_rules_rollback.sql" 2>&1)

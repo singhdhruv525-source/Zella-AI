@@ -3,7 +3,7 @@
 begin;
 do $$ begin
   if to_regprocedure('public.zella_admin_email_triggers()') is null then return; end if;
-  if md5(pg_get_functiondef('public.zella_admin_email_triggers()'::regprocedure)) <> '53efb8b2d7ea7ab041e07bd3e1782f79' then
+  if md5(pg_get_functiondef('public.zella_admin_email_triggers()'::regprocedure)) <> '6c0046b47d6440d8f2a52b08dd088bec' then
     raise exception 'ROLLBACK_DRIFT: zella_admin_email_triggers has changed since this migration';
   end if;
   drop function public.zella_admin_email_triggers();

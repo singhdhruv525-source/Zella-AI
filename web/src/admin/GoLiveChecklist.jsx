@@ -99,7 +99,7 @@ export default function GoLiveChecklist({ health, pageReady = true, refresh = 0 
   return (
     <div ref={ref} id="go-live" data-go-live-ready={list.ready} data-go-live-total={list.total}>
       <Panel title="Go live checklist"
-        description={`${all.ready} of ${all.total} ready${list.unknown ? `, ${list.unknown} not checked` : ""}. Until every item is ready, nothing reaches customers.`}>
+        description={`${all.ready} of ${all.total} ready${list.unknown ? `, ${list.unknown} not checked` : ""}. Each channel has its own switch: texts, emails and calls reach customers only once that channel is switched on and its own items are ready. This list switches nothing on.`}>
         <ErrorNote error={server.error} onRetry={server.reload} />
         <div className="gl-tiles">
           {tiles.map(([key, title, c]) => {

@@ -1,5 +1,6 @@
 -- Undoes sql/zella_job_intent.sql exactly: zella_admin_scheduler_health() comes back from zella_function_archive, and
--- zella_admin_job_intent_save and the scheduled_job_intents table (with every intent recorded in it) are removed. The
+-- zella_admin_job_intent_save is removed. The scheduled_job_intents table and every intent recorded in it (reason, who,
+-- when) are kept (a rollback never deletes data; the table stays server only), and applying the file again keeps them. The
 -- function must be exactly this file's version first, otherwise ROLLBACK_DRIFT and nothing changes. Grants are kept
 -- (same signature). cron.job is never touched. Safe to run twice.
 begin;
@@ -17,7 +18,6 @@ begin
     execute a.definition;
   end loop;
   drop function if exists public.zella_admin_job_intent_save(text, text, text);
-  drop table if exists public.scheduled_job_intents;
   delete from public.zella_function_archive where migration = 'zella_job_intent';
 end $$;
 commit;

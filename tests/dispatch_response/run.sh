@@ -79,9 +79,9 @@ n=$(q "select count(*) from public.platform_alerts where kind = 'n8n_dispatch_re
 [ "$(q "select count(*) from public.platform_alerts where kind = 'n8n_dispatch_refused'")" = "$n" ] && [ "$(q "select occurrences from public.platform_alerts where dedupe_key = 'n8n_secret'")" = "2" ] && ok "an answer is read once, not again on every run" || bad "read twice"
 respond event-router 200; dispatch > /dev/null
 v=$(q "select string_agg(dedupe_key || ':' || status, ',' order by dedupe_key) from public.platform_alerts where kind = 'n8n_dispatch_refused'")
-[ "$v" = "followup-texts:open,n8n_secret:resolved" ] && ok "a later 200 resolves the secret alert, the other workflow's stays" || bad "resolve: $v"
+[ "$v" = "followup-texts:open,n8n_secret:open" ] && ok "one workflow's 200 doesn't resolve the shared secret alert while another's latest answer is still 401" || bad "resolve: $v"
 respond followup-texts 200; dispatch > /dev/null
-[ "$(q "select count(*) from public.platform_alerts where kind = 'n8n_dispatch_refused' and status <> 'resolved'")" = "0" ] && ok "its own 200 resolves the 404 alert" || bad "404 not resolved"
+[ "$(q "select count(*) from public.platform_alerts where kind = 'n8n_dispatch_refused' and status <> 'resolved'")" = "0" ] && ok "once every workflow's latest answer is a success, the secret alert and the 404 alert are resolved" || bad "404 not resolved"
 # pg_net's real table also has error_msg and timed_out
 q "alter table net._http_response add column if not exists error_msg text, add column if not exists timed_out boolean" > /dev/null
 q "insert into net._http_response (id, status_code, error_msg, timed_out) select last_request_id, null, 'Couldn''t resolve host', false from public.n8n_dispatch_state where workflow = 'event-router'" > /dev/null
@@ -93,6 +93,16 @@ v=$(as $OWNER "select x ->> 'status_code' from jsonb_array_elements(public.zella
 [[ "$(as "" "select public.zella_admin_dispatch_responses()")" == *"permission denied"* ]] && ok "anonymous is refused" || bad "anon reads"
 v=$(q "select count(*) from information_schema.columns where table_name = 'n8n_dispatch_state' and column_name in ('content', 'body', 'payload')")
 [ "$v" = "0" ] && ok "no answer body is stored" || bad "body stored"
+# a run sends a new request before the previous one's answer exists: the older one is still read when it comes
+q "delete from net._http_response; update public.platform_alerts set status = 'resolved' where kind = 'n8n_dispatch_refused'" > /dev/null
+dispatch > /dev/null; old=$(q "select last_request_id from public.n8n_dispatch_state where workflow = 'event-router'")
+dispatch > /dev/null; new=$(q "select last_request_id from public.n8n_dispatch_state where workflow = 'event-router'")
+[ "$old" != "$new" ] && [ "$(q "select '$old' = any (pending_request_ids::text[]) and '$new' = any (pending_request_ids::text[]) from public.n8n_dispatch_state where workflow = 'event-router'")" = t ] \
+  && ok "both requests wait for their answers (the older id is kept)" || bad "pending ids: $old $new"
+q "insert into net._http_response (id, status_code, content) values ($old, 403, 'not stored')" > /dev/null; dispatch > /dev/null
+[ "$(q "select count(*) from public.platform_alerts where kind = 'n8n_dispatch_refused' and dedupe_key = 'n8n_secret' and status <> 'resolved'")" = 1 ] \
+  && [ "$(q "select not ('$old' = any (pending_request_ids::text[])) from public.n8n_dispatch_state where workflow = 'event-router'")" = t ] \
+  && ok "the older request's late 403 is read and raises the secret alert" || bad "late answer"
 
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_dispatch_response_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_dispatch_response_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores the function and its grants exactly" || bad "after rollback: $(fp)"

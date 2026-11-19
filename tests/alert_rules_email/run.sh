@@ -70,6 +70,16 @@ add ${A}24 w_quiet warning 2
 [ "$(ids)" = "" ] && ok "a window that crosses midnight (start after end) is honoured" || bad "wrap: $(ids)"
 q "update public.platform_alert_rules set quiet_tz = 'Not/AZone'" > /dev/null
 [ "$(ids)" = "24" ] && ok "an unknown time zone never holds an alert back" || bad "bad tz"
+q "delete from public.platform_alerts; delete from public.platform_alert_rules where kind = 'service_incident';
+   insert into public.platform_alert_rules (kind, quiet_start, quiet_end, quiet_tz) values ('service_incident', (now() at time zone 'UTC' - interval '1 hour')::time, (now() at time zone 'UTC' + interval '1 hour')::time, 'UTC')" > /dev/null
+add ${A}25 service_incident warning 2
+[ "$(ids)" = "25" ] && ok "a quiet window never holds a protected kind (service_incident as a warning)" || bad "protected quiet: $(ids)"
+q "delete from public.platform_alerts" > /dev/null
+add ${A}26 w_bell_later warning 2
+[ "$(ids)" = "26" ] || bad "first claim"
+q "insert into public.platform_alert_rules (kind, destination) values ('w_bell_later', 'bell');
+   update public.platform_alerts set notified_at = now() - interval '20 minutes' where id = '${A}26'" > /dev/null
+[ "$(ids)" = "" ] && ok "a claim that never finished isn't retried by email once its kind is bell only" || bad "bell retry: $(ids)"
 
 q "delete from public.platform_alerts; delete from public.platform_alert_rules;
    insert into public.platform_alert_rules (kind, email_permission) values ('w_ops', 'integrations.manage'), ('w_nobody', 'billing.manage')" > /dev/null

@@ -19,8 +19,9 @@ const loadAutomation = () => callOwnerFunction("automation_overview");
 const SCOPE = "Checks failed setups, owner invitations, integrations, urgent tickets and server settings. It doesn't test whether phone, text or email providers answer.";
 
 // The banner: issues, incomplete, failed or nothing found, always scoped to the checks that ran.
-function healthSummary(r, automation) {
-  if (r.status === "loading") return null;
+// jobs: the scheduler health reader (useLoad); a failed or missing answer keeps the banner from saying "clear".
+function healthSummary(r, automation, jobs) {
+  if (r.status === "loading" || (jobs?.loading && !jobs.data)) return null;
   if (r.status === "failed") return { tone: "warn", state: "failed", text: "Health check failed: no results, so nothing here is confirmed healthy." };
   const h = r.data?.health ?? {};
   const counts = [h.failedSetups, h.failedInvites, h.brokenIntegrations, h.urgentTickets];
@@ -29,7 +30,8 @@ function healthSummary(r, automation) {
   const missing = (r.data?.configuration ?? []).filter((c) => c.required && !c.set).length;
   const issues = problems + missing;
   if (issues) return { tone: "warn", state: "issues", text: `${issues} ${issues === 1 ? "issue" : "issues"} found${missing ? ` (${missing} required ${missing === 1 ? "setting" : "settings"} missing)` : ""}` };
-  if (!complete || automation.status === "failed") return { tone: "warn", state: "incomplete", text: "Checks incomplete: no issues in the checks that ran, but some results are missing." };
+  const jobsRead = jobs ? !jobs.loading && !jobs.error && jobs.data && typeof jobs.data === "object" && !jobs.data.missing : true;
+  if (!complete || automation.status === "failed" || !jobsRead) return { tone: "warn", state: "incomplete", text: "Checks incomplete: no issues in the checks that ran, but some results are missing." };
   return { tone: "ok", state: "clear", text: "No issues found in the checks below" };
 }
 
@@ -44,7 +46,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
   const load = () => { r.reload(); automation.reload(); jobs.reload(); setRefresh((n) => n + 1); };
 
   const h = data?.health;
-  const summary = healthSummary(r, automation);
+  const summary = healthSummary(r, automation, jobs);
   const counts = h ? [h.failedSetups, h.failedInvites, h.brokenIntegrations, h.urgentTickets] : [];
   const problems = counts.length && counts.every(isCount) ? counts.reduce((a, b) => a + b, 0) : null;
 

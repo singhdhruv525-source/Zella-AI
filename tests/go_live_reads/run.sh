@@ -31,6 +31,10 @@ t0=$(trig)
 [ "$(read_)" = "false/false" ] && ok "both off read off" || bad "off: $(read_)"
 q "alter table public.platform_emails enable trigger zella_kick_platform_emails" > /dev/null
 [ "$(read_)" = "true/false" ] && ok "a trigger switched on reads on" || bad "on: $(read_)"
+q "alter table public.platform_emails enable replica trigger zella_kick_platform_emails" > /dev/null
+[ "$(read_)" = "false/false" ] && ok "a replica only trigger (doesn't fire for ordinary inserts) reads off" || bad "replica: $(read_)"
+q "alter table public.platform_emails enable always trigger zella_kick_platform_emails" > /dev/null
+[ "$(read_)" = "true/false" ] && ok "an always trigger reads on" || bad "always: $(read_)"
 q "alter table public.platform_emails disable trigger zella_kick_platform_emails; drop trigger zella_kick_platform_emails on public.staff_notifications" > /dev/null
 [ "$(read_)" = "false/null" ] && ok "a missing trigger reads null (not created), never off" || bad "missing: $(read_)"
 q "create trigger zella_kick_platform_emails after insert on public.staff_notifications for each statement execute function public.zella_kick_platform_emails(); alter table public.staff_notifications disable trigger zella_kick_platform_emails" > /dev/null

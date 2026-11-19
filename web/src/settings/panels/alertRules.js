@@ -21,9 +21,16 @@ const hhmm = (t) => (t ? String(t).slice(0, 5) : "");
 export function ruleSummary(row) {
   const r = row.rule;
   if (!r) return row.protected ? "As raised, always urgent" : "As raised";
-  if (!r.enabled) return "Off";
+  // a protected kind, or one the rule makes urgent, is always emailed and never held back: say so instead of
+  // listing restrictions that don't apply to it
+  const alwaysOn = row.protected || r.severity === "urgent";
+  if (!r.enabled && !row.protected) return "Off";
   const parts = [r.severity ? `${r.severity[0].toUpperCase()}${r.severity.slice(1)}` : "As raised",
-    r.destination === "bell" ? "bell only" : r.email_permission ? `email to admins with ${r.email_permission}` : "email to every admin"];
+    r.destination === "bell" && !alwaysOn ? "bell only" : r.email_permission ? `email to admins with ${r.email_permission}` : "email to every admin"];
+  if (alwaysOn) {
+    parts.push(row.protected ? "protected: always emailed, never held back" : "urgent: always emailed, never held back");
+    return parts.join(", ");
+  }
   if (r.repeat_minutes) parts.push(REPEAT_CHOICES.find(([m]) => m === r.repeat_minutes)?.[1].toLowerCase() ?? `at most every ${r.repeat_minutes} minutes`);
   if (r.quiet_start) parts.push(`quiet ${hhmm(r.quiet_start)} to ${hhmm(r.quiet_end)}`);
   return parts.join(", ");

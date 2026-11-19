@@ -1,11 +1,13 @@
 -- Zella Voice: store and show n8n's HTTP answer per workflow (docs/ADMIN_AUDIT_2026-11-16.md OPS-17).
 -- zella_dispatch_n8n handed work to n8n with net.http_post and threw the request id away, so an unpublished workflow
 -- (404) or a wrong secret (401) still showed "Last handed over" on Automations.
---   1. n8n_dispatch_state gets last_request_id (the request just sent), response_request_id, last_status_code,
+--   1. n8n_dispatch_state gets last_request_id (the request just sent), pending_request_ids (every request whose answer
+--      has not been read yet, at most 20), response_request_id, last_status_code,
 --      last_response_at and last_error (the answer to the last request that has one). No payload is stored.
 --   2. zella_dispatch_n8n keeps the request id, and on its next run reads that request's net._http_response (pg_net
 --      fills it after the request, so it is never waited for). 401 or 403 raise one urgent n8n_dispatch_refused alert
---      for all workflows (dedupe n8n_secret); 404 raises a warning for that workflow; a later 2xx resolves them.
+--      for all workflows (dedupe n8n_secret), resolved only once no workflow's latest answer is a refusal; 404 raises a
+--      warning for that workflow, resolved by its own next 2xx.
 --      Everything else is the production body unchanged: same counts, switch, address and secret checks, back off
 --      and result. Production's version is the one patched on 15 Nov 2026 by sql/zella_email_delivery.sql (the
 --      retired owner emails line), never sql/baseline. Archived first; any other version stops the file.
@@ -25,7 +27,7 @@ begin
   if md5(d) = '4333da07a5c57d91aa8f018e75368345' then          -- production's version (after zella_email_delivery.sql): archive it
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_dispatch_response', s, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> '080309d80bc02fcea61b6d10a185fa8f' then                               -- nor exactly this file's version (already applied)
+  elsif md5(d) <> '808738aa69ac598aa952842e41114608' then                               -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
 end $$;
@@ -35,7 +37,9 @@ alter table public.n8n_dispatch_state
   add column if not exists response_request_id bigint,
   add column if not exists last_status_code integer,
   add column if not exists last_response_at timestamptz,
-  add column if not exists last_error text;
+  add column if not exists last_error text,
+  -- every request sent whose answer hasn't been read yet (oldest first, at most 20), so a quick next run never drops one
+  add column if not exists pending_request_ids bigint[] not null default '{}';
 
 CREATE OR REPLACE FUNCTION public.zella_dispatch_n8n()
  RETURNS jsonb
@@ -47,7 +51,7 @@ declare
   v_base text := nullif(trim(public.zella_setting('n8n_base_url', '""'::jsonb) #>> '{}'), '');
   v_on boolean := coalesce(public.zella_setting('n8n_dispatch_enabled', 'false'::jsonb) = 'true'::jsonb, false);
   v_secret text; w record; n integer; st public.n8n_dispatch_state; v_same integer; v_res jsonb := '{}'::jsonb; v_spam integer := 0; v_reconcile integer := 0; v_reviews integer := 0;
-  v_req bigint; v_resp jsonb; v_code integer; prev public.n8n_dispatch_state;
+  v_req bigint; v_resp jsonb; v_code integer; prev record;
   v_text_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'reply_confirmed', 'reply_reschedule', 'reply_help', 'waitlist_offer', 'cross_sell'];
   v_email_kinds text[] := array['no_show_follow_up', 'post_appointment_follow_up', 'quote_follow_up', 'lead_reactivation', 'callback_sms', 'welcome_new_customer', 'feedback_request', 'cancellation_confirmation', 'record_status_update', 'service_due', 'no_response_follow_up', 'reschedule_confirmation', 'booking_follow_up', 'service_completed', 'lead_follow_up', 'lead_final_follow_up', 'cross_sell'];
 begin
@@ -70,16 +74,20 @@ begin
   -- it is read here, on the next run, never waited for. 401 or 403 (wrong secret, one alert for all
   -- workflows) and 404 (that workflow isn't published) raise an alert; a later success resolves them. Columns are read through to_jsonb so any pg_net version works.
   if to_regclass('net._http_response') is not null then
-    for prev in select * from public.n8n_dispatch_state where last_request_id is not null and response_request_id is distinct from last_request_id loop
+    -- every request still waiting for its answer, oldest first: a run can send a new request before the previous one's
+    -- answer exists, so no request id is dropped until its answer is read
+    for prev in select st0.workflow, rid from public.n8n_dispatch_state st0, unnest(st0.pending_request_ids) with ordinality u(rid, ord)
+                 where cardinality(st0.pending_request_ids) > 0 order by st0.workflow, u.ord loop
       begin
-        execute 'select to_jsonb(r) from net._http_response r where r.id = $1' into v_resp using prev.last_request_id;
+        execute 'select to_jsonb(r) from net._http_response r where r.id = $1' into v_resp using prev.rid;
       exception when others then v_resp := null;
       end;
       continue when v_resp is null;
       v_code := case when coalesce(v_resp ->> 'status_code', '') ~ '^[0-9]{1,3}$' then (v_resp ->> 'status_code')::integer end;
-      update public.n8n_dispatch_state set response_request_id = prev.last_request_id, last_status_code = v_code,
+      update public.n8n_dispatch_state set response_request_id = prev.rid, last_status_code = v_code,
              last_response_at = coalesce(case when v_resp ->> 'created' is not null then (v_resp ->> 'created')::timestamptz end, now()),
-             last_error = left(coalesce(nullif(v_resp ->> 'error_msg', ''), case when (v_resp ->> 'timed_out') = 'true' then 'Timed out' end), 200)
+             last_error = left(coalesce(nullif(v_resp ->> 'error_msg', ''), case when (v_resp ->> 'timed_out') = 'true' then 'Timed out' end), 200),
+             pending_request_ids = array_remove(pending_request_ids, prev.rid)
        where workflow = prev.workflow;
       if v_code in (401, 403, 404) then
         perform public.zella_platform_alert('n8n_dispatch_refused',
@@ -88,10 +96,17 @@ begin
           case when v_code = 404 then 'warning' else 'urgent' end, null, case when v_code = 404 then prev.workflow else 'n8n_secret' end,
           jsonb_build_object('workflow', prev.workflow, 'status_code', v_code));
       elsif v_code between 200 and 299 then
+        -- this workflow's own "not published" alert only; the shared secret alert is settled below
         update public.platform_alerts set status = 'resolved', resolved_at = now(), resolution_note = 'n8n answered ' || v_code
-         where kind = 'n8n_dispatch_refused' and dedupe_key in (prev.workflow, 'n8n_secret') and status <> 'resolved';
+         where kind = 'n8n_dispatch_refused' and dedupe_key = prev.workflow and status <> 'resolved';
       end if;
     end loop;
+    -- the secret alert is shared by every workflow: resolved only once no workflow's latest answer is a refusal
+    if not exists (select 1 from public.n8n_dispatch_state where last_status_code in (401, 403))
+       and exists (select 1 from public.n8n_dispatch_state where last_status_code between 200 and 299) then
+      update public.platform_alerts set status = 'resolved', resolved_at = now(), resolution_note = 'n8n accepts the dispatcher again'
+       where kind = 'n8n_dispatch_refused' and dedupe_key = 'n8n_secret' and status <> 'resolved';
+    end if;
   end if;
 
   for w in select * from (values ('event-router'), ('sms-sender'), ('email-sender'), ('followup-texts'), ('followup-emails'), ('owner-emails'), ('outbound-calls'), ('knowledge-sync'), ('calendar-sync'), ('connection-tests'), ('meta-leads'), ('meta-sender'), ('meta-health'), ('website-crawl'), ('staff-sms'), ('call-intel'), ('admin-alerts'), ('spam-response'), ('call-reconcile'), ('review-replies')) as t(name) loop
@@ -159,7 +174,9 @@ begin
                           headers := jsonb_build_object('Content-Type', 'application/json', 'X-Zella-Secret', v_secret),
                           body := '{}'::jsonb, timeout_milliseconds := 5000);
     update public.n8n_dispatch_state set last_triggered_at = now(), last_count = n, consecutive_same = v_same, triggers_total = triggers_total + 1,
-           last_request_id = v_req where workflow = w.name;
+           last_request_id = v_req,
+           pending_request_ids = (pending_request_ids || v_req)[greatest(1, cardinality(pending_request_ids) - 18):]
+     where workflow = w.name;
     v_res := v_res || jsonb_build_object(w.name, n);
   end loop;
   return v_res;
@@ -171,7 +188,7 @@ begin
   perform public.zella_admin_require('businesses.view');
   return coalesce((select jsonb_agg(jsonb_build_object('workflow', workflow, 'last_triggered_at', last_triggered_at,
                      'status_code', last_status_code, 'answered_at', last_response_at, 'error', last_error,
-                     'waiting', last_request_id is not null and response_request_id is distinct from last_request_id) order by workflow)
+                     'waiting', cardinality(pending_request_ids) > 0) order by workflow)
                      from public.n8n_dispatch_state where workflow <> '_kick'), '[]'::jsonb);
 end $$;
 revoke all on function public.zella_admin_dispatch_responses() from public, anon;

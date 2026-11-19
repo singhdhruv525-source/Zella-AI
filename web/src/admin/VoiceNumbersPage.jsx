@@ -307,6 +307,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
 
 function Routing({ me, options, say }) {
   const [business, setBusiness] = useState(null);
+  const [saves, setSaves] = useState(0);   // a saved form reloads Missing routing, so a fixed business leaves the list
   const manage = can(me, "telephony.manage");
   return (
     <Panel title="Call routing" description="Who the AI receptionist puts a caller through to when they ask for a person. The same rules the receptionist reads on every call.">
@@ -314,17 +315,17 @@ function Routing({ me, options, say }) {
         <Select label="Business" value={business} any="Choose a business…" onChange={setBusiness} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
       </Filters>
       {!business ? <div className="op-empty">Choose a business to see and change its call routing, or pick one from Missing routing below.</div>
-        : <RoutingForm key={business} businessId={business} manage={manage} say={say} />}
-      <MissingRouting onOpen={setBusiness} />
+        : <RoutingForm key={business} businessId={business} manage={manage} say={say} onSaved={() => setSaves((n) => n + 1)} />}
+      <MissingRouting onOpen={setBusiness} refresh={saves} />
     </Panel>
   );
 }
 
 // UI-17: businesses whose receptionist has no transfer number (with transfers on) or no fallback number. A row opens
 // that business's routing form above.
-function MissingRouting({ onOpen }) {
+function MissingRouting({ onOpen, refresh = 0 }) {
   const [offset, setOffset] = useState(0);
-  const list = useLoad(() => rpc("zella_admin_routing_missing", { p_limit: PAGE, p_offset: offset }), [offset]);
+  const list = useLoad(() => rpc("zella_admin_routing_missing", { p_limit: PAGE, p_offset: offset }), [offset, refresh]);
   const open = (r) => { onOpen(r.business_id); window.scrollTo({ top: 0, behavior: "smooth" }); };
   return (
     <section className="ao-section" aria-label="Missing routing" data-missing-routing={list.data?.total ?? ""}>
@@ -332,7 +333,9 @@ function MissingRouting({ onOpen }) {
       <p className="op-muted">Businesses with an AI receptionist and no number to put callers through to, or no fallback number. Cancelled businesses aren't listed.</p>
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => r.business_id} onRow={open}
-        empty="Every business with a receptionist has a transfer and a fallback number."
+        empty={!list.data || !Number.isFinite(Number(list.data.total)) ? "Couldn't read Missing routing."
+          : Number(list.data.total) > 0 ? "Nothing on this page. Go back a page to see the businesses still missing a number."
+            : "Every business with a receptionist has a transfer and a fallback number."}
         columns={[["Business", (r) => <strong>{r.name}</strong>],
           ["Missing", (r) => <span className="ao-flags">{r.missing_transfer && <Pill tone="warning">Transfer number</Pill>}{r.missing_fallback && <Pill tone="warning">Fallback number</Pill>}</span>],
           ["Business status", (r) => (r.suspended ? <Pill tone="neutral">Suspended</Pill> : "Open")]]} />
@@ -341,7 +344,7 @@ function MissingRouting({ onOpen }) {
   );
 }
 
-function RoutingForm({ businessId, manage, say }) {
+function RoutingForm({ businessId, manage, say, onSaved }) {
   const d = useLoad(() => rpc("zella_admin_routing_get", { p_business_id: businessId }), [businessId]);
   const [form, setForm] = useState(null);
   const [confirm, setConfirm] = useState(false);
@@ -378,7 +381,7 @@ function RoutingForm({ businessId, manage, say }) {
         <ReasonDialog title="Save call routing?" icon="alt_route" confirmLabel="Save" onClose={() => setConfirm(false)}
           onConfirm={async (reason) => {
             await rpc("zella_admin_routing_save", { p_business_id: businessId, p_rules: v, p_reason: reason });
-            setForm(null); d.reload(); say("Call routing saved. The receptionist uses it from the next call.");
+            setForm(null); d.reload(); onSaved?.(); say("Call routing saved. The receptionist uses it from the next call.");
           }}>
           <table className="owner-table ao-table ao-diff"><thead><tr><th>Setting</th><th>Now</th><th>After</th></tr></thead>
             <tbody>{changes.map((k) => <tr key={k}><td>{label[k]}</td><td>{show(k, base[k])}</td><td><strong>{show(k, v[k])}</strong></td></tr>)}</tbody></table>
@@ -394,6 +397,11 @@ function Providers({ me }) {
   const o = ov.data;
   return (
     <>
+      {ov.loading && !o && <p className="op-muted">Loading the Vapi sign in check…</p>}
+      <ErrorNote error={ov.error} onRetry={ov.reload} />
+      {!ov.loading && !ov.error && o && !o.auth_mode && (
+        <NotAvailable title="Vapi sign in check not available">The database update that counts refused Vapi requests isn't applied yet.</NotAvailable>
+      )}
       {o && o.auth_mode && (
         <Panel title="Vapi sign in check" description="How requests from Vapi are checked, and how many failed. Only the message type, the reason and the header names of a refused request are kept.">
           <Facts rows={[["How requests are checked", <span key="m" title={`Setting vapi_auth_mode (${o.auth_mode})`}>{voiceSwitches(o.switches)?.find((r) => r.key === "vapi_auth_mode")?.value ?? "Unknown"}</span>],

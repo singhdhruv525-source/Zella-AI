@@ -5,7 +5,7 @@
 # real one, mismatches are counted and intents for jobs that don't exist are listed; every key it returned before is
 # still there; saving an intent needs platform.configure and a reason, is audited with the admin's id, and leaves
 # cron.job exactly as it was; the wrong role, a business member and anonymous are refused; the table can't be read
-# directly; the rollback (twice) restores the function exactly and removes the table; it refuses a changed function;
+# directly; the rollback (twice) restores the function exactly and keeps every recorded intent; it refuses a changed function;
 # applies again; a version that isn't production's stops the file.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; REPO="$(cd "$HERE/../.." && pwd)"
@@ -70,9 +70,12 @@ v=$(as $OPS "select public.zella_admin_job_intent_save('zella_cron_cleanup', 'on
 [[ "$(as $OWNER "select count(*) from public.scheduled_job_intents")" == *"permission denied"* ]] && ok "the intents table can't be read directly" || bad "table readable"
 [ "$(cronfp)" = "$c0" ] && ok "cron.job is still unchanged after every attempt" || bad "cron.job changed"
 
+KEPT=$(q "select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) || '|' || count(*) from public.scheduled_job_intents t")   # before the rollback
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_job_intent_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_job_intent_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores the function and its grants exactly" || bad "after rollback: $(fp)"
-v=$(q "select to_regclass('public.scheduled_job_intents') is null and to_regprocedure('public.zella_admin_job_intent_save(text,text,text)') is null"); [ "$v" = "t" ] && ok "rollback removes the table and the save function" || bad "leftovers"
+[ "$(q "select to_regprocedure('public.zella_admin_job_intent_save(text,text,text)') is null")" = "t" ] && ok "rollback removes the save function" || bad "leftovers"
+[ "$(q "select md5(coalesce(string_agg(t::text, ',' order by t::text), '')) || '|' || count(*) from public.scheduled_job_intents t")" = "$KEPT" ] && [ "$(q "select relrowsecurity from pg_class where oid = 'public.scheduled_job_intents'::regclass")" = t ] \
+  && ok "rollback keeps every recorded intent exactly, still server only" || bad "scheduled_job_intents after rollback"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_job_intent.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_admin_scheduler_health() returns jsonb language sql stable as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_job_intent_rollback.sql" 2>&1)

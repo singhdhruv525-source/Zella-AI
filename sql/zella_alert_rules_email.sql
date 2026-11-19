@@ -4,7 +4,7 @@
 --   * a kind whose rule says bell only is not emailed: it is marked handled (meta.email_skipped = bell_only) and stays
 --     in the bell. Never for an urgent alert: urgent alerts are always emailed;
 --   * a rule's quiet window (local time in its time zone, may cross midnight) holds warning and info alerts until it
---     ends. Never urgent ones: a quiet window never delays an urgent alert;
+--     ends. Never urgent ones or protected kinds: a quiet window never delays them;
 --   * a rule's email permission sends that kind only to active admins holding the permission (the Zella Voice owner
 --     holds every one); when nobody holds it, every admin gets it, so an alert is never lost;
 --   * one call claims one group of recipients (the group of the most urgent waiting alert), so the n8n Admin Alerts
@@ -25,7 +25,7 @@ begin
   if md5(d) = 'cd96d330aa78de5fbb9e4091e1ab77c1' then          -- production's version: archive it for the rollback
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_alert_rules_email', s, d, md5(d)) on conflict (migration, signature) do nothing;
-  elsif md5(d) <> '098de63ccdfe5d723ce9d20ea8b1b801' then                               -- nor exactly this file's version (already applied)
+  elsif md5(d) <> 'b73e43f58bbaf3cc2a939b8e142d1fea' then                               -- nor exactly this file's version (already applied)
     raise exception 'VERSION_MISMATCH: % is not a version this file was written for', s;
   end if;
 end $$;
@@ -62,7 +62,8 @@ begin
   -- the alert rules (sql/zella_alert_rules.sql): bell only kinds are handled without an email; urgent alerts always email
   update public.platform_alerts a set notified_at = now(), meta = coalesce(a.meta, '{}'::jsonb) || jsonb_build_object('email_skipped', 'bell_only')
     from public.platform_alert_rules r
-   where r.kind = a.kind and r.destination = 'bell' and a.severity <> 'urgent' and a.notified_at is null and a.status = 'open';
+   where r.kind = a.kind and r.destination = 'bell' and a.severity <> 'urgent' and not (a.kind = any (public.zella_alert_protected_kinds()))
+     and a.notified_at is null and a.status = 'open';
   -- the most urgent alert that may go now (a quiet window holds warning and info, never urgent) picks the recipients
   select s.id, r.email_permission into v_first
     from public.platform_alerts s left join public.platform_alert_rules r on r.kind = s.kind
@@ -70,7 +71,11 @@ begin
      and (s.notified_at is null
           or (s.meta ? 'email_claimed_at' and not s.meta ? 'emailed_at' and s.notified_at < now() - interval '15 minutes'
               and coalesce((s.meta ->> 'email_attempts')::int, 0) < 2))
-     and (s.severity = 'urgent' or r.kind is null or not public.zella_alert_quiet_now(r.quiet_start, r.quiet_end, r.quiet_tz))
+     and (s.severity = 'urgent' or s.kind = any (public.zella_alert_protected_kinds()) or r.kind is null
+          or not public.zella_alert_quiet_now(r.quiet_start, r.quiet_end, r.quiet_tz))
+     -- a bell only kind is never emailed, also not by the retry of a claim made before its rule changed (urgent and
+     -- protected kinds always are)
+     and (s.severity = 'urgent' or s.kind = any (public.zella_alert_protected_kinds()) or r.kind is null or r.destination is distinct from 'bell')
    order by case s.severity when 'urgent' then 0 when 'warning' then 1 else 2 end, s.first_seen_at limit 1;
   if v_first.id is null then
     return jsonb_build_object('alerts', '[]'::jsonb, 'to', v_to, 'live', true, 'from', v_from, 'from_name', 'Zella Voice', 'group', null);
@@ -93,7 +98,11 @@ begin
     where a.id in (select s.id from public.platform_alerts s left join public.platform_alert_rules r on r.kind = s.kind
                    where s.status = 'open'
                      and r.email_permission is not distinct from v_group
-                     and (s.severity = 'urgent' or r.kind is null or not public.zella_alert_quiet_now(r.quiet_start, r.quiet_end, r.quiet_tz))
+                     and (s.severity = 'urgent' or s.kind = any (public.zella_alert_protected_kinds()) or r.kind is null
+          or not public.zella_alert_quiet_now(r.quiet_start, r.quiet_end, r.quiet_tz))
+     -- a bell only kind is never emailed, also not by the retry of a claim made before its rule changed (urgent and
+     -- protected kinds always are)
+     and (s.severity = 'urgent' or s.kind = any (public.zella_alert_protected_kinds()) or r.kind is null or r.destination is distinct from 'bell')
                      and (s.notified_at is null
                           -- claimed by this version, never finished (no emailed_at), retried at most 3 times in all
                           or (s.meta ? 'email_claimed_at' and not s.meta ? 'emailed_at' and s.notified_at < now() - interval '15 minutes'

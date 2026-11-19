@@ -65,7 +65,8 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_reason text := public.zella_admin_reason(p_reason); v_ids uuid[]; b record;
 begin
   perform public.zella_admin_require('integrations.manage');
-  select id, suspended_at, cancelled_at into b from public.businesses where id = p_business_id;
+  -- locked like a suspension locks it, so a suspension in flight finishes first and its suspended_at is read here
+  select id, suspended_at, cancelled_at into b from public.businesses where id = p_business_id for update;
   if b.id is null then raise exception 'NOT_FOUND'; end if;
   if b.suspended_at is not null or b.cancelled_at is not null then raise exception 'BUSINESS_NOT_AVAILABLE'; end if;
   with u as (update public.automations set status = 'active', bulk_paused_at = null, updated_at = now()

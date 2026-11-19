@@ -82,7 +82,7 @@ export default function AlertRules({ me }) {
               </div>
             )}
           </Card>
-          {open && <RuleForm key={open.kind} row={open} canEdit={canEdit} onClose={() => setOpen(null)} onSaved={() => { setOpen(null); state.reload(); }} />}
+          {open && <RuleForm key={open.kind} row={open} canEdit={canEdit} onClose={() => setOpen(null)} onSaved={(kind) => { setOpen((o) => (o?.kind === kind ? null : o)); state.reload(); }} />}
         </>
       );
     }}</LoadState>
@@ -98,7 +98,12 @@ function RuleForm({ row, canEdit, onClose, onSaved }) {
   const save = async (rule) => {
     if (reason.trim().length < 3) return setError(ERR.REASON_REQUIRED);
     setBusy(true); setError("");
-    try { await rpc("zella_admin_alert_rule_save", { p_kind: row.kind, p_rule: rule, p_reason: reason.trim() }); onSaved(); }
+    try {
+      const saved = await rpc("zella_admin_alert_rule_save", { p_kind: row.kind, p_rule: rule, p_reason: reason.trim() });
+      // a save the database doesn't have yet is an error, never a quiet success that loses the draft
+      if (saved?.missing) throw new Error("Saving rules needs the alert rules database update, which isn't applied yet. Nothing was saved.");
+      onSaved(row.kind);
+    }
     catch (e) { setError(e.message); setBusy(false); }
   };
   const lock = !canEdit || busy;

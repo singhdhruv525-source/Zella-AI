@@ -1041,9 +1041,10 @@ function Readiness({ showJobs = true }) {
   const state = useAsync(async () => {
     if (!showJobs) return { jobs: null };
     const { data, error } = await supabase.rpc("zella_automation_readiness");
-    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { jobs: [] };
+    // a missing reader or a missing list is "not available", never "no jobs"
+    if (error && (error.code === "PGRST202" || /could not find the function/i.test(error.message))) return { unavailable: true };
     if (error) throw error;
-    return { jobs: data?.jobs ?? [] };
+    return Array.isArray(data?.jobs) ? { jobs: data.jobs } : { unavailable: true };
   }, [showJobs]);
   return (
     <>
@@ -1051,7 +1052,8 @@ function Readiness({ showJobs = true }) {
       {showJobs && (
         <LoadState state={state}>{(r) => (
           <Card title="Scheduled database jobs" sub="They run inside Supabase and hand due work to n8n.">
-            <Table rowKey={(j) => j.name} rows={r.jobs ?? []} empty="No Zella Voice jobs found. The dispatcher database update adds them, and is applied last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />
+            {r.unavailable ? <Banner tone="warn">Job status isn't available: the database update that reports it hasn't been applied, or it sent no list. Nothing here is confirmed.</Banner> :
+            <Table rowKey={(j) => j.name} rows={r.jobs} empty="No Zella Voice jobs found. The dispatcher database update adds them, and is applied last." columns={[["Job", (j) => j.name], ["Schedule", (j) => j.schedule], ["State", (j) => <Pill tone={j.active ? "success" : "warning"}>{j.active ? "Running" : "Off"}</Pill>]]} />}
           </Card>
         )}</LoadState>
       )}

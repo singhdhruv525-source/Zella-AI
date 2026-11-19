@@ -4,13 +4,20 @@
 // { tone, label } for one workflow's answer; null when nothing is known (the function isn't applied yet)
 export function dispatchAnswer(row) {
   if (!row) return null;
+  const answer = answerOf(row);
+  // a newer request is still waiting: the answer shown is the previous one, and the label says so
+  if (row.waiting && answer.kind !== "none") return { ...answer, tone: answer.tone === "success" ? "neutral" : answer.tone, label: `${answer.label}, a newer request is waiting`, pending: true };
+  if (row.waiting) return { tone: "neutral", label: "Waiting for the answer", kind: "waiting" };
+  return answer;
+}
+
+function answerOf(row) {
   const code = row.status_code;
   if (code >= 200 && code < 300) return { tone: "success", label: `Accepted (${code})`, kind: "accepted" };
   if (code === 401 || code === 403) return { tone: "danger", label: `Refused: wrong secret (${code})`, kind: "refused" };
   if (code === 404) return { tone: "danger", label: "Workflow not published (404)", kind: "not_published" };
   if (code) return { tone: "warning", label: `Answered ${code}`, kind: "other" };
   if (row.error) return { tone: "danger", label: `No answer: ${row.error}`, kind: "no_answer" };
-  if (row.waiting) return { tone: "neutral", label: "Waiting for the answer", kind: "waiting" };
   return { tone: "neutral", label: "Not recorded yet", kind: "none" };
 }
 

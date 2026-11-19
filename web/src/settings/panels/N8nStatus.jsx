@@ -27,9 +27,10 @@ export default function N8nStatus() {
       return (
         <Card title="n8n's own status" sub={`Read from n8n ${when(s.checkedAt)}. ${s.workflows.filter((w) => w.active).length} of ${s.workflows.length} workflows active.`}>
           <div data-n8n-status="ok">
+            {s.complete === false && <p className="zs-muted" role="status">n8n has more workflows than one read covers; only the first pages are listed here.</p>}
             <Table rowKey={(w) => w.id} rows={s.workflows} empty="n8n has no Zella Voice workflows."
               columns={[["Workflow", (w) => w.name], ["In n8n", (w) => <Pill tone={w.active ? "success" : "warning"}>{w.active ? "Active" : "Inactive"}</Pill>],
-                ["Last run", (w) => { if (!w.lastExecution) return "Never"; const [tone, label] = RUN[w.lastExecution.status] ?? ["neutral", "Unknown"];
+                ["Last run", (w) => { if (!w.lastExecution) return <span className="zs-muted" title="n8n keeps a limited history of runs">No run in n8n's history</span>; const [tone, label] = RUN[w.lastExecution.status] ?? ["neutral", "Unknown"];
                   return <span><Pill tone={tone}>{label}</Pill> {when(w.lastExecution.stoppedAt ?? w.lastExecution.startedAt)}</span>; }]]} />
           </div>
         </Card>
