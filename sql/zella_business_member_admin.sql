@@ -1,7 +1,8 @@
 -- Zella Voice: an admin's changes to one business's members and owner invitation, each in one transaction
 -- (docs/ADMIN_AUDIT_2026-11-16.md UI-06 part c, BIZ-21 part b; lane E review).
---   1. zella_admin_member_set_status(business, user, status, expected, seen_at): server only (owner-provision-business
---      member_set_status, which checks businesses.manage, the reason and audits). Deactivates or reactivates one
+--   1. zella_admin_member_set_status(business, user, status, expected, seen_at, actor, reason): server only
+--      (owner-provision-business member_set_status, which checks businesses.manage). It writes the member.suspended or
+--      member.reactivated audit row itself, in the same transaction. Deactivates or reactivates one
 --      membership. It holds the business row while it works, so two such changes to one business run one at a time:
 --      the "another active owner is left" check and the write can't interleave (LAST_OWNER). It refuses (STALE) when
 --      the member's status isn't the one the page showed, or when the member's status was changed after the page
@@ -23,7 +24,7 @@ begin
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   for f in select * from (values
-      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone)', 'b7eb91a80c9ae062798f8263f7ec15b0'),
+      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone,uuid,text)', '22d9fcb26b9e9c50b057185b702ae7ea'),
       ('public.zella_admin_invitation_cancel(uuid,uuid)', 'e4df5c3f73d15ef138b68541201edbbe')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'VERSION_MISMATCH: % already exists in a version this file was not written for', f.sig;
@@ -37,7 +38,7 @@ begin
   -- who may run them: their owner and the server roles only; EXECUTE for anyone else (PUBLIC included) is a change
   -- this file didn't make
   if exists (select 1 from (values
-      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone)'),
+      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone,uuid,text)'),
       ('public.zella_admin_invitation_cancel(uuid,uuid)')) v(sig)
       join pg_proc p on p.oid = to_regprocedure(v.sig)
       cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
@@ -47,7 +48,7 @@ begin
   end if;
   -- and the grant this file makes is still there
   if exists (select 1 from (values
-      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone)'),
+      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone,uuid,text)'),
       ('public.zella_admin_invitation_cancel(uuid,uuid)')) v(sig)
       where to_regprocedure(v.sig) is not null and not has_function_privilege('service_role', to_regprocedure(v.sig), 'EXECUTE')) then
     raise exception 'VERSION_MISMATCH: a function of this file lost the grant this file gives it';
@@ -55,11 +56,12 @@ begin
 end $$;
 
 create or replace function public.zella_admin_member_set_status(p_business_id uuid, p_user_id uuid, p_status text,
-  p_expected text, p_seen_at timestamptz default null) returns jsonb
+  p_expected text, p_seen_at timestamptz, p_actor uuid, p_reason text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare m record; n integer;
 begin
-  if p_status is null or p_status not in ('active', 'suspended') then raise exception 'BAD_INPUT'; end if;
+  if p_status is null or p_status not in ('active', 'suspended') or p_actor is null
+     or length(btrim(coalesce(p_reason, ''))) not between 10 and 300 then raise exception 'BAD_INPUT'; end if;
   -- one change to this business's members at a time
   perform 1 from public.businesses where id = p_business_id for update;
   if not found then raise exception 'NOT_FOUND'; end if;
@@ -81,10 +83,16 @@ begin
     if n = 0 then raise exception 'LAST_OWNER'; end if;
   end if;
   update public.business_members set status = p_status where business_id = p_business_id and user_id = p_user_id;
+  -- the audit row in the same transaction: the change and its record stand or fall together, and the next stale
+  -- check (above) always finds it
+  insert into public.audit_logs (user_id, action, business_id, entity_type, entity_id, old_data, new_data)
+  values (p_actor, case when p_status = 'suspended' then 'member.suspended' else 'member.reactivated' end, p_business_id,
+    'business_member', null, jsonb_build_object('user_id', p_user_id, 'role', m.role, 'status', m.status),
+    jsonb_build_object('user_id', p_user_id, 'role', m.role, 'status', p_status, 'reason', btrim(p_reason)));
   return jsonb_build_object('role', m.role, 'before', m.status);
 end $$;
-revoke all on function public.zella_admin_member_set_status(uuid, uuid, text, text, timestamptz) from public, anon, authenticated;
-grant execute on function public.zella_admin_member_set_status(uuid, uuid, text, text, timestamptz) to service_role;
+revoke all on function public.zella_admin_member_set_status(uuid, uuid, text, text, timestamptz, uuid, text) from public, anon, authenticated;
+grant execute on function public.zella_admin_member_set_status(uuid, uuid, text, text, timestamptz, uuid, text) to service_role;
 
 create or replace function public.zella_admin_invitation_cancel(p_business_id uuid, p_invitation_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$

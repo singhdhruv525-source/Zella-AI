@@ -7,7 +7,7 @@ do $$
 declare f record;
 begin
   for f in select * from (values
-      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone)', 'b7eb91a80c9ae062798f8263f7ec15b0'),
+      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone,uuid,text)', '22d9fcb26b9e9c50b057185b702ae7ea'),
       ('public.zella_admin_invitation_cancel(uuid,uuid)', 'e4df5c3f73d15ef138b68541201edbbe')) v(sig, want) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'DRIFT: % changed after sql/zella_business_member_admin.sql; roll back by hand', f.sig;
@@ -18,7 +18,7 @@ begin
     end if;
   end loop;
   if exists (select 1 from (values
-      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone)'),
+      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone,uuid,text)'),
       ('public.zella_admin_invitation_cancel(uuid,uuid)')) v(sig)
       join pg_proc p on p.oid = to_regprocedure(v.sig)
       cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
@@ -27,12 +27,12 @@ begin
     raise exception 'DRIFT: a function of sql/zella_business_member_admin.sql was given to another role since; roll back by hand';
   end if;
   if exists (select 1 from (values
-      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone)'),
+      ('public.zella_admin_member_set_status(uuid,uuid,text,text,timestamp with time zone,uuid,text)'),
       ('public.zella_admin_invitation_cancel(uuid,uuid)')) v(sig)
       where to_regprocedure(v.sig) is not null and not has_function_privilege('service_role', to_regprocedure(v.sig), 'EXECUTE')) then
     raise exception 'DRIFT: a function of sql/zella_business_member_admin.sql lost its grant since; roll back by hand';
   end if;
 end $$;
-drop function if exists public.zella_admin_member_set_status(uuid, uuid, text, text, timestamptz);
+drop function if exists public.zella_admin_member_set_status(uuid, uuid, text, text, timestamptz, uuid, text);
 drop function if exists public.zella_admin_invitation_cancel(uuid, uuid);
 commit;
