@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 353 |
 | Columns | 2161 |
 | Views | 1 |
-| Functions | 993 (921 security definer, 26 callable by `anon`) |
+| Functions | 994 (922 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5819,7 +5819,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (194)
+### Smaller groups and older helpers (195)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5907,6 +5907,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_language_allowance(p_business_id uuid)` | integer | yes | signed in |
 | `zella_language_catalog()` | jsonb |  | anon, signed in |
 | `zella_languages_status()` | jsonb | yes | server only |
+| `zella_latest_audit_at(p_business_ids uuid[], p_action text)` | TABLE(business_id uuid, latest timestamp with time zone) | yes | server only |
 | `zella_lead_rule_check()` | trigger | yes | server only |
 | `zella_lead_source_report(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
 | `zella_leads_page(p_business_id uuid, p_filter text, p_source text, p_assignee text, p_query text, p_view text, p_limit integer, p_after jsonb)` | jsonb |  | signed in |
