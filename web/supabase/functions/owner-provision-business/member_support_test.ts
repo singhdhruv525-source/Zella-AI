@@ -30,44 +30,60 @@ Deno.test("status rules: never the last active owner; only real changes", () => 
   assertEquals(statusProblem([OWNER, { user_id: "i1", role: "staff", status: "invited" }], "i1", "active")?.status, 409);
 });
 
+// The members as the page read them, and zella_admin_member_set_status as the database answers (one locked step;
+// tested on the database by tests/member_admin): STALE when the status isn't the expected one, LAST_OWNER, NOT_MEMBER.
 function world(members: { user_id: string; role: string; status: string }[], raceTo?: string) {
-  const st = { members: members.map((m) => ({ ...m })) };
-  const client = { from: () => {
-    const f: [string, unknown][] = []; let patch: Record<string, unknown> | null = null;
-    const c: Record<string, unknown> = {};
-    c.select = () => c; c.eq = (k: string, v: unknown) => (f.push([k, v]), c); c.update = (p: Record<string, unknown>) => ((patch = p), c);
-    c.then = (resolve: (v: unknown) => unknown) => {
-      if (!patch) return resolve({ data: st.members, error: null });
-      const m = st.members.find((x) => x.user_id === f.find((y) => y[0] === "user_id")?.[1]);
-      if (m && raceTo) m.status = raceTo;
-      const ok = m && m.status === f.find((y) => y[0] === "status")?.[1];
-      if (ok) m.status = String(patch.status);
-      return resolve({ data: ok ? [{ user_id: m.user_id }] : [], error: null });
-    };
-    return c;
-  } };
+  const st = { members: members.map((m) => ({ ...m })), calls: [] as unknown[] };
+  const reply = (data: unknown, message?: string) => Promise.resolve(message ? { data: null, error: { message } } : { data, error: null });
+  const client = {
+    from: () => {
+      const c: Record<string, unknown> = {};
+      c.select = () => c; c.eq = () => c;
+      c.then = (resolve: (v: unknown) => unknown) => resolve({ data: st.members.map((m) => ({ ...m })), error: null });
+      return c;
+    },
+    rpc: (fn: string, a: { p_user_id: string; p_status: string; p_expected: string; p_seen_at: string | null }) => {
+      st.calls.push([fn, a]);
+      const m = st.members.find((x) => x.user_id === a.p_user_id);
+      if (m && raceTo) m.status = raceTo;   // changed by someone else after the page read it
+      if (!m) return reply(null, "NOT_MEMBER");
+      if (m.status !== a.p_expected) return reply(null, "STALE");
+      if (a.p_status === "suspended" && m.role === "owner" && !st.members.some((x) => x !== m && x.role === "owner" && x.status === "active")) return reply(null, "LAST_OWNER");
+      const before = m.status; m.status = a.p_status;
+      return reply({ role: m.role, before });
+    },
+  };
   return { st, client: client as unknown as SupabaseClient };
 }
-const setStatus = (w: ReturnType<typeof world>, userId: string, status: string, reason = REASON) =>
-  detailHandlers(w.client, { businessId: BIZ, userId, status, reason }, kit, "admin-1").handlers.member_set_status() as Promise<Record<string, unknown>>;
+const SEEN = "2026-11-19T06:00:00.000Z";
+const setStatus = (w: ReturnType<typeof world>, userId: string, status: string, reason = REASON, expected?: string) =>
+  detailHandlers(w.client, { businessId: BIZ, userId, status, reason, expected: expected ?? w.st.members.find((m) => m.user_id === userId)?.status ?? "active", seenAt: SEEN }, kit, "admin-1")
+    .handlers.member_set_status() as Promise<Record<string, unknown>>;
 
 Deno.test("member_set_status: deactivates and reactivates with old and new in the audit row", async () => {
   const w = world([OWNER, STAFF]);
   const r = await setStatus(w, "s1", "suspended");
   assertEquals(w.st.members[1].status, "suspended");
+  assertEquals(w.st.calls[0], ["zella_admin_member_set_status", { p_business_id: BIZ, p_user_id: "s1", p_status: "suspended", p_expected: "active", p_seen_at: SEEN }]);
   const entry = detailHandlers(w.client, {}, kit).audited.member_set_status(r);
   assertEquals([entry?.action, (entry?.old_data as Record<string, unknown>).status, (entry?.new_data as Record<string, unknown>).status], ["member.suspended", "active", "suspended"]);
   const back = await setStatus(w, "s1", "active");
   assertEquals(detailHandlers(w.client, {}, kit).audited.member_set_status(back)?.action, "member.reactivated");
 });
 
-Deno.test("member_set_status: refuses a short reason, the last owner, another business's person and a change meanwhile", async () => {
+Deno.test("member_set_status: refuses a short reason, the last owner, another business's person, a stale page and a change meanwhile", async () => {
   await assertRejects(() => setStatus(world([OWNER, STAFF]), "s1", "suspended", "short"), InputError, "at least");
   const last = await assertRejects(() => setStatus(world([OWNER, STAFF]), "o1", "suspended"), InputError) as InputError;
   assertEquals(last.status, 409);
   const other = await assertRejects(() => setStatus(world([OWNER]), "s1", "suspended"), InputError) as InputError;
   assertEquals(other.status, 404);
+  const stale = await assertRejects(() => setStatus(world([OWNER, GONE]), "s2", "active", REASON, "active"), InputError) as InputError;
+  assertEquals(stale.status, 409);
   const w = world([OWNER, STAFF], "suspended");
   const raced = await assertRejects(() => setStatus(w, "s1", "suspended"), InputError) as InputError;
   assertEquals(raced.status, 409);
+  // without what the page showed, nothing is sent
+  const blind = world([OWNER, STAFF]);
+  await assertRejects(() => detailHandlers(blind.client, { businessId: BIZ, userId: "s1", status: "suspended", reason: REASON }, kit, "admin-1").handlers.member_set_status(), InputError);
+  assertEquals(blind.st.calls.length, 0);
 });

@@ -156,6 +156,12 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
         .eq("business_id", businessId).eq("user_id", memberId).maybeSingle();
       if (error) throw error;
       if (!member) throw new k.InputError("This person isn't a member of this business", 404);
+      // An authenticator protects the person's sign in, not one membership: for someone who also belongs to another
+      // business, a reset from this business would remove it there too. Refused (lane E default, owner can change).
+      const { data: elsewhere, error: elsewhereError } = await admin.from("business_members").select("business_id")
+        .eq("user_id", memberId).neq("business_id", businessId).in("status", ["active", "invited", "suspended"]).limit(1);
+      if (elsewhereError) throw elsewhereError;
+      if (elsewhere?.length) throw new k.InputError("This person also belongs to another business, and their two step sign in protects that one too, so it can't be reset from here.", 409);
       const { data: staff, error: staffError } = await admin.from("platform_admins").select("user_id").eq("user_id", memberId).maybeSingle();
       if (staffError) throw staffError;
       if (staff) throw new k.InputError("This person is a Zella Voice admin. Their two step sign in is reset through Users & access, not here.", 403);
@@ -184,25 +190,37 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
       return { businessId, userId: memberId, removed };
     },
     // UI-06 part c: deactivate or reactivate one member's access to this business, with a reason. The business always
-    // keeps one active owner. Saved only from the status the page saw.
+    // keeps one active owner. Saved only from the status the page showed (expected) and only if nobody changed it
+    // after the page read it (seenAt), in one locked database step (sql/zella_business_member_admin.sql), so two
+    // admins can't each deactivate one of the last two owners.
     member_set_status: async () => {
       const businessId = k.requireId(fields.businessId);
       const memberId = k.requireId(fields.userId, "member");
       const next = k.text(fields.status, 20);
+      const expected = k.text(fields.expected, 20);
+      const seenAt = typeof fields.seenAt === "string" && !Number.isNaN(Date.parse(fields.seenAt)) ? new Date(fields.seenAt).toISOString() : null;
       const reason = k.text(fields.reason, 301);
       const bad = reasonProblem(reason);
       if (bad) throw new k.InputError(bad);
+      if (!expected || !seenAt) throw new k.InputError("Reload the page and try again", 409);
+      // the quick checks first, for a clear message; the database checks them again under its lock
       const { data: rows, error } = await admin.from("business_members").select("user_id, role, status").eq("business_id", businessId);
       if (error) throw error;
-      const members = (rows ?? []) as Member[];
-      const problem = statusProblem(members, memberId, next);
+      const problem = statusProblem((rows ?? []) as Member[], memberId, next);
       if (problem) throw new k.InputError(problem.message, problem.status);
-      const { role, status: was } = members.find((m) => m.user_id === memberId)!;
-      const { data: moved, error: moveError } = await admin.from("business_members").update({ status: next })
-        .eq("business_id", businessId).eq("user_id", memberId).eq("status", was).select("user_id");
-      if (moveError) throw moveError;
-      if (!moved?.length) throw new k.InputError("This member changed meanwhile. Reload the page to see them.", 409);
-      return { businessId, userId: memberId, role, before: was, status: next, reason };
+      const { data, error: rpcError } = await admin.rpc("zella_admin_member_set_status", {
+        p_business_id: businessId, p_user_id: memberId, p_status: next, p_expected: expected, p_seen_at: seenAt,
+      });
+      if (rpcError) {
+        const m = rpcError.message ?? "";
+        if (/LAST_OWNER/.test(m)) throw new k.InputError("This is the business's only active owner, so they can't be deactivated", 409);
+        if (/STALE|UNCHANGED|NOT_SUSPENDED/.test(m)) throw new k.InputError("This member changed meanwhile. Reload the page to see them.", 409);
+        if (/NOT_MEMBER|NOT_FOUND/.test(m)) throw new k.InputError("This person isn't a member of this business", 404);
+        if (memberAdminMissing(m)) throw new k.InputError(MEMBER_ADMIN_MISSING, 503);
+        throw rpcError;
+      }
+      const out = (data ?? {}) as Row;
+      return { businessId, userId: memberId, role: out.role ?? null, before: out.before ?? expected, status: next, reason };
     },
     // BIZ-21: cancel the owner's open invitation. The link stops working (zella_accept_my_invitations only accepts an
     // open one) and the invited owner seat is removed, so inviting the same person again works.
@@ -211,26 +229,21 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
       const reason = k.text(fields.reason, CANCEL_REASON.max + 1);
       if (reason.length < CANCEL_REASON.min) throw new k.InputError(`Give a reason of at least ${CANCEL_REASON.min} characters`);
       if (reason.length > CANCEL_REASON.max) throw new k.InputError(`Keep the reason under ${CANCEL_REASON.max} characters`);
-      const { data: inv, error } = await latestOwnerInvitation(admin, businessId, "id, email, owner_name, status, auth_user_id");
-      if (error) throw error;
-      if (!inv) throw new k.InputError("This business has no open owner invitation", 404);
-      if (inv.status === "accepted") throw new k.InputError("The owner has already accepted the invitation, so it can't be cancelled", 409);
-      const now = new Date().toISOString();
-      // only from an open or sent state, and only the owner's: a send or acceptance that lands first wins
-      const { data: moved, error: moveError } = await admin.from("business_invitations")
-        .update({ status: "revoked", updated_at: now }).eq("id", inv.id).eq("role", "owner")
-        .in("status", [...OPEN_OWNER_INVITATION, "sent"]).select("id");
-      if (moveError) throw moveError;
-      if (!moved?.length) throw new k.InputError("The invitation changed meanwhile. Reload the page to see it.", 409);
-      const authUserId = (inv as { auth_user_id?: string | null }).auth_user_id ?? null;
-      let seatRemoved = false;
-      if (authUserId) {
-        const { data: removed, error: seatError } = await admin.from("business_members").delete()
-          .eq("business_id", businessId).eq("user_id", authUserId).eq("role", "owner").eq("status", "invited").select("id");
-        if (seatError) console.error("Invited owner seat removal failed", seatError);
-        seatRemoved = Boolean(removed?.length);
+      // the invitation the page showed: refused when a newer one exists or it is no longer open. The revoke and the
+      // removal of its invited owner seat are one transaction (sql/zella_business_member_admin.sql): a failure
+      // leaves both, so cancelling again finishes it.
+      const invitationId = k.requireId(fields.invitationId, "invitation");
+      const { data, error } = await admin.rpc("zella_admin_invitation_cancel", { p_business_id: businessId, p_invitation_id: invitationId });
+      if (error) {
+        const m = error.message ?? "";
+        if (/ACCEPTED/.test(m)) throw new k.InputError("The owner has already accepted the invitation, so it can't be cancelled", 409);
+        if (/STALE/.test(m)) throw new k.InputError("The invitation changed meanwhile. Reload the page to see it.", 409);
+        if (/NOT_FOUND/.test(m)) throw new k.InputError("This business has no such owner invitation", 404);
+        if (memberAdminMissing(m)) throw new k.InputError(MEMBER_ADMIN_MISSING, 503);
+        throw error;
       }
-      return { businessId, invitationId: inv.id, before: inv.status, reason, seatRemoved, email: mask(inv.email) };
+      const out = (data ?? {}) as Row;
+      return { businessId, invitationId, before: out.before ?? null, reason, seatRemoved: out.seat_removed === true, email: mask(out.email as string | null) };
     },
     // BIZ-22: the masked contact details for one response, with a reason recorded first.
     business_contacts_reveal: async () => {
@@ -255,6 +268,11 @@ export function detailHandlers(admin: SupabaseClient, fields: Row, k: DetailKit,
       if (error) throw error;
       if (!current) throw new k.InputError("Business not found", 404);
       const before = (current.business_size as string | null) ?? null;
+      // from the size the page showed: someone else's save in between is not overwritten from a stale page
+      if ("expectedSize" in fields) {
+        const expected = fields.expectedSize === null || fields.expectedSize === "" ? null : k.text(fields.expectedSize, 20);
+        if (expected !== before) throw new k.InputError("The size was changed by someone else meanwhile. Reload the page and try again.", 409);
+      }
       if (before === raw) return { businessId, size: raw, before, changed: false };
       const update = admin.from("businesses").update({ business_size: raw, updated_at: new Date().toISOString() }).eq("id", businessId);
       const { data: rows, error: updateError } = await (before === null ? update.is("business_size", null) : update.eq("business_size", before)).select("id");
@@ -386,14 +404,20 @@ export function routingFrom(rules: Row, extra: { timezone: string | null; hasAge
 // The signed in accounts behind member and actor ids: email, last sign in, whether two step sign in is set up.
 async function people(admin: SupabaseClient, ids: (string | null)[]) {
   const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))].slice(0, DETAIL_LIMITS.members);
-  const out: Record<string, { email: string | null; last_sign_in_at: string | null; two_step: boolean }> = {};
+  // two_step is null when the account couldn't be read: unknown, never "off"
+  const out: Record<string, { email: string | null; last_sign_in_at: string | null; two_step: boolean | null }> = {};
   await Promise.all(unique.map(async (id) => {
-    const { data } = await admin.auth.admin.getUserById(id);
-    const factors = ((data?.user as { factors?: { status?: string }[] } | undefined)?.factors ?? []);
-    out[id] = { email: data?.user?.email ?? null, last_sign_in_at: data?.user?.last_sign_in_at ?? null, two_step: factors.some((f) => f.status === "verified") };
+    const { data, error } = await admin.auth.admin.getUserById(id);
+    if (error || !data?.user) { out[id] = { email: null, last_sign_in_at: null, two_step: null }; return; }
+    const factors = ((data.user as { factors?: { status?: string }[] }).factors ?? []);
+    out[id] = { email: data.user.email ?? null, last_sign_in_at: data.user.last_sign_in_at ?? null, two_step: factors.some((f) => f.status === "verified") };
   }));
   return out;
 }
+
+// the database functions for these actions (sql/zella_business_member_admin.sql) aren't applied yet
+const memberAdminMissing = (m: string) => /zella_admin_member_set_status|zella_admin_invitation_cancel|PGRST202|does not exist/i.test(m);
+const MEMBER_ADMIN_MISSING = "This needs the latest database update (sql/zella_business_member_admin.sql).";
 
 // One business's page. `can` is the signed in admin's permission set (detail.ts adminPermissions): the activity list
 // and who did each action are returned only with audit.view (BIZ-04); without it activity is [] and
@@ -479,7 +503,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
         ...m,
         email: mask(who[m.user_id]?.email ?? null),
         name: [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || null,
-        ...(signInFacts ? { last_sign_in_at: who[m.user_id]?.last_sign_in_at ?? null, two_step: who[m.user_id]?.two_step ?? false } : {}),
+        ...(signInFacts ? { last_sign_in_at: who[m.user_id]?.last_sign_in_at ?? null, two_step: who[m.user_id] ? who[m.user_id].two_step : null } : {}),
       };
     }),
     integrations: (integrationsResult.data ?? []).map((i) => ({
@@ -507,7 +531,7 @@ export async function businessDetail(admin: SupabaseClient, businessId: string, 
 async function detailExtras(admin: SupabaseClient, businessId: string, setup: any, can: Set<string>, now: Date, since: string) {
   const agentId = setup.receptionist?.agentId ?? null;
   const rules = (setup.receptionist?.escalationRules ?? {}) as Row;
-  const [readiness, plan, periods, numbers, alerts, activation, lastTest, deliveryStatus, deliveries, recentOutcomes, onCall, hours, activityCount, connections] =
+  const [readiness, plan, periods, numbers, alerts, activation, lastTest, deliveryStatus, deliveries, notReadyCount, unknownCount, onCall, hours, activityCount, connections] =
     await Promise.all([
       optional(() => admin.rpc("zella_business_readiness", { p_business_id: businessId }), (d) => ({ report: d })),
       optional(() => admin.from("business_plans").select("*").eq("business_id", businessId).order("version", { ascending: false }).limit(1),
@@ -530,8 +554,11 @@ async function detailExtras(admin: SupabaseClient, businessId: string, setup: an
       // no caller data: no provider call id, no numbers
       optional(() => admin.from("assistant_deliveries").select("id, outcome, problems, config_hash, created_at").eq("business_id", businessId)
         .order("created_at", { ascending: false }).limit(DETAIL_LIMITS.deliveries), (d) => ({ rows: (d as Row[]) ?? [] })),
-      optional(() => admin.from("assistant_deliveries").select("outcome").eq("business_id", businessId).gte("created_at", since)
-        .in("outcome", ["not_ready", "unknown_number"]).limit(1000), (d) => ({ rows: (d as Row[]) ?? [] })),
+      // counted by the database (every row in the window, not a capped list)
+      optional(() => admin.from("assistant_deliveries").select("id", { count: "exact", head: true }).eq("business_id", businessId)
+        .gte("created_at", since).eq("outcome", "not_ready"), (_d, count) => ({ count: count ?? 0 })),
+      optional(() => admin.from("assistant_deliveries").select("id", { count: "exact", head: true }).eq("business_id", businessId)
+        .gte("created_at", since).eq("outcome", "unknown_number"), (_d, count) => ({ count: count ?? 0 })),
       optional(() => admin.from("on_call_settings").select("enabled, scope").eq("business_id", businessId).limit(1),
         (d) => ({ row: ((d as Row[]) ?? [])[0] ?? null })),
       optional(() => admin.from("business_hours").select("weekday").eq("business_id", businessId).limit(1), (d) => ({ any: ((d as Row[]) ?? []).length > 0 })),
@@ -550,10 +577,7 @@ async function detailExtras(admin: SupabaseClient, businessId: string, setup: an
     ? await optional(() => admin.from("allowance_buckets").select("resource, kind, granted, used, expires_at").eq("period_id", period.id)
       .order("resource"), (d) => ({ rows: (d as Row[]) ?? [] }))
     : { available: periods.available, rows: [] as Row[] };
-  const counts = { not_ready: 0, unknown_number: 0 };
-  if (recentOutcomes.available) {
-    for (const r of recentOutcomes.rows) if (r.outcome === "not_ready" || r.outcome === "unknown_number") counts[r.outcome]++;
-  }
+  const counts = notReadyCount.available && unknownCount.available ? { not_ready: notReadyCount.count, unknown_number: unknownCount.count } : null;
 
   return {
     readiness,
@@ -572,14 +596,17 @@ async function detailExtras(admin: SupabaseClient, businessId: string, setup: an
       hasHours: hours.available ? hours.any : false, onCall: onCall.available ? onCall.row : null,
     }),
     deliveries: {
+      // statusAvailable: the status read itself answered; without it the page never says "no call served yet"
       status: deliveryStatus.available ? deliveryStatus.status : null,
+      statusAvailable: deliveryStatus.available && deliveryStatus.status != null,
       available: deliveryStatus.available || deliveries.available,
       recent: deliveries.available ? deliveries.rows : [],
       lastDays: DETAIL_LIMITS.deliveryDays,
-      counts: recentOutcomes.available ? counts : null,
+      counts,
     },
     activityCount: activityCount.available ? activityCount.count : null,
     connections,
+    readAt: now.toISOString(),   // when this was read (server time); a member change is refused if made after it
   };
 }
 
@@ -607,7 +634,7 @@ async function recordView(admin: SupabaseClient, userId: string, businessId: str
 async function supportAccessList(admin: SupabaseClient, businessId: string) {
   const { data, error } = await admin.from("audit_logs").select("id, action, user_id, new_data, created_at")
     .eq("business_id", businessId).in("action", SUPPORT_ACCESS_ACTIONS).order("created_at", { ascending: false }).limit(20);
-  if (error) return [];
+  if (error) return null;   // unavailable: the page says so, never "nobody has opened it"
   const rows = (data ?? []) as Row[];
   const who = await people(admin, rows.map((r) => r.user_id as string | null));
   return rows.map((r) => ({ ...r, actor: who[r.user_id as string]?.email ?? null }));

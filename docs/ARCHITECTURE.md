@@ -1784,7 +1784,8 @@ business phone number on record, never a number given in the request, and confir
 admin ticks "I checked who is asking" and gives a reason (10 to 300 characters). The audit row
 (`member.mfa_reset`: who, the reason, the number of authenticators) is written first; if it can't be, nothing is
 removed. Only that person's verified authenticators are removed, never a Zella Voice admin's (those are reset through
-Users & access) and never the acting admin's own. A fresh admin code (ACC-19) will be required in front of it once
+Users & access), never the acting admin's own, and never for someone who also belongs to another business (their
+authenticator protects that business's sign in too; lane E default, owner can change). A fresh admin code (ACC-19) will be required in front of it once
 built. Built, needs the owner's approval of this procedure before deploy.
 
 **REQ-ADM-21 One definition of connected, answering and live:** every admin page that says whether a business's

@@ -12,7 +12,7 @@ function Row({ log }) {
     <li>
       <div>
         <strong>{actionLabel(log.action, log.entity_type)}</strong>
-        <span>{log.actor ?? "Zella Voice system"} · {formatDateTime(log.created_at)} ({timeAgo(log.created_at)})</span>
+        <span>{log.actor ?? (log.user_id ? "Someone not shown here" : "Zella Voice system")} · {formatDateTime(log.created_at)} ({timeAgo(log.created_at)})</span>
         {lines.length > 0 && <ul className="bd-changes">{lines.map((l) => <li key={l}>{l}</li>)}</ul>}
       </div>
     </li>
@@ -21,7 +21,9 @@ function Row({ log }) {
 
 export default function ActivityTab({ data }) {
   const total = typeof data.activityCount === "number" ? data.activityCount : null;
-  const support = data.supportAccess ?? [];
+  // null from the server: the list couldn't be read (never shown as "nobody opened it")
+  const support = Array.isArray(data.supportAccess) ? data.supportAccess : [];
+  const supportUnavailable = data.activityAllowed === true && data.supportAccess === null;
   return (
     <div className="op-stack">
       <Card title="Activity" description={total !== null && total > data.activity.length
@@ -31,9 +33,9 @@ export default function ActivityTab({ data }) {
           <ul className="op-list op-activity">{data.activity.map((log) => <Row key={log.id} log={log} />)}</ul>
         ) : <Empty>No activity recorded yet.</Empty>}
       </Card>
-      {Array.isArray(data.supportAccess) && (
+      {(Array.isArray(data.supportAccess) || supportUnavailable) && (
         <Card title="Support access" description="Who opened this business, or revealed its contact details, and why.">
-          {support.length ? (
+          {supportUnavailable ? <Empty>Support access history is unavailable right now. Try again later.</Empty> : support.length ? (
             <ul className="op-list op-activity">{support.map((log) => <Row key={log.id} log={{ ...log, old_data: null }} />)}</ul>
           ) : <Empty>Nobody has opened this business yet.</Empty>}
         </Card>

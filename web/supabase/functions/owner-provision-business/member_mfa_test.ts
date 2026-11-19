@@ -8,7 +8,7 @@ const kit = { text: (v: unknown, max = 500) => String(v ?? "").trim().slice(0, m
 const BIZ = "3e000000-0000-0000-0000-00000000b000";
 const REASON = "Owner lost their phone, checked on a call";
 
-function world(opts: { member?: boolean; platformAdmin?: boolean; auditFails?: boolean; factors?: { id: string; status: string }[] } = {}) {
+function world(opts: { member?: boolean; platformAdmin?: boolean; auditFails?: boolean; elsewhere?: boolean; factors?: { id: string; status: string }[] } = {}) {
   const st = { inserts: [] as Record<string, unknown>[], deleted: [] as { id: string; userId: string }[], listedFor: [] as string[] };
   const factors = opts.factors ?? [{ id: "f1", status: "verified" }, { id: "f2", status: "unverified" }, { id: "f3", status: "verified" }];
   const client = {
@@ -18,7 +18,9 @@ function world(opts: { member?: boolean; platformAdmin?: boolean; auditFails?: b
     } } },
     from: (table: string) => {
       const c: Record<string, unknown> = {};
-      c.select = () => c; c.eq = () => c;
+      c.select = () => c; c.eq = () => c; c.neq = () => c; c.in = () => c; c.limit = () => c;
+      // the person's memberships in other businesses (the list read)
+      c.then = (resolve: (v: unknown) => unknown) => resolve({ data: table === "business_members" && opts.elsewhere ? [{ business_id: "other" }] : [], error: null });
       c.maybeSingle = () => Promise.resolve({ data: table === "business_members" ? (opts.member === false ? null : { user_id: "m1", role: "owner", status: "active" })
         : table === "platform_admins" ? (opts.platformAdmin ? { user_id: "m1" } : null) : null, error: null });
       c.insert = (row: Record<string, unknown>) => { st.inserts.push(row); return Promise.resolve({ error: opts.auditFails ? { message: "down" } : null }); };
@@ -65,4 +67,10 @@ Deno.test("two step reset: never a platform admin, yourself, another business's 
   const none = world({ factors: [{ id: "f2", status: "unverified" }] });
   assertEquals(((await assertRejects(() => reset(none), InputError)) as InputError).status, 409);
   assertEquals(none.st.inserts.length, 0);
+});
+
+Deno.test("two step reset: never for someone who also belongs to another business (it protects that one too)", async () => {
+  const w = world({ elsewhere: true });
+  const err = await assertRejects(() => reset(w), InputError) as InputError;
+  assertEquals([err.status, w.st.deleted.length, w.st.inserts.length], [409, 0, 0]);
 });

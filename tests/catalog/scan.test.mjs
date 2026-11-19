@@ -306,3 +306,8 @@ test("review fixes 12: ?? inside a conditional arm", async () => {
   assert.deepEqual(names(tsAuditReads(`const audit = admin.from("audit_logs"); const q = gate ? cached ?? admin.from("jobs") : audit; q.eq("action", "a.coalesced");`)).map((n) => n.startsWith("?")), [true]);
   assert.deepEqual(names(tsAuditReads(`const q = gate ? admin.from("audit_logs") : admin.from("jobs"); q.eq("action", "a.gate");`)), ["a.gate"]);
 });
+
+test("edge function alert kinds: p_kind after a nested object, at the payload's own level only", () => {
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { a: { b: 1 } }, p_kind: "new_alert" });`).map((x) => x.name), ["new_alert"]);
+  assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_meta: { p_kind: "inner" }, p_title: "x" });`).map((x) => x.name), []);
+});

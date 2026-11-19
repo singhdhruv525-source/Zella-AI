@@ -43,7 +43,7 @@ function Editor({ businessId, data }) {
       {data.provider !== "11labs" && (
         <Banner tone="warn">Zella Voice's voices currently come from another provider, so this choice isn't used until ElevenLabs is the voice provider again.</Banner>
       )}
-      <p className="zs-muted">Voices can't be played here yet. To hear the saved one, call the business's Zella Voice number; a saved voice is used from the next call.</p>
+      <p className="zs-muted">Voices can't be played here yet. A saved voice is used once the phone line's settings are updated with it{data.provider !== "11labs" ? ", and only while ElevenLabs is the voice provider" : ""}; to hear it then, call the business's Zella Voice number.</p>
       {data.can_edit ? <SaveBar form={form} onSave={save} /> : <Banner>You can see the voice but not change it. In the business app owners, admins and managers can change it; Zella Voice admins need permission to set up AI.</Banner>}
     </Card>
   );

@@ -1,6 +1,6 @@
 import { assert, assertEquals, assertFalse } from "jsr:@std/assert@1";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { adminPermissions, businessDetail, type DetailDeps } from "./detail.ts";
+import { DETAIL_PERMISSIONS, adminPermissions, businessDetail, type DetailDeps } from "./detail.ts";
 import { PERMISSIONS, PERMISSION_CATALOG, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 
 // A stand in for the server's database client: each table answers with its fixture rows, and every query is recorded.
@@ -29,7 +29,13 @@ function fakeAdmin(rows: Rows, failing: string[] = [], rpcs: Record<string, unkn
       const chain: Record<string, unknown> = {
         select: (cols: string) => ((q.select = cols), chain),
         maybeSingle: () => Promise.resolve({ ...result, data: (result.data ?? [])[0] ?? null }),
-        then: (resolve: (v: unknown) => unknown) => resolve(result),
+        // an outcome filter narrows the rows (the delivery counts are read per outcome)
+        then: (resolve: (v: unknown) => unknown) => {
+          const outcome = q.filters.find((f) => f[0] === "eq" && f[1] === "outcome")?.[2];
+          if (outcome === undefined || !result.data) return resolve(result);
+          const kept = (result.data as { outcome?: unknown }[]).filter((r) => r.outcome === outcome);
+          return resolve({ ...result, data: kept, count: kept.length });
+        },
       };
       for (const f of ["eq", "in", "order", "limit", "is", "neq", "gte", "not"]) chain[f] = (...args: unknown[]) => (q.filters.push([f, ...args]), chain);
       chain.insert = (row: unknown) => { inserts.push({ table, row }); return Promise.resolve({ error: failing.includes(`insert:${table}`) ? { message: "insert failed" } : null }); };
@@ -120,10 +126,17 @@ const dispatcherAllows = (role: string, permission: string) =>
   (RESTRICTED_ROLES.includes(role) && (GRANTS[role] ?? []).includes(permission));
 
 Deno.test("adminPermissions: same answer as the dispatcher for every action and role", async () => {
+  // index.ts starts the server when it is imported; here it must not. Its own lookup gives each action's permission.
+  (Deno as unknown as { serve: unknown }).serve = () => ({ finished: Promise.resolve(), shutdown: () => Promise.resolve() });
+  const { permissionFor } = await import("./index.ts");
+  const actions = [...Object.keys(PERMISSIONS), ...Object.keys(DETAIL_PERMISSIONS)];
   for (const role of ROLES) {
     const can = await adminPermissions(fakeAdmin({ platform_role_permissions: grantRows(role) }).client, role);
-    for (const [action, permission] of Object.entries(PERMISSIONS)) {
+    for (const action of actions) {
+      const permission = permissionFor(action);
       if (action === "me_admin") continue;   // every admin may read their own role
+      // the self service actions ("self") are for every active admin, checked apart from the permission set
+      if (permission === undefined || permission === "self") continue;
       assertEquals(can.has(permission), dispatcherAllows(role, permission), `${role} ${action} (${permission})`);
     }
   }

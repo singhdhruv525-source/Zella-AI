@@ -269,6 +269,12 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Member support from the Business page (lane E review, 19 Nov 2026, defaults the owner can change):** a two step
+  reset is refused for someone who also belongs to another business, because an authenticator protects the person's
+  sign in everywhere, not one membership. Deactivate, Reactivate and Cancel invitation run in one database step each
+  (`sql/zella_business_member_admin.sql`, built, not applied) and only from what the page showed; until that file is
+  applied they answer that the database update is needed. Pack grants by RPC rely on `sql/zella_admin_mfa.sql` (lane A)
+  for two step sign in in the database: apply it before the pack grant page is used.
 - **Admin Business page reads (lane E defaults, 16 Nov 2026, owner can change):** the Activity list and who did each
   action go only to admins with `audit.view` (BIZ-04); caller numbers and connection account details are masked by
   default with the `zella_admin_mask` rule (`mask.ts`), the Spam page keeps its older rule for now (BIZ-22). The

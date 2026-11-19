@@ -29,16 +29,20 @@ export function RoutingCard({ routing }) {
 export function CallersGetCard({ deliveries }) {
   if (!deliveries) return null;
   if (!deliveries.available) return <Card title="What callers get"><Empty>Not available right now. The Zella Voice team can check why.</Empty></Card>;
-  const st = deliveries.status ?? {};
+  // the status facts only from a status read that answered (statusAvailable); otherwise they are unknown, never "no
+  // call served yet". Older servers without the flag: a status object counts as answered.
+  const statusOk = deliveries.statusAvailable ?? (deliveries.status != null);
+  const st = statusOk ? deliveries.status ?? {} : {};
+  const unknown = "Not known right now";
   const last = st.delivery?.last_served;
   const counts = deliveries.counts;
   return (
     <Card title="What callers get" description="The receptionist settings calls were last given, compared with what the next call gets now.">
       <Facts items={[
-        ["Settings for the next call", st.current_config_hash ? `Configuration ${String(st.current_config_hash).slice(0, 8)}` : "Not worked out"],
-        ["Last call served", last ? `${formatDateTime(last.at)} · ${last.is_current ? "same settings as now" : "older settings"}` : "No call served yet"],
-        ["Published version", st.version ? `${humanize(st.version.sync_status ?? "saved")} · ${formatDateTime(st.version.published_at)}` : "None published"],
-        ["Last time a call couldn't be served", st.last_problem ? `${formatDateTime(st.last_problem.at)}: ${(st.last_problem.problems ?? []).map(humanize).join(", ") || "no reason given"}` : "Never"],
+        ["Settings for the next call", !statusOk ? unknown : st.current_config_hash ? `Configuration ${String(st.current_config_hash).slice(0, 8)}` : "Not worked out"],
+        ["Last call served", !statusOk ? unknown : last ? `${formatDateTime(last.at)} · ${last.is_current ? "same settings as now" : "older settings"}` : "No call served yet"],
+        ["Published version", !statusOk ? unknown : st.version ? `${humanize(st.version.sync_status ?? "saved")} · ${formatDateTime(st.version.published_at)}` : "None published"],
+        ["Last time a call couldn't be served", !statusOk ? unknown : st.last_problem ? `${formatDateTime(st.last_problem.at)}: ${(st.last_problem.problems ?? []).map(humanize).join(", ") || "no reason given"}` : "Never"],
         [`Not ready in the last ${deliveries.lastDays} days`, counts ? String(counts.not_ready) : "Not known"],
       ]} />
       {last && <p className="bd-hint">{last.is_current ? <Pill tone="success">Calls get the current settings</Pill> : <Pill tone="warning">The next call gets newer settings</Pill>}</p>}

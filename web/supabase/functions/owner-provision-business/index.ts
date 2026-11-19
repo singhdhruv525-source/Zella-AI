@@ -726,7 +726,9 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
   const problems = businessModuleProblems(modules ?? [], enabled);
   if (problems.length) throw new InputError(`${problems.join("; ")}.`);
 
-  const { data: priorRows } = await admin.from("business_modules").select("module_id").eq("business_id", businessId).eq("enabled", true);
+  // the state before, read before anything changes: a failed read stops the save instead of recording an empty list
+  const { data: priorRows, error: priorError } = await admin.from("business_modules").select("module_id").eq("business_id", businessId).eq("enabled", true);
+  if (priorError) throw priorError;
   const priorIds = (priorRows ?? []).map((r: { module_id: string }) => r.module_id).sort();
   const { data: count, error } = await admin.rpc("zella_set_business_modules", {
     p_business_id: businessId,
@@ -879,7 +881,9 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
   await advance(admin, businessId, "ai_setup");
   const live = await syncSetupToLive(admin, businessId);
   // COM-04 option B: edits apply to the next call; the audit row shows which configuration calls got before and after
-  return withBefore({ businessId, services: services.length, faqs: faqs.length, ...live, configHash: await configHash(admin, businessId) }, before);
+  // what was saved: services kept from before when this request didn't carry them
+  const savedServices = Array.isArray(configValues.knowledge_base.services) ? (configValues.knowledge_base.services as unknown[]).length : 0;
+  return withBefore({ businessId, services: savedServices, faqs: faqs.length, ...live, configHash: await configHash(admin, businessId) }, before);
 }
 
 // Setup answers that the live receptionist reads from somewhere else (docs/SETUP_FIELD_TRACE_2026-11-05.md):
@@ -1168,6 +1172,12 @@ type AuditEntry = {
 };
 
 type AuditContext = { userId: string; ip: string | null; userAgent: string | null };
+
+// The permission one action needs, from every module's table (the dispatcher's one lookup; tests use it too).
+export function permissionFor(action: string): string | undefined {
+  return PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ??
+    DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action];
+}
 
 // One helper for every audit row; returns whether the row was written, and callers act on a failed write (an audit
 // log export, a new authenticator and a sensitivity change fail closed; see the dispatcher). A failed write also raises
@@ -3091,6 +3101,7 @@ async function businessUndoCancel(admin: SupabaseClient, fields: Json) {
   return withBefore({ businessId, previousCancelAt: business.cancel_at }, { cancel_at: business.cancel_at, cancellation_reason: business.cancellation_reason ?? null });
 }
 
+const SEND_LEASE_MS = 2 * 60 * 1000;   // how long a resend in progress holds the invitation (see invitationResend)
 async function invitationResend(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const business = await getBusiness(admin, businessId);
@@ -3112,13 +3123,19 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
     const minutes = Math.max(1, Math.ceil((retryAt.getTime() - Date.now()) / 60000));
     throw new InputError(`An invitation was sent less than ${RESEND_COOLDOWN_MINUTES} minutes ago. It can be sent again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, 429);
   }
-  const claim = admin.from("business_invitations").update({ updated_at: new Date().toISOString() }).eq("id", invitation.id);
+  // The claim is a lease: updated_at is set SEND_LEASE_MS ahead, and a request that finds updated_at in the future
+  // knows a send is in progress and stops. The send's outcome (sent or failed) sets updated_at to now, ending the
+  // lease; a send that never finishes frees it when the lease runs out.
+  const ALREADY_SENDING = "The invitation is already being sent from another window. Reload the page to see the result.";
+  if (inv.updated_at && Date.parse(inv.updated_at) > Date.now()) throw new InputError(ALREADY_SENDING, 409);
+  const lease = new Date(Date.now() + SEND_LEASE_MS).toISOString();
+  const claim = admin.from("business_invitations").update({ updated_at: lease }).eq("id", invitation.id);
   const { data: claimed, error: claimError } = await (inv.updated_at ? claim.eq("updated_at", inv.updated_at) : claim.is("updated_at", null)).select("id");
   if (claimError) throw claimError;
-  if (!claimed?.length) throw new InputError("The invitation is already being sent from another window. Reload the page to see the result.", 409);
+  if (!claimed?.length) throw new InputError(ALREADY_SENDING, 409);
   if (invitation.status === "sent") {
-    // Re-open it so the guarded write below applies; a cancel in between still wins.
-    await admin.from("business_invitations").update({ status: "pending", updated_at: new Date().toISOString() })
+    // Re-open it so the guarded write below applies (keeping the lease); a cancel in between still wins.
+    await admin.from("business_invitations").update({ status: "pending", updated_at: lease })
       .eq("id", invitation.id).eq("status", "sent");
   }
 
@@ -3402,7 +3419,7 @@ Deno.serve(withCors(async (req: Request) => {
     }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ?? DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action];
+    const permission = permissionFor(action);
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.

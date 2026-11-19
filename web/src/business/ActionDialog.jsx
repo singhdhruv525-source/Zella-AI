@@ -25,7 +25,7 @@ export default function ActionDialog({ title, body, button, danger, reason, chil
     }
   }
   return createPortal(
-    <DialogFocus onClose={null} busy={busy}>
+    <DialogFocus onClose={onClose} busy={busy}>
       <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
         <div className={`bd-confirm owner-modal ${danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
           <div className="zs-dialog-head">

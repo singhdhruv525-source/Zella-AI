@@ -49,21 +49,26 @@ Deno.test("applying a CRM preset requires an inserted count and preserves RPC er
 Deno.test("documents queue: an optional business filter narrows the list and the totals (BIZ-31)", async () => {
   const BIZ = "3e000000-0000-0000-0000-00000000b000";
   for (const businessId of [undefined, BIZ, "not-an-id"]) {
-    const filters: unknown[][] = [];
-    const chain = (rows: unknown[]) => {
+    // each query's own filters, so each one is checked for the business
+    const queries: { table: string; filters: unknown[][] }[] = [];
+    const chain = (table: string, rows: unknown[]) => {
+      const filters: unknown[][] = []; queries.push({ table, filters });
       const c: Record<string, unknown> = {};
       for (const f of ["select", "neq", "order", "limit", "in"]) c[f] = () => c;
       c.eq = (...a: unknown[]) => (filters.push(a), c);
       c.then = (resolve: (v: unknown) => unknown) => resolve({ data: rows, error: null });
       return c;
     };
-    const admin = { from: (t: string) => chain(t === "businesses" ? [{ id: BIZ, name: "Test" }] : [{ business_id: BIZ, status: "pending_review" }]) } as unknown as SupabaseClient;
+    const admin = { from: (t: string) => chain(t, t === "businesses" ? [{ id: BIZ, name: "Test" }] : [{ business_id: BIZ, status: "pending_review" }]) } as unknown as SupabaseClient;
     const strict = { ...kit, requireId: (v: unknown) => { if (typeof v !== "string" || v.length !== 36) throw new InputError("A valid business is required"); return v; } };
     const run = platformHandlers(admin, { businessId }, strict).handlers.documents_queue;
     if (businessId === "not-an-id") { await assertRejects(run, InputError, "valid business"); continue; }
     const out = await run() as { businessId: string | null; totals: Record<string, number> };
     assertEquals(out.businessId, businessId ?? null);
-    assertEquals(filters.filter((f) => f[0] === "business_id").length, businessId ? 2 : 0);
+    // the document query and the totals query (every documents query) each filter on exactly this business
+    const docQueries = queries.filter((q) => q.table === "business_verification_documents");
+    assertEquals(docQueries.length, 2);
+    for (const q of docQueries) assertEquals(q.filters.filter((f) => f[0] === "business_id"), businessId ? [["business_id", businessId]] : []);
     assertEquals(out.totals.pending_review, 1);
   }
 });

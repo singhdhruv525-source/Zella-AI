@@ -678,8 +678,22 @@ export function n8nAlertKinds(raw) {
 export function tsAlertKinds(raw) {
   const src = stripJsComments(raw);
   const out = [];
-  for (const m of src.matchAll(/zella_platform_alert["']\s*,\s*\{[^}]*?\bp_kind\s*:\s*["']([a-z][a-z0-9_]*)["']/g)) {
-    out.push({ name: m[1], line: lineAt(src, m.index) });
+  const masked = maskStrings(src);
+  for (const m of src.matchAll(/zella_platform_alert["']\s*,\s*\{/g)) {
+    // the payload object, walked to its own closing brace (nested objects and strings skipped): its p_kind at its
+    // own level, wherever it is among the fields
+    const open = m.index + m[0].length - 1;
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+      const c = masked[i];
+      if (c === "{" || c === "(" || c === "[") { depth++; continue; }
+      if (c === "}" || c === ")" || c === "]") { depth--; if (depth === 0) break; continue; }
+      if (depth !== 1) continue;
+      const k = /\bp_kind\s*:\s*(["'])([a-z][a-z0-9_]*)\1/y;
+      k.lastIndex = i;
+      const hit = k.exec(src);
+      if (hit && (i === 0 || !/[\w$]/.test(src[i - 1]))) { out.push({ name: hit[2], line: lineAt(src, i) }); break; }
+    }
   }
   return out;
 }

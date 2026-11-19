@@ -1,6 +1,6 @@
 // One business's page, People tab. Moved from BusinessDetails.jsx unchanged (BIZ-30); the page shell passes
 // what it worked out from business_detail.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pill } from "../OwnerOverview";
 import { callOwnerFunction } from "../CreateBusinessWizard";
 import ActionDialog from "./ActionDialog";
@@ -17,22 +17,33 @@ export default function PeopleTab({ data, invitation, isCancelled, canManage, bu
   const call = (action, extra) => (reason) => callOwnerFunction(action, { businessId, reason, ...extra });
   const done = (text) => async (r) => { setDialog(null); setNotice(text + (r?.auditWarning ? ` ${r.auditWarning}` : "")); await load(); };
   const owner = (data.invitations ?? []).find((i) => (i.role ?? "owner") === "owner" && i.id === invitation?.id) ?? invitation;
+  // the Resend button comes back on its own when the cooldown ends (a timer to that moment, cleared on change)
+  const [, setTick] = useState(0);
   const retryAt = resendAt(owner?.invited_at, new Date());
+  const retryMs = retryAt ? retryAt.getTime() : null;
+  useEffect(() => {
+    if (!retryMs) return undefined;
+    const t = setTimeout(() => setTick((n) => n + 1), Math.max(0, retryMs - Date.now()) + 250);
+    return () => clearTimeout(t);
+  }, [retryMs]);
   const emailOf = (kind, id, masked) => revealed?.[kind]?.find((x) => (x.user_id ?? x.id) === id)?.email ?? masked;
   const DIALOGS = {
     reveal: { title: "Show contact details?", body: "Emails, callers' numbers and connection accounts for this business are shown on this page until you leave it. Your reason is recorded first.",
       button: "Show", reason: { min: 10, max: 300 }, run: call("business_contacts_reveal"), onDone: (r) => { setDialog(null); setRevealed(r); } },
     cancel: { title: "Cancel the owner's invitation?", body: "The link stops working and the invited seat is removed, so the same person can be invited again.",
-      button: "Cancel invitation", danger: true, reason: { min: 10, max: 300 }, run: call("invitation_cancel"), onDone: done("The owner's invitation is canceled.") },
+      // the invitation this page shows: the server refuses it if a newer one exists or it changed
+      button: "Cancel invitation", danger: true, reason: { min: 10, max: 300 }, run: call("invitation_cancel", { invitationId: owner?.id }), onDone: done("The owner's invitation is canceled.") },
   };
   const memberDialog = (m, kind) => kind === "status"
     ? { title: m.status === "active" ? "Deactivate this member?" : "Reactivate this member?",
         body: m.status === "active" ? "They lose access to this business's workspace until they are reactivated." : "They get access to this business's workspace again.",
         button: m.status === "active" ? "Deactivate" : "Reactivate", danger: m.status === "active", reason: { min: 10, max: 300 },
-        run: call("member_set_status", { userId: m.user_id, status: m.status === "active" ? "suspended" : "active" }), onDone: done("Member access updated.") }
+        // from the status this page showed and when it was read: the server refuses a change made from a stale page
+        run: call("member_set_status", { userId: m.user_id, status: m.status === "active" ? "suspended" : "active", expected: m.status, seenAt: data.readAt }), onDone: done("Member access updated.") }
     : { title: "Reset this member's two step sign in?", body: "Their authenticator is removed and they set a new one up at their next sign in. Do this only after the identity check (call back the business's number on record).",
         button: "Reset two step", danger: true, reason: { min: 10, max: 300 }, needsCheck: true,
-        run: (reason) => callOwnerFunction("member_mfa_reset", { businessId, userId: m.user_id, reason, identityChecked: true }), onDone: done("Two step sign in reset.") };
+        run: (reason) => callOwnerFunction("member_mfa_reset", { businessId, userId: m.user_id, reason, identityChecked: true }),
+        onDone: async (r) => { setChecked(false); await done("Two step sign in reset.")(r); } };
   const [checked, setChecked] = useState(false);
   const d = dialog && (typeof dialog === "string" ? DIALOGS[dialog] : dialog);
   return (
@@ -67,14 +78,14 @@ export default function PeopleTab({ data, invitation, isCancelled, canManage, bu
                     <td>{formatDate(m.created_at)}</td>
                     {signIn && <>
                       <td>{m.last_sign_in_at ? formatDateTime(m.last_sign_in_at) : <span className="op-muted">Never</span>}</td>
-                      <td>{m.two_step ? <Pill tone="success">On</Pill> : <Pill tone="neutral">Off</Pill>}</td>
+                      <td>{m.two_step === true ? <Pill tone="success">On</Pill> : m.two_step === false ? <Pill tone="neutral">Off</Pill> : <span className="op-muted">Not known</span>}</td>
                     </>}
                     {canManage && (
                       <td className="bd-row-actions">
                         {["active", "suspended"].includes(m.status) && (
                           <button type="button" className="owner-secondary-button op-small" onClick={() => setDialog(memberDialog(m, "status"))}>{m.status === "active" ? "Deactivate" : "Reactivate"}</button>
                         )}
-                        {m.two_step && <button type="button" className="owner-secondary-button op-small" onClick={() => setDialog(memberDialog(m, "mfa"))}>Reset two step</button>}
+                        {m.two_step === true && <button type="button" className="owner-secondary-button op-small" onClick={() => { setChecked(false); setDialog(memberDialog(m, "mfa")); }}>Reset two step</button>}
                       </td>
                     )}
                   </tr>

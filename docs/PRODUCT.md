@@ -421,7 +421,7 @@ scrolls (BIZ-30, UI-34). What each tab shows and what an admin can do there:
   **AI receptionist:** call routing as the Voice page shows it, and what callers get: the settings the last call got
   against the next call's (UI-07, COM-03). **Phone & integrations:** the numbers card with "Assign a number" for
   `telephony.manage`, the fallback number, and honest wording for the connection records (UI-08).
-- **Calls:** every call, 25 a page, from the same masked list as Voice & numbers (`zella_admin_calls`), with no
+- **Calls:** calls from the last 365 days (the tab says so), 25 a page, from the same masked list as Voice & numbers (`zella_admin_calls`), with no
   search box (a digit search could confirm a caller's number); the number column shows the business's own number
   when the called number wasn't recorded; "See all in Voice & numbers" (UI-10).
 - **Actions on the page** (each in a dialog with a reason, each recorded): Show contact details (People), Cancel the

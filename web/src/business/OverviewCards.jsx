@@ -128,14 +128,24 @@ export function AlertsCard({ alerts }) {
 export function GrantPack({ businessId, onGranted }) {
   const [open, setOpen] = useState(false);
   const [packs, setPacks] = useState(null);
+  const [packsError, setPacksError] = useState("");
   const [code, setCode] = useState("");
   const [key, setKey] = useState("");
   const [done, setDone] = useState("");
   async function start() {
     setKey(crypto.randomUUID());
     setOpen(true);
-    if (!packs) {
-      try { setPacks((await callOwnerFunction("business_pack_catalog")).packs ?? []); } catch { setPacks([]); }
+    if (!packs) await loadPacks();
+  }
+  // a failed or malformed answer is an error to retry, never an empty catalog
+  async function loadPacks() {
+    setPacksError("");
+    try {
+      const r = await callOwnerFunction("business_pack_catalog");
+      if (!Array.isArray(r?.packs)) throw new Error("bad answer");
+      setPacks(r.packs);
+    } catch {
+      setPacksError("The packs couldn't be loaded.");
     }
   }
   return (
@@ -151,10 +161,11 @@ export function GrantPack({ businessId, onGranted }) {
           <label className="owner-field">
             <span>Pack</span>
             <select value={code} onChange={(e) => setCode(e.target.value)}>
-              <option value="">{packs ? "Choose a pack" : "Loading packs…"}</option>
+              <option value="">{packs ? (packs.length ? "Choose a pack" : "No packs are on sale") : packsError ? "Packs not loaded" : "Loading packs…"}</option>
               {(packs ?? []).map((p) => <option key={p.code} value={p.code}>{p.quantity.toLocaleString()} {humanize(p.resource).toLowerCase()} (list price {money(p.price_cents)})</option>)}
             </select>
           </label>
+          {packsError && <div className="owner-form-error" role="alert">{packsError} <button type="button" className="owner-link-button" onClick={loadPacks}>Try again</button></div>}
         </ActionDialog>
       )}
     </>

@@ -21,7 +21,8 @@ function BusinessSizeCard({ businessId, size, onSaved, canEdit }) {
     setNotice("");
     setError("");
     try {
-      const r = await callOwnerFunction("business_size_save", { businessId, size: value || null });
+      // expectedSize: the size this page showed, so a save from a stale page never overwrites someone else's
+      const r = await callOwnerFunction("business_size_save", { businessId, size: value || null, expectedSize: size ?? null });
       setNotice(r?.changed === false ? "Nothing changed." : "Business size saved.");
       onSaved();
     } catch (err) {

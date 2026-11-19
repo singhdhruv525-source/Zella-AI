@@ -147,8 +147,9 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
       reason: true,
       run: () => runAction("business_cancel", (r) =>
         `${b.name} will be canceled on ${formatDate(r.cancelAt)}. ` +
+        // emailSent: the email workflow accepted the request (the send itself happens there)
         (r.emailSent
-          ? `The "continue my plan" email is on its way to ${invitation?.email ?? "the owner"}.`
+          ? `The "continue my plan" email was handed to the email service for ${invitation?.email ?? "the owner"}.`
           : `The owner was not emailed: ${r.emailError}.`)
       ),
     },
@@ -184,13 +185,16 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
     .filter(Boolean).join(", ");
 
   const term = (key) => terms.overrides?.[key] || terms.industry?.[key] || key;
-  // BIZ-04: the server sends activity only to admins with audit.view; without it there is no Activity tab.
-  const tabs = DETAIL_TABS.filter((t) => t.slug !== "activity" || data.activityAllowed !== false);
+  // BIZ-04: Activity only when this admin has audit.view now AND the server said so for this response (fails closed;
+  // the server checks again on its own).
+  const tabs = DETAIL_TABS.filter((t) => t.slug !== "activity" || (can("audit.view") && data.activityAllowed === true));
   const shown = tabs.some((t) => t.slug === tab) ? tab : DEFAULT_TAB;
   const Panel = TAB_COMPONENTS[shown] ?? OverviewTab;
+  // every way into setup from this page asks first for a live business (the header and the tabs alike)
+  const openSetup = (id = b.id) => (isLive ? setPending("editLive") : onOpenSetup(id));
   const panelProps = {
     data, b, setupData, r, kb, esc, voice, terms, term, invitation, phone, enabledModules, enabledAutomations, isCancelled,
-    isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup, businessId, load, telnyx, hoursSet, address, setupDone, can,
+    isSuspended, canManage, canLifecycle, busy, setPending, onOpenSetup: openSetup, businessId, load, telnyx, hoursSet, address, setupDone, can,
   };
 
   return (
@@ -216,7 +220,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
             // business, changes reach the next call, so the admin confirms first.
             <button type="button" className="owner-primary-button" disabled={isSuspended && !setupDone}
               title={isSuspended && !setupDone ? "Reactivate the business before finishing setup" : undefined}
-              onClick={() => (isLive ? setPending("editLive") : onOpenSetup(b.id))}>
+              onClick={() => openSetup()}>
               {setupDone ? "Edit setup" : "Continue setup"}
             </button>
           )}
@@ -325,9 +329,13 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
         </div>
       </div>
 
-      <div role="tabpanel" id={`bd-panel-${shown}`} aria-labelledby={`bd-tab-${shown}`}>
-        <Panel {...panelProps} />
-      </div>
+      {/* a panel for every tab (each tab's aria-controls has a target); only the open one is shown and mounted, so the
+          others start no reads. The panel is a tab stop, so a panel with no controls can still be reached. */}
+      {tabs.map((t) => (
+        <div key={t.slug} role="tabpanel" id={`bd-panel-${t.slug}`} aria-labelledby={`bd-tab-${t.slug}`} tabIndex={0} hidden={t.slug !== shown}>
+          {t.slug === shown && <Panel {...panelProps} />}
+        </div>
+      ))}
     </section>
   );
 }
