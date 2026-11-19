@@ -13,12 +13,12 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 182 |
-| Tables with row security on | 182 of 182 |
+| Tables (schema `public`) | 183 |
+| Tables with row security on | 183 of 183 |
 | Row security policies | 353 |
-| Columns | 2149 |
+| Columns | 2152 |
 | Views | 1 |
-| Functions | 988 (916 security definer, 26 callable by `anon`) |
+| Functions | 990 (918 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -61,7 +61,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 ## Contents
 
 - [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `zella_text_archive`, `rate_limits`
-- [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `business_export_jobs`, `activation_tests`, `owner_onboarding`, `owner_onboarding_steps`, `owner_onboarding_sections`, `identity_verification_events`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
+- [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `business_export_jobs`, `business_document_cleanup`, `activation_tests`, `owner_onboarding`, `owner_onboarding_steps`, `owner_onboarding_sections`, `identity_verification_events`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
 - [Calls and the AI receptionist](#calls-and-the-ai-receptionist): `calls`, `call_messages`, `call_insights`, `callbacks`, `callback_attempts`, `ai_agents`, `ai_agent_configs`, `agent_config_versions`, `assistant_deliveries`, `ai_tool_calls`, `ai_answer_reports`, `ai_response_samples`, `ai_eval_cases`, `ai_eval_runs`, `vapi_request_receipts`, `on_call_settings`, `on_call_shifts`, `on_call_reminders_sent`, `store_lookup_guards`
@@ -721,7 +721,7 @@ Business and owner verification documents (files in private storage).
 - Unique: `(file_path)`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: business_verification_documents_owner_read (select), zella_mfa_required (all).
-- Triggers: `zella_onboarding_document_rejected`.
+- Triggers: `zella_document_cleanup_guard`, `zella_onboarding_document_rejected`.
 
 ### `provisioning_steps`
 
@@ -767,6 +767,19 @@ Whole business exports: who asked, the Zella Voice owner who approved, progress 
 
 - Primary key: `id`.
 - `business_id` → `public.businesses` (on delete set null).
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
+### `business_document_cleanup`
+
+Verification uploads a cleanup run claimed as never confirmed, kept until their removal is recorded, so a confirmation and a cleanup can't both win for one file. Server only.
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `path` | text | yes |  |
+| `claimed_at` | timestamp with time zone | yes | now() |
+| `removed_at` | timestamp with time zone |  |  |
+
+- Primary key: `path`.
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ### `activation_tests`
@@ -4958,7 +4971,15 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_dispatch_return_visit(p_appointment_id uuid, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_reason text)` | uuid | yes | signed in |
 | `zella_dispatch_status(p_appointment_id uuid, p_from text, p_to text, p_note text)` | void | yes | signed in |
 
-### `zella_export_*` (9)
+### `zella_document_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_document_cleanup_guard()` | trigger | yes | server only |
+| `zella_document_orphans(p_limit integer)` | jsonb | yes | server only |
+| `zella_document_orphans_removed(p_paths text[])` | void | yes | server only |
+
+### `zella_export_*` (10)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -4967,9 +4988,10 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_export_decide(p_id uuid, p_actor uuid, p_approve boolean, p_reason text)` | text | yes | server only |
 | `zella_export_files(p_id uuid, p_token uuid)` | jsonb | yes | server only |
 | `zella_export_finish(p_id uuid, p_token uuid, p_ok boolean, p_manifest text, p_error text)` | text | yes | server only |
+| `zella_export_pause(p_id uuid, p_token uuid, p_progress jsonb)` | boolean | yes | server only |
 | `zella_export_progress(p_id uuid, p_token uuid, p_progress jsonb)` | boolean | yes | server only |
 | `zella_export_request(p_business uuid, p_actor uuid, p_reason text)` | uuid | yes | server only |
-| `zella_export_rows(p_id uuid, p_token uuid, p_table text, p_offset integer, p_limit integer)` | jsonb | yes | server only |
+| `zella_export_rows(p_id uuid, p_token uuid, p_table text, p_after text, p_limit integer)` | jsonb | yes | server only |
 | `zella_export_tables()` | text[] | yes | server only |
 
 ### `zella_finish_*` (6)
@@ -5765,7 +5787,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (194)
+### Smaller groups and older helpers (192)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5816,8 +5838,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_dismiss_dead_letter(p_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_dismiss_knowledge_gap(p_gap_id uuid)` | boolean | yes | signed in |
 | `zella_dnc_stops_callbacks()` | trigger | yes | server only |
-| `zella_document_orphans(p_limit integer)` | jsonb | yes | server only |
-| `zella_document_orphans_removed(p_paths text[])` | void | yes | server only |
 | `zella_end_user_sessions(p_user_id uuid)` | integer | yes | server only |
 | `zella_ensure_crm_types(p_business_id uuid)` | integer | yes | signed in |
 | `zella_entitlement_allows(p_business_id uuid, p_key text, p_add numeric)` | boolean | yes | server only |

@@ -53,6 +53,7 @@ GROUPS = [
         "business_verification_documents": "Business and owner verification documents (files in private storage).",
         "provisioning_steps": "Progress of each Create Business wizard step.",
         "business_export_jobs": "Whole business exports: who asked, the Zella Voice owner who approved, progress for resuming, and the 7 day download window. Server only.",
+        "business_document_cleanup": "Verification uploads a cleanup run claimed as never confirmed, kept until their removal is recorded, so a confirmation and a cleanup can't both win for one file. Server only.",
         "activation_tests": "Results of the checks run before a business goes live.",
         "owner_onboarding": "The owner onboarding journey per business: current step, finish later and resume, identity attempts and provider result, accepted plan version (written only through the onboarding functions).",
         "owner_onboarding_steps": "When each of the seven onboarding steps was reached and completed for a business, and by whom.",
