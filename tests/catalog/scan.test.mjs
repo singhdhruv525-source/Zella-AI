@@ -315,3 +315,12 @@ test("edge function alert kinds: p_kind after a nested object, at the payload's 
 test("edge function alert kinds: a p_kind inside a string is text, not the kind", () => {
   assert.deepEqual(tsAlertKinds(`admin.rpc("zella_platform_alert", { p_title: 'p_kind: "fake_alert"', p_kind: "real_alert" });`).map((x) => x.name), ["real_alert"]);
 });
+
+test("edge function alert kinds: quoted keys, property names only, every branch, unresolved values", () => {
+  const kinds = (s) => tsAlertKinds(s).map((x) => (x.unresolved ? "?" : x.name));
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { "p_kind": "new_alert" });`), ["new_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_title: flag ? p_kind : "fallback", p_kind: "real_alert" });`), ["real_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? "first_alert" : "second_alert" });`), ["first_alert", "second_alert"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: kindFor(x) });`), ["?"]);
+  assert.deepEqual(kinds(`admin.rpc("zella_platform_alert", { p_kind: flag ? "known_alert" : other });`), ["?", "known_alert"]);
+});

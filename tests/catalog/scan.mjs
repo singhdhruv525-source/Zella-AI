@@ -680,20 +680,28 @@ export function tsAlertKinds(raw) {
   const out = [];
   const masked = maskStrings(src);
   for (const m of src.matchAll(/zella_platform_alert["']\s*,\s*\{/g)) {
-    // the payload object, walked to its own closing brace (nested objects and strings skipped): its p_kind at its
-    // own level, wherever it is among the fields
+    // The payload object, walked to its own closing brace (nested objects and strings skipped). At each property
+    // boundary of its own level (after { or ,) the key is read, bare or quoted; for p_kind its value expression gives
+    // the kinds, every branch of a conditional; a branch that isn't a string literal is reported as unresolved.
     const open = m.index + m[0].length - 1;
     let depth = 0;
     for (let i = open; i < src.length; i++) {
       const c = masked[i];
-      if (c === "{" || c === "(" || c === "[") { depth++; continue; }
-      if (c === "}" || c === ")" || c === "]") { depth--; if (depth === 0) break; continue; }
-      if (depth !== 1) continue;
-      const k = /\bp_kind\s*:\s*(["'])([a-z][a-z0-9_]*)\1/y;
-      k.lastIndex = i;
-      const hit = k.exec(src);
-      // a property name, not text inside a string (string contents are blanked in masked)
-      if (hit && masked.startsWith("p_kind", i) && (i === 0 || !/[\w$]/.test(src[i - 1]))) { out.push({ name: hit[2], line: lineAt(src, i) }); break; }
+      if (c === "{" || c === "(" || c === "[") depth++;
+      else if (c === "}" || c === ")" || c === "]") { depth--; if (depth === 0) break; }
+      if (depth !== 1 || (c !== "{" && c !== ",")) continue;
+      const key = /\s*(?:(["'])(p_kind)\1|(p_kind)\b)\s*:\s*/y;
+      key.lastIndex = i + 1;
+      const hit = key.exec(src);
+      if (!hit) continue;
+      const from = i + 1 + hit[0].length;
+      const expr = exprAfter(src, from);
+      const line = lineAt(src, from);
+      const loose = jsValueBranches(expr).some((b) => !/^S$/.test(b));
+      const names = jsExprNames(expr).filter((n) => !n.prefix);
+      if (loose || !names.length) out.push({ name: `alert kind at line ${line}`, unresolved: true, line });
+      for (const n of names) if (/^[a-z][a-z0-9_]*$/.test(n.name)) out.push({ name: n.name, line });
+      break;
     }
   }
   return out;

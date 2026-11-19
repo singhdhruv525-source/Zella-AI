@@ -3101,10 +3101,11 @@ async function businessUndoCancel(admin: SupabaseClient, fields: Json) {
   return withBefore({ businessId, previousCancelAt: business.cancel_at }, { cancel_at: business.cancel_at, cancellation_reason: business.cancellation_reason ?? null });
 }
 
-// A resend holds the invitation for SEND_LEASE_MS; the email send is given at most SEND_TIMEOUT_MS of it, so it ends
-// (sent, failed, or timed out) while the lease is still held. Both stay under the edge function's 150 s limit.
-const SEND_LEASE_MS = 2 * 60 * 1000;
-const SEND_TIMEOUT_MS = 60 * 1000;
+// A resend holds the invitation for SEND_LEASE_MS, longer than an edge function can run (150 s on the Free plan, 400 s
+// on paid plans), so the send always finishes (and records what happened) while its lease is held: no second send can
+// start meanwhile, and no deadline drops a send that is still under way. A run that is stopped part way frees the
+// invitation when the lease ends.
+const SEND_LEASE_MS = 7 * 60 * 1000;
 async function invitationResend(admin: SupabaseClient, fields: Json) {
   const businessId = requireId(fields.businessId);
   const business = await getBusiness(admin, businessId);
@@ -3128,7 +3129,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   }
   // The claim is a lease: updated_at is set SEND_LEASE_MS ahead, and a request that finds updated_at in the future
   // knows a send is in progress and stops. The send's outcome (sent or failed) sets updated_at to now, ending the
-  // lease; a send that never finishes frees it when the lease runs out.
+  // lease, and only while the lease is still this request's; a run that is stopped frees it when the lease runs out.
   const ALREADY_SENDING = "The invitation is already being sent from another window. Reload the page to see the result.";
   if (inv.updated_at && Date.parse(inv.updated_at) > Date.now()) throw new InputError(ALREADY_SENDING, 409);
   const lease = new Date(Date.now() + SEND_LEASE_MS).toISOString();
@@ -3143,12 +3144,7 @@ async function invitationResend(admin: SupabaseClient, fields: Json) {
   }
 
   const now = new Date().toISOString();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timedOut = new Promise<{ error: string }>((resolve) => {
-    timer = setTimeout(() => resolve({ error: "The email service took too long to answer. Try again in a few minutes." }), SEND_TIMEOUT_MS);
-  });
-  const sent = await Promise.race([sendOwnerEmail(admin, invitation.email, invitation.owner_name, businessId, appUrl), timedOut]);
-  clearTimeout(timer);
+  const sent = await sendOwnerEmail(admin, invitation.email, invitation.owner_name, businessId, appUrl);
 
   if ("error" in sent) {
     const reason = sent.error;
