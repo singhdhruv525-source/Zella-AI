@@ -12,6 +12,7 @@ import { BOOKING_MODELS, CONFIG_PERMISSIONS, allRows, cleanAutomationDefaults, m
 import { supportHours, ticketTiming } from "./access.ts";
 import { ACCESS_PERMISSIONS, AUDIT_COLUMNS, AUDIT_EXPORT_ROLES, AUDIT_PAGE, SELF_ACTIONS, accessHandlers, applyAuditFilters, auditCursor, auditFilters, endSessionsAfterChange, nextAuditCursor, recordRefusal } from "./access.ts";
 import { businessesList } from "./businesses.ts";
+import { LIFECYCLE_PERMISSIONS, createDraft, draftAges, lifecycleHandlers, trackSetup } from "./lifecycle.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -532,12 +533,13 @@ function cleanBusinessFields(fields: Json) {
 
 async function saveBusiness(admin: SupabaseClient, fields: Json) {
   const values = cleanBusinessFields(obj(fields.business));
-  const existingId = text(fields.businessId, 64);
+  let existingId = text(fields.businessId, 64);
 
   if (!existingId) {
-    const { data, error } = await admin.rpc("zella_create_business_draft", {
-      p_fields: values,
-    });
+    // BIZ-14: one creation key per wizard session, so a retry after a timeout gets the same business back (lifecycle.ts)
+    const creationKey = text(fields.creationKey, 64);
+    if (creationKey && !UUID_RE.test(creationKey)) throw new InputError("The creation key is not valid");
+    const { data, error } = await createDraft(admin, values, creationKey);
 
     if (error) {
       if (error.message.includes("INDUSTRY_NOT_FOUND")) {
@@ -546,7 +548,11 @@ async function saveBusiness(admin: SupabaseClient, fields: Json) {
       throw error;
     }
 
-    return { businessId: data.business_id, created: true, industryChanged: false, values };
+    if (!data?.business_id) throw new Error("The draft was not created");
+    if (!data.existing) {
+      return { businessId: data.business_id, created: true, industryChanged: false, values };
+    }
+    existingId = data.business_id;   // a retry: save these values on the business the first try made
   }
 
   const businessId = requireId(existingId);
@@ -3217,6 +3223,7 @@ const EDITABLE_SETTINGS: Record<string, { label: string; check: (v: unknown) => 
   transfer_failure_threshold: { label: "Failed transfers before a business is flagged", check: (v) => intIn(v, 1, 50) },
   ai_low_confidence_questions: { label: "Unsure answers in one call before it is flagged for review", check: (v) => intIn(v, 2, 20) },
   response_sample_rate: { label: "Share of AI conversations sampled for quality review (0 to 1)", check: (v) => fraction(v) },
+  draft_abandon_days: { label: "Days without changes before a draft business is marked abandoned", check: (v) => intIn(v, 7, 365) },
 };
 
 // A short list of whole numbers, from "24, 72", "[24,72]" or an array. Kept unique and in the order its job reads
@@ -3399,7 +3406,7 @@ Deno.serve(withCors(async (req: Request) => {
     }
 
     // Every action needs a permission; restricted roles only have what the owner gave them.
-    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action];
+    const permission = PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action];
     if (!permission) return respond({ error: "Unknown action" }, 400);
     // Every active admin may read their own role and permissions (me_admin): without it a restricted role that lacks
     // businesses.view couldn't learn what it is allowed to do. It returns nothing about other people or businesses.
@@ -3561,22 +3568,24 @@ Deno.serve(withCors(async (req: Request) => {
     };
 
     const extra = settingsHandlers(adminClient, fields, { userId: user.id, role, aal, mfa: hasMfa },
-      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE });
+      { text, bool, obj, requireId, validTimezone, InputError, EMAIL_RE, UUID_RE,
+        draftAges: (a: SupabaseClient, rows: { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]) => draftAges(a, rows, Date.now(), { everyDraft: true }) });
     const onboarding = onboardingHandlers(adminClient, fields, user.id, {
       text, bool, obj, requireId, optionalPhone, getBusiness, getReceptionist, advance, mergeSetupData, InputError, EMAIL_RE, UUID_RE,
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
     const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, role);
     const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? access.handlers[action];
+    const lifecycle = lifecycleHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? access.handlers[action] ?? lifecycle.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
-      const result = await handler();
+      const result = await trackSetup(adminClient, action, fields, handler);   // SET-ONB-RETRY: setup steps are recorded
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? access.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? access.audited[action] ?? lifecycle.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;

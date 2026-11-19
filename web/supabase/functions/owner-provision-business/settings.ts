@@ -5,6 +5,7 @@
 // or business id from the browser. Secret values never leave the server: only whether they are set.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DraftAge } from "./lifecycle.ts";
 
 type Json = Record<string, unknown>;
 
@@ -17,6 +18,8 @@ export type Kit = {
   InputError: new (message: string, status?: number) => Error;
   EMAIL_RE: RegExp;
   UUID_RE: RegExp;
+  // BIZ-13b (lifecycle.ts), passed in by index.ts; without it no draft is marked abandoned
+  draftAges?: (admin: SupabaseClient, rows: { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]) => Promise<{ days: number; ages: Map<string, DraftAge> }>;
 };
 
 // Permission each action needs. Actions not listed are refused (index.ts), so a new action must be added here.
@@ -331,7 +334,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
     },
 
     onboarding_overview: async () => {
-      const biz = (check(await admin.from("businesses").select("id, name, onboarding_status, industry_id, email, phone, timezone, created_at, setup_data")
+      const biz = (check(await admin.from("businesses").select("id, name, onboarding_status, industry_id, email, phone, timezone, created_at, updated_at, setup_data")
         .is("cancelled_at", null).neq("onboarding_status", "active").order("created_at", { ascending: false }).limit(200)) ?? []) as Json[];
       const ids = biz.map((b) => b.id as string);
       const [steps, agents, numbers, subs, invites] = await Promise.all([
@@ -342,7 +345,11 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         ids.length ? admin.from("business_invitations").select("business_id, status, role").in("business_id", ids).eq("role", "owner") : { data: [] },
       ]);
       const of = <T extends { business_id: string }>(rows: unknown, id: string) => ((rows ?? []) as T[]).filter((r) => r.business_id === id);
+      const { days: abandonDays, ages } = k.draftAges   // BIZ-13b
+        ? await k.draftAges(admin, biz as { id: string; name: unknown; created_at: unknown; updated_at: unknown }[])
+        : { days: null, ages: new Map<string, DraftAge>() };
       return {
+        abandon_days: abandonDays,
         rows: biz.map((b) => {
           const id = b.id as string;
           const st = of<{ business_id: string; step: string; status: string; error: string | null; updated_at: string }>(steps.data, id);
@@ -355,6 +362,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
             billing: of<{ business_id: string; status: string }>(subs.data, id).length > 0,
           };
           return { id, name: b.name, onboarding_status: b.onboarding_status, created_at: b.created_at, checks,
+            last_activity_at: ages.get(id)?.lastActivityAt ?? null, abandoned: ages.get(id)?.abandoned ?? false,
             failed_steps: st.filter((s) => s.status === "failed").map((s) => ({ step: s.step, error: s.error ? String(s.error).slice(0, 200) : null, at: s.updated_at })) };
         }),
       };
@@ -587,6 +595,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         requests: { open: rows.filter((r) => r.status === "open").length, overdue: rows.filter((r) => r.status === "open" && r.due_at < new Date().toISOString()).length,
           byKind: rows.reduce((a, r) => { a[r.kind] = (a[r.kind] ?? 0) + 1; return a; }, {} as Record<string, number>) },
         retentionDays: keys[0]?.value ?? 90,
+        // BIZ-13c: every cancelled business with its retention date, oldest due first, and which are past it. Read only:
+        // nothing here deletes anything (a purge waits for the owner's and legal's answer, BIZ-13d).
+        retentionSetting: keys[0] ? "set" : "default",
+        cancelled: await (async () => {
+          const now = new Date().toISOString();
+          const list = (check(await admin.from("businesses").select("id, name, cancelled_at, retention_until").not("cancelled_at", "is", null)
+            .order("retention_until", { ascending: true, nullsFirst: false }).limit(500)) ?? []) as { id: string; name: string; cancelled_at: string; retention_until: string | null }[];
+          return list.map((b) => ({ ...b, past_retention: Boolean(b.retention_until && b.retention_until < now) }));
+        })(),
       };
     },
 

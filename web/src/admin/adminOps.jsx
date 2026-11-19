@@ -218,11 +218,11 @@ export function Filters({ children, active = 0, onClear }) {
   );
 }
 
-export function Select({ label, value, onChange, options, any = "All" }) {
+export function Select({ label, value, onChange, options, any = "All", disabled = false }) {
   return (
     <label className="ao-filter">
       <span>{label}</span>
-      <select value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+      <select value={value ?? ""} disabled={disabled} onChange={(e) => onChange(e.target.value || null)}>
         {any !== null && <option value="">{any}</option>}
         {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>

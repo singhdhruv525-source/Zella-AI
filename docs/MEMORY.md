@@ -269,6 +269,52 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Deleting a draft business (Lane B, BIZ-13a, 16 Nov 2026):** only a Zella Voice owner or super admin, with the
+  name typed and a reason, and only a business that never finished setup and has no calls, numbers, billing or
+  accepted owner. Audit history is never deleted with a business (ACC-10, owner decision, 16 Nov 2026):
+  audit_logs.business_id is SET NULL, and the deletion entry keeps the business id and name.
+
+- **Abandoned drafts (Lane B, BIZ-13b, D-30 recommended default, 16 Nov 2026):** a draft with no change for 30 days
+  (`draft_abandon_days`, 7 to 365) is marked Abandoned and alerted once ever; nothing is deleted automatically. The
+  alert is raised when Business onboarding is opened (no scheduled job for it yet).
+
+- **Missing documents (Lane B, UI-11, 16 Nov 2026):** live businesses without documents are listed too (Live without
+  documents); Request documents is allowed once per business per 24 hours, read from the last audit entry. Defaults,
+  owner can change.
+
+- **Provisioning steps (Lane B, SET-ONB-RETRY part 1, 16 Nov 2026):** every setup save is recorded through
+  zella_track_provisioning. A deliberate refusal (bad input, or setup can't finish yet) is not a failed step and
+  raises no alert; only an unexpected error or a failed invitation email is.
+
+- **Setup step retry (Lane B, SET-ONB-RETRY part 2, 16 Nov 2026):** only modules, the receptionist and automations
+  are retried, by Retry step or by the timed job zella_provisioning_retry (off until the owner switches it on, at most 3
+  tries each). The invitation email and provider steps are never retried on their own. Default, owner can change.
+
+- **Whole business export (Lane B, SET-DL-EXPORT, 16 Nov 2026):** an admin requests, a Zella Voice owner other than the
+  requester approves, downloadable for 7 days through signed links that end with it, by the requester or an owner.
+  Never in an export: secret tables and columns, recording links, and transcripts in sensitive industries. Default,
+  owner can change.
+
+- **Export worker limit (Lane B, 16 Nov 2026; changed in review 19 Nov 2026):** each worker run has about 2 minutes. A run
+  that runs out pauses the job (zella_export_pause): it saves where it stopped, page by page, and isn't counted as a try,
+  so a large business takes as many runs as it needs; only failures and runs that stop answering count toward the 3.
+  Each export also has its own file list, taken once, so files removed or added later never shift it.
+
+- **Spanish template versions aren't sent yet (Lane B review, 19 Nov 2026):** every sender asks zella_resolve_template
+  for en-US, so a Spanish version made on Messaging, Templates is kept but not used. How a send picks its language (the
+  business's language setting, or Spanish creation held back until then) is waiting on the owner; the page says so.
+
+- **Held emails to businesses (Lane B, 16 Nov 2026):** an email held after 5 tries is released (back to queued, tries
+  reset) or discarded by an admin with comms.manage and a reason. A discard ends as `failed`, which only a discard
+  writes, shown as Discarded; the sender never marks an email failed (it holds it). Default, owner can change.
+
+- **Template versions (Lane B, UI-20, 16 Nov 2026):** Create only makes an industry or Spanish version of a key that
+  already has a platform version (no sender uses a brand new key); Retire only archives such overrides. Default,
+  owner can change.
+
+- **Contact lookup privacy (Lane B, COM-29, 16 Nov 2026):** comms.manage only, one business, at least 4 digits or a
+  full email, a reason, masked results (last 4 digits), every lookup audited. Default, owner can change.
+
 - **CodeRabbit review routine (owner, 17 Nov 2026):** CodeRabbit reviews a PR in full once, when it opens. Later
   pushes (merges of main, fixes) are reviewed only when someone comments `@coderabbitai review`, and the author must
   request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
@@ -340,6 +386,10 @@ Waiting on the owner:
   merging.
 - **Production's text sort order differs from the test database.** Use `collate "C"` when comparing ordered lists or
   hashes between them.
+
+- **A business could not be deleted at all before zella_draft_delete.sql.** The privileged audit trigger wrote a row
+  pointing at the business being deleted, which failed the audit foreign key. Test any delete path on a business
+  made the real way (with its receptionist), not a bare row.
 
 ## 7. Where to look
 

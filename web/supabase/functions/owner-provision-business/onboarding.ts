@@ -247,13 +247,18 @@ export function onboardingHandlers(admin: SupabaseClient, fields: Json, userId: 
     const mime = stored.metadata?.mimetype;
     if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 1 || size > MAX_BYTES || typeof mime !== "string" || !DOCUMENT_TYPES[mime] || size !== file.size || mime !== file.mime) throw new InputError("Uploaded file metadata does not match");
     const now = new Date().toISOString();
-    const { error: oldError } = await admin.from("business_verification_documents")
-      .update({ status: "replaced", updated_at: now }).eq("business_id", businessId).eq("kind", kind).neq("status", "replaced");
-    if (oldError) throw oldError;
+    // The new row first, then the older ones marked replaced: if the insert is refused (for example FILE_REMOVED, when
+    // the orphan cleanup claimed this upload), the earlier document stays as it was, never left without one.
     const { data, error } = await admin.from("business_verification_documents").insert({
       business_id: businessId, kind, file_path: path, file_name: file.name, mime_type: mime, size_bytes: size, uploaded_by: userId,
     }).select("id, kind, file_name, mime_type, size_bytes, status, review_note, created_at, reviewed_at").single();
-    if (error) throw error;
+    if (error) {
+      if (String(error.message ?? "").includes("FILE_REMOVED")) throw new InputError("That upload was removed because it wasn't confirmed in time. Upload the document again.", 409);
+      throw error;
+    }
+    const { error: oldError } = await admin.from("business_verification_documents")
+      .update({ status: "replaced", updated_at: now }).eq("business_id", businessId).eq("kind", kind).neq("status", "replaced").neq("id", (data as { id: string }).id);
+    if (oldError) throw oldError;
     return { businessId, document: data };
   };
 
@@ -378,7 +383,13 @@ export async function documentsReady(admin: SupabaseClient, businessId: string) 
     if (missingTable(error)) return { ready: true, missing: [] as string[], available: false };
     throw error;
   }
-  const ok = new Set((data ?? []).filter((d) => d.status !== "rejected").map((d) => d.kind));
-  const missing = REQUIRED_DOCUMENTS.filter((k) => !ok.has(k));
+  const missing = missingDocuments(data ?? []);
   return { ready: missing.length === 0, missing, available: true };
+}
+
+// The required kinds a business still needs: none uploaded, or only rejected ones (replaced rows left out first).
+// Shared with the Verification page's Missing documents list (lifecycle.ts, UI-11).
+export function missingDocuments(docs: { kind: string; status: string }[]): string[] {
+  const ok = new Set(docs.filter((d) => d.status !== "rejected" && d.status !== "replaced").map((d) => d.kind));
+  return REQUIRED_DOCUMENTS.filter((k) => !ok.has(k));
 }

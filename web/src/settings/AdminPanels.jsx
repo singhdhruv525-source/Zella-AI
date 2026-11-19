@@ -271,40 +271,8 @@ export function TenantSummary({ businessId }) {
   );
 }
 
-const CHECKS = [["profile", "Profile"], ["industry", "Industry"], ["receptionist", "AI receptionist"], ["phone", "Phone"], ["owner_invited", "Owner invited"], ["billing", "Billing"]];
-
-export function Onboarding({ me, openSetup, openBusiness }) {
-  const state = useAsync(() => call("onboarding_overview"), []);
-  const [notice, setNotice] = useState({ text: "", error: "" });
-  async function resend(id) {
-    try { await call("invitation_resend", { businessId: id }); setNotice({ text: "Invitation sent again.", error: "" }); state.reload(); }
-    catch (err) { setNotice({ text: "", error: err.message }); }
-  }
-  return (
-    <>
-      <Banner tone="success">{notice.text}</Banner>
-      <Banner tone="error">{notice.error}</Banner>
-      <Card title="Businesses still in setup" sub="Each check reads the business's real records. A tick means it's in place.">
-        <LoadState state={state}>{(d) => (
-          <Table rows={d.rows} empty="Every business has finished setup." columns={[
-            ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
-            ["Step", (b) => words(b.onboarding_status)],
-            ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success">✓</Pill> : <Pill tone="warning">Missing</Pill>)]),
-            ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => `${words(f.step)}${f.error ? `: ${f.error}` : ""}`).join("; ") : "None")],
-            ["", (b) => can(me, "businesses.manage") ? (
-              <span className="zs-actions">
-                <button type="button" className="zs-btn sm" onClick={() => openSetup(b.id)}>Continue setup</button>
-                {!b.checks.owner_invited && <button type="button" className="zs-btn sm" onClick={() => resend(b.id)}>Send owner invite</button>}
-              </span>) : null],
-          ]} />
-        )}</LoadState>
-      </Card>
-      <Needs title="Automatic retry of failed provisioning steps isn't built" have="Steps stuck for 30 minutes are marked failed every hour and shown above; Continue setup reruns the setup wizard, which only adds what's missing.">
-        A safe automatic retry needs each provisioning step (agent, phone number, integrations) to be re-runnable on its own.
-      </Needs>
-    </>
-  );
-}
+// Business onboarding: its own file (Lane B)
+export { default as Onboarding } from "./panels/Onboarding";
 
 export function Lifecycle({ openBusiness }) {
   const state = useAsync(() => Promise.all(["suspended", "cancelling", "cancelled"].map((status) => call("tenants_search", { status }))), []);
@@ -374,25 +342,8 @@ export function Provisioning({ openBusiness }) {
   );
 }
 
-export function DataLifecycle({ me }) {
-  const state = useAsync(() => Promise.all([call("privacy_overview"), call("tenants_search", { status: "cancelled" })]), []);
-  return (
-    <LoadState state={state}>{([p, c]) => (
-      <>
-        <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
-        <Card title="Canceled businesses" sub="Their records stay until the retention date.">
-          <Table rows={c.rows} empty="No canceled businesses." columns={[["Business", (b) => b.name], ["Canceled", (b) => when(b.cancelled_at)]]} />
-        </Card>
-        <Card title="Customer data requests across businesses" sub="Counts only. Each business handles its own requests.">
-          <Facts rows={[["Open", p.requests.open], ["Overdue", p.requests.overdue], ...Object.entries(p.requests.byKind).map(([k, v]) => [words(k), v])]} />
-        </Card>
-        <Needs title="Whole business export and deletion jobs aren't built" have="Each business can export or erase individual customers (with a second approval). Canceled businesses are kept, never deleted automatically.">
-          Exporting or deleting a whole business needs a job that runs in the background, records its progress, and can be approved and stopped.
-        </Needs>
-      </>
-    )}</LoadState>
-  );
-}
+// Data lifecycle: its own file (Lane B)
+export { default as DataLifecycle } from "./panels/DataLifecycle";
 
 // One editable platform setting (owner only on the server).
 export function SettingNumber({ me, keyName, label, current, hint }) {
@@ -1515,8 +1466,11 @@ const OPERATIONAL = [
     ["invitation_reminder_hours", "Hours after an owner invitation that reminders go out, for example 24, 72."],
     ["setup_incomplete_after_days", "Days after creation before an unfinished setup is flagged."],
     ["trial_notice_days", "Days before a trial ends that the owner is told, for example 7, 3, 1."],
+    ["draft_abandon_days", "Days without any change before a draft business shows as Abandoned on Business onboarding, with one alert. Nothing is deleted automatically."],
   ]],
 ];
+// Settings the server reads with a default when no row exists yet; saving one adds the row.
+const UNSET_DEFAULTS = { draft_abandon_days: 30 };
 
 export function OperationalRules({ me }) {
   const state = useAsync(() => call("platform_settings_list"), []);
@@ -1524,10 +1478,11 @@ export function OperationalRules({ me }) {
     <LoadState state={state}>{(s) => (
       <>
         {me?.role !== "zella_owner" && <Banner tone="warn">Only a Zella Voice owner can change these. You can see the current values.</Banner>}
-        <MissingSettings items={OPERATIONAL.flatMap(([, keys]) => keys).filter(([k]) => !s.settings.some((x) => x.key === k)).map(([k]) => settingLabel(k))} />
+        <MissingSettings items={OPERATIONAL.flatMap(([, keys]) => keys).filter(([k]) => !s.settings.some((x) => x.key === k) && !(k in UNSET_DEFAULTS)).map(([k]) => settingLabel(k))} />
         {OPERATIONAL.map(([group, keys]) => {
           const rows = keys.map(([k, hint]) => {
-            const row = s.settings.find((x) => x.key === k);
+            // a setting with a built in default that isn't stored yet shows that default, and saving stores it
+            const row = s.settings.find((x) => x.key === k) ?? (k in UNSET_DEFAULTS ? { key: k, value: UNSET_DEFAULTS[k], editable: s.canEdit } : null);
             return row ? { row, hint } : { row: { key: k }, key: k, hint, unavailable: true };
           });
           return <SettingGroup key={group} me={me} title={group} rows={rows} />;
