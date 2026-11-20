@@ -13,10 +13,10 @@ It reads the catalog only, never rows.
 
 | What | Count |
 |---|---|
-| Tables (schema `public`) | 214 |
-| Tables with row security on | 214 of 214 |
+| Tables (schema `public`) | 215 |
+| Tables with row security on | 215 of 215 |
 | Row security policies | 357 |
-| Columns | 2480 |
+| Columns | 2484 |
 | Views | 1 |
 | Functions | 1193 (1105 security definer, 30 callable by `anon`) |
 
@@ -60,7 +60,7 @@ Each is a database job; most stay off until the owner approves going live (see `
 
 ## Contents
 
-- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `platform_report_runs`, `zella_text_archive`, `rate_limits`, `zella_migration_settings`, `oauth_states`
+- [Tenancy, people and access](#tenancy-people-and-access): `businesses`, `business_members`, `business_invitations`, `profiles`, `staff_members`, `staff_handovers`, `time_off_requests`, `platform_admins`, `platform_role_permissions`, `sensitive_approvals`, `legal_documents`, `legal_acceptances`, `audit_logs`, `zella_function_archive`, `zella_migration_values`, `platform_report_runs`, `zella_text_archive`, `rate_limits`, `zella_migration_settings`, `oauth_states`
 - [Business setup and industry configuration](#business-setup-and-industry-configuration): `industries`, `industry_configurations`, `industry_modules`, `business_modules`, `business_capabilities`, `industry_crm_presets`, `industry_automation_presets`, `industry_automation_defaults`, `industry_automation_runs`, `industry_message_policy`, `business_hours`, `business_closures`, `business_languages`, `business_voice`, `business_phone_numbers`, `business_verification_documents`, `provisioning_steps`, `business_export_jobs`, `business_export_tables`, `business_export_rows`, `business_document_cleanup`, `activation_tests`, `owner_onboarding`, `owner_onboarding_steps`, `owner_onboarding_sections`, `identity_verification_events`, `config_migration_snapshots`, `zella_milestones`, `platform_settings`, `business_usage_preferences`
 - [Customers and CRM](#customers-and-crm): `customers`, `customer_pending_changes`, `customer_relationships`, `customer_requests`, `customer_consents`, `contact_consents`, `duplicate_reviews`, `crm_tasks`, `crm_record_types`, `crm_records`, `crm_record_events`, `crm_record_files`, `crm_record_secrets`, `record_workflow_presets`, `record_approvals`, `record_milestones`, `record_inspections`, `record_exceptions`, `record_credits`, `quotes`, `customer_charges`, `customer_charge_payments`, `data_rights_requests`
 - [Leads](#leads): `lead_rules`, `lead_questions`, `lead_submissions`, `website_forms`, `website_sources`, `website_pages`, `google_lead_keys`, `google_lead_events`, `assignment_rules`
@@ -401,6 +401,19 @@ Original function definitions a migration replaced, kept for its exact rollback 
 | `saved_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `migration, signature`.
+- Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
+
+### `zella_migration_values`
+
+Values a migration replaced (for example retention periods), kept so its rollback puts back exactly what it found (server only, no tenant data).
+
+| Column | Type | Required | Default |
+|---|---|---|---|
+| `migration` | text | yes |  |
+| `key` | text | yes |  |
+| `value` | jsonb |  |  |
+
+- Primary key: `migration, key`.
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
 
 ### `platform_report_runs`
@@ -5079,6 +5092,7 @@ Owner requests to delete a business account: confirmed by a Zella Voice admin, f
 | `purged_at` | timestamp with time zone |  |  |
 | `run_id` | uuid |  |  |
 | `last_error` | text |  |  |
+| `froze_business` | boolean | yes | false |
 
 - Primary key: `id`.
 - Row security: on; no policies, so roles subject to row security (signed-in users and anon) get no rows directly. Superusers and `BYPASSRLS` roles (such as the server key) are not limited by it, nor is the table owner unless `FORCE ROW LEVEL SECURITY` is set; a security definer function runs with its function owner's rights.
