@@ -56,9 +56,9 @@ export default function DataRetention({ me }) {
             )}
           </Card>
         )}
-        <Card title="Purges" sub="Each purge needs a Zella Voice owner and a second person to approve it, and is never scheduled."
+        <Card title="Purges" sub="Each manual purge run needs a Zella Voice owner and a second person to approve it. Account deletions an admin confirmed run on the daily job once this switch is on and their period is legally approved."
           actions={owner && <button type="button" className={`zs-btn sm${o.purge_enabled ? " danger-outline" : ""}`} onClick={() => setDialog({ switchOn: !o.purge_enabled })}>{o.purge_enabled ? "Switch purges off" : "Switch purges on"}</button>}>
-          <Facts rows={[["Purges", o.purge_enabled ? "On" : "Off"], ["Schedule", "None. A purge runs only when people approve it."], ["Setting", "retention_purge_enabled"]]} />
+          <Facts rows={[["Purges", o.purge_enabled ? "On" : "Off"], ["Schedule", "Manual runs: only when people approve them. Confirmed account deletions and the 90 day removal of recordings and transcripts: the daily job, once on"], ["Setting", "retention_purge_enabled"]]} />
         </Card>
         <BusinessPurge me={me} legalApproved={o.policies.some((p) => p.data_class === "cancelled_business" && p.legal_status === "approved")} onAsked={() => setRunsKey((k) => k + 1)} />
         <AccountDeletions me={me} />
@@ -87,7 +87,7 @@ export default function DataRetention({ me }) {
           <Confirm title={dialog.switchOn ? "Switch purges on?" : "Switch purges off?"} reason danger={dialog.switchOn} word={dialog.switchOn ? "ENABLE PURGES" : undefined}
             confirmLabel={dialog.switchOn ? "Switch on" : "Switch off"} onClose={() => setDialog(null)}
             onConfirm={async (reason) => { await call("retention_switch_set", { on: dialog.switchOn, reason, confirm: "ENABLE PURGES" }); state.reload(); }}>
-            <p>{dialog.switchOn ? "Purges still need legal approval of the period and two people to approve each run. Nothing runs on a schedule." : "No purge can run until it is switched on again."}</p>
+            <p>{dialog.switchOn ? "Manual purge runs still need legal approval of the period and two people to approve each run. The daily job will also remove recordings and transcripts past 90 days and purge confirmed account deletions past their 30 days, for kinds that are legally approved." : "No purge can run until it is switched on again."}</p>
           </Confirm>
         )}
         {dialog && "hold" in dialog && (

@@ -34,6 +34,11 @@ r=$(save en-US "Hi, Sunny Salon here, I'm an AI assistant. How can I help?"); [ 
 [ "$(first)" = "Hi, Sunny Salon here, I'm an AI assistant. How can I help?" ] && ok "and used as written" || bad "custom: $(first)"
 q "update public.business_languages set greeting = 'Hello from {name}. How can I help?' where business_id = '$BIZ'" > /dev/null
 [ "$(first)" = "Hello from Sunny Salon. How can I help? I'm the AI receptionist." ] && ok "a greeting stored without it (written before this change) still gets the disclosure on calls" || bad "added: $(first)"
+r=$(save en-US "Welcome to AI Dental. How can I help?"); [[ "$r" == *GREETING_AI_DISCLOSURE* ]] && ok "a business name with AI in it is not a disclosure (refused when saved)" || bad "AI Dental save: $r"
+q "update public.business_languages set greeting = 'Welcome to AI Dental. How can I help?' where business_id = '$BIZ'" > /dev/null
+[ "$(first)" = "Welcome to AI Dental. How can I help? I'm the AI receptionist." ] && ok "and a stored one like it still gets the sentence on calls" || bad "AI Dental call: $(first)"
+q "update public.business_languages set greeting = 'Hello from {name}. This call is recorded. I''m the AI receptionist.' where business_id = '$BIZ'" > /dev/null
+[ "$(first)" = "Hello from Sunny Salon. I'm the AI receptionist." ] && ok "a stored greeting that claims recording loses that sentence while recording is off" || bad "strip: $(first)"
 r=$(save es "Gracias por llamar a {name}."); [ "$r" = saved ] || bad "spanish save: $r"
 [[ "$(first)" == *"inteligencia artificial"* ]] && ok "a Spanish greeting gets the Spanish disclosure: $(first)" || bad "spanish: $(first)"
 r=$(save fr ""); [[ "$(first)" == *"intelligence artificielle"* ]] && ok "the standard French greeting gets it too" || bad "french: $(first)"

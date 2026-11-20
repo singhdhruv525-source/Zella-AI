@@ -338,7 +338,7 @@ flowchart LR
   Each class has its own access rules.
 - `PRV-3` **Sensitive personal data** is visible only to owners, admins and managers (staff by owner opt-in), never in sensitive industries' staff views, never in logs, never in AI prompts beyond what the task needs, never in exports without an audit record.
 - `PRV-4` **Retention defaults** (configurable per platform and industry; the owner may shorten, lengthening needs owner approval; **legal review before launch**, since some regulated industries may need longer periods for certain records):
-  - call recordings: 30 days;
+  - call recordings: 90 days (owner, 18 Nov 2026; ARCHITECTURE §23.1c);
   - transcripts: 90 days;
   - message bodies: 2 years;
   - audit and security logs: 7 years, unless the applicable legal policy requires otherwise;

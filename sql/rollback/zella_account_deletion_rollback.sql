@@ -1,7 +1,7 @@
 -- Undoes sql/zella_account_deletion.sql: the two job lists come back from zella_function_archive (only if undoing this
 -- file's change gives back exactly the archived definition, otherwise ROLLBACK_DRIFT and nothing changes), businesses
--- this flow froze are unfrozen, and the new functions and business_deletion_requests are dropped (open requests are
--- lost; purged businesses stay purged). Safe to run twice.
+-- this flow froze are unfrozen, and the new functions are dropped. business_deletion_requests and its rows stay (the
+-- owners' requests and the record of every purge are never deleted; applying the file again reuses them). Safe to run twice.
 begin;
 do $$
 declare a record; d text;
@@ -20,8 +20,11 @@ begin
     end loop;
     delete from public.zella_function_archive where migration = 'zella_account_deletion';
   end if;
-  if to_regprocedure('public.zella_business_deletion_freeze_note()') is not null then
-    update public.businesses set suspended_at = null, suspension_reason = null, updated_at = now() where suspension_reason = public.zella_business_deletion_freeze_note();
+  if to_regprocedure('public.zella_business_deletion_freeze_note()') is not null and to_regclass('public.business_deletion_requests') is not null then
+    update public.businesses b set suspended_at = null, suspension_reason = null, updated_at = now()
+      from public.business_deletion_requests r
+     where r.business_id = b.id and r.froze_business and r.status in ('confirmed', 'blocked')
+       and b.suspension_reason = public.zella_business_deletion_freeze_note();
   end if;
 end $$;
 drop function if exists public.zella_business_deletion_purge_due();
@@ -31,5 +34,4 @@ drop function if exists public.zella_business_deletion_cancel(uuid);
 drop function if exists public.zella_business_deletion_request(uuid, text, text);
 drop function if exists public.zella_business_deletion_status(uuid);
 drop function if exists public.zella_business_deletion_freeze_note();
-drop table if exists public.business_deletion_requests;
 commit;

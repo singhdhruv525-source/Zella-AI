@@ -21,7 +21,8 @@ export default function DeleteAccount({ w }) {
       <Card title="Delete this account" sub="Everything for this business is deleted: customers, calls, messages, bookings, files and settings. Audit history is kept without your details.">
         {!s?.status && <p className="zs-muted">You can ask Zella Voice to delete this account. Nothing changes until Zella Voice confirms. Then the account is frozen at once (calls are no longer answered and automations stop) and deleted 30 days later. You can cancel until then.</p>}
         {s?.status === "requested" && <Banner tone="warn">You asked to delete this account on {when(s.requested_at)}. Zella Voice will confirm it with you.</Banner>}
-        {(s?.status === "confirmed" || s?.status === "blocked") && <Banner tone="error">This account is frozen and will be deleted on {when(s.purge_after)}.</Banner>}
+        {s?.status === "confirmed" && <Banner tone="error">This account is frozen and will be deleted on {when(s.purge_after)}.</Banner>}
+        {s?.status === "blocked" && <Banner tone="error">This account is frozen. It can't be deleted yet: Zella Voice has been told why and will contact you.</Banner>}
         {owner ? (
           s?.status
             ? <button type="button" className="zs-btn" onClick={() => setCancelling(true)}>Cancel the deletion</button>

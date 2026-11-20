@@ -911,7 +911,7 @@ function Privacy({ w, onOpenPerson, onNotice }) {
     <>
       <Card title="Your data">
         <Facts rows={[["Recordings and transcripts", "Managers and above"], ["Customer data requests", "Logged and handled below, within 30 days"], ["Erasing a customer", "Needs a second owner or admin when you have two"],
-          ["Call recordings and transcripts", "Deleted automatically 90 days after the call"],
+          ["Call recordings and transcripts", "Kept 90 days after the call, then deleted automatically once Zella Voice switches automatic deletion on (after legal review)"],
           ["If you cancel", "Records kept 90 days, then the Zella Voice team removes them"],
           ["If you delete your account", "Frozen at once, then deleted 30 days after Zella Voice confirms, unless you cancel"]]} />
       </Card>

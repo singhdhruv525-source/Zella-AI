@@ -22,11 +22,11 @@ begin;
 do $$
 declare f record;
   mine constant jsonb := '{"public.zella_business_deletion_freeze_note()": "50e160e55012c38d51692dab5e1f7dd8",
-    "public.zella_business_deletion_purge_due()": "fc8d2e45a59f598a90ab8db73b1970dd",
+    "public.zella_business_deletion_purge_due()": "e35b7e44e4d303e48f4662674fa94515",
     "public.zella_business_deletion_status(uuid)": "ac7156772cbfd63060438b4137217983",
     "public.zella_business_deletion_request(uuid,text,text)": "5ea41bd703309f71ff4b7cddaefcdca6",
-    "public.zella_business_deletion_cancel(uuid)": "68fb5357ca6cb2a935fcd547848650e9",
-    "public.zella_admin_business_deletion_confirm(uuid,text)": "c67e99fa02dda6fc8456382964e06521",
+    "public.zella_business_deletion_cancel(uuid)": "f3e11179817eb9477d4dabcee45c3344",
+    "public.zella_admin_business_deletion_confirm(uuid,text)": "b9a57d8ab2ade1f0c4e96565441ee050",
     "public.zella_admin_business_deletion_requests()": "e4c264caa842e2dae0394ea0e1699620"}';
 begin
   if to_regclass('public.retention_purge_runs') is null or to_regprocedure('public.zella_business_purge_files_done(uuid,uuid,text[],text)') is null
@@ -58,6 +58,8 @@ create table if not exists public.business_deletion_requests (
   run_id uuid,
   last_error text check (last_error is null or length(last_error) <= 300)
 );
+-- whether confirming froze the business (it wasn't suspended already): only then does cancelling lift the suspension
+alter table public.business_deletion_requests add column if not exists froze_business boolean not null default false;
 comment on table public.business_deletion_requests is
   'Owner requests to delete a business account: confirmed by a Zella Voice admin, frozen, purged 30 days later (kept after the purge)';
 create unique index if not exists business_deletion_requests_open on public.business_deletion_requests (business_id) where status in ('requested', 'confirmed', 'blocked');
@@ -102,8 +104,10 @@ begin
    where business_id = p_business_id and status in ('requested', 'confirmed', 'blocked') returning * into r;
   if r.id is null then raise exception 'NOT_FOUND'; end if;
   -- lift only the freeze this flow put on (an admin's own suspension stays)
-  update public.businesses set suspended_at = null, suspension_reason = null, updated_at = now()
-   where id = p_business_id and suspension_reason = public.zella_business_deletion_freeze_note();
+  if r.froze_business then
+    update public.businesses set suspended_at = null, suspension_reason = null, updated_at = now()
+     where id = p_business_id and suspension_reason = public.zella_business_deletion_freeze_note();
+  end if;
   insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id) values (p_business_id, auth.uid(), 'business.deletion_cancelled', 'business_deletion_request', r.id);
   perform public.zella_resolve_platform_alerts('business_deletion_requested', p_business_id, null, 'Cancelled');
   return jsonb_build_object('id', r.id, 'status', r.status);
@@ -120,9 +124,11 @@ begin
   update public.business_deletion_requests set status = 'confirmed', confirmed_by = auth.uid(), confirmed_at = now(), purge_after = now() + interval '30 days'
    where business_id = p_business_id and status = 'requested' returning * into r;
   if r.id is null then raise exception 'NOT_FOUND'; end if;
-  -- frozen at once: a suspended business isn't answered and its automations pause (the lifecycle rules)
-  update public.businesses set suspended_at = coalesce(suspended_at, now()),
-         suspension_reason = coalesce(suspension_reason, public.zella_business_deletion_freeze_note()), updated_at = now() where id = p_business_id;
+  -- frozen at once: a suspended business isn't answered and its automations pause (the lifecycle rules). A business
+  -- already suspended for another reason stays exactly as it is, and cancelling won't lift that suspension
+  update public.businesses set suspended_at = now(), suspension_reason = public.zella_business_deletion_freeze_note(), updated_at = now()
+   where id = p_business_id and suspended_at is null;
+  if found then update public.business_deletion_requests set froze_business = true where id = r.id; end if;
   perform public.zella_admin_audit('business.deletion_confirmed', 'business_deletion_request', r.id, p_business_id, null,
     jsonb_build_object('purge_after', r.purge_after, 'reason', v_reason));
   begin
@@ -161,6 +167,8 @@ begin
     select * into b from public.businesses where id = r.business_id for update;
     v_why := case
       when b.id is null then 'BUSINESS_NOT_FOUND'
+      -- like lane G's purge: the cancelled business period must be legally approved
+      when (select legal_status from public.data_retention_policies where data_class = 'cancelled_business') is distinct from 'approved' then 'LEGAL_REVIEW_PENDING'
       when public.zella_retention_on_hold(b.id) then 'LEGAL_HOLD'
       when (select confdeltype from pg_constraint where conrelid = 'public.audit_logs'::regclass and conname = 'audit_logs_business_id_fkey') is distinct from 'n'
            or position('deleted_business_id' in pg_get_functiondef('public.zella_audit_privileged()'::regprocedure)) = 0 then 'AUDIT_HISTORY_AT_RISK'

@@ -13,7 +13,8 @@ async function rpc(name, args) {
 const LABEL = { requested: ["warning", "Waiting for you"], confirmed: ["error", "Frozen"], blocked: ["error", "Waiting: can't delete yet"], cancelled: ["neutral", "Cancelled"], purged: ["neutral", "Deleted"] };
 
 export default function AccountDeletions({ me }) {
-  const state = useAsync(() => rpc("zella_admin_business_deletion_requests", {}), []);
+  // a missing or malformed answer is an error, never "No requests"
+  const state = useAsync(async () => { const rows = await rpc("zella_admin_business_deletion_requests", {}); if (!Array.isArray(rows)) throw new Error("The requests couldn't be loaded."); return rows; }, []);
   const [confirming, setConfirming] = useState(null);
   const manage = Boolean(me?.permissions?.includes("security.manage"));
   return (

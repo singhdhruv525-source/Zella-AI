@@ -1,8 +1,9 @@
 -- Undoes sql/zella_privacy_retention.sql: zella_erase_customer, zella_run_scheduled_job and zella_run_schedule_group
 -- come back from zella_function_archive (each only if undoing this file's change gives back exactly the archived
--- definition, otherwise ROLLBACK_DRIFT and nothing changes); the new functions, the provider_deletions queue (calls not
--- yet deleted at Vapi are lost from it) and the vapi_deletion_live setting are removed; recordings and transcripts go
--- back to their lane G periods (30 and 90 days); the two drafts are removed unless someone accepted them (then they
+-- definition, otherwise ROLLBACK_DRIFT and nothing changes); the new functions and the vapi_deletion_live setting are
+-- removed; the provider_deletions queue and its rows stay (deletions still owed at Vapi are never lost; applying the file
+-- again reuses it); recordings and transcripts go back to exactly the periods they had before (ROLLBACK_DRIFT if either
+-- was changed since); the two drafts are removed unless someone accepted them (then they
 -- stay, as the acceptances point at them). Grants are kept. Safe to run twice.
 begin;
 do $$
@@ -25,9 +26,17 @@ begin
     end loop;
     delete from public.zella_function_archive where migration = 'zella_privacy_retention';
   end if;
-  if to_regclass('public.data_retention_policies') is not null then
-    update public.data_retention_policies set days = architecture_days, note = regexp_replace(note, '^Owner decision 18 Nov 2026: 90 days, deleted automatically \(zella_retention_auto_run\)\. ', '')
-     where data_class in ('call_recordings', 'call_transcripts') and note like 'Owner decision 18 Nov 2026%';
+  -- the periods go back to exactly what they were, only if nobody changed them since (still 90 days)
+  if to_regclass('public.data_retention_policies') is not null and to_regclass('public.zella_migration_values') is not null then
+    if exists (select 1 from public.data_retention_policies p join public.zella_migration_values v on v.migration = 'zella_privacy_retention' and v.key = 'days:' || p.data_class
+                where p.days <> 90) then
+      raise exception 'ROLLBACK_DRIFT: a recording or transcript period was changed after this migration';
+    end if;
+    update public.data_retention_policies p set days = (v.value #>> '{}')::integer,
+           note = regexp_replace(p.note, '^Owner decision 18 Nov 2026: 90 days, deleted automatically \(zella_retention_auto_run\)\. ', '')
+      from public.zella_migration_values v where v.migration = 'zella_privacy_retention' and v.key = 'days:' || p.data_class;
+    delete from public.zella_migration_values where migration = 'zella_privacy_retention';
+    if not exists (select 1 from public.zella_migration_values) then drop table public.zella_migration_values; end if;
   end if;
 end $$;
 drop function if exists public.zella_owner_onboarding_legal_accept(uuid);
@@ -36,7 +45,6 @@ drop function if exists public.zella_retention_auto_run();
 drop function if exists public.zella_provider_deletion_result(uuid, text, text);
 drop function if exists public.zella_provider_deletions_claim(integer);
 drop function if exists public.zella_queue_provider_deletion(uuid, text, text);
-drop table if exists public.provider_deletions;
 delete from public.platform_settings where key = 'vapi_deletion_live' and value = 'false'::jsonb;
 delete from public.legal_documents d where d.kind in ('privacy', 'terms') and d.version = '0.1' and d.status = 'draft'
    and not exists (select 1 from public.legal_acceptances a where a.document_id = d.id);

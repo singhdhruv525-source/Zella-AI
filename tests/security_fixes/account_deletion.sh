@@ -35,10 +35,20 @@ r=$(conf $A); [[ "$r" == *confirmed* ]] && ok "a Zella Voice admin confirms" || 
 r=$(as_user $O aal1 "raise notice 'R=%', public.zella_business_deletion_cancel('$BIZ');"); [[ "$r" == *cancelled* ]] && [ "$(q "select (suspended_at is null)::text || ',' || (select status from public.automations where business_id = '$BIZ') from public.businesses where id = '$BIZ'")" = "true,active" ] && ok "the owner cancels and the freeze lifts" || bad "cancel: $r $(q "select status from public.automations where business_id = '$BIZ'")"
 req $O "Gone Soon" > /dev/null; conf $A > /dev/null
 purge() { q "select public.zella_business_deletion_purge_due()"; }
+# a business already suspended for another reason: confirming keeps that suspension, cancelling never lifts it
+BS=$(q "insert into public.businesses (name, industry_id, is_active, suspended_at) select 'Already Off', id, true, now() from public.industries limit 1 returning id" | head -1)
+q "insert into public.business_members (business_id, user_id, role, status) values ('$BS', '$O', 'owner', 'active')" > /dev/null
+as_user $O aal1 "perform public.zella_business_deletion_request('$BS', 'Already Off', 'Closing the shop'); raise notice 'R=ok';" > /dev/null
+as_user $A aal2 "perform public.zella_admin_business_deletion_confirm('$BS', 'Owner confirmed by phone'); raise notice 'R=ok';" > /dev/null
+as_user $O aal1 "perform public.zella_business_deletion_cancel('$BS'); raise notice 'R=ok';" > /dev/null
+[ "$(q "select (suspended_at is not null)::text || ':' || coalesce(suspension_reason, 'null') from public.businesses where id = '$BS'")" = "true:null" ] && ok "a suspension from elsewhere survives confirming and cancelling a deletion" || bad "other suspension: $(q "select suspended_at, suspension_reason from public.businesses where id = '$BS'")"
 [ "$(purge)" = '{"skipped": "switched_off"}' ] && ok "the purge does nothing while lane G's switch is off" || bad "off: $(purge)"
 q "begin; set local zella.retention_switch = 'on'; update public.platform_settings set value = 'true' where key = 'retention_purge_enabled'; commit" > /dev/null
 [ "$(purge)" = '{"purged": 0}' ] && ok "nor before the 30 days" || bad "early: $(purge)"
 q "update public.business_deletion_requests set purge_after = now() - interval '1 minute' where business_id = '$BIZ' and status = 'confirmed'" > /dev/null
+purge > /dev/null
+[ "$(q "select status || ':' || last_error from public.business_deletion_requests where business_id = '$BIZ' and status <> 'cancelled'")" = "blocked:LEGAL_REVIEW_PENDING" ] && [ "$(q "select count(*) from public.businesses where id = '$BIZ'")" = 1 ] && ok "while the cancelled business period is pending legal review nothing is purged (blocked)" || bad "legal: $(q "select status, last_error from public.business_deletion_requests where business_id = '$BIZ'")"
+q "update public.data_retention_policies set legal_status = 'approved' where data_class = 'cancelled_business'" > /dev/null
 # lane B's sql/zella_draft_delete.sql (audit history kept with business_id null, ACC-10) is in the template: it comes
 # before this file in the go live order
 [ "$(q "select confdeltype from pg_constraint where conname = 'audit_logs_business_id_fkey'")" = n ] && ok "lane B's audit SET NULL is in place (go live order)" || bad "lane B missing from the template"
@@ -73,6 +83,7 @@ purge > /dev/null
 [[ "$(q "select pg_get_functiondef('public.zella_business_deletion_purge_due()'::regprocedure)")" == *"hashtextextended('zella_legal_holds', 0)"* ]] && ok "the purge takes lane G's legal hold lock" || bad "lock"
 [[ "$(q "select pg_get_functiondef('public.zella_run_schedule_group(text)'::regprocedure)")" == *"'zella_business_deletion_purge_due']"* ]] && [ "$(q "select public.zella_run_scheduled_job('zella_business_deletion_purge_due')")" = ok ] && ok "it runs in the daily job group" || bad "scheduler"
 apply "$REPO/sql/rollback/zella_account_deletion_rollback.sql" > /dev/null && apply "$REPO/sql/rollback/zella_account_deletion_rollback.sql" > /dev/null && ok "rollback runs twice" || bad "rollback"
+[ "$(q "select count(*) from public.business_deletion_requests")" -ge 3 ] && ok "and keeps every deletion request and its history" || bad "requests lost"
 [ "$(fp)" = "$before" ] && ok "rollback restores the job lists exactly" || bad "after rollback"
 apply "$REPO/sql/zella_account_deletion.sql" > /dev/null
 q "create or replace function public.zella_business_deletion_cancel(p_business_id uuid) returns jsonb language sql as \$f\$ select '{}'::jsonb \$f\$" > /dev/null

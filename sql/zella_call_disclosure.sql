@@ -21,24 +21,26 @@ begin;
 -- counts as saying it. Translations other than English need a native speaker's check (owner item).
 create or replace function public.zella_ai_disclosure(p_lang text) returns jsonb
 language sql immutable set search_path = '' as $$
+  -- the marker is an explicit statement that the receptionist is an AI, never a bare "AI" (a business can be called
+  -- "AI Dental")
   select case split_part(coalesce(p_lang, 'en'), '-', 1)
-    when 'es' then '{"sentence": "Soy la recepcionista virtual con inteligencia artificial.", "marker": "inteligencia artificial|\\mIA\\M"}'
-    when 'fr' then '{"sentence": "Je suis la réceptionniste virtuelle, une intelligence artificielle.", "marker": "intelligence artificielle|\\mIA\\M"}'
-    when 'de' then '{"sentence": "Ich bin eine virtuelle Rezeptionistin mit künstlicher Intelligenz.", "marker": "künstliche|\\mKI\\M"}'
-    when 'pt' then '{"sentence": "Sou a recepcionista virtual com inteligência artificial.", "marker": "inteligência artificial|\\mIA\\M"}'
-    when 'it' then '{"sentence": "Sono la receptionist virtuale con intelligenza artificiale.", "marker": "intelligenza artificiale|\\mIA\\M"}'
-    when 'nl' then '{"sentence": "Ik ben de virtuele receptioniste met kunstmatige intelligentie.", "marker": "kunstmatige intelligentie|\\mAI\\M"}'
-    when 'pl' then '{"sentence": "Jestem wirtualną recepcjonistką opartą na sztucznej inteligencji.", "marker": "sztuczn|\\mAI\\M"}'
-    when 'ru' then '{"sentence": "Я виртуальный администратор на основе искусственного интеллекта.", "marker": "искусственн|ИИ"}'
-    when 'tr' then '{"sentence": "Ben yapay zekâ destekli sanal resepsiyonistim.", "marker": "yapay zek"}'
-    when 'ta' then '{"sentence": "நான் செயற்கை நுண்ணறிவு வரவேற்பாளர்.", "marker": "செயற்கை நுண்ணறிவு|AI"}'
-    when 'vi' then '{"sentence": "Tôi là lễ tân ảo sử dụng trí tuệ nhân tạo.", "marker": "trí tuệ nhân tạo|\\mAI\\M"}'
-    when 'id' then '{"sentence": "Saya resepsionis virtual berbasis kecerdasan buatan.", "marker": "kecerdasan buatan|\\mAI\\M"}'
-    when 'hi' then '{"sentence": "मैं एआई रिसेप्शनिस्ट हूँ।", "marker": "एआई|AI"}'
-    when 'ja' then '{"sentence": "私はAI受付です。", "marker": "AI"}'
-    when 'ko' then '{"sentence": "저는 AI 상담원입니다.", "marker": "AI"}'
-    when 'zh' then '{"sentence": "我是AI接待员。", "marker": "AI"}'
-    else '{"sentence": "I''m the AI receptionist.", "marker": "\\mAI\\M|artificial intelligence"}' end::jsonb
+    when 'es' then '{"sentence": "Soy la recepcionista virtual con inteligencia artificial.", "marker": "(recepcionista|asistente) (virtual|de inteligencia artificial)|con inteligencia artificial"}'
+    when 'fr' then '{"sentence": "Je suis la réceptionniste virtuelle, une intelligence artificielle.", "marker": "(réceptionniste|assistante?) virtuelle?|une intelligence artificielle"}'
+    when 'de' then '{"sentence": "Ich bin eine virtuelle Rezeptionistin mit künstlicher Intelligenz.", "marker": "mit künstlicher Intelligenz|virtuelle (Rezeptionistin|Assistentin)"}'
+    when 'pt' then '{"sentence": "Sou a recepcionista virtual com inteligência artificial.", "marker": "(recepcionista|assistente) virtual|com inteligência artificial"}'
+    when 'it' then '{"sentence": "Sono la receptionist virtuale con intelligenza artificiale.", "marker": "(receptionist|assistente) virtuale|con intelligenza artificiale"}'
+    when 'nl' then '{"sentence": "Ik ben de virtuele receptioniste met kunstmatige intelligentie.", "marker": "virtuele (receptioniste|assistent)|met kunstmatige intelligentie"}'
+    when 'pl' then '{"sentence": "Jestem wirtualną recepcjonistką opartą na sztucznej inteligencji.", "marker": "wirtualn\\S* (recepcjonistk|asystent)|na sztucznej inteligencji"}'
+    when 'ru' then '{"sentence": "Я виртуальный администратор на основе искусственного интеллекта.", "marker": "виртуальн\\S* (администратор|ассистент)|на основе искусственного интеллекта"}'
+    when 'tr' then '{"sentence": "Ben yapay zekâ destekli sanal resepsiyonistim.", "marker": "sanal (resepsiyonist|asistan)|yapay zek[aâ] destekli"}'
+    when 'ta' then '{"sentence": "நான் செயற்கை நுண்ணறிவு வரவேற்பாளர்.", "marker": "செயற்கை நுண்ணறிவு வரவேற்பாளர்"}'
+    when 'vi' then '{"sentence": "Tôi là lễ tân ảo sử dụng trí tuệ nhân tạo.", "marker": "lễ tân ảo|trợ lý ảo|sử dụng trí tuệ nhân tạo"}'
+    when 'id' then '{"sentence": "Saya resepsionis virtual berbasis kecerdasan buatan.", "marker": "(resepsionis|asisten) virtual|berbasis kecerdasan buatan"}'
+    when 'hi' then '{"sentence": "मैं एआई रिसेप्शनिस्ट हूँ।", "marker": "एआई (रिसेप्शनिस्ट|सहायक)"}'
+    when 'ja' then '{"sentence": "私はAI受付です。", "marker": "AI(受付|アシスタント)"}'
+    when 'ko' then '{"sentence": "저는 AI 상담원입니다.", "marker": "AI ?(상담원|비서|안내원)"}'
+    when 'zh' then '{"sentence": "我是AI接待员。", "marker": "AI(接待员|助手|客服)"}'
+    else '{"sentence": "I''m the AI receptionist.", "marker": "\\m(an?|the|your) (AI|artificial intelligence|virtual) (receptionist|assistant|agent)\\M|\\mI''m an? AI\\M"}' end::jsonb
 $$;
 
 -- the greeting the caller hears: the business's (or the standard one), always with the AI disclosure, and the
@@ -54,6 +56,8 @@ begin
   if v_g is null then
     v_g := replace('Thank you for calling {name}. I''m the AI receptionist. How can I help you today?', '{name}', coalesce(v_name, 'us'));
   end if;
+  -- recording wording is managed here, never kept from a saved greeting: removed, then added only while recording is on
+  v_g := btrim(regexp_replace(v_g, '\s*[^.!?]*\m(this|the|your) call (is|may be|will be) (being )?recorded[^.!?]*[.!?]?', '', 'gi'));
   v_d := public.zella_ai_disclosure(v_lang);
   if v_g !~* (v_d ->> 'marker') then v_g := v_g || ' ' || (v_d ->> 'sentence'); end if;
   if public.zella_recording_effective(p_business_id) then

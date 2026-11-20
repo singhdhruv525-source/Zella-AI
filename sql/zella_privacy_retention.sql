@@ -4,7 +4,8 @@
 --      for owner and legal review" (nothing is published). zella_legal_current(kind) gives anyone the published version,
 --      or the latest draft marked as a draft, for the /privacy and /terms pages. zella_owner_onboarding_legal_accept
 --      records the owner's acceptance of the current versions, server side and audited (the onboarding step).
---   2. Retention, owner decision: call recordings and call transcripts are kept 90 days and deleted automatically.
+--   2. Retention, owner decision: call recordings and call transcripts are kept 90 days and deleted automatically
+--      (all that is due, in batches, under lane G's legal hold lock).
 --      data_retention_policies (sql/zella_data_retention.sql) now says 90 days for both; their legal status is not
 --      changed. zella_retention_auto_run (server only) removes what is past 90 days, in batches of 1000, skipping
 --      businesses on a legal hold, and runs in the daily job group; it does nothing while retention_purge_enabled (lane
@@ -66,8 +67,10 @@ begin
   if not coalesce(public.zella_setting('vapi_deletion_live', 'false'::jsonb) = 'true'::jsonb, false) then return '[]'::jsonb; end if;
   with c as (
     select id from public.provider_deletions
-     where (status in ('queued', 'failed') and next_attempt_at <= now() and attempts < 10)
-        or (status = 'sending' and next_attempt_at <= now() - interval '10 minutes')
+     where ((status in ('queued', 'failed') and next_attempt_at <= now() and attempts < 10)
+        or (status = 'sending' and next_attempt_at <= now() - interval '10 minutes'))
+       -- never for a business on a legal hold: those wait until the hold is released
+       and (business_id is null or not public.zella_retention_on_hold(business_id))
      order by next_attempt_at limit greatest(1, least(coalesce(p_limit, 20), 100)) for update skip locked),
   u as (
     update public.provider_deletions d set status = 'sending', attempts = attempts + 1, next_attempt_at = now()
@@ -92,36 +95,68 @@ begin
 end $$;
 
 -- 2. 90 days for recordings and transcripts (owner, 18 Nov 2026); legal status unchanged
+-- what the periods were before (once, never overwritten), so the rollback puts back exactly those
+create table if not exists public.zella_migration_values (migration text not null, key text not null, value jsonb, primary key (migration, key));
+alter table public.zella_migration_values enable row level security;
+revoke all on public.zella_migration_values from public, anon, authenticated;
+insert into public.zella_migration_values (migration, key, value)
+select 'zella_privacy_retention', 'days:' || data_class, to_jsonb(days) from public.data_retention_policies
+ where data_class in ('call_recordings', 'call_transcripts') and note not like 'Owner decision 18 Nov 2026%'
+on conflict do nothing;
 update public.data_retention_policies set days = 90, updated_at = now(),
        note = 'Owner decision 18 Nov 2026: 90 days, deleted automatically (zella_retention_auto_run). ' || coalesce(note, '')
  where data_class in ('call_recordings', 'call_transcripts') and (days <> 90 or note not like 'Owner decision 18 Nov 2026%');
 
 create or replace function public.zella_retention_auto_run()
 returns jsonb language plpgsql security definer set search_path = '' as $$
-declare k text; p public.data_retention_policies; v_ids uuid[]; v_out jsonb := '{}'::jsonb; v_n integer;
+declare k text; p public.data_retention_policies; v_ids uuid[]; v_out jsonb := '{}'::jsonb; v_n integer; v_total integer; v_batch integer;
+        pr public.data_retention_policies; pt public.data_retention_policies; v_q integer := 0;
 begin
   if not coalesce((select value = 'true'::jsonb from public.platform_settings where key = 'retention_purge_enabled'), false) then
     return jsonb_build_object('skipped', 'switched_off');
   end if;
+  -- the same lock as lane G's purges and zella_legal_hold_place: a hold never lands between the selection and the removal
+  perform pg_advisory_xact_lock(hashtextextended('zella_legal_holds', 0));
   foreach k in array array['call_recordings', 'call_transcripts'] loop
     select * into p from public.data_retention_policies where data_class = k;
     if p.data_class is null or p.legal_status <> 'approved' then v_out := v_out || jsonb_build_object(k, 'legal_review_pending'); continue; end if;
-    select coalesce(array_agg(c.row_id), '{}') into v_ids from (
-      select row_id from public.zella_retention_candidates(k, now() - make_interval(days => p.days)) where source = 'calls' order by dated limit 1000) c;
-    -- the copy at Vapi goes too (sent only while vapi_deletion_live is on)
-    perform public.zella_queue_provider_deletion(c.business_id, c.external_call_id, 'retention') from public.calls c where c.id = any (v_ids);
-    if k = 'call_recordings' then
-      update public.calls set recording_url = null where id = any (v_ids);
-    else
-      update public.calls set transcript = 'Removed under the retention policy.' where id = any (v_ids);
-    end if;
-    get diagnostics v_n = row_count;
-    v_out := v_out || jsonb_build_object(k, v_n);
-    if v_n > 0 then
+    v_total := 0;
+    -- batches of 1000 until nothing is due, at most 50 a run (50 000 calls), so a backlog clears within the run
+    for v_batch in 1..50 loop
+      select coalesce(array_agg(c.row_id), '{}') into v_ids from (
+        select row_id from public.zella_retention_candidates(k, now() - make_interval(days => p.days)) where source = 'calls' order by dated limit 1000) c;
+      exit when cardinality(v_ids) = 0;
+      if k = 'call_recordings' then
+        update public.calls set recording_url = null where id = any (v_ids);
+      else
+        update public.calls set transcript = 'Removed under the retention policy.' where id = any (v_ids);
+      end if;
+      get diagnostics v_n = row_count;
+      v_total := v_total + v_n;
+    end loop;
+    v_out := v_out || jsonb_build_object(k, v_total);
+    if v_total > 0 then
       insert into public.audit_logs (business_id, user_id, action, entity_type, new_data)
-      values (null, null, 'retention.auto_purge', 'data_retention_policy', jsonb_build_object('data_class', k, 'days', p.days, 'removed', v_n));
+      values (null, null, 'retention.auto_purge', 'data_retention_policy', jsonb_build_object('data_class', k, 'days', p.days, 'removed', v_total));
     end if;
   end loop;
+  -- the copy at Vapi holds the recording and the transcript together, so the whole call is queued for deletion only when
+  -- both kinds are approved and the call is past both periods with neither left here (whoever removed them: this job
+  -- or a manual purge run); a business on a legal hold is left out
+  select * into pr from public.data_retention_policies where data_class = 'call_recordings';
+  select * into pt from public.data_retention_policies where data_class = 'call_transcripts';
+  if pr.legal_status = 'approved' and pt.legal_status = 'approved' then
+    with q as (
+      select public.zella_queue_provider_deletion(c.business_id, c.external_call_id, 'retention') as queued from public.calls c
+       where c.external_call_id is not null and c.recording_url is null
+         and (c.transcript is null or c.transcript = 'Removed under the retention policy.')
+         and coalesce(c.ended_at, c.created_at) < now() - make_interval(days => greatest(pr.days, pt.days))
+         and not public.zella_retention_on_hold(c.business_id)
+         and not exists (select 1 from public.provider_deletions d where d.provider = 'vapi' and d.object_kind = 'call' and d.external_id = c.external_call_id)
+       limit 50000)
+    select count(*) filter (where queued) into v_q from q;
+    v_out := v_out || jsonb_build_object('vapi_queued', v_q);
+  end if;
   return v_out;
 end $$;
 

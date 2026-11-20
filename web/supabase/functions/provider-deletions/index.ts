@@ -3,8 +3,7 @@
 //   POST {}   the server key only. Claims due rows (zella_provider_deletions_claim, which hands out nothing while the
 //             platform setting vapi_deletion_live is off), sends DELETE https://api.vapi.ai/call/<id> for each, and
 //             records the result (done; not_found when Vapi no longer has it; failed is retried later, alerted after 10).
-// Needs VAPI_API_KEY to send anything; without it every claimed row is recorded as failed ("not configured") and
-// retried. Off until the owner turns vapi_deletion_live on (a live provider change). verify_jwt is off: the server key
+// Needs VAPI_API_KEY to send anything; without it nothing is claimed ("not_configured"). Off until the owner turns vapi_deletion_live on (a live provider change). verify_jwt is off: the server key
 // is not a JWT; it is compared here.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
@@ -17,13 +16,14 @@ function same(a: string, b: string) { if (a.length !== b.length) return false; l
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
 
 export async function runOnce(deps: Deps, hasKey: boolean) {
+  // without the key nothing is claimed, so a missing setting never uses up a row's attempts
+  if (!hasKey) return { error: "not_configured" };
   const claimed = await deps.rpc("zella_provider_deletions_claim", { p_limit: 20 });
   if (!claimed.ok || !Array.isArray(claimed.data)) return { error: "claim_failed" };
-  const out = { done: 0, not_found: 0, failed: 0 };
+  const out = { done: 0, not_found: 0, failed: 0, unrecorded: 0 };
   for (const r of claimed.data as Row[]) {
     let outcome: "done" | "not_found" | "failed" = "failed", error: string | null = null;
     if (r.provider !== "vapi" || r.kind !== "call" || !/^[A-Za-z0-9_-]{1,200}$/.test(r.external_id)) error = "unsupported";
-    else if (!hasKey) error = "not configured";
     else {
       try {
         const status = await deps.vapiDelete(r.external_id);
@@ -32,8 +32,9 @@ export async function runOnce(deps: Deps, hasKey: boolean) {
         else error = `vapi ${status}`;
       } catch (e) { error = e instanceof Error ? e.name : "network"; }
     }
-    await deps.rpc("zella_provider_deletion_result", { p_id: r.id, p_outcome: outcome, p_error: error });
-    out[outcome]++;
+    // the result counts only once the database accepted it (otherwise the row is picked up again after 10 minutes)
+    const saved = await deps.rpc("zella_provider_deletion_result", { p_id: r.id, p_outcome: outcome, p_error: error });
+    if (saved.ok && saved.data === outcome) out[outcome]++; else out.unrecorded++;
   }
   return out;
 }
