@@ -56,7 +56,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella Voice - Website Crawler: one claimed job in (read the sitemap, or read one approved page). Before anything is\n// fetched the address is checked again here: http/https only, no login in the address, no numeric or internal\n// hostnames, only ports 80 and 443, and it must belong to the owner's own site.\nconst j = $json;\nconst bad = (why) => ({ json: { skip: true, why } });\nif (!j || (j.kind !== 'discover' && j.kind !== 'page')) return bad('no_job');\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst id = j.kind === 'discover' ? j.source_id : j.page_id;\nif (typeof id !== 'string' || !uuid.test(id)) return bad('bad_id');\nconst url = typeof j.url === 'string' ? j.url : '';\nconst m = /^https?:\\/\\/([a-z0-9.-]+)(?::([0-9]{1,5}))?(?:[\\/?]|$)/i.exec(url);\nif (!m || url.length > 2000 || /[\\s<>\"'\\\\]/.test(url)) return bad('bad_url');\nconst host = m[1].toLowerCase();\nconst port = m[2];\nconst strip = (h) => h.replace(/^www\\./, '');\nif (port && port !== '80' && port !== '443') return bad('bad_port');\nif (!/\\./.test(host) || /^\\.|\\.$|\\.\\./.test(host) || /^[0-9.]+$/.test(host)) return bad('bad_host');\nif (/(^|\\.)(localhost|local|internal|lan|home|corp|intranet|localdomain|test|invalid|example)$/.test(host)) return bad('internal_host');\nif (typeof j.host !== 'string' || strip(host) !== strip(j.host.toLowerCase())) return bad('other_site');\nreturn { json: { skip: false, kind: j.kind, id, url, host: strip(host) } };\n"
+        "jsCode": "// Zella Voice - Website Crawler: one claimed job in (read the sitemap, or read one approved page). Before anything is\n// fetched the address is checked again here: http/https only, no login in the address, no numeric or internal\n// hostnames, only ports 80 and 443, and it must belong to the owner's own site. The page itself is read by the\n// website-fetch edge function, which resolves the name and refuses private and metadata addresses (n8n can't).\nconst j = $json;\nconst bad = (why) => ({ json: { skip: true, why } });\nif (!j || (j.kind !== 'discover' && j.kind !== 'page')) return bad('no_job');\nconst uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;\nconst id = j.kind === 'discover' ? j.source_id : j.page_id;\nif (typeof id !== 'string' || !uuid.test(id)) return bad('bad_id');\nconst url = typeof j.url === 'string' ? j.url : '';\nconst m = /^https?:\\/\\/([a-z0-9.-]+)(?::([0-9]{1,5}))?(?:[\\/?]|$)/i.exec(url);\nif (!m || url.length > 2000 || /[\\s<>\"'\\\\]/.test(url)) return bad('bad_url');\nconst host = m[1].toLowerCase();\nconst port = m[2];\nconst strip = (h) => h.replace(/^www\\./, '');\nif (port && port !== '80' && port !== '443') return bad('bad_port');\nif (!/\\./.test(host) || /^\\.|\\.$|\\.\\./.test(host) || /^[0-9.]+$/.test(host)) return bad('bad_host');\nif (/(^|\\.)(localhost|local|internal|lan|home|corp|intranet|localdomain|test|invalid|example)$/.test(host)) return bad('internal_host');\n// wildcard DNS services answer any name with any address (127.0.0.1.nip.io is 127.0.0.1)\nif (/(^|\\.)(nip\\.io|sslip\\.io|xip\\.io|nip\\.direct|localtest\\.me|lvh\\.me|vcap\\.me|lacolhost\\.com|traefik\\.me|localhost\\.direct)$/.test(host)) return bad('internal_host');\nif (typeof j.host !== 'string' || strip(host) !== strip(j.host.toLowerCase())) return bad('other_site');\nreturn { json: { skip: false, kind: j.kind, id, url, host: strip(host) } };\n"
       },
       "id": "ae2f98a0-99fe-4855-8311-26233e9c1364",
       "name": "Plan",
@@ -102,34 +102,19 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ $json.url }}",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "User-Agent",
-              "value": "ZellaBot/1.0 (reads pages its owner approved)"
-            },
-            {
-              "name": "Accept",
-              "value": "text/html,application/xhtml+xml,application/xml;q=0.9"
-            }
-          ]
-        },
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/website-fetch",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ url: $json.url, host: $json.host }) }}",
         "options": {
-          "timeout": 15000,
-          "redirect": {
-            "redirect": {
-              "followRedirects": false
-            }
-          },
+          "timeout": 20000,
           "response": {
             "response": {
-              "fullResponse": true,
               "neverError": true,
-              "responseFormat": "text"
+              "responseFormat": "json"
             }
           }
         }
@@ -142,6 +127,12 @@
         960,
         100
       ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      },
       "onError": "continueRegularOutput"
     },
     {

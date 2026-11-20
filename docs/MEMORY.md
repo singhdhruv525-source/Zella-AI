@@ -105,6 +105,16 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 ## 4. Open problems
 
+- **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
+  CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
+  **report only** until a release runs without reports, then rename the header to `Content-Security-Policy`. Live
+  headers not checked yet (this session can't reach app.zellavoice.com): check with `curl -I` after the next deploy.
+
+- **Client IP behind Supabase's gateway (security audit M10, Suspected):** `_shared/client_ip.ts` now uses
+  `cf-connecting-ip`, else the last `x-forwarded-for` value, never the caller-written first one (website-lead,
+  reschedule-appointment, owner-provision-business audit rows). Not confirmed on the live gateway: deploy a test function
+  that echoes these headers once, and drop `cf-connecting-ip` if Cloudflare is not in front.
+
 | Problem | State | Next step |
 |---|---|---|
 | **Vapi call authentication.** Vapi sends some messages (call status, end-of-call reports) without the Authorization header, so `voice-rules` answers 401. The test assistant was reloaded with the token in every server's headers on 30 Oct. | Open | Owner test-calls the test assistant, then checks `voice-rules` logs. Real assistants need the headers sent from the server side, with approval. |
@@ -133,7 +143,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | Audit follow-ups M-3, M-4, L-2, L-4, L-5 | Open | `docs/ZELLA_REMEDIATION_CHECKLIST.md` |
 | "Something is missing in the app" (owner, no details yet) | Waiting on the owner | |
 | **Emails from Zella Voice to businesses:** catalogue and admin preview built; outbox `sql/zella_platform_emails.sql` applied 15 Nov 2026 (empty) | Open | Delivery applied and deployed 15 Nov 2026 (`sql/zella_email_delivery.sql`; `platform-emails` v1, which refuses a call without the Vault secret). Event based: a new email wakes the sender at once; the minute job is only a safety net. Still off, each with approval: set `platform_emails_url` and the sender address (`email_from_address`), add `RESEND_API_KEY` to the function, switch on the two event triggers and the safety net job, then turn on `email_live`. Billing emails per Stripe event in step 4. |
-| **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
+| **Usage limits that act:** `sql/zella_usage_enforcement.sql` applied 15 Nov 2026 (fingerprints match the tested copy; switches off); voice-rules v8 deployed 15 Nov 2026 (files match `main`; unsigned requests refused) | Open, owner's approval | 1. Give one demo business a test fallback number the owner controls. 2. Staging call with the calls switch on for it, to prove Vapi transfers on the `destination` reply. 3. Before turning on `usage_enforcement.calls`: every live business has an allowance set up (once `sql/zella_call_limits.sql` is applied, an unknown allowance closes calls instead of answering), and provider spending and concurrency caps are set at Vapi, the LLM provider and ElevenLabs. Note that applying `sql/zella_call_limits.sql` starts the per business limit on calls at the same time (10) even while the switch stays off. Then turn on `usage_enforcement.calls`, then `.messages`, each with approval. The monthly spending limit for pay as you go needs payments (step 4). |
 | **Fallback number for every business** (owner, 15 Nov 2026: decided at Create Business, REQ-BIL-34). New businesses can't finish setup without one (owner-provision-business, merged; deployed 16 Nov 2026 as v18). | Open | The 4 businesses in production are demo businesses (owner, 15 Nov 2026), so none needs a real fallback number; one gets a test number for the staging call. |
 | **Businesses list (UI-03, UI-04, BIZ-15, BIZ-16, BIZ-23, BIZ-24, BIZ-27, BIZ-29):** the paged list action `businesses_list` and the slimmer `dashboard_data` (no members) in `owner-provision-business` are built on branch `claude/admin-businesses-list`, not deployed. The web app works against the deployed function: it gets 400 "Unknown action", falls back to `dashboard_data` and says so on the page | Open, owner's approval | Deploy in either order. `dashboard_data` keeps every field the Offers page, the setup wizard and an older web app read. Overview's totals (`overview_data`) still stop at 1,000 rows (BIZ-15, Overview part). Owner decision: `businesses_list` shows every `businesses.view` role (read only admins too) each business's saved plan tier, version and billing interval, no prices. That is new for `businesses.view` (`tenants_search` only shows the subscription's plan name); if plan detail should stay with billing roles, gate it on `billing.view`. |
 | **Safe retry on Platform operations (OPS-05):** `sql/zella_retry_event_safe.sql` (built, not applied). `zella_retry_event` gains a reason argument and refuses an event that already acted; `zella_start_execution` refuses a run of an event that isn't claimed (EVENT_NOT_CLAIMED) or that names another business (EVENT_BUSINESS_MISMATCH), and the Event Router stops for that event instead of running its handler | Open, owner's approval | Goes live as one step, in this order: the n8n Event Router (re-import `n8n/workflows/zella-event-router.json`, so a refused start runs nothing), then the SQL, then the web app (it sends the reason; the old app's retry would fail until it is published). Rollback in reverse. Not covered: two workers that both hold a claim (the 10 minute reclaim); claims carry no owner token yet |
@@ -145,6 +155,10 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
+  confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed
+  checks per call; a known caller's new email or phone waits for staff. Built in `sql/zella_caller_verification.sql`
+  (branch `claude/security-fixes`), not applied.
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.

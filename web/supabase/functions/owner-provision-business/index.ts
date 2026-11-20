@@ -3,6 +3,7 @@ import { APP_URL_MISSING, FinishError, appUrlUsable, finishSetupWith } from "./o
 import { fallbackPatch, sameLine, toE164, transferPatch } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
+import { clientIp } from "../_shared/client_ip.ts";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
@@ -1207,8 +1208,7 @@ export async function writeAudit(admin: SupabaseClient, ctx: AuditContext, entry
 }
 
 function requestContext(req: Request, userId: string): AuditContext {
-  const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
-  const ip = /^[0-9a-fA-F:.]{3,45}$/.test(forwarded) ? forwarded : null;
+  const ip = clientIp(req.headers);   // never the caller-written first X-Forwarded-For value (M10)
   return { userId, ip, userAgent: req.headers.get("user-agent")?.slice(0, 300) ?? null };
 }
 

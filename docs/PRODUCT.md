@@ -193,6 +193,7 @@ authentication Zella Voice requires (see `docs/MEMORY.md`). Live assistants are 
 | Transfers to a person | Only to numbers this business authorised, using the on-call rota after hours. A failed transfer becomes a callback. | Built |
 | Requests a follow-up | Creates a callback or task instead of promising something it can't do. | Built |
 | Looks up an order (E-commerce) | Shopify order status with assurance levels: what can be said depends on how sure we are the caller is the customer. Lookups are limited per call and caller. | Built |
+| Checks who is calling before sharing or changing a booking | Appointment details only after the caller gives the name on the booking and the date, from the number it was made with. Cancelling or moving needs the booking's 6 character confirmation code, which is in every confirmation and reminder and on the booking in the CRM. Three failed checks in a call and it takes a message instead. A new email or phone for a known caller waits on the customer's page for the team to approve. | Built, not live (`sql/zella_caller_verification.sql` not applied) |
 | Screens spam | Risky callers are scored and screened before tools run. | Built |
 | Records the call | Status updates in order, then an end-of-call report with outcome and summary. | Built |
 
@@ -562,6 +563,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Stripe checkout, trial auto-charge, auto-reload, pay as you go and refunds | Checkout, the saved card trial, renewals, failed payment notices, the 5 day pause, packs and auto reload (server side), refund requests approved by the Zella Voice owner (server side), cancel and continue synced to Stripe, invoices recorded and shown to admins on Plans & subscriptions (Payments: invoices, refunds, disputes), chargebacks that suspend the account while open, billing emails queued in the platform outbox (held while email_live is off), daily reconciliation with Stripe, upgrades (owner confirms Stripe's prorated amount) and downgrades at the period end built switched off (lane F); pay as you go charging is not built: until payments are switched on the Pay step says payment opens soon and the owner can continue, and going live doesn't wait for a payment (owner, 16 Nov 2026); once on, the owner onboarding Pay screen opens Stripe Checkout for the accepted plan and shows Payment received only after a verified, bound payment. Otherwise not built; needs the owner's approval to take real payments, and the Stripe account check in D-51. Integration reference written from Stripe's documentation (`docs/PAYMENTS_ARCHITECTURE.md` §16): Stripe charges the saved card for auto-reload and adds pay as you go to the renewal invoice |
 | Usage ledger: one append-only entry per finalised call; our failures are never billable | Built |
 | Usage limits that act (REQ-BIL-22, D-43): at 100% a new call is forwarded to the business's own number (pay as you go with a rate keeps answering; a call in progress is never cut; never dropped without a number) and routine texts and emails stop while appointment messages use the 5% reserve. Two switches, both off until the owner approves | Built and applied 15 Nov 2026 (`sql/zella_usage_enforcement.sql`; voice-rules v8 deployed); both switches off until a staging call on a demo business proves the forward |
+| Minutes run out, owner decisions of 18 Nov 2026 (security audit M12): with the calls switch on, auto reload (or auto top up) keeps answering only while a reload can still happen (payments live, an active subscription, the pack sold, the month's reload spend within the owner's cap); pay as you go keeps answering with an overage price on the plan in force; otherwise, and when the allowance is unknown, the call is forwarded to the business's own number, or the caller hears "Sorry, we can't take your call right now. Please try again later." and the call ends. Owners get a reminder to buy minutes or turn on auto reload at most every 6 hours (in app; email once email is live); an unknown allowance alerts Zella Voice. Each business also has a limit on calls at the same time (10 unless set per business), whatever the switch | Built, not applied (`sql/zella_call_limits.sql`, voice-rules closed message). Turn the calls switch on only once every live business has an allowance set up: an unknown allowance now closes calls |
 | Fallback number at Create Business (REQ-BIL-34): required on Phone & integrations, saved in E.164, copied into the receptionist's rules (`escalation_rules.fallback_number`; an admin's number from call routing is never replaced), and Finish setup is refused without it. Usage limits forward to it, never to the business's own phone, which may be the number that forwards to Zella Voice | Built (needs the owner-provision-business deploy and the usage limits migration) |
 | Live usage on Today for owners: rings for minutes, texts and emails, refreshed every minute, on focus and as soon as an 80% or 100% notice arrives, with banners in the notification style | Built |
 | Usage counting and alerts | Calls (whole minutes, under 15 seconds and spam not counted), texts (by part) and emails (one each) are subtracted once from the balances, with alerts at **80% and 100%** for minutes, texts and emails: built, not applied. A live call is never cut. **Not switched on** (live changes needing the owner's approval): calls going to the fallback number at 100%, stopping routine texts and emails at 100%, and the 20-minute call cap (the live setting is 10 minutes today) |
@@ -577,11 +579,11 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 
 | Integration | What it does | Status |
 |---|---|---|
-| Google Calendar, Outlook | Two-way: busy times block booking; Zella Voice bookings appear in the calendar | Built, off (`calendar_sync_live`) |
+| Google Calendar, Outlook | Two-way: busy times block booking; Zella Voice bookings appear in the calendar. The sign in is single use, valid 5 minutes, and finished in the app by the person who started it (`sql/zella_oauth_states.sql`, not applied) | Built, off (`calendar_sync_live`) |
 | Shopify | Order status for the receptionist, read-only scopes | Built |
 | Google Ads lead forms | Leads into the CRM | Built |
 | Meta (Facebook, Instagram, WhatsApp) | Leads and messages | Built, off |
-| Website crawler | Reads the business's website for knowledge suggestions | Built, off (`website_crawl_live`) |
+| Website crawler | Reads the business's website for knowledge suggestions. Pages are read by the `website-fetch` edge function, which resolves the name and refuses private, loopback, link local, metadata and CGNAT addresses before it connects; wildcard DNS names such as nip.io are refused | Built, off (`website_crawl_live`); the new reader is not deployed |
 | Vapi | Voice calls | Built; real-call authentication open |
 | Telnyx | Texts and phone numbers | Built, off |
 | Resend | Email | Built, off |
@@ -638,7 +640,6 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Voicemails page, AI agents beyond the receptionist, marketing campaigns | Build; hidden from the sidebar until they exist |
 | Meta channels in launch scope | Owner and counsel (D-39) |
 | Calendar providers at launch | Owner (D-08) |
-| Caller verification for booking changes by phone | Owner (D-18) |
 | Push notification provider | Owner (D-40) |
 | Self check-in | Later (D-15) |
 | Call recording | Legal review (D-13) |

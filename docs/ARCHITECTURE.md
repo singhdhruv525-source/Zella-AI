@@ -323,7 +323,9 @@ Every access is checked **in the database**, against the business that owns the 
 | Platform staff | — | platform permission + MFA + audited admin function |
 
 - **REQ-ID-01** Changing or cancelling a booking, or hearing appointment details by phone, needs more than caller ID
-  [D-18].
+  [D-18, decided 18 Nov 2026]: hearing details needs the name on the booking and its date from the number it was made
+  with; cancelling or moving needs the booking's confirmation code; three failed checks per call, then only a message;
+  a caller's new email or phone for a customer on file waits for the team (`sql/zella_caller_verification.sql`).
 - **REQ-ISO-01** Removing a member, suspending a business or changing a role takes effect on the **next request**:
   sessions are re-checked against membership on every call, and open work items re-check business status at claim
   time.
@@ -2151,6 +2153,12 @@ Knowledge, Automations, Reports, Team, Settings.
 | Pay before go live | Applies only once Stripe is live; until then the go live gate doesn't wait for payment. | REQ-LC-14, REQ-BIL-29 |
 | Public API, API keys, outgoing webhooks | **Not planned** (recorded in PR #91). | §36 |
 
+### 23.1b Decided by the owner (18 Nov 2026, security audit)
+
+| Topic | Decision | Applied in |
+|---|---|---|
+| Caller verification (D-18, REQ-ID-01) | Every booking has a **6 character confirmation code** (upper case letters and digits, no 0/O or 1/I/L), unique per business, shown in every booking confirmation and reminder text and email and in the CRM booking view. **Cancelling or moving by phone needs the code**; without it the receptionist offers a message. **Hearing appointment details** needs the name on the booking plus the date, matched to the calling number, and shares nothing else. **3 failed checks per call**, then a message. `update_caller` never overwrites a known customer's email or phone: the change waits for the team to approve. | §3, `sql/zella_caller_verification.sql` |
+
 ### 23.2 Still open
 
 | ID | Decision | Owner |
@@ -2160,7 +2168,6 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-08 | Calendar providers at launch | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
-| D-18 | Caller verification for booking changes by phone | owner |
 | D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |

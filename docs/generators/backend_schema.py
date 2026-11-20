@@ -34,6 +34,8 @@ GROUPS = [
         "platform_report_runs": "One weekly platform summary per week for Zella Voice admins (counts only; server only, read through zella_admin_weekly_reports with reports.view).",
         "zella_text_archive": "Every stored text value the writing cleanup changed, with the original, kept for its exact rollback (server only).",
         "rate_limits": "Counters that slow down repeated requests per key and window.",
+        "zella_migration_settings": "Platform settings a migration inserted, so its rollback removes only those (server only).",
+        "oauth_states": "Calendar sign ins in progress: hash of a single use value per person, business and provider, 5 minutes (server only).",
     }),
     ("Business setup and industry configuration", {
         "industries": "The 28 industries Zella Voice serves.",
@@ -69,6 +71,7 @@ GROUPS = [
     }),
     ("Customers and CRM", {
         "customers": "A person the business serves (caller, client, patient, guest). Leads are customers not yet converted.",
+        "customer_pending_changes": "A new email or phone a caller gave by phone for a customer on file, waiting for the team to approve.",
         "customer_relationships": "Verified links between people (parent, guardian, partner) with what each may do.",
         "customer_requests": "Things a customer asked for that staff must handle, with owner and due time.",
         "customer_consents": "Per-customer consent flags (older table; contact_consents is the history).",
@@ -103,6 +106,7 @@ GROUPS = [
         "assignment_rules": "How new work is assigned to staff, and when to alert about unassigned work.",
     }),
     ("Calls and the AI receptionist", {
+        "ai_call_verification_failures": "Failed booking checks per phone call (name and date, or confirmation code), three then a message (server only).",
         "calls": "Every inbound and outbound call: numbers, status, outcome, summary, transcript (role-restricted).",
         "call_messages": "Messages the receptionist took for the business.",
         "call_insights": "AI call intelligence results (topics, sentiment) when switched on.",
@@ -131,6 +135,7 @@ GROUPS = [
     }),
     ("Scheduling", {
         "appointments": "Bookings of every kind (appointments, jobs, visits, reservations, classes).",
+        "appointment_confirmation_codes": "Each booking's 6 character confirmation code, read out by the caller to cancel or move by phone.",
         "appointment_reminders": "Reminders and confirmations due for each appointment.",
         "appointment_reschedule_links": "Private reschedule links sent to customers (stored hashed).",
         "blocked_times": "Times a staff member or the business cannot be booked.",
