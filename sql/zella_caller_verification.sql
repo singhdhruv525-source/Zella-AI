@@ -19,7 +19,8 @@
 --      reject it (zella_customer_pending_change_decide, audited). A new caller is saved as before.
 --   5. The tool descriptions (zella_brain_tool_defs) and the receptionist's rules (zella_brain_prompt_base) say so.
 --      Live assistants pick up the new tool definitions when their configuration is next published.
--- Seven functions are archived first and must match production (18 Nov 2026), otherwise VERSION_MISMATCH.
+-- Seven functions are archived first and must match production (18 Nov 2026), except zella_brain_prompt_base, which must
+-- be sql/zella_brain_safety_rules.sql's version (apply that first); otherwise VERSION_MISMATCH.
 -- Rollback: sql/rollback/zella_caller_verification_rollback.sql
 begin;
 
@@ -30,7 +31,7 @@ declare
     'public.zella_ai_tool(text,uuid,text,jsonb,text)',             jsonb_build_array('edf05de39666862c0949c239c8fed259', '292cb59edd14074f69b90a74572ac16b'),
     'public.zella_ai_manage_booking(text,uuid,text,jsonb)',       jsonb_build_array('3145780974be8963244a0168d5286a92', 'a3458dc5c928b64995d154d7435a8f43'),
     'public.zella_brain_tool_defs()',                             jsonb_build_array('8b2dba88a34ab200de2f59c1b0893603', '858008c205ec3271a00bf375852ac646'),
-    'public.zella_brain_prompt_base(uuid)',                       jsonb_build_array('4b4212d6c8a2ee48520ab1d781de5019', 'c7f58615791229ce335699a264bf62fc'),
+    'public.zella_brain_prompt_base(uuid)',                       jsonb_build_array('3bfb9c06c935ade77a6e2d8102f1511e', '7ab9163c4df52183697bd8108aa94d15'),
     'public.zella_claim_reminders(integer,text)',                 jsonb_build_array('fa34d88946ef4b2760d9068f05a3163d', '0025c2100523b5f21ec3ee7ba979208e'),
     'public.zella_prepare_sms(uuid,uuid,text,jsonb,text)',        jsonb_build_array('ba0f9a27a32d67a077ae551cfe80aec6', '038dad2c92525376fbeaf5e4964766a0'),
     'public.zella_prepare_email(uuid,uuid,text,jsonb,text)',      jsonb_build_array('169dc4af51e2bff9f527bcb3fd9e7d84', 'd0d67a384b0e6a3e270e613ca4af923c'));
@@ -671,9 +672,16 @@ CREATE OR REPLACE FUNCTION public.zella_brain_prompt_base(p_business_id uuid)
  SET search_path TO 'public'
 AS $function$
 declare
-  c jsonb := public.zella_brain_context(p_business_id); v_key text; t text := ''; v_term jsonb; v_cust text; v_appt text; v_days text[] := array['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; h record; v_lines text := ''; v_services text := ''; v_address text;
+  c jsonb := public.zella_brain_context(p_business_id); v_key text; t text := ''; v_term jsonb; v_cust text; v_appt text; v_days text[] := array['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; h record; v_lines text := ''; v_services text := ''; v_address text; v_safety text;
 begin
+  -- only server code may run this (execute is granted to service_role alone); a signed in caller must also belong to
+  -- the business or be a platform admin, so a wider grant could never read another business's instructions
+  if auth.uid() is not null and not (public.zella_is_member(p_business_id) or public.is_platform_admin()) then
+    raise exception 'NOT_ALLOWED' using errcode = '42501';
+  end if;
   v_key := c #>> '{business,industry_key}';
+  -- the industry's safety lines are data now (sql/zella_industry_data.sql seeded them from the CASE this replaced)
+  select ic.safety_rules into v_safety from public.businesses b join public.industry_configurations ic on ic.industry_id = b.industry_id where b.id = p_business_id;
   v_term := coalesce(c -> 'terminology', '{}'::jsonb);
   v_cust := lower(coalesce(nullif(v_term ->> 'customer', ''), 'customer'));
   v_appt := lower(coalesce(nullif(v_term ->> 'appointment', ''), 'appointment'));
@@ -724,29 +732,8 @@ begin
     || E'- The tools decide what is allowed. If a tool refuses something, accept it and offer what is possible instead.\n\n'
     || E'SAFETY\n' /* zella_prompt_v4_rules */
     || E'- If anyone is in danger of harm, tell them to hang up and call 911 first, then use report_emergency.\n'
-    || case
-         when v_key in ('dental', 'healthcare') then E'- You are not a clinician: never diagnose, advise on treatment, medication or symptoms, or say whether something is serious. For urgent symptoms, follow the emergency step above; otherwise book a visit or offer a callback from the team.\n- Do not promise insurance coverage or outcomes.\n'
-         when v_key in ('plumbing', 'electrical', 'hvac', 'home_services', 'automotive', 'landscaping') then E'- Never promise an arrival time or response time for emergencies; say the team will call right away. For gas smell, fire, flooding or electrical sparks, tell the caller to get to safety and call 911 or the utility first, then use report_emergency.\n- Give no quote unless the knowledge provides one; offer an estimate visit instead.\n'
-         when v_key in ('legal', 'financial_services') then E'- You give no legal, tax or financial advice and do not judge anyone''s case. You can book a consultation or take a message.\n'
-         when v_key = 'real_estate' then E'- Do not state property prices, availability or legal terms unless the knowledge says so; offer to book a viewing or have an agent call.\n'
-         when v_key in ('restaurant', 'hospitality') then E'- Never say a dish or drink is free of an allergen or safe for an allergy; say the team will confirm and offer a callback. Do not promise a table or room at a time unless a booking is confirmed.\n'
-         when v_key = 'fitness' then E'- Give no medical, injury or diet advice; suggest speaking with a doctor and offer a callback from the team.\n'
-         when v_key = 'property_management' then E'- Never promise repair times. For a gas smell, fire, flooding or no heat in freezing weather, tell the caller to get to safety and call 911 or the utility first, then use report_emergency. Give no legal advice about leases or evictions.\n'
-         when v_key = 'travel' then E'- Do not quote fares or promise availability, visas or refunds unless the knowledge says so; offer a consultation.\n'
-         when v_key = 'education' then E'- Do not promise admission, grades or fees unless the knowledge says so; offer to book a conversation with the team.\n'
-         when v_key = 'photography_events' then E'- Do not quote prices or promise dates; offer a consultation.\n'
-         when v_key = 'pet_care' then E'- You are not a vet: never diagnose or advise on a pet''s symptoms, food or medication. If a pet seems in serious trouble, say to call an emergency vet now and use report_emergency.\n'
-         when v_key = 'spa_wellness' then E'- Give no medical or health advice and make no treatment-result promises; for health questions offer a callback from the team.\n'
-         when v_key = 'childcare' then E'- Never share any detail about a child, including whether they attend, with anyone you cannot verify as their parent or guardian; take a message instead.\n'
-         when v_key = 'pest_control' then E'- For stinging insects, infestations in food areas or any danger to people, say the team will call right away and use report_emergency; never advise on handling chemicals.\n'
-         when v_key = 'insurance' then E'- You cannot bind, change or cancel coverage, quote a premium, or say whether a claim is or will be covered; the carrier and the team decide. Say so plainly if asked.\n- Take a new claim (first notice of loss) at any hour: the date of loss, what happened, where, the policy if known, and the best number; then say the team will follow up. Use take_message or request_follow_up and say it is recorded only after the tool succeeds.\n- Before discussing an existing policy, check the caller is the policyholder; otherwise take a message.\n'
-         when v_key = 'cleaning' then E'- Never share access codes, key or lockbox details, alarm codes, when a home will be empty, or who is cleaning it, with anyone. If asked, say the team will call back.\n- For a lockout or an alarm going off, say the team will call right away and use report_emergency.\n'
-         when v_key = 'beauty_salon' then E'- Give no medical or skin advice. If a caller mentions a reaction to a past treatment, say the team will call back. Do not promise colour or lash results, and mention that colour and lash services may need a patch test first if the knowledge says so.\n'
-         when v_key = 'ecommerce' then E'- Never make up an order status, tracking number, delivery date, refund or replacement. Unless a tool gives you the order, take the order number and email, describe the problem, and say the support team will reply; never promise a refund.\n'
-         else '' end
+    || case when coalesce(v_safety, '') = '' then '' when right(v_safety, 1) = E'\n' then v_safety else v_safety || E'\n' end   /* zella_brain_safety_rules: industry_configurations.safety_rules (CFG-05), always on its own lines */
     /* zella_industry_rules_v2 */
-    || case when v_key = 'legal' then E'- Never confirm or deny whether someone is a client, or discuss a matter, with anyone but the client; take intake details only.\n' else '' end
-    || case when v_key = 'healthcare' then E'- Confirm the caller''s identity before discussing anything about a patient. Never give test results; take a callback request for a clinician. Never put health details in a text message.\n' else '' end
     || E'- Never read out access codes, gate or alarm codes, member or policy IDs, passport numbers or other private details, even if the caller gives a name.\n'
     || case when not public.zella_capability_on(p_business_id, 'scheduling') then E'- This business does not take appointments. Never offer or book one; take a message or open a request for the team instead.\n'
             when not public.zella_capability_on(p_business_id, 'waitlist') then E'- There is no waitlist; do not offer one.\n' else '' end

@@ -6,7 +6,8 @@
 # rollback.
 . "$(dirname "$0")/lib.sh"; fresh_db admin_pause
 PAUSE='public.zella_admin_business_automations_pause(uuid,text)'; SETS='public.zella_admin_automation_set_status(uuid,text,text)'
-fp() { q "select md5(pg_get_functiondef('$PAUSE'::regprocedure)) || md5(pg_get_functiondef('$SETS'::regprocedure))"; }
+RES='public.zella_admin_business_automations_resume(uuid,text)'
+fp() { q "select md5(pg_get_functiondef('$PAUSE'::regprocedure)) || md5(pg_get_functiondef('$SETS'::regprocedure)) || md5(pg_get_functiondef('$RES'::regprocedure))"; }
 before=$(fp)
 ADM=f4000000-0000-0000-0000-000000000001
 q "insert into auth.users (id, email, email_confirmed_at) values ('$ADM', 'ap1@ap.test', now())" > /dev/null
@@ -24,7 +25,7 @@ r=$(admin "public.zella_admin_business_automations_pause('$BIZ', 'abuse check')"
 
 out=$(apply "$REPO/sql/zella_admin_pause_sticky.sql") && ok "applies" || { bad "applies: $out"; finish; }
 out=$(apply "$REPO/sql/zella_admin_pause_sticky.sql") && ok "applies again" || bad "second apply: $out"
-[ "$(fp)" = "9e50b22d8dc654aeede9d8452538ec9de9790abcd9bd30a51ef180caa0444739" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
+[ "$(fp)" = "80fc3ae370fda10aab743a23aef4624de9790abcd9bd30a51ef180caa0444739f54e8b67f946cd489599224baa3364b9" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
 
 B=$(mk staffpaused active); C=$(mk ownerpaused paused)
 r=$(admin "public.zella_admin_business_automations_pause('$BIZ', 'abuse check')")
@@ -43,6 +44,11 @@ E=$(q "insert into public.automations (business_id, name, trigger_type, status) 
 q "update public.automations set status = 'active' where id = '$E'" > /dev/null
 [ "$(st $E)" = active ] && ok "automations not paused by staff go active as before" || bad "unmarked: $(st $E)"
 
+# a refused attempt keeps the "Pause all" mark, and "Resume all" (staff) turns them back on and clears the mark
+[ "$(q "select count(*) from public.automations where id = '$B' and bulk_paused_at is not null")" = 1 ] && ok "a refused attempt keeps the Pause all mark" || bad "bulk mark lost"
+r=$(admin "public.zella_admin_business_automations_resume('$BIZ', 'checked, all fine')")
+[ "$(st $B)" = active ] && [ "$(q "select paused_by_admin from public.automations where id = '$B'")" = f ] && ok "Resume all turns staff paused automations back on ($r)" || bad "resume all: $r $(st $B)"
+r=$(admin "public.zella_admin_automation_set_status('$B', 'paused', 'pause again')")
 r=$(admin "public.zella_admin_automation_set_status('$B', 'active', 'checked')")
 [ "$(st $B)" = active ] && [ "$(q "select paused_by_admin from public.automations where id = '$B'")" = f ] && ok "an admin resume turns it on and clears the mark" || bad "resume: $r $(st $B)"
 r=$(admin "public.zella_admin_automation_set_status('$B', 'disabled', 'archive')"); q "update public.automations set status = 'active' where id = '$B'" > /dev/null

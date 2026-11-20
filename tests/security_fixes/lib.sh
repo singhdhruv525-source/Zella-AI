@@ -4,16 +4,25 @@
 set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; BASE=${BASE:-zprod3}
-# production today = the schema copy zprod3 plus sql/zella_writing_cleanup.sql (applied in production on 18 Nov 2026)
-TEMPLATE=zsec_fix_template
+# main's state: zprod3 + sql/zella_writing_cleanup.sql + the production fixtures the schema regeneration loads, then
+# every migration docs/SCHEMA_STATUS.md lists as built, not applied, in order, except this branch's own files
+TEMPLATE=zsec_fix_main
+MINE="zella_create_business_revoke zella_admin_pause_sticky zella_caller_verification zella_oauth_states zella_website_fetch_guard zella_invitation_limits zella_call_limits"
 . "$REPO/tests/lib/isolated_guard.sh"
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ensure_template() {
   zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$TEMPLATE" || exit 1
   [ "$("${P[@]}" -d postgres -c "select count(*) from pg_database where datname = '$TEMPLATE'")" = 1 ] && return 0
-  "${P[@]}" -d postgres -c "create database ${TEMPLATE}_build template $BASE" > /dev/null || exit 1
-  "${P[@]}" -d "${TEMPLATE}_build" -f "$REPO/sql/zella_writing_cleanup.sql" > /dev/null 2>&1 || { echo "template build failed"; exit 1; }
+  "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists ${TEMPLATE}_build" -c "create database ${TEMPLATE}_build template $BASE" > /dev/null || exit 1
+  local m f
+  for f in sql/zella_writing_cleanup.sql tests/industry_data/production_zella_sensitive_industry.sql tests/alert_rules_email/prod_claim_admin_alert_email.sql; do
+    "${P[@]}" -d "${TEMPLATE}_build" -f "$REPO/$f" > /dev/null 2>&1 || { echo "template build failed at $f"; exit 1; }
+  done
+  for m in $(grep "built, not applied" "$REPO/docs/SCHEMA_STATUS.md" | sed -n 's/^| `\([^`]*\)\.sql`.*/\1/p'); do
+    case " $MINE " in *" $m "*) continue;; esac
+    "${P[@]}" -d "${TEMPLATE}_build" -f "$REPO/sql/$m.sql" > /dev/null 2>&1 || { echo "template build failed at $m"; exit 1; }
+  done
   "${P[@]}" -d postgres -c "alter database ${TEMPLATE}_build rename to $TEMPLATE" > /dev/null || exit 1
 }
 fresh_db() {   # fresh_db <name>: sets DB=zsec_fix_<name> and creates it from the template
