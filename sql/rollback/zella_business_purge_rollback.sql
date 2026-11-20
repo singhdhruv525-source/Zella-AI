@@ -10,7 +10,8 @@ declare
     mine constant jsonb := '{
     "public.zella_business_purge_request(uuid,uuid,timestamp with time zone,text,text)": "605fbfcb53d71fe8f9bdd0aa8df8d58a",
     "public.zella_business_purge_execute(uuid,uuid,text)": "e224a1fefa197dc7c3b2e7290cc7fb95",
-    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "124074d759f4db993693a7328b95b284"
+    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "6dc51e59e4b148263f4eafbb79ea3fcc",
+    "public.zella_business_purge_files_resume(uuid,uuid)": "3f56a42ffd4e8990c03610637f9150bc"
   }';
 begin
   -- no purge can start or move on while this checks and removes (held to the end of the transaction)
@@ -27,6 +28,7 @@ end $$;
 
 update public.retention_purge_runs set status = 'cancelled', error = 'Cancelled: business purge rolled back', updated_at = now()
  where data_class = 'cancelled_business' and status in ('requested', 'approved');
+drop function if exists public.zella_business_purge_files_resume(uuid, uuid);
 drop function if exists public.zella_business_purge_files_done(uuid, uuid, text[], text);
 drop function if exists public.zella_business_purge_execute(uuid, uuid, text);
 drop function if exists public.zella_business_purge_request(uuid, uuid, timestamptz, text, text);

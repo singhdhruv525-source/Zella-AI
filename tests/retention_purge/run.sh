@@ -116,7 +116,16 @@ policy documents_replaced 30 approved; R4=$(req $SEC documents_replaced); appr $
 [ "$(exe $SUPER $R4 "PURGE 1")" = "files_pending" ] && [ "$(q "select array_to_string(file_paths, ',') from public.retention_purge_runs where id = '$R4'")" = "$A/old.pdf" ] \
   && ok "documents: only the replaced copy's file is handed to the server to remove" || bad "documents"
 [[ "$(srv "select public.zella_legal_hold_place('$SEC', '$A', 'Counsel asked mid removal')")" == *PURGE_IN_PROGRESS* ]] && ok "a hold can't be placed on a business while a run is removing its files" || bad "hold during removal"
+[[ "$(srv "select public.zella_retention_run_files_resume('$OWNER', '$R4')")" == *REMOVAL_IN_PROGRESS* ]] && ok "a removal can't be resumed while an attempt is in progress" || bad "resume during removal"
 [ "$(srv "select public.zella_retention_run_files_done('$SUPER', '$R4', array[]::text[], 'Storage timed out') ->> 'status'")" = "failed" ] && ok "a stopped removal is recorded as failed" || bad "files failed"
+[[ "$(srv "select public.zella_retention_run_files_done('$SUPER', '$R4', array['$A/old.pdf'], null)")" == *NOT_RUNNING* ]] && ok "a late report after the run was recorded as failed changes nothing" || bad "late report"
+policy documents_replaced 30 pending_legal_review
+[[ "$(srv "select public.zella_retention_run_files_resume('$OWNER', '$R4')")" == *LEGAL_REVIEW_PENDING* ]] && ok "a removal can't be resumed once the period is back in legal review" || bad "resume pending legal"
+policy documents_replaced 3650 approved
+[ "$(srv "select coalesce(array_to_string(public.zella_retention_run_files_resume('$OWNER', '$R4'), ','), 'none')")" = "" ] && ok "a period made longer since the run keeps the files it now protects" || bad "resume longer period"
+# an attempt that stopped without reporting (the request ended): 10 minutes later another may start
+q "update public.retention_purge_runs set updated_at = now() - interval '11 minutes' where id = '$R4'" > /dev/null
+policy documents_replaced 30 approved
 [[ "$(srv "select public.zella_retention_run_files_resume('$SEC', '$R4')")" == *APPROVER_REQUIRED* ]] && ok "only the person who ran it or an approver resumes it" || bad "resume by other"
 [ "$(srv "select array_to_string(public.zella_retention_run_files_resume('$OWNER', '$R4'), ',')")/$(q "select status from public.retention_purge_runs where id = '$R4'")" = "$A/old.pdf/files_pending" ] \
   && ok "an approver resumes it: the files still to remove are handed back and the run is pending again" || bad "resume"

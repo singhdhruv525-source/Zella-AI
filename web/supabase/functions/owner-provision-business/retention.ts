@@ -16,8 +16,9 @@
 // owner), retention_purge_enabled switched on by an owner, and the typed confirmation "PURGE <rows>". The database
 // checks every one of these. For verification documents the database hands back the file paths and this server
 // removes them from storage, then records exactly which ones went. If that stops part way (storage refused, or the
-// record failed after the files went), an approver retries: the database hands back only the files still listed (never
-// those of a business placed on hold) and a file storage no longer has counts as removed.
+// record failed after the files went), an approver retries, one attempt at a time: the database checks the switch and
+// the legal approval again and hands back only the files still listed and still due (never those of a business placed
+// on hold), and a file storage no longer has counts as removed.
 //
 // A whole cancelled business (sql/zella_business_purge.sql, BIZ-13d) is purged the same way, approved by the same two
 // people, once its final export offer is recorded and 14 days old, with its name typed. It is refused while its audit
@@ -86,6 +87,7 @@ export const REFUSALS: Record<string, [string, number]> = {
   NOT_APPROVED: ["This run isn't approved by two people yet, or has already run.", 409],
   CONFIRM_MISMATCH: ["What you typed doesn't match. Type exactly what the dialog asks for (PURGE and the number of rows, or the business's name).", 400],
   NOT_RUNNING: ["This run isn't waiting for files.", 409],
+  REMOVAL_IN_PROGRESS: ["The files are being removed right now. Try again in 10 minutes if it doesn't finish.", 409],
   PURGE_IN_PROGRESS: ["A purge run is removing this business's files. Place the hold once it has finished.", 409],
   NUMBER_RELEASE_OPEN: ["This number has an open release order, so it can't be given to a business.", 409],
   EXPORT_OFFER_REQUIRED: ["Record when and how the owner was offered a final export of their data.", 400],
@@ -209,14 +211,14 @@ export function retentionHandlers(admin: SupabaseClient, fields: Json, kit: Plat
   };
 
   // Finishes a run whose file removal stopped (files_pending or failed): never runs the purge again.
-  const filesRetry = async (split: (p: string) => [string, string] | null, done: string) => {
+  const filesRetry = async (split: (p: string) => [string, string] | null, resume: string, done: string) => {
     const id = runId();
-    const left = stringList(await rpc("zella_retention_run_files_resume", { p_actor: userId, p_run: id }));
+    const left = stringList(await rpc(resume, { p_actor: userId, p_run: id }));
     const { removed, problem } = await removeFiles(left, split);
     return await rpc(done, { p_actor: userId, p_run: id, p_removed: removed, p_error: problem });
   };
-  const retention_run_files_retry = () => filesRetry(documentPath, "zella_retention_run_files_done");
-  const business_purge_files_retry = () => filesRetry(bucketPath, "zella_business_purge_files_done");
+  const retention_run_files_retry = () => filesRetry(documentPath, "zella_retention_run_files_resume", "zella_retention_run_files_done");
+  const business_purge_files_retry = () => filesRetry(bucketPath, "zella_business_purge_files_resume", "zella_business_purge_files_done");
 
   const business_purge_request = async () => {
     const offered = new Date(text(fields.exportOfferedAt, 40));

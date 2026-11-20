@@ -34,7 +34,8 @@ declare
   mine constant jsonb := '{
     "public.zella_business_purge_request(uuid,uuid,timestamp with time zone,text,text)": "605fbfcb53d71fe8f9bdd0aa8df8d58a",
     "public.zella_business_purge_execute(uuid,uuid,text)": "e224a1fefa197dc7c3b2e7290cc7fb95",
-    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "124074d759f4db993693a7328b95b284"
+    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "6dc51e59e4b148263f4eafbb79ea3fcc",
+    "public.zella_business_purge_files_resume(uuid,uuid)": "3f56a42ffd4e8990c03610637f9150bc"
   }';
 begin
   if to_regprocedure('public.zella_retention_run_approve(uuid,uuid,text)') is null or to_regclass('public.retention_purge_runs') is null then
@@ -130,8 +131,9 @@ declare r public.retention_purge_runs; v_total int; v_listed int;
 begin
   select * into r from public.retention_purge_runs where id = p_run for update;
   if r.id is null or r.data_class <> 'cancelled_business' then raise exception 'NOT_FOUND'; end if;
-  -- files_pending after the purge, or failed with files still listed: a stopped removal is finished by an approver
-  if r.status not in ('files_pending', 'failed') or r.executed_at is null then raise exception 'NOT_RUNNING'; end if;
+  -- only the attempt in progress reports (execute, or files_resume after a stop); a late report once the run was
+  -- recorded as failed changes nothing
+  if r.status <> 'files_pending' or r.executed_at is null then raise exception 'NOT_RUNNING'; end if;
   if p_actor is null or not coalesce(p_actor = any (array_remove(array[r.executed_by, r.owner_approved_by, r.second_approved_by], null)), false) then
     raise exception 'APPROVER_REQUIRED';
   end if;
@@ -150,9 +152,36 @@ begin
   return to_jsonb(r) - 'items';
 end $$;
 
+-- resume a stopped file removal of a purged business. One attempt at a time, as for other purge runs
+-- (REMOVAL_IN_PROGRESS while the run was changed less than 10 minutes ago). The purge switch must be on and the
+-- cancelled_business period still legally approved. The business and every row it had are already deleted, so its
+-- listed files are no longer covered by any period or hold: the files still listed are returned.
+create or replace function public.zella_business_purge_files_resume(p_actor uuid, p_run uuid)
+returns text[] language plpgsql security definer set search_path = public as $$
+declare r public.retention_purge_runs;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('zella_legal_holds', 0));
+  select * into r from public.retention_purge_runs where id = p_run for update;
+  if r.id is null or r.data_class <> 'cancelled_business' then raise exception 'NOT_FOUND'; end if;
+  if r.status not in ('files_pending', 'failed') or r.executed_at is null then raise exception 'NOT_RUNNING'; end if;
+  if p_actor is null or not coalesce(p_actor = any (array_remove(array[r.executed_by, r.owner_approved_by, r.second_approved_by], null)), false) then
+    raise exception 'APPROVER_REQUIRED';
+  end if;
+  if not public.zella_actor_can(p_actor, 'security.manage') then raise exception 'NOT_ALLOWED'; end if;
+  if r.status = 'files_pending' and r.updated_at > now() - interval '10 minutes' then raise exception 'REMOVAL_IN_PROGRESS'; end if;
+  if not coalesce((select value = 'true'::jsonb from public.platform_settings where key = 'retention_purge_enabled'), false) then
+    raise exception 'PURGE_SWITCHED_OFF';
+  end if;
+  if (select legal_status from public.data_retention_policies where data_class = 'cancelled_business') is distinct from 'approved' then
+    raise exception 'LEGAL_REVIEW_PENDING';
+  end if;
+  update public.retention_purge_runs set status = 'files_pending', updated_at = now() where id = r.id;
+  return array(select f from unnest(r.file_paths) f where not (f = any (r.removed_paths)) order by f);
+end $$;
+
 revoke all on function public.zella_business_purge_request(uuid, uuid, timestamptz, text, text), public.zella_business_purge_execute(uuid, uuid, text),
-  public.zella_business_purge_files_done(uuid, uuid, text[], text) from public, anon, authenticated;
+  public.zella_business_purge_files_done(uuid, uuid, text[], text), public.zella_business_purge_files_resume(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.zella_business_purge_request(uuid, uuid, timestamptz, text, text), public.zella_business_purge_execute(uuid, uuid, text),
-  public.zella_business_purge_files_done(uuid, uuid, text[], text) to service_role;
+  public.zella_business_purge_files_done(uuid, uuid, text[], text), public.zella_business_purge_files_resume(uuid, uuid) to service_role;
 
 commit;

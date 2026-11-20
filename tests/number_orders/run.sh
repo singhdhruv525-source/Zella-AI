@@ -126,7 +126,8 @@ res() { srv "select public.zella_number_order_resolve('$1', '$ID5', '$2', '$3', 
 [[ "$(res $OWNER completed "x")" == *REASON_REQUIRED* ]] && ok "and needs a reason" || bad "resolve reason"
 [ "$(res $OWNER completed "Checked at Telnyx: released")" = "completed" ] && ok "an owner records what the provider shows" || bad "resolve"
 [[ "$(res $OWNER failed "Again")" == *NOT_NEEDS_CHECK* ]] && ok "a resolved order can't be resolved again" || bad "double resolve"
-[ "$(q "select user_id || '|' || (new_data ->> 'status') from public.audit_logs where action = 'telephony.number_order_resolved' and entity_id = '$ID5'")" = "$OWNER|completed" ] && ok "the resolution is audited" || bad "resolve audit"
+[ "$(q "select user_id || '|' || (new_data ->> 'status') || '|' || (old_data ->> 'error') from public.audit_logs where action = 'telephony.number_order_resolved' and entity_id = '$ID5'")" = "$OWNER|completed|No answer" ] && ok "the resolution is audited with the provider's earlier message" || bad "resolve audit"
+[ "$(q "select error from public.number_orders where id = '$ID5'")" = "Recorded after a check: Checked at Telnyx: released" ] && ok "the order shows what the owner recorded, not the old provider message" || bad "resolve message"
 q "insert into public.business_phone_numbers (business_id, e164) values ('$BIZ', '+15550100005')" > /dev/null && ok "once the release is finished the number can be given out again" || bad "assign after release"
 
 # rollback

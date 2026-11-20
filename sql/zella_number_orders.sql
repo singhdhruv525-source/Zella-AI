@@ -33,7 +33,7 @@ declare
     "public.zella_number_order_finish(uuid,uuid,text,text,text,text,text)": "2f70695a5cb57a24e454d0c19fbc99ed",
     "public.zella_number_order_cancel(uuid,uuid,text)": "2e3996e7bc6f13664d73e5a476c1abc9",
     "public.zella_number_orders_list(uuid,integer)": "2bfd73dc45d808eb281915eef75bf426",
-    "public.zella_number_order_resolve(uuid,uuid,text,text,text,text)": "12a27f93fb5276f85f2c788410b517cf",
+    "public.zella_number_order_resolve(uuid,uuid,text,text,text,text)": "06f3385235c28d535a1bcf5b26d8a379",
     "public.zella_number_assign_guard()": "d7a31838b195ac243da4247adb4caca1"
   }';
 begin
@@ -234,7 +234,7 @@ end $$;
 -- again (the order can't go back to placing)
 create or replace function public.zella_number_order_resolve(p_actor uuid, p_id uuid, p_outcome text, p_reason text, p_number_id text, p_vapi_id text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare o public.number_orders; v_reason text := left(btrim(coalesce(p_reason, '')), 300);
+declare o public.number_orders; v_reason text := left(btrim(coalesce(p_reason, '')), 300); v_was text;
 begin
   if public.zella_actor_role(p_actor) is distinct from 'zella_owner' then raise exception 'OWNER_REQUIRED'; end if;
   if length(v_reason) < 3 then raise exception 'REASON_REQUIRED'; end if;
@@ -242,12 +242,14 @@ begin
   select * into o from public.number_orders where id = p_id for update;
   if o.id is null then raise exception 'NOT_FOUND'; end if;
   if o.status <> 'needs_check' then raise exception 'NOT_NEEDS_CHECK'; end if;
-  update public.number_orders set status = p_outcome, decision_reason = v_reason,
+  v_was := o.error;
+  -- the provider's earlier message (kept in the audit below) is replaced by what the owner recorded
+  update public.number_orders set status = p_outcome, error = left('Recorded after a check: ' || v_reason, 500),
          provider_number_id = coalesce(left(nullif(btrim(coalesce(p_number_id, '')), ''), 100), provider_number_id),
          vapi_phone_number_id = coalesce(left(nullif(btrim(coalesce(p_vapi_id, '')), ''), 100), vapi_phone_number_id), updated_at = now()
    where id = o.id returning * into o;
   perform public.zella_actor_audit(p_actor, 'telephony.number_order_resolved', 'number_order', o.id, o.business_id,
-    jsonb_build_object('status', 'needs_check'), jsonb_build_object('status', o.status, 'reason', v_reason, 'kind', o.kind, 'e164', o.e164));
+    jsonb_build_object('status', 'needs_check', 'error', v_was), jsonb_build_object('status', o.status, 'reason', v_reason, 'kind', o.kind, 'e164', o.e164));
   return to_jsonb(o);
 end $$;
 

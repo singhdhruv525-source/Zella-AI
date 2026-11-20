@@ -19,7 +19,7 @@ declare
     "public.zella_number_order_finish(uuid,uuid,text,text,text,text,text)": "2f70695a5cb57a24e454d0c19fbc99ed",
     "public.zella_number_order_cancel(uuid,uuid,text)": "2e3996e7bc6f13664d73e5a476c1abc9",
     "public.zella_number_orders_list(uuid,integer)": "2bfd73dc45d808eb281915eef75bf426",
-    "public.zella_number_order_resolve(uuid,uuid,text,text,text,text)": "12a27f93fb5276f85f2c788410b517cf",
+    "public.zella_number_order_resolve(uuid,uuid,text,text,text,text)": "06f3385235c28d535a1bcf5b26d8a379",
     "public.zella_number_assign_guard()": "d7a31838b195ac243da4247adb4caca1"
   }';
 begin

@@ -183,18 +183,20 @@ Deno.test("purge runs: a stopped file removal is retried from the files still li
   await run(broken, "retention_run_files_retry", { id: RUN }, "security_admin");
   assertEquals(broken.calls[1][1].p_removed, []);
   assertEquals(String(broken.calls[1][1].p_error).startsWith("Storage refused"), true);
-  const refused = db(() => ({ error: "APPROVER_REQUIRED" }));
-  const err = await assertRejects(() => run(refused, "retention_run_files_retry", { id: RUN }, "security_admin"), InputError);
-  assertEquals((err as InputError).status, 403);
-  assertEquals(refused.removed, []);
+  for (const [code, status] of [["APPROVER_REQUIRED", 403], ["REMOVAL_IN_PROGRESS", 409], ["LEGAL_REVIEW_PENDING", 409], ["BUSINESS_PURGE_SEPARATE", 400]] as const) {
+    const refused = db(() => ({ error: code }));
+    const err = await assertRejects(() => run(refused, "retention_run_files_retry", { id: RUN }, "security_admin"), InputError);
+    assertEquals((err as InputError).status, status);
+    assertEquals(refused.removed, []);
+  }
   assertEquals([RETENTION_PERMISSIONS.retention_run_files_retry, RETENTION_PERMISSIONS.business_purge_files_retry], ["security.manage", "security.manage"]);
 });
 
 Deno.test("business purge: a stopped file removal is retried per bucket and recorded by the business purge", async () => {
   const RUN = "c3000000-0000-0000-0000-000000000010";
-  const d = db((fn) => ({ data: fn === "zella_retention_run_files_resume" ? ["brand-assets/b/logo.png"] : { id: RUN, status: "done" } }));
+  const d = db((fn) => ({ data: fn === "zella_business_purge_files_resume" ? ["brand-assets/b/logo.png"] : { id: RUN, status: "done" } }));
   await run(d, "business_purge_files_retry", { id: RUN }, "zella_owner");
-  assertEquals(d.calls.map((c) => c[0]), ["zella_retention_run_files_resume", "zella_business_purge_files_done"]);
+  assertEquals(d.calls.map((c) => c[0]), ["zella_business_purge_files_resume", "zella_business_purge_files_done"]);
   assertEquals(d.removed, [["brand-assets", ["b/logo.png"]]]);
   assertEquals(d.calls[1][1].p_removed, ["brand-assets/b/logo.png"]);
 });

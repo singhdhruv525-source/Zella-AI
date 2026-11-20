@@ -13,10 +13,10 @@ declare
     "public.zella_retention_run_request(uuid,text,text)": "5b7a202c8301b7bc61b91027a0a4df21",
     "public.zella_retention_run_approve(uuid,uuid,text)": "eb2ce3685d80968db535e35930b93a93",
     "public.zella_retention_run_execute(uuid,uuid,text)": "ba48c56b8077b51afb6e7b17f6150fd4",
-    "public.zella_retention_run_files_done(uuid,uuid,text[],text)": "238c9507f4c3c93b17b3e9cada94b459",
+    "public.zella_retention_run_files_done(uuid,uuid,text[],text)": "dac2d38238f1817aa8500a152382e6b5",
     "public.zella_retention_run_cancel(uuid,uuid,text)": "f7808954fe2da8c900c77f9c1827fb29",
     "public.zella_retention_runs(uuid,integer)": "64a8d562f80cdf654e0cc185804c58ac",
-    "public.zella_retention_run_files_resume(uuid,uuid)": "b52344801014c6525f10d7b47965ebe5"
+    "public.zella_retention_run_files_resume(uuid,uuid)": "2daf163e4a47b309ad52d92c382ec4ec"
   }';
 begin
   if to_regclass('public.retention_purge_runs') is not null then
