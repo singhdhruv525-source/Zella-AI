@@ -6,7 +6,7 @@ begin;
 do $$
 declare a record; d text;
   undo constant jsonb := jsonb_build_object(
-    'public.zella_run_scheduled_job(text)', jsonb_build_array($w$'zella_retention_auto_run', 'zella_business_deletion_purge_due') then$w$, $a$'zella_retention_auto_run') then$a$),
+    'public.zella_run_scheduled_job(text)', jsonb_build_array($w$  if p_job not in ('zella_retention_auto_run', 'zella_business_deletion_purge_due', '$w$, $a$  if p_job not in ('zella_retention_auto_run', '$a$),
     'public.zella_run_schedule_group(text)', jsonb_build_array($w$'zella_retention_auto_run', 'zella_business_deletion_purge_due']$w$, $a$'zella_retention_auto_run']$a$));
 begin
   if to_regclass('public.zella_function_archive') is not null

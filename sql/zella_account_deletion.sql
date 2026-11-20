@@ -3,7 +3,7 @@
 --   1. The owner asks in Settings (zella_business_deletion_request: an active owner, the business name typed exactly,
 --      a reason). Zella Voice is alerted; nothing changes for the business yet. The owner can cancel any time before
 --      the data is removed (zella_business_deletion_cancel).
---   2. A Zella Voice admin with businesses.manage confirms (zella_admin_business_deletion_confirm, audited). The
+--   2. A Zella Voice admin with security.manage (the permission lane G's purges need) confirms (zella_admin_business_deletion_confirm, audited). The
 --      account is frozen at once: the business is suspended, so the AI receptionist stops answering its numbers and its
 --      automations pause (the existing suspension rules); the purge date is 30 days later. Cancelling lifts this freeze.
 --   3. zella_business_deletion_purge_due (daily job group) removes every confirmed business past its 30 days, using
@@ -22,11 +22,11 @@ begin;
 do $$
 declare f record;
   mine constant jsonb := '{"public.zella_business_deletion_freeze_note()": "50e160e55012c38d51692dab5e1f7dd8",
-    "public.zella_business_deletion_purge_due()": "207bab242458d7af4af03f49709175e0",
+    "public.zella_business_deletion_purge_due()": "fc8d2e45a59f598a90ab8db73b1970dd",
     "public.zella_business_deletion_status(uuid)": "ac7156772cbfd63060438b4137217983",
     "public.zella_business_deletion_request(uuid,text,text)": "5ea41bd703309f71ff4b7cddaefcdca6",
     "public.zella_business_deletion_cancel(uuid)": "68fb5357ca6cb2a935fcd547848650e9",
-    "public.zella_admin_business_deletion_confirm(uuid,text)": "907c1d993e4cb7313a8369bd2d5b674a",
+    "public.zella_admin_business_deletion_confirm(uuid,text)": "c67e99fa02dda6fc8456382964e06521",
     "public.zella_admin_business_deletion_requests()": "e4c264caa842e2dae0394ea0e1699620"}';
 begin
   if to_regclass('public.retention_purge_runs') is null or to_regprocedure('public.zella_business_purge_files_done(uuid,uuid,text[],text)') is null
@@ -113,7 +113,9 @@ create or replace function public.zella_admin_business_deletion_confirm(p_busine
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare r public.business_deletion_requests; v_reason text := left(btrim(coalesce(p_reason, '')), 300);
 begin
-  perform public.zella_admin_require('businesses.manage');
+  -- security.manage, as for lane G's purges: the confirming admin is the run's approver and executor, who finishes
+  -- the file removal (zella_business_purge_files_done needs it)
+  perform public.zella_admin_require('security.manage');
   if length(v_reason) < 3 then raise exception 'REASON_REQUIRED'; end if;
   update public.business_deletion_requests set status = 'confirmed', confirmed_by = auth.uid(), confirmed_at = now(), purge_after = now() + interval '30 days'
    where business_id = p_business_id and status = 'requested' returning * into r;
@@ -153,6 +155,8 @@ begin
   if not coalesce((select value = 'true'::jsonb from public.platform_settings where key = 'retention_purge_enabled'), false) then
     return jsonb_build_object('skipped', 'switched_off');
   end if;
+  -- the same lock as lane G's purges and zella_legal_hold_place: a hold never lands in the middle of a purge
+  perform pg_advisory_xact_lock(hashtextextended('zella_legal_holds', 0));
   for r in select * from public.business_deletion_requests where status in ('confirmed', 'blocked') and purge_after <= now() order by purge_after for update skip locked loop
     select * into b from public.businesses where id = r.business_id for update;
     v_why := case
@@ -161,7 +165,8 @@ begin
       when (select confdeltype from pg_constraint where conrelid = 'public.audit_logs'::regclass and conname = 'audit_logs_business_id_fkey') is distinct from 'n'
            or position('deleted_business_id' in pg_get_functiondef('public.zella_audit_privileged()'::regprocedure)) = 0 then 'AUDIT_HISTORY_AT_RISK'
       when exists (select 1 from public.payments where business_id = b.id) or exists (select 1 from public.billing_events where business_id = b.id)
-           or exists (select 1 from public.customer_charge_payments where business_id = b.id) or exists (select 1 from public.usage_charges where business_id = b.id) then 'BILLING_RECORDS_KEPT'
+           or exists (select 1 from public.customer_charge_payments where business_id = b.id) or exists (select 1 from public.usage_charges where business_id = b.id)
+           or (to_regclass('public.billing_periods') is not null and exists (select 1 from public.billing_periods where business_id = b.id)) then 'BILLING_RECORDS_KEPT'
       when exists (select 1 from public.offer_redemptions where business_id = b.id) then 'OFFER_HISTORY_KEPT'
       when exists (select 1 from public.business_phone_numbers where business_id = b.id) then 'NUMBERS_STILL_ASSIGNED' end;
     if v_why is not null then
@@ -203,18 +208,22 @@ grant execute on function public.zella_business_deletion_status(uuid), public.ze
 -- the daily group runs it (after zella_retention_auto_run, which sql/zella_privacy_retention.sql added)
 do $$
 declare d text; s1 constant text := 'public.zella_run_scheduled_job(text)'; s2 constant text := 'public.zella_run_schedule_group(text)';
+  a1 constant text := $a$  if p_job not in ('zella_retention_auto_run', '$a$;
+  w1 constant text := $w$  if p_job not in ('zella_retention_auto_run', 'zella_business_deletion_purge_due', '$w$;
+  a2 constant text := $a$'zella_retention_auto_run']$a$;
+  w2 constant text := $w$'zella_retention_auto_run', 'zella_business_deletion_purge_due']$w$;
 begin
   d := pg_get_functiondef(s1::regprocedure);
   if position('zella_business_deletion_purge_due' in d) = 0 then
-    if position($a$'zella_retention_auto_run') then$a$ in d) = 0 then raise exception 'VERSION_MISMATCH: % (apply sql/zella_privacy_retention.sql first)', s1; end if;
+    if (length(d) - length(replace(d, a1, ''))) / length(a1) <> 1 then raise exception 'VERSION_MISMATCH: % (apply sql/zella_privacy_retention.sql first)', s1; end if;
     insert into public.zella_function_archive (migration, signature, definition, definition_md5) values ('zella_account_deletion', s1, d, md5(d)) on conflict do nothing;
-    execute replace(d, $a$'zella_retention_auto_run') then$a$, $w$'zella_retention_auto_run', 'zella_business_deletion_purge_due') then$w$);
+    execute replace(d, a1, w1);
   end if;
   d := pg_get_functiondef(s2::regprocedure);
   if position('zella_business_deletion_purge_due' in d) = 0 then
-    if position($a$'zella_retention_auto_run']$a$ in d) = 0 then raise exception 'VERSION_MISMATCH: % (apply sql/zella_privacy_retention.sql first)', s2; end if;
+    if (length(d) - length(replace(d, a2, ''))) / length(a2) <> 1 then raise exception 'VERSION_MISMATCH: % (apply sql/zella_privacy_retention.sql first)', s2; end if;
     insert into public.zella_function_archive (migration, signature, definition, definition_md5) values ('zella_account_deletion', s2, d, md5(d)) on conflict do nothing;
-    execute replace(d, $a$'zella_retention_auto_run']$a$, $w$'zella_retention_auto_run', 'zella_business_deletion_purge_due']$w$);
+    execute replace(d, a2, w2);
   end if;
 end $$;
 

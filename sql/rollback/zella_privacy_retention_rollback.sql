@@ -11,7 +11,7 @@ declare a record; d text;
     'public.zella_erase_customer(uuid,uuid)', jsonb_build_array($w$  -- zella_privacy_retention: the copies at Vapi are deleted too (sent while vapi_deletion_live is on)
   perform public.zella_queue_provider_deletion(p_business_id, c.external_call_id, 'customer_erasure') from public.calls c where c.customer_id = p_customer_id and c.business_id = p_business_id;
 $w$, ''),
-    'public.zella_run_scheduled_job(text)', jsonb_build_array($w$'zella_team_scorecard_nudge', 'zella_retention_auto_run') then$w$, $a$'zella_team_scorecard_nudge') then$a$),
+    'public.zella_run_scheduled_job(text)', jsonb_build_array($w$  if p_job not in ('zella_retention_auto_run', '$w$, $a$  if p_job not in ('$a$),
     'public.zella_run_schedule_group(text)', jsonb_build_array($w$'zella_run_permission_check', 'zella_retention_auto_run']$w$, $a$'zella_run_permission_check']$a$));
 begin
   if to_regclass('public.zella_function_archive') is not null

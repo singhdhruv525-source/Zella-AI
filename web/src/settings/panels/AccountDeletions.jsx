@@ -4,7 +4,7 @@ import { friendly } from "../../BusinessShared";
 import { Card, Confirm, LoadState, Pill, Table, useAsync, when } from "../SettingsKit";
 
 // Data retention > Account deletion requests (sql/zella_account_deletion.sql): owners ask, a Zella Voice admin with
-// businesses.manage confirms (the account is frozen and deleted 30 days later by the daily job, behind the purge switch).
+// security.manage confirms (the account is frozen and deleted 30 days later by the daily job, behind the purge switch).
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
   if (error) throw new Error(friendly(error));
@@ -15,7 +15,7 @@ const LABEL = { requested: ["warning", "Waiting for you"], confirmed: ["error", 
 export default function AccountDeletions({ me }) {
   const state = useAsync(() => rpc("zella_admin_business_deletion_requests", {}), []);
   const [confirming, setConfirming] = useState(null);
-  const manage = Boolean(me?.permissions?.includes("businesses.manage"));
+  const manage = Boolean(me?.permissions?.includes("security.manage"));
   return (
     <LoadState state={state}>{(rows) => (
       <Card title="Account deletion requests" sub="Owners ask in their Settings. Confirming freezes the account at once; it is deleted 30 days later, unless the owner cancels.">

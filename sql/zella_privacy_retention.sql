@@ -256,10 +256,12 @@ $a$,
   perform public.zella_queue_provider_deletion(p_business_id, c.external_call_id, 'customer_erasure') from public.calls c where c.customer_id = p_customer_id and c.business_id = p_business_id;
   update public.calls set transcript = null, recording_url = null, summary = null, from_number = null, to_number = null where customer_id = p_customer_id and business_id = p_business_id;
 $w$),
-    jsonb_build_object('sig', 'public.zella_run_scheduled_job(text)', 'known', jsonb_build_array('671ec3ca5b53cc2d660f054b837d67d1'), 'marker', 'zella_retention_auto_run',
-      'anchor', $a$'zella_team_scorecard_nudge') then$a$, 'with', $w$'zella_team_scorecard_nudge', 'zella_retention_auto_run') then$w$),
-    -- production's version, or with sql/zella_cancellations_scheduled.sql applied
-    jsonb_build_object('sig', 'public.zella_run_schedule_group(text)', 'known', jsonb_build_array('78b7fdfea58e49d1dfb594e7acc9b808', '5a9bc8c34841edd1ad3d66ff4156a006'), 'marker', 'zella_retention_auto_run',
+    -- production's version, or main's with every pending migration before this file applied (weekly report, business
+    -- moments, job intent, voice admin)
+    jsonb_build_object('sig', 'public.zella_run_scheduled_job(text)', 'known', jsonb_build_array('671ec3ca5b53cc2d660f054b837d67d1', '0b2182d27e25e8dbf49041120fafee29'), 'marker', 'zella_retention_auto_run',
+      'anchor', $a$  if p_job not in ('$a$, 'with', $w$  if p_job not in ('zella_retention_auto_run', '$w$),
+    -- production's version, with sql/zella_cancellations_scheduled.sql applied, or main's with every pending migration
+    jsonb_build_object('sig', 'public.zella_run_schedule_group(text)', 'known', jsonb_build_array('78b7fdfea58e49d1dfb594e7acc9b808', '5a9bc8c34841edd1ad3d66ff4156a006', '7e119dba5056dde8ffa8247419743808'), 'marker', 'zella_retention_auto_run',
       'anchor', $a$'zella_run_permission_check']$a$, 'with', $w$'zella_run_permission_check', 'zella_retention_auto_run']$w$));
 begin
   for f in select x from jsonb_array_elements(plan) x loop

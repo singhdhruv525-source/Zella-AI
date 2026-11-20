@@ -19,6 +19,15 @@ out=$(apply "$REPO/sql/zella_call_disclosure.sql") && ok "applies again" || bad 
 [ "$(fp)" = "99666d94ffea6b2aeff3f680405b30c9,cf6fd925e723c0f3cd1df07e4974a562,ee4cda5da339a236547506ace897a62b" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
 [ "$(first)" = "Thank you for calling Sunny Salon. I'm the AI receptionist. How can I help you today?" ] && ok "the standard greeting says it is the AI receptionist" || bad "default: $(first)"
 [ "$(rec)" = false ] && ok "recording is explicitly off (artifactPlan.recordingEnabled false)" || bad "rec: $(rec)"
+# with lane G's own setters (each under the zella_recording_policy lock): legal approval with its wording, then the
+# business's policy on, gives the recording line and Vapi recording; switching approval off turns both off again
+ZO=f8000000-0000-0000-0000-000000000009
+q "insert into auth.users (id, email, email_confirmed_at) values ('$ZO', 'zo@disc.test', now()); insert into public.platform_admins (user_id, role, is_active) values ('$ZO', 'zella_owner', true)" > /dev/null
+q "select public.zella_recording_legal_set('$ZO', true, 'This call is recorded for quality and training.', 'counsel approved the wording')" > /dev/null && \
+q "select public.zella_recording_policy_set('$ZO', '$BIZ', true, 'owner asked for recording')" > /dev/null
+[ "$(rec)" = true ] && [[ "$(first)" == *"This call is recorded for quality and training." ]] && ok "lane G's setters turn recording on: the greeting says so and Vapi records" || bad "setters on: $(rec) $(first)"
+q "select public.zella_recording_legal_set('$ZO', false, null, 'approval withdrawn')" > /dev/null
+[ "$(rec)" = false ] && [[ "$(first)" != *recorded* ]] && ok "withdrawing legal approval turns both off" || bad "setters off: $(rec) $(first)"
 save() { local g=${2//\'/\'\'}; as_user $O aal1 "perform public.zella_business_language_save('$BIZ', '$1', '{}', '$g'); raise notice 'R=saved';"; }
 r=$(save en-US "Hi, you've reached Sunny Salon. How can I help?"); [[ "$r" == *GREETING_AI_DISCLOSURE* ]] && ok "an English greeting without AI is refused when saved" || bad "save: $r"
 r=$(save en-US "Hi, Sunny Salon here, I'm an AI assistant. How can I help?"); [ "$r" = saved ] && ok "one that says AI is saved" || bad "save ok: $r"
