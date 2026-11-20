@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./OwnerPages.css";
+import "./PlansPage.css";
+import { Icon } from "./BusinessUI";
+import { useDialogFocus } from "./useDialogFocus";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import { humanize } from "./copy/labels";
-import { friendlyError } from "./admin/adminOps";
+import { Facts, Pager, PAGE, can, friendlyError, rpc } from "./admin/adminOps";
 import BillingRecords from "./admin/BillingRecords";
 import { planAllowances, planFeatures } from "./copy/planAllowances";
+import { allowanceText, balanceText, planFacts, planFromGet, priceText, tierName, tierShort } from "./businessPlans.js";
 
 const SUB_TONE = {
   trial: "info", active: "success", renewal_due: "warning", past_due: "danger",
@@ -15,12 +20,148 @@ const SUB_TONE = {
 
 const EMPTY_PLAN = { planId: "", name: "", description: "", isActive: true };
 
+// One empty value, in the muted style every table and drawer uses: a few words, never a blank cell or "None".
+function EmptyValue({ label = "Not set" }) {
+  return <span className="empty-value">{label}</span>;
+}
+
+function subscriptionBadge(row) {
+  if (row.subscription) return <Pill tone={SUB_TONE[row.subscription.status] ?? "neutral"}>{humanize(row.subscription.status)}</Pill>;
+  return row.plan ? <EmptyValue label="No subscription" /> : <Pill tone="neutral">No plan</Pill>;
+}
+
+// The drawer frame: eyebrow, title and status on top, then the content, then a footer that stays in view.
+function PlanDrawerFrame({ eyebrow, title, status, footer, onClose, children }) {
+  const dialogRef = useDialogFocus(onClose);
+  return createPortal(
+    <div className="owner-modal-overlay ao-drawer-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <aside ref={dialogRef} tabIndex={-1} className="owner-modal ao-drawer pp-drawer" role="dialog" aria-modal="true" aria-label={`${eyebrow}: ${title}`}>
+        <header className="pp-drawer-head">
+          <div className="pp-drawer-titles">
+            <div className="pp-drawer-eyebrow">{eyebrow}</div>
+            <h2 className="pp-drawer-title" title={title}>{title}</h2>
+          </div>
+          {status}
+          <button type="button" className="owner-icon-button" aria-label="Close" onClick={onClose}><Icon name="close" size="sm" /></button>
+        </header>
+        <div className="pp-drawer-body">{children}</div>
+        {footer && <footer className="ao-drawer-foot pp-drawer-foot">{footer}</footer>}
+      </aside>
+    </div>,
+    document.body
+  );
+}
+
+// CFG-14: one business's plan, its saved versions and this period's balances (zella_admin_plan_get and
+// zella_billing_overview, both billing.view). Read only: plans are changed in the business's Plan & pricing step.
+function PlanDrawer({ row, onClose, onOpenBusiness }) {
+  const [state, setState] = useState({ loading: true });
+  useEffect(() => {
+    let live = true;
+    Promise.all([rpc("zella_admin_plan_get", { p_business_id: row.businessId }), rpc("zella_billing_overview", { p_business_id: row.businessId })])
+      // a missing or malformed answer is an error, never "no plan" or "no allowances"
+      .then(([plan, overview]) => {
+        if (!live) return;
+        const ok = plan && typeof plan === "object" && Array.isArray(plan.versions) && overview && typeof overview === "object"
+          && (overview.balances === undefined || Array.isArray(overview.balances));
+        setState(ok ? { plan, overview } : { error: "Couldn't load this plan's details. Close and open it again." });
+      })
+      .catch((e) => live && setState({ error: friendlyError(e) }));
+    return () => { live = false; };
+  }, [row.businessId]);
+  const versions = state.plan?.versions ?? [];
+  const balances = state.overview?.balances ?? [];
+  const period = state.overview?.period;
+  // once loaded, the facts come from the plan just read (another admin may have saved a newer version)
+  const current = state.plan ? planFromGet(state.plan.plan, versions.length, row.plan) : row.plan;
+  return (
+    <PlanDrawerFrame
+      eyebrow="Plan"
+      title={row.businessName}
+      status={row.subscription ? subscriptionBadge(row) : null}
+      onClose={onClose}
+      footer={<button type="button" className="owner-secondary-button" onClick={() => { onClose(); onOpenBusiness(row.businessId); }}>Open business</button>}
+    >
+      <Facts rows={[...(current ? planFacts(current) : [["Plan", <EmptyValue key="noplan" label="No plan saved" />]]), ["Subscription", row.subscription ? humanize(row.subscription.status) : <EmptyValue key="none" label="No subscription" />]]} />
+      {state.loading ? <p className="op-muted pp-drawer-note">Loading balances…</p>
+        : state.error ? <div className="owner-form-error" role="alert">{state.error}</div>
+        : (
+          <>
+            <section className="drawer-section">
+              <h3>This period</h3>
+              {period ? <p className="op-muted pp-drawer-note">{formatDate(period.from)} to {formatDate(period.to)}{period.trial ? " (trial)" : ""}, {period.days_left} days left</p>
+                : <p className="op-muted pp-drawer-note">No billing period is open yet.</p>}
+              {balances.length ? <Facts rows={balances.map(balanceText)} /> : <p className="op-muted pp-drawer-note">No allowances recorded for this period yet.</p>}
+            </section>
+            <section className="drawer-section">
+              <h3>Saved versions</h3>
+              {versions.length ? (
+                <div className="pp-versions-wrap">
+                  <table className="owner-table pp-versions">
+                    <thead><tr><th>Version</th><th>Plan</th><th className="num">Price</th><th>Saved</th></tr></thead>
+                    <tbody>
+                      {versions.map((v) => (
+                        <tr key={v.version}>
+                          <td className="pp-tabular">{v.version}</td>
+                          <td>{tierName(v.tier)}</td>
+                          <td className="num">{priceText({ priceCents: v.price_cents, billingInterval: v.billing_interval, setupFeeCents: 0 })}</td>
+                          <td className="pp-nowrap">{formatDate(v.saved_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p className="op-muted pp-drawer-note">No plan saved yet.</p>}
+            </section>
+          </>
+        )}
+      <div className="pp-banner" role="note">
+        <Icon name="info" />
+        <p><strong>Payments aren't connected yet,</strong> so nothing is charged. Change this plan in the business's setup, at the Plan & pricing step.</p>
+      </div>
+    </PlanDrawerFrame>
+  );
+}
+
 export default function PlansPage({ onOpenBusiness }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null);
+  const [me, setMe] = useState(null);
+  const [list, setList] = useState({ key: null, data: null, error: "" });
+  const [reloads, setReloads] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(null);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  // CFG-19: each editor shows only to roles that may save it (the server checks the same permission)
+  const canEditCatalog = can(me, "plans.manage");
+
+  useEffect(() => {
+    let live = true;
+    callOwnerFunction("me_admin").then((m) => live && setMe(m)).catch(() => live && setMe(null));
+    return () => { live = false; };
+  }, []);
+
+  // CFG-14, CFG-21: every business with its own plan, a page at a time
+  // only the latest request's answer is kept; while it is on its way the list says it is loading
+  const listKey = `${offset}|${query}|${reloads}`;
+  useEffect(() => {
+    let live = true;
+    callOwnerFunction("business_plans_list", { offset, limit: PAGE, search: query })
+      // a success without a list of businesses is an error, never "no businesses"
+      .then((data) => live && setList(data && Array.isArray(data.businesses)
+        ? { key: listKey, data, error: "" }
+        : { key: listKey, data: null, error: "Couldn't load this list. Try again with Refresh." }))
+      .catch((e) => live && setList({ key: listKey, data: null, error: friendlyError(e) }));
+    return () => { live = false; };
+  }, [offset, query, listKey]);
+  const listLoading = list.key !== listKey;
+  // only the rows of the page and search asked for: while the next one loads the previous rows are not shown under it
+  const listRows = listLoading ? [] : list.data?.businesses ?? [];
 
   const loadId = useRef(0);
   const load = useCallback(async () => {
@@ -29,7 +170,7 @@ export default function PlansPage({ onOpenBusiness }) {
     setError("");
     try {
       const result = await callOwnerFunction("plans_list");
-      if (id === loadId.current) setData(result);
+      if (id === loadId.current) { setData(result); setUpdatedAt(new Date()); }
     } catch (err) {
       if (id === loadId.current) setError(friendlyError(err));
     } finally {
@@ -57,25 +198,81 @@ export default function PlansPage({ onOpenBusiness }) {
   }
 
   return (
-    <section className="owner-page">
+    <section className="owner-page pp-page">
       <div className="owner-page-heading">
         <div>
           <div className="owner-eyebrow">Configuration</div>
           <h1>Plans & subscriptions</h1>
-          <p>The plans businesses can be on, and which business is on which plan.</p>
+          <p>Each business's own plan: tier, version, price, allowances and this period's balances.</p>
         </div>
-        <div className="op-heading-actions">
-          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
-          <button type="button" className="owner-primary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}>
-            ＋ New plan
+        <div className="op-heading-actions pp-heading-actions">
+          {updatedAt && <span className="pp-updated">Updated {updatedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>}
+          <button type="button" className="owner-secondary-button op-small sm pp-refresh" onClick={() => { load(); setReloads((n) => n + 1); }} disabled={loading}>
+            <Icon name="refresh" size="sm" />{loading ? "Loading" : "Refresh"}
           </button>
         </div>
       </div>
 
       <div className="wiz-note op-gap">
-        <strong>Pricing not configured.</strong> Prices haven't been decided, so plans have no amounts here and
-        no customer is charged. Billing is connected later, once pricing is final.
+        <strong>Prices are set per business</strong> in Create Business, at the Plan & pricing step. Payments aren't
+        connected yet, so nothing here charges anyone.
       </div>
+
+      <section className="owner-panel op-gap">
+        <div className="owner-panel-heading ag-toolbar">
+          <div>
+            <h2>Business plans</h2>
+            <p>{!list.data ? "Every business and the plan saved for it."
+              : list.data.withPlan == null ? `${list.data.total} ${list.data.total === 1 ? "business matches" : "businesses match"} this search.`
+                : `${list.data.withPlan} of ${list.data.total} businesses have a plan saved.`}</p>
+          </div>
+          <form onSubmit={(e) => { e.preventDefault(); setOffset(0); setQuery(search.trim()); }}>
+            <input className="ag-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search business" aria-label="Search business" />
+          </form>
+        </div>
+        {list.error && <div className="owner-form-error" role="alert">{list.error}</div>}
+        <div className="owner-table-wrap" tabIndex={0}>
+          <table className="owner-table pp-table">
+            <thead><tr><th>Business</th><th>Plan</th><th className="num">Price</th><th>Allowances</th><th>Subscription</th><th className="col-actions"><span className="pp-sr-only">Actions</span></th></tr></thead>
+            <tbody>
+              {listRows.map((b) => (
+                <tr key={b.businessId}>
+                  <td className="pp-business">
+                    <button type="button" className="op-name pp-name" title={b.businessName} onClick={() => onOpenBusiness(b.businessId)}>{b.businessName}</button>
+                    {b.plan && <span className="pp-phone-line">{tierShort(b.plan)}, {priceText(b.plan)}</span>}
+                  </td>
+                  <td className="pp-nowrap" data-label="Plan">{b.plan ? tierShort(b.plan) : <EmptyValue label="No plan saved" />}</td>
+                  <td className="num" data-label="Price">{b.plan ? priceText(b.plan) : <EmptyValue label="Not set" />}</td>
+                  <td className="pp-nowrap" data-label="Allowances">{b.plan ? allowanceText(b.plan) : <EmptyValue label="Not set" />}</td>
+                  <td className="pp-sub" data-label="Subscription">{subscriptionBadge(b)}</td>
+                  <td className="col-actions">
+                    {b.plan
+                      ? <button type="button" className="owner-secondary-button op-small sm" onClick={() => setOpen(b)} aria-label={`Plan details for ${b.businessName}`}>Details</button>
+                      : <button type="button" className="owner-secondary-button op-small sm" onClick={() => onOpenBusiness(b.businessId)} aria-label={`Set up a plan for ${b.businessName}`}>Set up plan</button>}
+                  </td>
+                </tr>
+              ))}
+              {!listRows.length && (
+                <tr className="pp-empty-row"><td colSpan={6}><div className="op-empty">{listLoading ? "Loading..." : list.error ? "Couldn't load this list. Try again with Refresh." : query ? "No business matches this search." : "No businesses yet."}</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {list.data && !listLoading && <Pager total={list.data.total} offset={offset} onChange={setOffset} />}
+      </section>
+      {open && <PlanDrawer row={open} onClose={() => setOpen(null)} onOpenBusiness={onOpenBusiness} />}
+
+      <section className="owner-panel op-gap">
+        <div className="owner-panel-heading">
+          <div>
+            <h2>Fallback limits</h2>
+            <p>Shared plans whose limits apply only to a business with no plan of its own. Their prices aren't used: each business's price is on its own plan.</p>
+          </div>
+          {canEditCatalog && (
+            <button type="button" className="owner-secondary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}>＋ New shared plan</button>
+          )}
+        </div>
+      </section>
 
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
 
@@ -88,7 +285,7 @@ export default function PlansPage({ onOpenBusiness }) {
               <input required value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
             </label>
             <label className="owner-field">
-              <span>Available for new businesses</span>
+              <span>Accepted from the payment provider</span>
               <select value={editing.isActive ? "yes" : "no"} onChange={(e) => setEditing({ ...editing, isActive: e.target.value === "yes" })}>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -117,22 +314,24 @@ export default function PlansPage({ onOpenBusiness }) {
                   <h2>{p.name}</h2>
                   {p.description && <p>{p.description}</p>}
                 </div>
-                <Pill tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "Available" : "Hidden"}</Pill>
+                <Pill tone={p.is_active ? "success" : "neutral"}>{p.is_active ? "Accepted" : "Not accepted"}</Pill>
               </div>
-              <div className="pl-price">Pricing not configured</div>
+              <div className="op-muted">Payment provider name: {p.slug}</div>
               {features.length > 0 && (
                 <div className="op-rule-block"><h4>Features</h4><ul className="op-bullets">{features.map(([label, value]) => <li key={label}>{label}: <strong>{value}</strong></li>)}</ul></div>
               )}
               <div className="op-rule-block"><h4>Allowances</h4><ul className="op-bullets">{allowances.map(([label, value]) => <li key={label}>{label}: <strong>{value}</strong></li>)}</ul></div>
               <div className="pl-foot">
-                <span className="op-muted">{p.subscriptions} {p.subscriptions === 1 ? "business" : "businesses"}</span>
-                <button
-                  type="button"
-                  className="op-link"
-                  onClick={() => setEditing({ planId: p.id, name: p.name, description: p.description || "", isActive: p.is_active })}
-                >
-                  Edit
-                </button>
+                <span className="op-muted">{p.subscriptions} {p.subscriptions === 1 ? "business" : "businesses"} linked</span>
+                {canEditCatalog && (
+                  <button
+                    type="button"
+                    className="op-link"
+                    onClick={() => setEditing({ planId: p.id, name: p.name, description: p.description || "", isActive: p.is_active })}
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
             </section>
           );
@@ -142,30 +341,6 @@ export default function PlansPage({ onOpenBusiness }) {
         )}
       </div>
 
-      <section className="owner-panel">
-        <div className="owner-panel-heading">
-          <div><h2>Subscriptions</h2><p>Which plan each business is on. Subscription status is separate from setup status.</p></div>
-        </div>
-        <div className="owner-table-wrap" tabIndex={0}>
-          <table className="owner-table">
-            <thead><tr><th>Business</th><th>Plan</th><th>Status</th><th>Billing</th><th>Started</th></tr></thead>
-            <tbody>
-              {(data?.subscriptions ?? []).map((s) => (
-                <tr key={s.id}>
-                  <td><button type="button" className="op-name" onClick={() => onOpenBusiness(s.business_id)}>{s.business_name}</button></td>
-                  <td>{s.plan_name}</td>
-                  <td><Pill tone={SUB_TONE[s.status] ?? "neutral"}>{humanize(s.status)}</Pill></td>
-                  <td>{s.billing_interval ? humanize(s.billing_interval) : "Not set"}</td>
-                  <td>{formatDate(s.created_at)}</td>
-                </tr>
-              ))}
-              {!data?.subscriptions?.length && (
-                <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No subscriptions yet."}</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
       <BillingRecords onOpenBusiness={onOpenBusiness} />
     </section>
   );

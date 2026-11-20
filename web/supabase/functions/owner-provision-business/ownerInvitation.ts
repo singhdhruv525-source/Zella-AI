@@ -23,14 +23,17 @@ export function latestOwnerInvitation(admin: SupabaseClient, businessId: string,
 
 // An owner invitation only moves out of an open state. A cancel or acceptance that lands while the email is being
 // sent wins: the late write matches no row and the caller is told, instead of reopening a closed invitation.
-export async function moveOwnerInvitation(admin: SupabaseClient, id: string, patch: Json): Promise<boolean> {
-  const { data, error } = await admin
+// lease: a resend's claim (its updated_at). Given, the write applies only while that claim is still the invitation's,
+// so a send that outlived its lease never writes over a newer claim.
+export async function moveOwnerInvitation(admin: SupabaseClient, id: string, patch: Json, lease?: string): Promise<boolean> {
+  let q = admin
     .from("business_invitations")
     .update(patch)
     .eq("id", id)
     .eq("role", "owner")
-    .in("status", OPEN_OWNER_INVITATION)
-    .select("id");
+    .in("status", OPEN_OWNER_INVITATION);
+  if (lease) q = q.eq("updated_at", lease);
+  const { data, error } = await q.select("id");
   if (error) throw error;
   return (data ?? []).length > 0;
 }

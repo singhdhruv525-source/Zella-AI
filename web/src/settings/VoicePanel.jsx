@@ -6,7 +6,7 @@ import { Banner, Card, Field, LoadState, SaveBar, useAsync, useForm } from "./Se
 // the business, or a Zella Voice admin, can change it; the server checks the voice is on the approved list.
 
 const CODES = {
-  NOT_ALLOWED: "Only owners, admins and managers can change the voice.",
+  NOT_ALLOWED: "You can't change the voice here. In the business app, owners, admins and managers can; Zella Voice admins need permission to set up AI.",
   UNKNOWN_VOICE: "Pick a voice from the list.",
   NOT_FOUND: "This business no longer exists.",
 };
@@ -43,8 +43,8 @@ function Editor({ businessId, data }) {
       {data.provider !== "11labs" && (
         <Banner tone="warn">Zella Voice's voices currently come from another provider, so this choice isn't used until ElevenLabs is the voice provider again.</Banner>
       )}
-      <p className="zs-muted">Voices can't be played here yet. To hear one, make a test call after it's saved.</p>
-      {data.can_edit ? <SaveBar form={form} onSave={save} /> : <Banner>Only owners, admins and managers can change the voice.</Banner>}
+      <p className="zs-muted">Voices can't be played here yet. A saved voice is used once the phone line's settings are updated with it{data.provider !== "11labs" ? ", and only while ElevenLabs is the voice provider" : ""}; to hear it then, call the business's Zella Voice number.</p>
+      {data.can_edit ? <SaveBar form={form} onSave={save} /> : <Banner>You can see the voice but not change it. In the business app owners, admins and managers can change it; Zella Voice admins need permission to set up AI.</Banner>}
     </Card>
   );
 }

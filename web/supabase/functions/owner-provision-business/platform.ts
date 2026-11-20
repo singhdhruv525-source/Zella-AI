@@ -235,6 +235,9 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
       .select("id, business_id, kind, file_name, mime_type, size_bytes, status, review_note, created_at, reviewed_at")
       .neq("status", "replaced").order("created_at", { ascending: status === "pending_review" }).limit(200);
     if (status !== "all") query = query.eq("status", status);
+    // BIZ-31: "Review" on a business's page opens the queue for that business only
+    const businessId = fields.businessId ? requireId(fields.businessId) : null;
+    if (businessId) query = query.eq("business_id", businessId);
     const { data, error } = await query;
     if (error) {
       if (missingTable(error)) return { available: false, documents: [], bucket: DOCUMENT_BUCKET };
@@ -246,12 +249,14 @@ export function platformHandlers(admin: SupabaseClient, fields: Json, kit: Platf
       : { data: [], error: null };
     if (nameError) throw nameError;
     const byId = new Map((names ?? []).map((b) => [b.id, b]));
-    const { data: counts, error: countError } = await admin.from("business_verification_documents").select("status").neq("status", "replaced");
+    let countQuery = admin.from("business_verification_documents").select("status").neq("status", "replaced");
+    if (businessId) countQuery = countQuery.eq("business_id", businessId);
+    const { data: counts, error: countError } = await countQuery;
     if (countError) throw countError;
     const totals: Record<string, number> = { pending_review: 0, verified: 0, rejected: 0 };
     for (const c of counts ?? []) totals[c.status] = (totals[c.status] ?? 0) + 1;
     return {
-      available: true, totals, bucket: DOCUMENT_BUCKET,
+      available: true, totals, bucket: DOCUMENT_BUCKET, businessId,
       documents: (data ?? []).map((d) => ({ ...d, business_name: byId.get(d.business_id)?.name ?? "Deleted business", business_status: byId.get(d.business_id)?.onboarding_status ?? null })),
     };
   };

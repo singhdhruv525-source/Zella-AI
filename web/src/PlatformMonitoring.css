@@ -1,0 +1,184 @@
+/* Incidents, Providers and alerts, Failed events (PlatformMonitoring.jsx, IncidentDialog.jsx).
+   Page scoped until the shared PageHeader, Pager footer, sm buttons and EmptyValue land in components.css. */
+
+/* Blank values: one quiet word, never an empty cell. */
+.inc-panel .empty-value,
+.pm-panel .empty-value,
+.ao-dialog-body .empty-value { color: var(--zella-text-faint); font-weight: 400; }
+
+/* Badges: one shape (the shared tone map: Resolved is success, Open is danger, On status page is info). */
+.inc-panel .op-pill,
+.pm-panel .op-pill {
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--zella-radius-full);
+  font-size: var(--zella-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.inc-panel .op-pill-info,
+.pm-panel .op-pill-info { background: var(--zella-info-bg); color: var(--zella-info); }
+.inc-panel .op-pill-neutral,
+.pm-panel .op-pill-neutral { background: var(--zella-subtle); color: var(--zella-text-secondary); }
+
+/* Small buttons (the shared .sm size). */
+.inc-panel .inc-sm,
+.pm-panel .inc-sm,
+.inc-panel .inc-open-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 var(--zella-space-3);
+  font-size: var(--zella-text-sm);
+  white-space: nowrap;
+}
+.inc-panel .inc-open-button { height: 36px; min-height: 36px; padding: 0 var(--zella-space-4); }
+
+/* Card heading: an eyebrow, the title, then Updated and Refresh on the right. */
+.inc-head { align-items: flex-start; }
+.inc-eyebrow {
+  margin-bottom: 2px;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  font-weight: 600;
+}
+.inc-head h2 { font-family: var(--zella-font); font-weight: 600; letter-spacing: 0; }
+.inc-head p { max-width: 64ch; }
+.inc-head-actions { display: flex; align-items: center; gap: var(--zella-space-3); flex-shrink: 0; }
+.inc-updated { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); white-space: nowrap; }
+
+.inc-notices { display: grid; gap: var(--zella-space-2); padding: var(--zella-space-3) var(--zella-space-5) 0; }
+.inc-notices > * { margin: 0; }
+
+/* New incident: one row of labelled fields. */
+.inc-new {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1.4fr) auto;
+  gap: var(--zella-space-3);
+  align-items: end;
+  padding: var(--zella-space-4) var(--zella-space-5);
+  border-bottom: 1px solid var(--zella-border);
+  background: var(--zella-alt);
+}
+.inc-field { display: grid; gap: 6px; min-width: 0; }
+.inc-field > span { color: var(--zella-text-2); font-size: var(--zella-text-xs); font-weight: 600; }
+.inc-field em { color: var(--zella-text-secondary); font-style: normal; font-weight: 400; }
+.inc-panel .owner-input { height: 36px; width: 100%; max-width: none; }
+
+/* Incident rows */
+.op-list.inc-list li.inc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--zella-space-4);
+  padding: var(--zella-space-4) var(--zella-space-5);
+  border-top: 1px solid var(--zella-border);
+}
+.op-list.inc-list li.inc-row:first-child { border-top: 0; }
+.op-list.inc-list li.inc-row.is-open { box-shadow: inset 3px 0 0 var(--zella-danger); }
+.inc-main { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.inc-title-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.op-list .inc-title { color: var(--zella-text); font-size: var(--zella-text-base); font-weight: 600; }
+.op-list .inc-main span.inc-meta { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+.op-list .inc-main span.inc-detail { max-width: 72ch; color: var(--zella-text-2); font-size: var(--zella-text-sm); }
+.op-list .inc-main span.inc-detail b { font-weight: 600; }
+.op-list .inc-main span.inc-public {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 72ch;
+  padding: 6px 10px;
+  border-radius: var(--zella-radius-sm);
+  background: var(--zella-info-bg);
+  color: var(--zella-text-2);
+  font-size: var(--zella-text-sm);
+}
+.op-list .inc-main span.inc-public > span { color: inherit; font-size: inherit; }
+.inc-public .ba-icon { color: var(--zella-info); }
+
+/* Row actions: quiet text actions in one line. */
+.op-list .inc-main span.inc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--zella-space-4); margin-top: 2px; }
+.inc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--zella-text);
+  font: inherit;
+  font-size: var(--zella-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.inc-link:hover, .inc-link:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.inc-link:focus-visible { outline: 2px solid var(--zella-focus); outline-offset: 2px; border-radius: var(--zella-radius-sm); }
+.inc-link:disabled { color: var(--zella-text-faint); cursor: not-allowed; text-decoration: none; }
+.inc-link .ba-icon { color: var(--zella-text-secondary); }
+
+.op-list li > div.inc-resolve { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.inc-resolve .owner-input { width: 240px; }
+
+/* side by side when the incident column is wide enough; the fields and buttons wrap onto their own lines when not */
+.op-list .inc-main span.inc-edit { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; }
+.op-list .inc-main span.inc-edit > .owner-input { flex: 1 1 180px; min-width: 0; }
+.op-list .inc-main span.inc-edit > .owner-input + .owner-input { flex-grow: 1.4; }
+.op-list .inc-main span.inc-edit-actions { display: flex; gap: 8px; }
+
+/* Updates timeline */
+.op-list .inc-main .inc-timeline {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  max-width: 760px;
+  margin-top: 4px;
+  border: 1px solid var(--zella-border);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-card);
+}
+.op-list .inc-main .inc-timeline > * { padding: 10px var(--zella-space-4); border-top: 1px solid var(--zella-border); }
+.op-list .inc-main .inc-timeline > *:first-child { border-top: 0; }
+.op-list .inc-main span.inc-update { display: grid; gap: 2px; }
+.op-list .inc-main span.inc-update-time { color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+.op-list .inc-main span.inc-update-body { color: var(--zella-text); font-size: var(--zella-text-sm); }
+.op-list .inc-main span.inc-post { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; background: var(--zella-alt); }
+.op-list .inc-main label.inc-check { display: inline-flex; align-items: center; gap: 6px; color: var(--zella-text-2); font-size: var(--zella-text-sm); white-space: nowrap; }
+
+/* Empty states */
+.op-list li.inc-empty { justify-content: flex-start; gap: 8px; color: var(--zella-text-secondary); }
+.op-list li.inc-empty .ba-icon { color: var(--zella-success); }
+.op-list li.inc-empty span:not(.ba-icon) { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+
+/* Footer inside the card padding (the shared Pager shape). */
+.inc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: var(--zella-space-3) var(--zella-space-5);
+  border-top: 1px solid var(--zella-border);
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-sm);
+}
+
+/* Providers and alerts, Failed events */
+.pm-panel .owner-panel-heading h2 { font-family: var(--zella-font); font-weight: 600; letter-spacing: 0; }
+.op-list span.pm-error { color: var(--zella-danger); }
+
+@media (max-width: 760px) {
+  .inc-head { flex-direction: column; align-items: stretch; gap: var(--zella-space-3); }
+  .inc-head-actions { justify-content: space-between; }
+  .inc-new { grid-template-columns: 1fr; padding: var(--zella-space-4); }
+  .inc-panel .inc-open-button { width: 100%; justify-content: center; }
+  .op-list.inc-list li.inc-row { grid-template-columns: 1fr; padding: var(--zella-space-4); }
+  .inc-resolve .owner-input { width: auto; flex: 1; min-width: 0; }
+  .op-list .inc-main span.inc-edit > .owner-input { flex-basis: 100%; }
+  .op-list .inc-main span.inc-post { grid-template-columns: 1fr auto; }
+  .op-list .inc-main span.inc-post input { grid-column: 1 / -1; }
+  .inc-foot { padding: var(--zella-space-3) var(--zella-space-4); }
+  .inc-notices { padding: var(--zella-space-3) var(--zella-space-4) 0; }
+}

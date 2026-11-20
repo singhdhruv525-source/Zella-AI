@@ -7,7 +7,7 @@ import { SidebarBrand } from "../navigation/SidebarBrand";
 import { getApi } from "./api";
 import ProgressSteps from "./ProgressSteps";
 import { ErrorText, Failed, Loading, NotReady } from "./kit";
-import { SCREENS, STEP_KEYS, afterCompleteError, canOpen, errorCode, isNotReady, previousStep, resumeStep, stateAfterResume } from "./steps";
+import { SCREENS, STEP_KEYS, afterCompleteError, canOpen, errorCode, isNotReady, previousStep, resumeStep, movedNotice, stateAfterResume, stepAfterError } from "./steps";
 import { SecurityScreen, WelcomeScreen } from "./StartScreens";
 import { DetailsScreen } from "./DetailsScreen";
 import { IdentityScreen } from "./IdentityScreen";
@@ -92,6 +92,7 @@ function Journey({ api, email }) {
   const [view, setView] = useState(null);
   const [left, setLeft] = useState(null);       // after Finish later: { saved }
   const [leaving, setLeaving] = useState(false);
+  const [moved, setMoved] = useState(null);     // { step, text }: why the journey moved the owner to this step
   const heading = useRef(null);
 
   const start = useCallback(async () => {
@@ -144,20 +145,26 @@ function Journey({ api, email }) {
   const onComplete = useCallback(async (step, { stay = false } = {}) => {
     try {
       const res = await api.completeStep(state.business_id, step);
+      setMoved(null);
       onState(res?.state, { advance: !stay });
     } catch (error) {
+      // A new plan version was saved while this step was open (show the plan, which says so), or the server is on another
+      // step (show that one). The state is read again first; the error still goes back to the screen, so it never treats
+      // the step as finished (the last step would open the CRM). If reading fails, the screen stays as it is.
       const next = afterCompleteError(step, error);
-      // a new plan version was saved while this step was open: read the state and show the plan, which says so. The
-      // error still goes back to the screen, so it never treats the step as finished (the last step would open the CRM).
-      if (next === "plan") {
+      if (next) {
         const fresh = await api.getState(state.business_id).catch(() => null);
-        if (fresh) { setState(fresh); show("plan"); }
+        if (fresh) {
+          const to = stepAfterError(next, fresh);
+          setState(fresh); show(to);
+          // the screen that failed goes away, so the journey keeps the reason and shows it on the step it moved to
+          const text = movedNotice(next, step, to, error);
+          if (text) setMoved({ step: to, text });
+        }
       }
-      // a step that is already further along, or an earlier one reopened: show where the server says we are
-      if (next === "reload") reload();
       throw error;
     }
-  }, [api, state, onState, reload, show]);
+  }, [api, state, onState, show]);
 
   async function finishLater() {
     setLeaving(true);
@@ -207,6 +214,7 @@ function Journey({ api, email }) {
       <ProgressSteps screens={SCREENS} current={STEP_KEYS.indexOf(step)} />
       {back && canOpen(state, back) && <button type="button" className="ba-link zob-back" onClick={() => show(back)}><Icon name="arrow_back" size="sm" /> Back</button>}
       <h1 ref={heading} tabIndex={-1}>{TITLES[step](state)}</h1>
+      {moved?.step === step && <p className="ba-error" role="alert">{moved.text}</p>}
       {step !== resumeStep(state) && canOpen(state, step) && step !== "done" && (
         <p className="zob-muted zob-lookback">You finished this step. <button type="button" className="ba-link" onClick={() => show(resumeStep(state))}>Go to where you left off</button></p>
       )}

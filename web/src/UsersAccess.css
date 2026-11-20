@@ -1,0 +1,47 @@
+/* Users and access (UsersAccess.jsx). Page scoped. */
+
+/* The authenticator step: a calm security step in the info tone, not a warning */
+.us-fresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--zella-space-3) var(--zella-space-5);
+  padding: var(--zella-space-4) var(--zella-space-5);
+  border: 1px solid var(--zella-info-border);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-info-bg);
+}
+
+.us-fresh-text { display: flex; align-items: flex-start; gap: var(--zella-space-3); flex: 1 1 320px; min-width: 0; align-self: center; }
+.us-fresh-icon.ba-icon { flex: none; color: var(--zella-info); font-size: 20px; line-height: 1.4; }
+.us-fresh-text p { margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); font-weight: 400; line-height: 1.5; }
+.us-fresh-text strong { color: var(--zella-info); font-weight: 600; }
+.us-fresh-error { display: block; margin-top: var(--zella-space-1); color: var(--zella-danger); font-weight: 600; }
+
+.us-fresh-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--zella-space-2); }
+.us-fresh-actions .op-small { min-height: 36px; }
+
+.us-fresh-field { display: flex; flex-direction: column; gap: var(--zella-space-1); }
+.us-fresh-field > span { color: var(--zella-text); font-size: var(--zella-text-xs); font-weight: 600; }
+.us-fresh-code {
+  box-sizing: border-box;
+  width: 140px;
+  height: 36px;
+  padding: 0 var(--zella-space-3);
+  border: 1px solid var(--zella-border-strong);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-card);
+  color: var(--zella-text);
+  font-family: var(--zella-font-mono);
+  font-size: var(--zella-text-base);
+  letter-spacing: 0.2em;
+}
+.us-fresh-code:focus,
+.us-fresh-code:focus-visible { border-color: var(--zella-primary); box-shadow: var(--zella-focus); outline: none; }
+.us-fresh-code:disabled { background: var(--zella-alt); color: var(--zella-text-faint); }
+
+@media (max-width: 600px) {
+  .us-fresh-actions { width: 100%; }
+  .us-fresh-field { flex: 1 1 140px; }
+}

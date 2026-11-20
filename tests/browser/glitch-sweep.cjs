@@ -8,7 +8,8 @@
 //   a page still loading after 10 s, sideways overflow and the elements causing it, clipped buttons, broken images,
 //   empty pages, and axe-core problems (serious and critical; WCAG 2.1 AA) — plus a screenshot.
 //
-// Usage: node tests/browser/glitch-sweep.cjs <persona|all> [--mobile] [--dark] [--only=substring] [--max=N]
+// Usage: node tests/browser/glitch-sweep.cjs <persona|all> [--mobile] [--dark] [--only=substring] [--max=N] [--no-axe]
+//   axe-core: npm ci --prefix tests/browser once (pinned in tests/browser/package.json); the crawl stops without it
 //   personas and their emails: PERSONAS below (env PERSONAS='{"name":"email"}' replaces them)
 //   env APP_URL (default http://localhost:5199), BACKEND_URL (default http://localhost:54321), OUT (results folder)
 const { chromium } = require("playwright");
@@ -18,7 +19,7 @@ const path = require("path");
 const APP = process.env.APP_URL ?? "http://localhost:5199";
 const BACKEND = process.env.BACKEND_URL ?? "http://localhost:54321";
 const OUT = process.env.OUT ?? path.join(__dirname, "out", "glitch");
-let AXE = null; try { AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8"); } catch { /* axe optional */ }
+const { loadAxe, runAxe } = require("./axe.cjs");
 const PASSWORD = "Test-pass-1";
 // Never against a real project: the backend must be the local stand-in on this machine.
 {
@@ -29,6 +30,11 @@ const PASSWORD = "Test-pass-1";
 const args = process.argv.slice(2);
 const MOBILE = args.includes("--mobile"), DARK = args.includes("--dark");
 const ONLY = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7);
+// axe-core is required (PLT-06): without it the crawl stops, never reporting "no accessibility problems". --no-axe
+// skips the scan on purpose, and each page then says axe: "skipped".
+const NO_AXE = args.includes("--no-axe");
+let AXE = null;
+if (!NO_AXE) { try { AXE = loadAxe(); } catch (e) { console.error(e.message); process.exit(2); } }
 const MAX = Number((args.find((a) => a.startsWith("--max=")) ?? "--max=400").slice(6));
 const PERSONAS = process.env.PERSONAS ? JSON.parse(process.env.PERSONAS) : {
   admin: "admin@zella.test", readonly: "readonly@zella.test",
@@ -223,16 +229,7 @@ async function sweep(browser, name, email) {
       if (MOBILE) await page.keyboard.press("Escape").catch(() => {});
       if (ONLY && !key.includes(ONLY)) continue;
       const info = await inspect(page, vw.width);
-      let axe = null;
-      if (AXE) {
-        await page.addScriptTag({ content: AXE }).catch(() => {});
-        axe = await page.evaluate(async () => {
-          if (!window.axe) return null;
-          const r = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] }, resultTypes: ["violations"] });
-          return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => ({ id: v.id, n: v.nodes.length,
-            sample: v.nodes.slice(0, 2).map((n) => `${n.target.join(" ")} :: ${(n.failureSummary ?? "").split("\n").slice(-1)[0].slice(0, 120)}`) }));
-        }).catch(() => null);
-      }
+      const axe = NO_AXE ? "skipped" : await runAxe(page, AXE);   // only --no-axe skips; anything else is scanned or reported
       const shot = path.join(dir, (key.replace(UUID, "id").replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "root") + ".png");
       await page.screenshot({ path: shot }).catch(() => {});
       const row = { route: key, ...info, stuck, pageErrors: [...pageErrors], failed: [...failed], consoleErrors: [...new Set(consoleErrors)].slice(0, 5), axe, shot };
@@ -242,7 +239,7 @@ async function sweep(browser, name, email) {
         row.consoleErrors.length && `console:${row.consoleErrors[0]}`, row.overflowX > 0 && `overflowX=${row.overflowX} ${row.wide.slice(0, 2).join(" ; ")}`,
         !MOBILE && row.scrollers.length && `table-scrolls:${row.scrollers.join(" ; ")}`,
         row.clipped.length && `clipped:${row.clipped.slice(0, 2).join(" ; ")}`, row.brokenImg.length && "broken-img", row.rawValues.length && `raw:${row.rawValues.join("/")}`,
-        row.empty && !row.notAvailable && "EMPTY", row.axe?.length && `axe:${row.axe.map((a) => a.id).join(",")}`,
+        row.empty && !row.notAvailable && "EMPTY", Array.isArray(row.axe) && row.axe.length && `axe:${row.axe.map((a) => a.id).join(",")}`,
       ].filter(Boolean);
       row.problems = problems;
       results.push(row);

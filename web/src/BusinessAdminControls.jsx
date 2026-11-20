@@ -9,6 +9,7 @@ import { friendlyError } from "./admin/adminOps";
 // types (tables, recalls, vehicles ...) are switched on. Module dependencies are checked by the server; switching a
 // record type off hides it in the business's CRM and keeps its records.
 
+// Fallback only: the server sends each module's `requires` (module_deps.ts, CFG-02); an older server doesn't.
 const NEEDS = { "ai-receptionist": ["calls"], "ai-appointments": ["calendar"], "ai-follow-up": ["automations"], "ai-sales": ["calls"], "ai-support": ["calls"] };
 
 function Switch({ on, label, disabled, onChange }) {
@@ -19,24 +20,30 @@ function Switch({ on, label, disabled, onChange }) {
   );
 }
 
-export function BusinessModulesCard({ businessId, modules, onSaved }) {
+// canEdit: the admin has businesses.manage. Without it the switches are read only and there is nothing to save (the
+// server refuses the save anyway).
+export function BusinessModulesCard({ businessId, modules, onSaved, canEdit = false }) {
   const [draft, setDraft] = useState(() => Object.fromEntries(modules.map((m) => [m.id, m.enabled])));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const dirty = modules.some((m) => draft[m.id] !== m.enabled);
   const bySlug = Object.fromEntries(modules.map((m) => [m.slug, m]));
+  const needsOf = (slug) => bySlug[slug]?.requires ?? NEEDS[slug] ?? [];
+  // A module whose dependency this industry doesn't offer can't be switched on (the server refuses it too).
+  const missing = (m) => needsOf(m.slug).filter((dep) => !bySlug[dep]);
+  const nameOf = (slug) => slug.replace(/[-_]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
   // Turning a module on turns on what it needs; turning one off is refused while another needs it.
   function toggle(m, on) {
     const next = { ...draft, [m.id]: on };
     if (on) {
       const stack = [m.slug];
-      while (stack.length) for (const dep of NEEDS[stack.pop()] ?? []) if (bySlug[dep] && !next[bySlug[dep].id]) { next[bySlug[dep].id] = true; stack.push(dep); }
+      while (stack.length) for (const dep of needsOf(stack.pop())) if (bySlug[dep] && !next[bySlug[dep].id]) { next[bySlug[dep].id] = true; stack.push(dep); }
     }
     setDraft(next);
   }
-  const neededBy = (m) => modules.filter((o) => draft[o.id] && (NEEDS[o.slug] ?? []).includes(m.slug));
+  const neededBy = (m) => modules.filter((o) => draft[o.id] && needsOf(o.slug).includes(m.slug));
 
   async function save() {
     setSaving(true);
@@ -59,20 +66,23 @@ export function BusinessModulesCard({ businessId, modules, onSaved }) {
       <div className="bac-list">
         {modules.map((m) => {
           const needed = neededBy(m);
+          const lacking = missing(m);
           return (
             <div key={m.id} className={`bac-row ${draft[m.id] ? "on" : ""}`}>
               <div>
                 <strong>{m.name}</strong>
-                <small>{needed.length && draft[m.id] ? `Needed by ${needed.map((n) => n.name).join(", ")}` : m.description || m.slug}</small>
+                <small>{needed.length && draft[m.id] ? `Needed by ${needed.map((n) => n.name).join(", ")}`
+                  : lacking.length && !draft[m.id] ? `Needs ${lacking.map(nameOf).join(" and ")}, which this industry doesn't offer`
+                  : m.description || m.slug}</small>
               </div>
-              <Switch on={Boolean(draft[m.id])} label={m.name} disabled={saving || (draft[m.id] && needed.length > 0)} onChange={(on) => toggle(m, on)} />
+              <Switch on={Boolean(draft[m.id])} label={m.name} disabled={!canEdit || saving || (draft[m.id] && needed.length > 0) || (!draft[m.id] && lacking.length > 0)} onChange={(on) => toggle(m, on)} />
             </div>
           );
         })}
       </div>
       {error && <div className="owner-form-error op-gap-top" role="alert">{error}</div>}
       {notice && <div className="vq-notice op-gap-top" role="status">{notice}</div>}
-      {modules.length > 0 && (
+      {canEdit && modules.length > 0 && (
         <div className="bac-actions">
           <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setDraft(Object.fromEntries(modules.map((m) => [m.id, m.enabled])))}>Discard</button>
           <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save modules"}</button>
@@ -82,7 +92,7 @@ export function BusinessModulesCard({ businessId, modules, onSaved }) {
   );
 }
 
-export function BusinessRecordsCard({ businessId }) {
+export function BusinessRecordsCard({ businessId, canEdit = false }) {
   const [data, setData] = useState(null);
   const [draft, setDraft] = useState({});
   const [loading, setLoading] = useState(true);
@@ -145,8 +155,10 @@ export function BusinessRecordsCard({ businessId }) {
       {data && !data.types.length && (
         <div className="op-empty">
           {data.presetPending
-            ? <>Record types haven't been added yet. They're added when the business first opens its CRM, or now:{" "}
-              <button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={applyPreset}>{saving ? "Adding..." : "Add the industry's record types"}</button></>
+            ? canEdit
+              ? <>Record types haven't been added yet. They're added when the business first opens its CRM, or now:{" "}
+                <button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={applyPreset}>{saving ? "Adding..." : "Add the industry's record types"}</button></>
+              : "Record types haven't been added yet. They're added when the business first opens its CRM."
             : ["testing", "ready", "active", "paused"].includes(data.status)
               ? "This business's industry has no record types."
               : "Record types are added when setup is finished."}
@@ -161,12 +173,12 @@ export function BusinessRecordsCard({ businessId }) {
               <small>{t.records} record{t.records === 1 ? "" : "s"}{!draft[t.key] && t.records ? " · kept while hidden" : ""}</small>
             </div>
             {t.preset_key && <Pill>{humanize(t.preset_key)}</Pill>}
-            <Switch on={Boolean(draft[t.key])} label={t.plural} disabled={saving} onChange={(on) => setDraft({ ...draft, [t.key]: on })} />
+            <Switch on={Boolean(draft[t.key])} label={t.plural} disabled={!canEdit || saving} onChange={(on) => setDraft({ ...draft, [t.key]: on })} />
           </div>
         ))}
       </div>
       {notice && <div className="vq-notice op-gap-top" role="status">{notice}</div>}
-      {data?.types.length > 0 && (
+      {canEdit && data?.types.length > 0 && (
         <div className="bac-actions">
           <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setDraft(Object.fromEntries(data.types.map((t) => [t.key, t.enabled])))}>Discard</button>
           <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save record types"}</button>

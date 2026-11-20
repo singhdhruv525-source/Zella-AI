@@ -5,6 +5,7 @@
 // or business id from the browser. Secret values never leave the server: only whether they are set.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DraftAge } from "./lifecycle.ts";
 
 type Json = Record<string, unknown>;
 
@@ -17,6 +18,8 @@ export type Kit = {
   InputError: new (message: string, status?: number) => Error;
   EMAIL_RE: RegExp;
   UUID_RE: RegExp;
+  // BIZ-13b (lifecycle.ts), passed in by index.ts; without it no draft is marked abandoned
+  draftAges?: (admin: SupabaseClient, rows: { id: string; name: unknown; created_at: unknown; updated_at: unknown }[]) => Promise<{ days: number; ages: Map<string, DraftAge> }>;
 };
 
 // Permission each action needs. Actions not listed are refused (index.ts), so a new action must be added here.
@@ -32,13 +35,13 @@ export const PERMISSIONS: Record<string, string> = {
   business_suspend: "businesses.lifecycle", business_reactivate: "businesses.lifecycle", business_cancel: "businesses.lifecycle",
   business_undo_cancel: "businesses.lifecycle",
   audit_logs: "audit.view", industry_save: "platform.configure", industry_create: "platform.configure",
-  admins_list: "security.view", admin_invite: "admins.manage", admin_update: "admins.manage",
+  admins_list: "security.view", admin_invite: "admins.manage", admin_update: "admins.manage", admin_sessions_end: "admins.manage",
   tickets_list: "support.manage", ticket_create: "support.manage", ticket_update: "support.manage",
   plans_list: "billing.view", plan_save: "plans.manage", platform_setting_save: "platform.configure",
   // settings actions (this file)
   me_admin: "businesses.view", roles_get: "security.view", roles_save: "roles.manage", admins_security: "security.view",
   platform_profile_get: "businesses.view", platform_profile_save: "platform.configure", maintenance_save: "platform.configure",
-  tenants_search: "businesses.view", tenant_summary: "businesses.view", onboarding_overview: "businesses.view",
+  tenants_search: "businesses.view", businesses_list: "businesses.view", tenant_summary: "businesses.view", onboarding_overview: "businesses.view",
   billing_overview: "billing.view", payments_list: "billing.view", subscriptions_list: "billing.view",
   plan_entitlements_save: "plans.manage", voice_pricing_list: "billing.view", voice_pricing_add: "billing.manage",
   usage_summary: "analytics.view", numbers_list: "businesses.view", number_assign: "telephony.manage", number_set_status: "telephony.manage",
@@ -65,6 +68,7 @@ export const PERMISSION_CATALOG: [string, string][] = [
   ["security.manage", "Security settings"],
   ["audit.view", "Read the audit log"],
   ["analytics.view", "Analytics and usage"],
+  ["reports.view", "Weekly platform report"],
   ["legal.manage", "Draft, review and publish legal documents"],
   ["platform.configure", "Platform profile, branding, maintenance and preferences"],
 ];
@@ -100,7 +104,7 @@ function httpsUrl(v: unknown, label: string, k: Kit): string | null {
 // Every row of a query, a page of 1,000 at a time (the API returns at most 1,000 per request, so a single
 // .limit() above that silently undercounts). Totals built from it are never understated: past the cap it refuses.
 // deno-lint-ignore no-explicit-any
-async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>, cap = 100000) {
+export async function allRows(page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: unknown }>, cap = 100000) {
   // deno-lint-ignore no-explicit-any
   const out: any[] = [];
   for (let from = 0; from < cap; from += 1000) {
@@ -331,7 +335,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
     },
 
     onboarding_overview: async () => {
-      const biz = (check(await admin.from("businesses").select("id, name, onboarding_status, industry_id, email, phone, timezone, created_at, setup_data")
+      const biz = (check(await admin.from("businesses").select("id, name, onboarding_status, industry_id, email, phone, timezone, created_at, updated_at, setup_data")
         .is("cancelled_at", null).neq("onboarding_status", "active").order("created_at", { ascending: false }).limit(200)) ?? []) as Json[];
       const ids = biz.map((b) => b.id as string);
       const [steps, agents, numbers, subs, invites] = await Promise.all([
@@ -342,7 +346,11 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         ids.length ? admin.from("business_invitations").select("business_id, status, role").in("business_id", ids).eq("role", "owner") : { data: [] },
       ]);
       const of = <T extends { business_id: string }>(rows: unknown, id: string) => ((rows ?? []) as T[]).filter((r) => r.business_id === id);
+      const { days: abandonDays, ages } = k.draftAges   // BIZ-13b
+        ? await k.draftAges(admin, biz as { id: string; name: unknown; created_at: unknown; updated_at: unknown }[])
+        : { days: null, ages: new Map<string, DraftAge>() };
       return {
+        abandon_days: abandonDays,
         rows: biz.map((b) => {
           const id = b.id as string;
           const st = of<{ business_id: string; step: string; status: string; error: string | null; updated_at: string }>(steps.data, id);
@@ -355,6 +363,7 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
             billing: of<{ business_id: string; status: string }>(subs.data, id).length > 0,
           };
           return { id, name: b.name, onboarding_status: b.onboarding_status, created_at: b.created_at, checks,
+            last_activity_at: ages.get(id)?.lastActivityAt ?? null, abandoned: ages.get(id)?.abandoned ?? false,
             failed_steps: st.filter((s) => s.status === "failed").map((s) => ({ step: s.step, error: s.error ? String(s.error).slice(0, 200) : null, at: s.updated_at })) };
         }),
       };
@@ -499,6 +508,8 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         const m = String((res.error as { message?: string }).message ?? "");
         if (m.includes("PHONE_NUMBER_LIMIT_REACHED")) throw new k.InputError("That business's plan doesn't include another phone number", 409);
         if (m.includes("duplicate")) throw new k.InputError("This number is already assigned", 409);
+        // sql/zella_number_orders.sql: a number with an open release order can't be given to a business
+        if (m.includes("NUMBER_RELEASE_OPEN")) throw new k.InputError("This number has an open release order, so it can't be given to a business.", 409);
         throw res.error;
       }
       return { id: res.data.id, before, after: row, reason: k.text(fields.reason, 300) || null };
@@ -567,13 +578,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         admin.rpc("zella_rls_coverage"),
         admin.rpc("zella_tenant_leak_check"),
         admin.from("integration_secrets").select("integration_id", { count: "exact", head: true }),
-        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%,action.like.roles%").order("created_at", { ascending: false }).limit(20),
+        admin.from("audit_logs").select("action, user_id, business_id, created_at").or("action.like.platform.%,action.like.admin%,action.like.business.suspend%,action.like.session.%,action.like.security.%").order("created_at", { ascending: false }).limit(20),
         admin.from("platform_admins").select("user_id").eq("is_active", true),
       ]);
+      // ACC-15: refused admin calls in the last 24 hours
+      const refusals = await admin.from("audit_logs").select("id", { count: "exact", head: true }).eq("action", "security.admin_refused").gte("created_at", new Date(Date.now() - 86400000).toISOString());
       const info = await emails(admin, ((admins.data ?? []) as { user_id: string }[]).map((a) => a.user_id));
       return {
         rls: rls.error ? null : rls.data, leak: leak.error ? null : leak.data,
-        integrationSecrets: secrets.count ?? 0, recent: recent.data ?? [],
+        integrationSecrets: secrets.count ?? 0, recent: recent.data ?? [], refusals24h: refusals.error ? null : refusals.count ?? 0,
         adminsWithoutMfa: Object.values(info).filter((a) => !a.mfa).length, adminCount: Object.keys(info).length,
       };
     },
@@ -585,6 +598,15 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         requests: { open: rows.filter((r) => r.status === "open").length, overdue: rows.filter((r) => r.status === "open" && r.due_at < new Date().toISOString()).length,
           byKind: rows.reduce((a, r) => { a[r.kind] = (a[r.kind] ?? 0) + 1; return a; }, {} as Record<string, number>) },
         retentionDays: keys[0]?.value ?? 90,
+        // BIZ-13c: every cancelled business with its retention date, oldest due first, and which are past it. Read only:
+        // nothing here deletes anything (a purge waits for the owner's and legal's answer, BIZ-13d).
+        retentionSetting: keys[0] ? "set" : "default",
+        cancelled: await (async () => {
+          const now = new Date().toISOString();
+          const list = (check(await admin.from("businesses").select("id, name, cancelled_at, retention_until").not("cancelled_at", "is", null)
+            .order("retention_until", { ascending: true, nullsFirst: false }).limit(500)) ?? []) as { id: string; name: string; cancelled_at: string; retention_until: string | null }[];
+          return list.map((b) => ({ ...b, past_retention: Boolean(b.retention_until && b.retention_until < now) }));
+        })(),
       };
     },
 

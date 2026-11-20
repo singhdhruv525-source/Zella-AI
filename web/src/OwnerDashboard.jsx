@@ -7,6 +7,7 @@ import "./OwnerDashboard.css";
 import CreateBusinessWizard, { callOwnerFunction } from "./CreateBusinessWizard";
 import OwnerOverview from "./OwnerOverview";
 import BusinessDetails from "./BusinessDetails";
+import { DEFAULT_TAB, isDetailTab } from "./business/tabs";
 import AuditLogs from "./AuditLogs";
 import IndustryConfiguration from "./IndustryConfiguration";
 import AIAgents from "./AIAgents";
@@ -25,37 +26,13 @@ import VerificationQueue from "./VerificationQueue";
 import SecurityAbuse from "./SecurityAbuse";
 import AdminAlertsBell from "./AdminAlertsBell";
 import { supabase } from "./supabase";
-import { Pill } from "./OwnerOverview";
-import { businessState } from "./ownerFormat";
+import BusinessesPage, { useBusinessList } from "./BusinessesPage";
 import { navigate, segments, usePath } from "./router";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
-import { humanize } from "./copy/labels";
 import { ACCESS, hasPermission, useAdminAccess } from "./adminPermissions";
 import { friendlyError } from "./admin/adminOps";
-import { isCount } from "./admin/loadStatus";
-
-const STATE_FILTERS = [
-  ["all", "All businesses"],
-  ["draft", "Draft"],
-  ["complete", "Setup complete"],
-  ["live", "Live"],
-  ["cancelling", "Canceling"],
-  ["suspended", "Suspended"],
-  ["cancelled", "Canceled"],
-];
-
-function matchesState(business, filter) {
-  if (filter === "all") return true;
-  const state = businessState(business);
-  if (filter === "cancelling") return Boolean(state.cancelling);
-  return state.key === filter;
-}
 
 loadBusinessFonts();
-
-// Invitation states as badges: the label says it, the colour backs it up.
-const INVITE_TONE = { accepted: "success", sent: "warning", pending: "warning", failed: "danger", expired: "danger", revoked: "neutral" };
-const words = humanize;
 
 // The admin sidebar. `label` is the page's key (addresses and links use it); `title`, when set, is how it is shown
 // (sentence case, docs/ZELLA_PRODUCT_VOICE.md). Each page lists the permission it needs (the same one the server checks for its data), so an
@@ -97,7 +74,11 @@ function readRoute(path) {
   const route = { activePage: item.label, wizard: null, detailId: null, section: null, sub: null };
   if (item.label === "Businesses" && second) {
     if (second === "new" && !third) route.wizard = { businessId: null };
-    else if (UUID_RE.test(second) && !third) route.detailId = second;
+    else if (UUID_RE.test(second) && third !== "setup") {
+      // /businesses/<id>/<tab> (business/tabs.js); an unknown tab shows Overview (BIZ-30)
+      route.detailId = second;
+      route.detailTab = isDetailTab(third) ? third : DEFAULT_TAB;
+    }
     else if (UUID_RE.test(second) && third === "setup") route.wizard = { businessId: second };
     else route.activePage = null;
   } else if (item.label === "Settings" && second) {
@@ -121,82 +102,63 @@ export default function OwnerDashboard({ onSignOut }) {
   const me = access.me;
   const authorized = access.state === ACCESS.AUTHORIZED;
   const notice = maintenanceText(usePlatformInfo());
-  const { activePage, wizard, detailId, section, sub } = readRoute(path);
+  const { activePage, wizard, detailId, detailTab, section, sub } = readRoute(path);
   const setActivePage = (label) => navigate(pathFor(label));
   const setDetailId = (id) => navigate(id ? `/businesses/${id}` : "/businesses");
   const setWizard = (next) => navigate(next
     ? next.businessId ? `/businesses/${next.businessId}/setup` : "/businesses/new"
     : detailId ? `/businesses/${detailId}` : pathFor(activePage ?? "Businesses"));
   const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState("all");
-  const [businesses, setBusinesses] = useState([]);
+  // The Businesses list (BusinessesPage.jsx): its state lives here so it survives going to another page and back.
+  const businessList = useBusinessList({
+    active: activePage === "Businesses" && !wizard && !detailId && hasPermission(access, "businesses.view"),
+    authorized, search,
+  });
+
+  // The setup wizard's industry list. dashboard_data keeps its shape for this (and for Offers), on old and new servers.
   const [industries, setIndustries] = useState([]);
-  // null until loaded: a statistic the server didn't send shows "—", never a made-up 0
-  const [stats, setStats] = useState(null);
-  const [loadingBusinesses, setLoadingBusinesses] = useState(false);
-  const [businessError, setBusinessError] = useState("");
-  // when the list last loaded; with an error after that, the list on screen is the earlier one (stale)
-  const [businessesLoadedAt, setBusinessesLoadedAt] = useState(null);
-  // bumped whenever the signed-in admin's access goes away or changes, so an answer for the earlier session is dropped
-  const businessEpoch = useRef(0);
-  const businessRequest = useRef(0);
-const loadDashboardData = useCallback(async () => {
-  const epoch = businessEpoch.current;
-  const request = ++businessRequest.current;
-  setLoadingBusinesses(true);
+  const [industryError, setIndustryError] = useState("");
+  const [loadingIndustries, setLoadingIndustries] = useState(false);
+  const [industriesLoaded, setIndustriesLoaded] = useState(false);
+  const industryEpoch = useRef(0);
+  const industryRequest = useRef(0);
+  const loadIndustries = useCallback(async () => {
+    const epoch = industryEpoch.current;
+    const request = ++industryRequest.current;
+    setLoadingIndustries(true);
+    try {
+      const data = await callOwnerFunction("dashboard_data");
+      if (epoch !== industryEpoch.current || request !== industryRequest.current) return;
+      // an answer without an industry list can't be read: never treat it as "no industries" (an empty list is real)
+      if (!Array.isArray(data?.industries)) throw new Error("The industry list couldn't be read. Try again.");
+      setIndustries(data.industries);
+      setIndustryError("");
+      setIndustriesLoaded(true);
+    } catch (error) {
+      if (epoch !== industryEpoch.current || request !== industryRequest.current) return;
+      console.error("Industry list loading failed:", error);
+      setIndustryError(friendlyError(error) || "Could not load industries. Please try again.");
+    } finally {
+      if (epoch === industryEpoch.current && request === industryRequest.current) setLoadingIndustries(false);
+    }
+  }, []);
 
-  try {
-    const data = await callOwnerFunction("dashboard_data");
-    if (epoch !== businessEpoch.current || request !== businessRequest.current) return;
-    setBusinesses(Array.isArray(data.businesses) ? data.businesses : []);
-    setIndustries(Array.isArray(data.industries) ? data.industries : []);
-    setStats(data.stats && typeof data.stats === "object" ? data.stats : null);
-    setBusinessError("");
-    setBusinessesLoadedAt(new Date());
-  } catch (error) {
-    if (epoch !== businessEpoch.current || request !== businessRequest.current) return;
-    console.error("Dashboard data loading failed:", error);
-    setBusinessError(friendlyError(error) || "Could not load businesses. Please try again.");
-  } finally {
-    if (epoch === businessEpoch.current && request === businessRequest.current) setLoadingBusinesses(false);
-  }
-}, []);
-
-  // Signed out, switching account or re-checking access: drop every business loaded for the earlier session.
+  // Signed out, switching account or re-checking access: drop what was loaded for the earlier session.
   useEffect(() => {
     if (authorized) return;
-    businessEpoch.current++;
-    setBusinesses([]); setIndustries([]); setStats(null); setBusinessError(""); setBusinessesLoadedAt(null); setLoadingBusinesses(false);
+    industryEpoch.current++;
+    setIndustries([]); setIndustryError(""); setIndustriesLoaded(false); setLoadingIndustries(false);
   }, [authorized]);
 
-useEffect(() => {
-  if (activePage === "Businesses" && hasPermission(access, "businesses.view")) {
-    loadDashboardData();
-  }
-}, [activePage, loadDashboardData, access]);
-
-// The setup wizard needs the industry list even when opened from Overview.
-useEffect(() => {
-  // Load once per opening: a successful load with no industries must not trigger another request.
-  if (wizard && hasPermission(access, "businesses.manage") && !businessesLoadedAt && !loadingBusinesses && !businessError) {
-    loadDashboardData();
-  }
-}, [wizard, access, businessesLoadedAt, loadingBusinesses, businessError, loadDashboardData]);
-
+  // The setup wizard needs the industry list even when opened from Overview. Load once per opening: a successful load
+  // with no industries must not trigger another request.
+  useEffect(() => {
+    if (wizard && hasPermission(access, "businesses.manage") && !industriesLoaded && !loadingIndustries && !industryError) {
+      loadIndustries();
+    }
+  }, [wizard, access, industriesLoaded, loadingIndustries, industryError, loadIndustries]);
 
   const isBusinesses = activePage === "Businesses";
-  const businessesStale = Boolean(businessError && businessesLoadedAt);
-  const statValue = (v) => (!businessesLoadedAt ? (loadingBusinesses ? "..." : "Not available") : isCount(v) ? v : "Not available");
-
-  const visibleBusinesses = businesses.filter((business) => {
-    if (!matchesState(business, stateFilter)) return false;
-    const query = search.trim().toLowerCase();
-    if (!query) return true;
-    const industry = industries.find((item) => item.id === business.industry_id);
-    const invitation = business.invitations?.[0];
-    return [business.name, industry?.name, invitation?.owner_name, invitation?.email, business.phone]
-      .some((value) => String(value ?? "").toLowerCase().includes(query));
-  });
 
   function goTo(page) {
     navigate(pathFor(page));
@@ -361,18 +323,29 @@ useEffect(() => {
               <strong>This page isn't available</strong>
               <p>Your admin role ({me?.roleLabel ?? "restricted"}) doesn't include it. Ask a Zella Voice owner if you need access.</p>
             </div>
+          ) : wizard && !industriesLoaded ? (
+            // The wizard fills industry defaults (automations, booking length) from this list when it loads a saved
+            // business, so it opens only once the list is here; a failed load says so instead of guessing.
+            industryError ? (
+              <div className="owner-empty-state" role="alert" data-wizard="industries-failed">
+                <strong>The industry list couldn't be loaded</strong>
+                <p>{industryError}</p>
+                <div><button type="button" className="owner-secondary-button op-small" onClick={loadIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Retrying..." : "Retry"}</button></div>
+              </div>
+            ) : (
+              <div className="owner-empty-state" role="status" aria-busy="true" data-wizard="industries-loading">
+                <strong>Loading setup</strong>
+              </div>
+            )
           ) : wizard ? (
             <CreateBusinessWizard
               key={wizard.businessId || "new"}
               businessId={wizard.businessId}
               industries={industries}
-              industryError={businessError}
-              onRetryIndustries={loadDashboardData}
-              loadingIndustries={loadingBusinesses}
-              onClose={(changed) => {
-                navigate(wizard.businessId ? `/businesses/${wizard.businessId}` : "/businesses");
-                if (changed) loadDashboardData();
-              }}
+              industryError={industryError}
+              onRetryIndustries={loadIndustries}
+              loadingIndustries={loadingIndustries}
+              onClose={() => navigate(wizard.businessId ? `/businesses/${wizard.businessId}` : "/businesses")}
             />
           ) : detailId ? (
             <BusinessDetails
@@ -380,12 +353,15 @@ useEffect(() => {
               businessId={detailId}
               onBack={() => navigate("/businesses")}
               onOpenSetup={(id) => setWizard({ businessId: id })}
+              can={can}
+              tab={detailTab}
+              onTab={(slug) => navigate(slug === DEFAULT_TAB ? `/businesses/${detailId}` : `/businesses/${detailId}/${slug}`, { replace: true })}
             />
           ) : activePage === "Overview" ? (
             <OwnerOverview
-              onCreateBusiness={() => setWizard({ businessId: null })}
+              onCreateBusiness={can("businesses.manage") ? () => setWizard({ businessId: null }) : null}
               onOpenBusiness={setDetailId}
-              onContinueSetup={(id) => setWizard({ businessId: id })}
+              onContinueSetup={can("businesses.manage") ? (id) => setWizard({ businessId: id }) : null}
               onNavigate={setActivePage}
             />
           ) : activePage === "Verification" ? (
@@ -425,261 +401,15 @@ useEffect(() => {
             <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={onSignOut}
               onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : isBusinesses ? (
-            <section className="owner-page">
-              <div className="owner-page-heading">
-                <div>
-                  <div className="owner-eyebrow">Workspace management</div>
-                  <h1>Businesses</h1>
-                  <p>
-                    Create and manage isolated CRM workspaces for every
-                    business on Zella Voice.
-                  </p>
-                </div>
-                <button
-                  className="owner-primary-button"
-                  type="button"
-                  onClick={() => setWizard({ businessId: null })}
-                >
-                  <span>＋</span> Create business
-                </button>
-              </div>
-
-              <div className="owner-info-banner">
-                <div className="owner-info-symbol">i</div>
-                <div>
-                  <strong>One platform. Separate business workspaces.</strong>
-                  <p>
-                    Each business will receive its own industry configuration,
-                    user access, enabled modules and CRM data.
-                  </p>
-                </div>
-              </div>
-
-
-              {businessesStale && (
-                <div className="ic-warning op-gap" role="status" data-load="stale">
-                  <span>The latest refresh failed ({businessError}). Showing businesses from {businessesLoadedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}; they may be out of date.</span>
-                  <div><button type="button" className="owner-secondary-button op-small" onClick={loadDashboardData} disabled={loadingBusinesses}>{loadingBusinesses ? "Retrying..." : "Retry"}</button></div>
-                </div>
-              )}
-
-              <div className="owner-stat-grid">
-  <StatCard
-    label="Total businesses"
-    value={statValue(stats?.totalBusinesses)}
-    note="Registered businesses"
-    icon="storefront"
-  />
-
-  <StatCard
-    label="Active workspaces"
-    value={statValue(stats?.activeWorkspaces)}
-    note="Currently active"
-    icon="check_circle"
-  />
-
-  <StatCard
-    label="Pending invitations"
-    value={statValue(stats?.pendingInvitations)}
-    note="Awaiting acceptance"
-    icon="mail"
-  />
-
-  <StatCard
-    label="Provisioning issues"
-    value={statValue(stats?.provisioningIssues)}
-    note="Failed invitations"
-    icon="flag"
-  />
-</div>
-
-              <section className="owner-panel">
-                <div className="owner-panel-heading">
-                  <div>
-                    <h2>All businesses</h2>
-                    <p>Business workspaces managed by your platform.</p>
-                  </div>
-                  <div className="op-heading-actions">
-                    <select
-                      className="us-role"
-                      value={stateFilter}
-                      onChange={(event) => setStateFilter(event.target.value)}
-                      aria-label="Filter businesses"
-                    >
-                      {STATE_FILTERS.map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
-                    {businessesLoadedAt && <span className="op-muted op-updated" data-load-updated>{businessesStale ? "Last updated" : "Updated"} {businessesLoadedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>}
-                    <button
-                      className="owner-secondary-button"
-                      type="button"
-                      onClick={loadDashboardData}
-                      disabled={loadingBusinesses}
-                    >
-                      {loadingBusinesses ? "Loading..." : "↻ Refresh"}
-                    </button>
-                  </div>
-                </div>
-
-               <div className="owner-table-wrap" tabIndex={0}>
-  <table className="owner-table">
-    <thead>
-      <tr>
-        <th>Business</th>
-        <th>Industry</th>
-        <th>Owner</th>
-        <th>Plan</th>
-        <th>Workspace</th>
-        <th>Invitation</th>
-        <th />
-      </tr>
-    </thead>
-
-    <tbody>
-      {businessError && !businessesLoadedAt ? (
-        <tr>
-          <td colSpan={7}>
-            <div className="owner-empty-state">
-              <strong>Unable to load businesses</strong>
-              <p>{businessError}</p>
-              <button
-                type="button"
-                className="owner-primary-button"
-                onClick={loadDashboardData}
-                disabled={loadingBusinesses}
-              >
-                Try again
-              </button>
-            </div>
-          </td>
-        </tr>
-      ) : !businessesLoadedAt ? (
-        <tr>
-          <td colSpan={7}>
-            <div className="owner-empty-state">
-              <strong>Loading businesses...</strong>
-              <p>Fetching records from your Supabase database.</p>
-            </div>
-          </td>
-        </tr>
-      ) : visibleBusinesses.length > 0 ? (
-        visibleBusinesses
-          .map((business) => {
-            const industry = industries.find(
-              (item) => item.id === business.industry_id
-            );
-
-            const invitation = business.invitations?.[0];
-            const subscription = business.subscriptions?.[0];
-            const stage = businessState(business);
-
-            return (
-              <tr key={business.id}>
-                <td>
-                  <div className="owner-business-cell">
-                    <button type="button" className="op-name" onClick={() => setDetailId(business.id)}>
-                      {business.name}
-                    </button>
-                    <span>
-                      Created{" "}
-                      {business.created_at
-                        ? new Date(business.created_at).toLocaleDateString()
-                        : "None"}
-                    </span>
-                  </div>
-                </td>
-
-                <td>{industry?.name ?? "Not assigned"}</td>
-
-                <td>
-                  <div className="owner-business-cell">
-                    <strong>
-                      {invitation?.owner_name ?? "Not invited"}
-                    </strong>
-                    <span>{invitation?.email ?? "None"}</span>
-                  </div>
-                </td>
-
-                <td>
-                  {subscription?.status ?? "Not assigned"}
-                </td>
-
-                <td>
-                  <Pill tone={stage.tone}>{stage.label}</Pill>
-                </td>
-
-                <td>
-                  <Pill tone={INVITE_TONE[invitation?.status] ?? "neutral"}>
-                    {words(invitation?.status ?? "not_sent")}
-                  </Pill>
-                </td>
-
-                <td>
-                  {stage.key !== "cancelled" && (
-                    <button
-                      type="button"
-                      className="owner-secondary-button"
-                      onClick={() => setWizard({ businessId: business.id })}
-                    >
-                      {stage.done ? "Edit setup" : "Continue setup"}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="op-link op-row-link"
-                    onClick={() => setDetailId(business.id)}
-                  >
-                    View
-                  </button>
-                </td>
-              </tr>
-            );
-          })
-      ) : (
-        <tr>
-          <td colSpan={7}>
-            <div className="owner-empty-state">
-              <div className="owner-empty-icon"><Icon name="storefront" /></div>
-              <strong>
-                {search.trim() || stateFilter !== "all"
-                  ? "No matching businesses found"
-                  : "No businesses found yet"}
-              </strong>
-              <p>
-                {search.trim() || stateFilter !== "all"
-                  ? "Try a different search or filter."
-                  : "Create a business to start building your platform."}
-              </p>
-
-              {!search.trim() && stateFilter === "all" && (
-                <button
-                  type="button"
-                  className="owner-primary-button"
-                  onClick={() => setWizard({ businessId: null })}
-                >
-                  ＋ Create your first business
-                </button>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
-</div>
-
-<div className="owner-panel-footer">
-  <span>
-    {loadingBusinesses
-      ? "Refreshing business records..."
-      : !businessesLoadedAt ? "Businesses not loaded"
-      : `${visibleBusinesses.length} of ${businesses.length} businesses shown${businessesStale ? " (earlier result)" : ""}`}
-  </span>
-  <span>Business data is loaded through the secured server function.</span>
-</div>
-</section>
-            </section>
+            <BusinessesPage
+              state={businessList}
+              search={search}
+              onSearch={setSearch}
+              canManage={can("businesses.manage")}
+              onCreate={() => setWizard({ businessId: null })}
+              onOpen={setDetailId}
+              onSetup={(id) => setWizard({ businessId: id })}
+            />
           ) : (
             <section className="owner-page">
               <div className="owner-eyebrow">Platform control center</div>
@@ -698,19 +428,6 @@ useEffect(() => {
         </div>
       </main>
 
-    </div>
-  );
-}
-
-function StatCard({ label, value, note, icon }) {
-  return (
-    <div className="owner-stat-card">
-      <div className="owner-stat-top">
-        <span>{label}</span>
-        <span className="owner-stat-icon"><Icon name={icon} size="sm" /></span>
-      </div>
-      <div className="owner-stat-value">{value}</div>
-      <div className="owner-stat-note">{note}</div>
     </div>
   );
 }
