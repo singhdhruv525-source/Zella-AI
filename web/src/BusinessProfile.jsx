@@ -181,7 +181,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     ]);
     // Texts, emails and record changes come from the server timeline (calls, appointments and the rest are loaded above).
     const tlRes = await supabase.rpc("zella_customer_timeline", { p_business_id: workspace.id, p_customer_id: personId, p_limit: 100 });
-    // Contact changes a caller asked for by phone wait here for the team (optional: none before the update is applied).
+    // Contact changes a caller asked for by phone wait here for the team (sql/zella_caller_verification.sql, applied first).
     const pendRes = await supabase.from("customer_pending_changes").select("id, field, new_value, created_at").eq("business_id", workspace.id)
       .eq("customer_id", personId).eq("status", "pending").order("created_at");
     return {
@@ -190,8 +190,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
       cbs: cbRes.error ? [] : cbRes.data ?? [], tasks: taskRes.error ? [] : taskRes.data ?? [], staff: staffRes.error ? [] : staffRes.data ?? [],
       records: recRes.error ? [] : recRes.data ?? [], recordTypes: typeRes.error ? [] : typeRes.data ?? [], recordsFailed: Boolean(recRes.error),
       failures: { followups: Boolean(followRes.error), callbacks: Boolean(cbRes.error), tasks: Boolean(taskRes.error), staff: Boolean(staffRes.error), timeline: Boolean(tlRes.error),
-        // a missing table (before the update is applied) isn't a failure: there is nothing to review yet
-        "contact changes waiting for review": Boolean(pendRes.error) && pendRes.error.code !== "42P01" && pendRes.error.code !== "PGRST205" },
+        "contact changes waiting for review": Boolean(pendRes.error) },
       server: tlRes.error ? [] : (tlRes.data ?? []).filter((e) => ["text", "email", "change"].includes(e.type)),
     };
   }, [personId, workspace.id]);

@@ -46,7 +46,7 @@ r=$(tool c1 find_my_appointments "{\"name\":\"dana reyes\",\"date\":\"$DAY\"}")
 [ "$(js status "$r")" = appointments ] && [ "$(q "select jsonb_array_length('$r'::jsonb -> 'appointments')")" = 2 ] && ok "find with the name on the booking and the date lists that date's bookings" || bad "find ok: $r"
 [[ "$r" != *"$CODE"* && "$r" != *dana@* && "$r" != *5550001111* ]] && ok "and shares no code, email or number" || bad "find leaks: $r"
 mkcall c1b +15559990000
-r=$(tool c1b find_my_appointments "{\"name\":\"Dana\",\"date\":\"$DAY\"}"); [ "$(js status "$r")" = not_found ] && ok "the right name and date from another number find nothing" || bad "other number: $r"
+r=$(tool c1b find_my_appointments "{\"name\":\"Dana Reyes\",\"date\":\"$DAY\"}"); [ "$(js status "$r")" = not_found ] && ok "the right name and date from another number find nothing" || bad "other number: $r"
 r=$(tool c1 find_my_appointments "{\"name\":\"Sam\",\"date\":\"$DAY\"}"); [ "$(js status "$r")" = not_found ] && ok "a wrong name finds nothing" || bad "wrong name: $r"
 mkcall c1c; r=$(tool c1c find_my_appointments "{\"name\":\"Dana\",\"date\":\"$DAY\"}"); [ "$(js status "$r")" = not_found ] && ok "the first name alone isn't enough when the booking has a full name" || bad "first name only: $r"
 

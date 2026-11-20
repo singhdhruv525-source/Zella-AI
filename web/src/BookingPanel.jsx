@@ -117,7 +117,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
   }, [busy, moving, onClose]);
 
   // The booking's confirmation code: the caller reads it out to cancel or move by phone (none before the update is applied).
-  const [code, setCode] = useState(null);
+  const [code, setCode] = useState(undefined);   // undefined loading, null none, false couldn't load
   useEffect(() => {
     let live = true;
     supabase.from("appointment_confirmation_codes").select("code").eq("appointment_id", appt.id).limit(1)
@@ -195,7 +195,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
       <aside className="bp-panel" role="dialog" aria-modal="true" aria-label={`${oneWord} details`} tabIndex={-1} ref={panel}>
         <header className="bp-head">
           <div>
-            <small>{oneWord} #{ref(appt.id)}{code && <> · Confirmation code <strong className="bp-code">{code}</strong></>}{code === false && <> · Confirmation code couldn't be loaded</>}</small>
+            <small>{oneWord} #{ref(appt.id)}{code && <> · Confirmation code <strong className="bp-code">{code}</strong></>}{code === false && <> · Confirmation code couldn't be loaded</>}{code === null && <> · No confirmation code</>}</small>
             <h2>{name ?? appt.title}</h2>
             <p>{formatLongDate(appt.start_time, tz)} · {formatTime(appt.start_time, tz)}{appt.end_time ? ` to ${formatTime(appt.end_time, tz)}` : ""}</p>
           </div>

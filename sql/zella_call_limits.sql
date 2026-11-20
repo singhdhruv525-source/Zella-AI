@@ -7,7 +7,7 @@
 --   * used up, and the business has auto reload on for minutes (or chose auto top up): keep answering only while a
 --     reload can still happen: payments live (zella_payments_live, lane F's switch), an active subscription, the
 --     reload pack still sold, and the month's reload spend plus one more pack within the owner's cap, or a reload
---     already in flight. Anything else counts as a failed reload;
+--     in flight for at most 30 minutes. Anything else counts as a failed reload;
 --   * used up with pay as you go (an overage price on the plan in force now, zella_billing_plan_at): keep answering;
 --   * otherwise, and also when the allowance is unknown (not set up, unreadable, or the subscription isn't active):
 --     forward to the business's own number if it has a valid one, else play "Sorry, we can't take your call right
@@ -32,7 +32,7 @@ do $$
 declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
-    'public.zella_call_gate(uuid)',                     jsonb_build_array('03d62be229c6407bbd33dd83be32e397', 'b5848a1d936f79f6a864a8f5c2c7cc8f'),
+    'public.zella_call_gate(uuid)',                     jsonb_build_array('03d62be229c6407bbd33dd83be32e397', '6afc3f110b731620a5ffc5fc9cab0dca'),
     'public.zella_assistant_for_call(text,text,text)',  jsonb_build_array('4463128ecde8dbb1edfa132d048796c6', '03ee44c36607ca56782820a30bffee82'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regclass('public.auto_reload_settings') is null
@@ -89,7 +89,10 @@ begin
     -- a reload can still happen: the same conditions lane F's zella_billing_maybe_reload checks before buying a pack
     if a.business_id is not null and public.zella_payments_live()
        and (select s.status from public.subscriptions s where s.business_id = p_business_id) = 'active' then
-      if exists (select 1 from public.pack_purchases p where p.business_id = p_business_id and p.resource = 'minutes' and p.source = 'auto_reload' and p.status = 'pending') then
+      -- a reload in flight counts for 30 minutes at most: a purchase stuck pending (a lost provider reply) never keeps
+      -- calls open without payment
+      if exists (select 1 from public.pack_purchases p where p.business_id = p_business_id and p.resource = 'minutes' and p.source = 'auto_reload' and p.status = 'pending'
+                   and p.purchased_at > now() - interval '30 minutes') then
         v_can_reload := true;
       else
         select * into c from public.billing_pack_catalog k where k.code = a.pack_code and k.active and k.resource = 'minutes';

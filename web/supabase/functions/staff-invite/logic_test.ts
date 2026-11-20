@@ -142,3 +142,8 @@ Deno.test("invitation emails are capped: a minute between sends, and a counter t
   const d = await sendInvitation(down.deps, OWNER, "i1");
   assertEquals([d.status, down.calls], [429, ["fail:rate_limited"]]);
 });
+
+Deno.test("a refused second send of a delivered invitation keeps it sent", async () => {
+  const { deps, calls } = fake({ rateLimit: async () => false }, { status: "sent" });
+  assertEquals([(await sendInvitation(deps, OWNER, "i1")).status, calls], [429, []]);
+});

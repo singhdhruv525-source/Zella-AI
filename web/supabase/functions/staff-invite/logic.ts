@@ -65,8 +65,9 @@ export async function sendInvitation(deps: Deps, callerId: string, invitationId:
     let allowed = false;
     try { allowed = await deps.rateLimit(key, max, seconds); } catch { allowed = false; }
     if (!allowed) {
-      // nothing was sent: mark it failed (a failed invitation can be sent again at once, within the limits)
-      await deps.fail(invitation.id, "rate_limited").catch(() => "");
+      // nothing was sent: an invitation not yet delivered is marked failed (it can be sent again at once, within the
+      // limits); one already delivered keeps its status
+      if (invitation.status !== "sent") await deps.fail(invitation.id, "rate_limited").catch(() => "");
       return err(429, scope === "invitation" && seconds === 60 ? "This invitation was just sent. Wait a minute before sending it again." : "Too many invitation emails were sent from this workspace. Try again later.", "TOO_MANY_INVITES");
     }
   }

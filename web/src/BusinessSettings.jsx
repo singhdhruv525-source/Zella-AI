@@ -631,6 +631,7 @@ function CalendarConnections({ w }) {
     setBusy("finish");
     finishing.then((answer) => {
       if (!live) return;
+      finishing = undefined;   // delivered: a later visit to this page doesn't show it again
       setBusy("");
       setFinished(answer?.ok ? { outcome: "connected" } : { outcome: "error", reason: answer?.error ?? "try_again" });
       if (answer?.ok) setVersion((v) => v + 1);
