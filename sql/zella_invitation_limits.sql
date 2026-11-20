@@ -2,8 +2,8 @@
 -- zella_resend_invitation had no limit of their own, so an owner or admin (or someone in their session) could send
 -- invitation emails from the Zella Voice sender to any number of addresses; only Supabase Auth's email limit stopped
 -- them. Now each business can invite or resend 20 times an hour and 60 times a day (one shared counter,
--- zella_rate_limit; TOO_MANY_INVITES), and one invitation can be sent again at most every 10 minutes (RESEND_TOO_SOON;
--- a failed one can be retried at once). The staff-invite edge function also caps the emails it sends.
+-- zella_rate_limit; TOO_MANY_INVITES), and one invitation can be sent again at most every 10 minutes after its email
+-- went out (RESEND_TOO_SOON; one whose send failed or never happened can be retried at once). The staff-invite edge function also caps the emails it sends.
 -- Both functions are archived first and must match production (18 Nov 2026), otherwise VERSION_MISMATCH.
 -- Rollback: sql/rollback/zella_invitation_limits_rollback.sql
 begin;
@@ -13,7 +13,7 @@ declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
     'public.zella_invite_staff(uuid,text,text,text)', jsonb_build_array('274dd2f7697b3a25df374e8ef53693c4', 'cab03bae58b60089f19b480b7f6f58ee'),
-    'public.zella_resend_invitation(uuid)',           jsonb_build_array('68c6891fc08ed88baccc98db6f079dcd', '0bcb13389cdf949e04776f3bb7ea221f'));
+    'public.zella_resend_invitation(uuid)',           jsonb_build_array('68c6891fc08ed88baccc98db6f079dcd', 'bc0872cbffde6dc83f1bb89943aef9bf'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regprocedure('public.zella_rate_limit(text,integer,integer)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
@@ -68,7 +68,8 @@ begin
   if not public.zella_has_role(i.business_id, array['owner', 'admin']) then raise exception 'NOT_ALLOWED'; end if;
   if i.status not in ('pending', 'sent', 'failed', 'expired') then raise exception 'CANNOT_RESEND'; end if;
   /* zella_invitation_limits: once every 10 minutes per invitation, and the business's invitation limits */
-  if i.invited_at is not null and i.invited_at > now() - interval '10 minutes' and i.status <> 'failed' then raise exception 'RESEND_TOO_SOON'; end if;
+  -- only after an email actually went out (status sent): a resend that sent nothing can be tried again at once
+  if i.status = 'sent' and i.invited_at is not null and i.invited_at > now() - interval '10 minutes' then raise exception 'RESEND_TOO_SOON'; end if;
   if not public.zella_rate_limit('invite:business:' || i.business_id::text || ':h', 20, 3600)
      or not public.zella_rate_limit('invite:business:' || i.business_id::text || ':d', 60, 86400) then
     raise exception 'TOO_MANY_INVITES';

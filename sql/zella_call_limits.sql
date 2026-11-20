@@ -32,7 +32,7 @@ do $$
 declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
-    'public.zella_call_gate(uuid)',                     jsonb_build_array('03d62be229c6407bbd33dd83be32e397', '6afc3f110b731620a5ffc5fc9cab0dca'),
+    'public.zella_call_gate(uuid)',                     jsonb_build_array('03d62be229c6407bbd33dd83be32e397', '90a0a69e06ec14294b9eb83a4dd1da34'),
     'public.zella_assistant_for_call(text,text,text)',  jsonb_build_array('4463128ecde8dbb1edfa132d048796c6', '03ee44c36607ca56782820a30bffee82'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regclass('public.auto_reload_settings') is null
@@ -91,9 +91,10 @@ begin
        and (select s.status from public.subscriptions s where s.business_id = p_business_id) = 'active' then
       -- a reload in flight counts for 30 minutes at most: a purchase stuck pending (a lost provider reply) never keeps
       -- calls open without payment
-      if exists (select 1 from public.pack_purchases p where p.business_id = p_business_id and p.resource = 'minutes' and p.source = 'auto_reload' and p.status = 'pending'
-                   and p.purchased_at > now() - interval '30 minutes') then
-        v_can_reload := true;
+      -- (no new reload is bought while one is pending, so an older pending one means no reload is coming)
+      if exists (select 1 from public.pack_purchases p where p.business_id = p_business_id and p.resource = 'minutes' and p.source = 'auto_reload' and p.status = 'pending') then
+        v_can_reload := exists (select 1 from public.pack_purchases p where p.business_id = p_business_id and p.resource = 'minutes' and p.source = 'auto_reload'
+                                  and p.status = 'pending' and p.purchased_at > now() - interval '30 minutes');
       else
         select * into c from public.billing_pack_catalog k where k.code = a.pack_code and k.active and k.resource = 'minutes';
         select coalesce(sum(p.price_cents), 0) into v_spent from public.pack_purchases p

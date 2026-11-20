@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # M10 (database part): sql/zella_invitation_limits.sql. Checks: before, an owner can invite without any cap (the gap);
 # after, the 21st invitation in an hour is refused (TOO_MANY_INVITES), a resend within 10 minutes is refused
-# (RESEND_TOO_SOON) unless the send failed, resends count against the same cap, another business is unaffected;
+# (RESEND_TOO_SOON) only after its email went out, resends count against the same cap, another business is unaffected;
 # applies twice; rollback twice restores both functions exactly; drift stops the file and the rollback.
 . "$(dirname "$0")/lib.sh"; fresh_db invitation_limits
 SIGS="'public.zella_invite_staff(uuid,text,text,text)','public.zella_resend_invitation(uuid)'"
@@ -17,13 +17,15 @@ for n in $(seq 1 25); do inv $O $B "pre$n@inv.test" > /dev/null; done
 q "delete from public.business_invitations" > /dev/null
 out=$(apply "$REPO/sql/zella_invitation_limits.sql") && ok "applies" || { bad "applies: $out"; finish; }
 out=$(apply "$REPO/sql/zella_invitation_limits.sql") && ok "applies again" || bad "second apply: $out"
-[ "$(fp)" = "cab03bae58b60089f19b480b7f6f58ee,0bcb13389cdf949e04776f3bb7ea221f" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
+[ "$(fp)" = "cab03bae58b60089f19b480b7f6f58ee,bc0872cbffde6dc83f1bb89943aef9bf" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
 for n in $(seq 1 20); do r=$(inv $O $B "p$n@inv.test"); [[ "$r" == ERR:* ]] && bad "invite $n refused: $r"; done
 r=$(inv $O $B "p21@inv.test"); [[ "$r" == *TOO_MANY_INVITES* ]] && ok "the 21st invitation in an hour is refused" || bad "21st: $r"
 [ "$(q "select count(*) from public.business_invitations where business_id = '$B'")" = 20 ] && ok "and nothing was saved for it" || bad "count"
 r=$(inv $O2 $B2 "q1@inv.test"); [[ "$r" != ERR:* ]] && ok "another business is unaffected" || bad "other business: $r"
 I=$(q "select id from public.business_invitations where business_id = '$B2'")
-r=$(as_user $O2 aal1 "perform public.zella_resend_invitation('$I'); raise notice 'R=ran';"); [[ "$r" == *RESEND_TOO_SOON* ]] && ok "a resend within 10 minutes is refused" || bad "too soon: $r"
+r=$(as_user $O2 aal1 "perform public.zella_resend_invitation('$I'); raise notice 'R=ran';"); [ "$r" = ran ] && ok "a resend before any email went out (still pending) is allowed" || bad "pending resend: $r"
+q "update public.business_invitations set status = 'sent', invited_at = now() where id = '$I'" > /dev/null
+r=$(as_user $O2 aal1 "perform public.zella_resend_invitation('$I'); raise notice 'R=ran';"); [[ "$r" == *RESEND_TOO_SOON* ]] && ok "a resend within 10 minutes of a sent email is refused" || bad "too soon: $r"
 q "update public.business_invitations set status = 'failed' where id = '$I'" > /dev/null
 r=$(as_user $O2 aal1 "perform public.zella_resend_invitation('$I'); raise notice 'R=ran';"); [ "$r" = ran ] && ok "a failed send can be retried at once" || bad "failed retry: $r"
 q "update public.business_invitations set invited_at = now() - interval '11 minutes' where business_id = '$B'" > /dev/null

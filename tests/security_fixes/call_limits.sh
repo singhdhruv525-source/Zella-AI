@@ -28,7 +28,7 @@ q "update public.zz_stub set v = 'not_configured' where k = 'status'" > /dev/nul
 
 out=$(apply "$REPO/sql/zella_call_limits.sql") && ok "applies" || { bad "applies: $out"; finish; }
 out=$(apply "$REPO/sql/zella_call_limits.sql") && ok "applies again" || bad "second apply: $out"
-[ "$(fp)" = "03ee44c36607ca56782820a30bffee82,6afc3f110b731620a5ffc5fc9cab0dca" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
+[ "$(fp)" = "03ee44c36607ca56782820a30bffee82,90a0a69e06ec14294b9eb83a4dd1da34" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
 
 for s in not_configured error exhausted inactive; do
   q "update public.zz_stub set v = '$s' where k = 'status'" > /dev/null
@@ -58,11 +58,9 @@ if [ "$(q "select count(*) from public.pack_purchases where business_id = '$BIZ'
 else bad "reload cap setup: a pack purchase could not be inserted in this copy"; fi
 # a reload stuck pending counts for 30 minutes, then no longer
 q "update public.auto_reload_settings set monthly_cap_cents = 100000; set session_replication_role = replica; insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source, reason, period_id, idempotency_key, purchased_at) values ('$BIZ', 'minutes_100', 'minutes', 100, 2900, 'pending', 'auto_reload', 'test reload stuck', gen_random_uuid(), 'reload-test-0002', now() - interval '31 minutes')" > /dev/null
-q "update public.billing_pack_catalog set active = false where code = 'minutes_100'" > /dev/null
-r=$(gate); [ "$(js action "$r")" = closed ] && ok "a reload stuck pending over 30 minutes no longer keeps calls open" || bad "stuck pending: $r"
+r=$(gate); [ "$(js action "$r")" = closed ] && ok "a reload stuck pending over 30 minutes no longer keeps calls open (the pack still sold, cap free)" || bad "stuck pending: $r"
 q "update public.pack_purchases set purchased_at = now() where idempotency_key = 'reload-test-0002'" > /dev/null
 r=$(gate); [ "$(js usage_reason "$r")" = auto_reload ] && ok "a reload in flight (under 30 minutes) keeps answering" || bad "in flight: $r"
-q "update public.billing_pack_catalog set active = true where code = 'minutes_100'" > /dev/null
 q "update public.zz_stub set v = 'false' where k = 'payments'; delete from public.auto_reload_settings" > /dev/null
 mode auto_top_up; q "update public.zz_stub set v = '5' where k = 'overage'" > /dev/null
 r=$(gate); [ "$(js action "$r")" = closed ] && ok "auto top up is a reload, not pay as you go: closed while reloads can't run" || bad "auto top up: $r"

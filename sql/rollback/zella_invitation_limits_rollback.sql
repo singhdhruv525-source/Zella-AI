@@ -4,7 +4,7 @@
 begin;
 do $$
 declare a record;
-  mine constant jsonb := jsonb_build_object('public.zella_invite_staff(uuid,text,text,text)', 'cab03bae58b60089f19b480b7f6f58ee', 'public.zella_resend_invitation(uuid)', '0bcb13389cdf949e04776f3bb7ea221f');
+  mine constant jsonb := jsonb_build_object('public.zella_invite_staff(uuid,text,text,text)', 'cab03bae58b60089f19b480b7f6f58ee', 'public.zella_resend_invitation(uuid)', 'bc0872cbffde6dc83f1bb89943aef9bf');
 begin
   if to_regclass('public.zella_function_archive') is null
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_invitation_limits') then

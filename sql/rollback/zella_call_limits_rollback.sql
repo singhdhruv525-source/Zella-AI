@@ -7,7 +7,7 @@
 begin;
 do $$
 declare a record; v_over boolean := false;
-  mine constant jsonb := jsonb_build_object('public.zella_call_gate(uuid)', '6afc3f110b731620a5ffc5fc9cab0dca',
+  mine constant jsonb := jsonb_build_object('public.zella_call_gate(uuid)', '90a0a69e06ec14294b9eb83a4dd1da34',
                                             'public.zella_assistant_for_call(text,text,text)', '03ee44c36607ca56782820a30bffee82');
 begin
   if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'businesses' and column_name = 'voice_max_concurrent_calls') then

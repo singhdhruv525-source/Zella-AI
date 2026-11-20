@@ -64,10 +64,9 @@ export async function sendInvitation(deps: Deps, callerId: string, invitationId:
     const key = `invite-email:${scope}:${scope === "invitation" ? invitation.id : invitation.business_id}:${seconds}`;
     let allowed = false;
     try { allowed = await deps.rateLimit(key, max, seconds); } catch { allowed = false; }
+    // nothing is sent and nothing is changed: a resend that sent nothing can be tried again (zella_resend_invitation
+    // waits 10 minutes only after an email went out)
     if (!allowed) {
-      // nothing was sent: an invitation not yet delivered is marked failed (it can be sent again at once, within the
-      // limits); one already delivered keeps its status
-      if (invitation.status !== "sent") await deps.fail(invitation.id, "rate_limited").catch(() => "");
       return err(429, scope === "invitation" && seconds === 60 ? "This invitation was just sent. Wait a minute before sending it again." : "Too many invitation emails were sent from this workspace. Try again later.", "TOO_MANY_INVITES");
     }
   }
