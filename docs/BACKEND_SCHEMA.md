@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 207 |
 | Tables with row security on | 207 of 207 |
 | Row security policies | 353 |
-| Columns | 2418 |
+| Columns | 2421 |
 | Views | 1 |
-| Functions | 1155 (1073 security definer, 29 callable by `anon`) |
+| Functions | 1163 (1081 security definer, 29 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4224,6 +4224,7 @@ Commands to Stripe, each with its stored body and Idempotency-Key, sent by the b
 | `local_id` | uuid |  |  |
 | `status` | text | yes | 'pending' |
 | `attempts` | integer | yes | 0 |
+| `first_sent_at` | timestamp with time zone |  |  |
 | `lease_until` | timestamp with time zone |  |  |
 | `next_attempt_at` | timestamp with time zone | yes | now() |
 | `stripe_id` | text |  |  |
@@ -4385,6 +4386,7 @@ Chargebacks from Stripe: the payment, amount in cents, reason, respond by date a
 | `respond_by` | timestamp with time zone |  |  |
 | `created_at` | timestamp with time zone | yes | now() |
 | `closed_at` | timestamp with time zone |  |  |
+| `settled_at` | timestamp with time zone |  |  |
 
 - Primary key: `id`.
 - Unique: `(stripe_dispute_id)`.
@@ -4424,6 +4426,7 @@ Each reconciliation run (Stripe objects against our rows, or the ledger balance)
 | `kind` | text | yes |  |
 | `checked` | integer | yes | 0 |
 | `mismatches` | jsonb | yes | '[]' |
+| `scanned_until` | timestamp with time zone |  |  |
 | `created_at` | timestamp with time zone | yes | now() |
 
 - Primary key: `id`.
@@ -5231,7 +5234,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_b3_like(p_query text)` | text |  | anon, signed in |
 | `zella_b3_member(p_business_id uuid)` | void |  | signed in |
 
-### `zella_billing_*` (43)
+### `zella_billing_*` (44)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5251,6 +5254,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_email_sweep()` | integer | yes | server only |
 | `zella_billing_evaluate_alerts(p_business_id uuid, p_resource text)` | integer | yes | server only |
 | `zella_billing_events_cursor()` | bigint | yes | server only |
+| `zella_billing_events_scanned(p_started bigint, p_stored integer, p_complete boolean)` | void | yes | server only |
 | `zella_billing_immutable_trg()` | trigger |  | server only |
 | `zella_billing_ledger_check()` | jsonb | yes | server only |
 | `zella_billing_maybe_reload(p_business_id uuid, p_resource text)` | uuid | yes | server only |
@@ -5261,7 +5265,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_billing_open_period(p_business_id uuid, p_at timestamp with time zone)` | billing_periods | yes | server only |
 | `zella_billing_outbox_add(p_business_id uuid, p_kind text, p_key text, p_method text, p_path text, p_body jsonb, p_local_kind text, p_local_id uuid)` | billing_outbox | yes | server only |
 | `zella_billing_outbox_claim(p_limit integer, p_id uuid)` | SETOF billing_outbox | yes | server only |
-| `zella_billing_outbox_result(p_id uuid, p_ok boolean, p_stripe_id text, p_response jsonb, p_error text, p_retryable boolean, p_conflict boolean)` | text | yes | server only |
+| `zella_billing_outbox_result(p_id uuid, p_ok boolean, p_stripe_id text, p_response jsonb, p_error text, p_retryable boolean, p_conflict boolean, p_attempt integer)` | text | yes | server only |
 | `zella_billing_overview(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_billing_pack_command(p pack_purchases)` | uuid | yes | server only |
 | `zella_billing_pack_next_command(p_purchase_id uuid)` | uuid | yes | server only |
@@ -5832,7 +5836,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_onboarding_identity_passed(p_business_id uuid)` | boolean | yes | server only |
 | `zella_onboarding_payment(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_onboarding_payment_confirmed_at(p_business_id uuid)` | timestamp with time zone | yes | server only |
-| `zella_onboarding_payment_passed(p_business_id uuid)` | boolean | yes | signed in |
+| `zella_onboarding_payment_passed(p_business_id uuid)` | boolean | yes | server only |
 | `zella_onboarding_plan(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_onboarding_rules()` | jsonb |  | server only |
 | `zella_onboarding_section_data(p_business_id uuid, p_section text)` | jsonb | yes | server only |
@@ -6020,6 +6024,14 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_recurring_dates(p_plan recurring_plans, p_from date, p_to date)` | SETOF date |  | server only |
 | `zella_recurring_generate(p_business_id uuid, p_plan_id uuid, p_through date)` | jsonb | yes | signed in |
 | `zella_recurring_save(p_business_id uuid, p_id uuid, p_plan jsonb)` | uuid | yes | signed in |
+
+### `zella_refund_*` (3)
+
+| Function | Returns | SD | Who may call |
+|---|---|---|---|
+| `zella_refund_options(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_refund_pack_restore(p_refund_id uuid)` | void | yes | server only |
+| `zella_refund_reserved(p_payment_id uuid)` | bigint | yes | server only |
 
 ### `zella_relationship_*` (4)
 
@@ -6312,12 +6324,13 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 
-### `zella_stripe_*` (61)
+### `zella_stripe_*` (67)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
 | `zella_stripe_after_cancel(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_change_price(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_after_checkout_expire(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_checkout_session(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_customer(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_invoice_item(r billing_outbox)` | void | yes | server only |
@@ -6331,6 +6344,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_bind_invoice(p_inv jsonb, p_require_paid boolean)` | jsonb | yes | server only |
 | `zella_stripe_bind_lines(o jsonb, p_business_id uuid)` | jsonb | yes | server only |
 | `zella_stripe_cancel_check(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_cancel_next_attempt(s subscriptions)` | integer | yes | server only |
 | `zella_stripe_cancel_sync(p_business_id uuid, p_attempt integer)` | uuid | yes | server only |
 | `zella_stripe_cancel_trg()` | trigger | yes | server only |
 | `zella_stripe_claim_events(p_limit integer)` | TABLE(id uuid, type text, object_type text, object_id text, livemode boolean, payload jsonb) | yes | server only |
@@ -6340,7 +6354,10 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_event_store(p_event jsonb, p_key_livemode boolean)` | text | yes | server only |
 | `zella_stripe_event_types()` | text[] |  | anon, signed in |
 | `zella_stripe_failed_checkout_session(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_failed_customer(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_failed_payment_intent(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_failed_price(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_failed_product(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_failed_refund(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_failed_upgrade(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_grant_subscription_create(o jsonb, b jsonb)` | void | yes | server only |
@@ -6360,6 +6377,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_on_checkout_session_expired(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_customer_subscription_created(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_customer_subscription_deleted(e billing_events, o jsonb)` | text | yes | server only |
+| `zella_stripe_on_customer_subscription_pending_update_expired(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_customer_subscription_trial_will_end(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_customer_subscription_updated(e billing_events, o jsonb)` | text | yes | server only |
 | `zella_stripe_on_invoice_created(e billing_events, o jsonb)` | text | yes | server only |
@@ -6515,7 +6533,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (203)
+### Smaller groups and older helpers (201)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -6665,8 +6683,6 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_receive_inbound_email(p_key text, p_message jsonb)` | jsonb | yes | server only |
 | `zella_receive_inbound_email_signed(p_key text, p_message jsonb, p_sig jsonb)` | jsonb | yes | server only |
 | `zella_records_page(p_business_id uuid, p_type_key text, p_filter text, p_query text, p_limit integer, p_after jsonb)` | jsonb |  | signed in |
-| `zella_refund_options(p_business_id uuid)` | jsonb | yes | server only |
-| `zella_refund_reserved(p_payment_id uuid)` | bigint | yes | server only |
 | `zella_register_phone_number(p_business_id uuid, p_number text, p_vapi_phone_number_id text, p_label text)` | uuid | yes | server only |
 | `zella_reject_data_rights_request(p_request_id uuid, p_reason text)` | void | yes | signed in |
 | `zella_release_call(p_source text, p_id uuid, p_reason text, p_defer_minutes integer)` | text | yes | server only |
