@@ -5,7 +5,7 @@ begin;
 do $$
 declare s text; v_has boolean;
   owned constant jsonb := '{
-    "public.zella_billing_usage_email_trg()": "12714112e5797b311c616dc01aa8b3e3"
+    "public.zella_billing_usage_email_trg()": "d7655706d1a394d07f654b5f3c1f7333"
   }';
 begin
   for s in select jsonb_object_keys(owned) loop

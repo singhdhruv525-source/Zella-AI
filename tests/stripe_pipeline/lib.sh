@@ -49,10 +49,10 @@ zf_business() {
      m as (insert into public.business_members (business_id, user_id, role, status) select b.id, u.id, 'owner', 'active' from b, u returning business_id)
      select business_id from m"
 }
-# a saved plan version for a business (integer cents): zf_plan <business> <price> <setup fee> [monthly|yearly] [trial true|false] [version]
+# a saved plan version for a business (integer cents): zf_plan <business> <price> <setup fee> [monthly|yearly] [trial true|false] [version] [overage cents]
 zf_plan() {
   q "insert into public.business_plans (business_id, version, tier, billing_interval, price_cents, setup_fee_cents, currency, minutes, texts, emails, team_seats, phone_numbers, locations, languages, trial_enabled, overage_cents_per_minute, contact_limits, estimate, acknowledged_warnings, effective_from, idempotency_key, values_hash)
-     values ('$1', ${6:-1}, 'base', '${4:-monthly}', $2, $3, 'USD', 500, 200, 200, 3, 1, 1, array['en'], ${5:-false}, 20, '{}', '{}', '[]', now() - interval '1 day', 'plan-key-${6:-1}-' || substr(md5(random()::text),1,8), md5(random()::text)) returning id"
+     values ('$1', ${6:-1}, 'base', '${4:-monthly}', $2, $3, 'USD', 500, 200, 200, 3, 1, 1, array['en'], ${5:-false}, ${7:-20}, '{}', '{}', '[]', now() - interval '1 day', 'plan-key-${6:-1}-' || substr(md5(random()::text),1,8), md5(random()::text)) returning id"
 }
 # runs SQL as a signed in user: as_user <user id> <aal1|aal2> <sql>
 as_user() { q "set role authenticated; select set_config('request.jwt.claims', json_build_object('sub', '$1', 'role', 'authenticated', 'aal', '$2')::text, false); $3" | tail -n +2; }
@@ -67,9 +67,13 @@ zf_at_payment() {
 }
 # records a successful send of the next outbox row with a made up Stripe answer: zf_sent <business> <stripe id> [extra response json]
 zf_sent() {
-  local id; id=$(q "select id from public.zella_billing_outbox_claim(1, (select id from public.billing_outbox where business_id = '$1' and status = 'pending' order by created_at limit 1))")
+  local pending id
+  # this business's next pending command first: with none, nothing is claimed (an empty id would claim any business's)
+  pending=$(q "select id from public.billing_outbox where business_id = '$1' and status = 'pending' order by created_at limit 1")
+  [ -n "$pending" ] || { echo "none"; return; }
+  id=$(q "select id from public.zella_billing_outbox_claim(1, '$pending')")
   [ -n "$id" ] || { echo "none"; return; }
-  q "select public.zella_billing_outbox_result('$id', true, '$2', (select jsonb_build_object('id', '$2', 'livemode', false) || coalesce(body, '{}') - 'metadata' || '${3:-{\}}'::jsonb from public.billing_outbox where id = '$id'), null, false, false)"
+  q "select public.zella_billing_outbox_result('$id', true, '$2', (select jsonb_build_object('id', '$2', 'livemode', false) || coalesce(body, '{}') - 'metadata' || '${3:-{\}}'::jsonb from public.billing_outbox where id = '$id'), null, false, false, (select attempts from public.billing_outbox where id = '$id'))"
 }
 # an active Stripe subscription as if Checkout had run: zf_active <business> <plan id> <price cents> <n> [period end, unix]
 #   -> links cus_<n>, sub_<n>, price_<n>

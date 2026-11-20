@@ -26,10 +26,19 @@ q "update public.allowance_buckets set used = 350 where business_id = '$b' and r
 r=$(zf_apply evt_r5 invoice.paid "$(inv in_R5 paid 29900 29900 "[$(line 29900 price_R1)]")"); [ "$r" = "applied" ] && ok "a bound renewal applies" || bad "renewal: $r $(q "select error from public.billing_events where external_event_id = 'evt_r5'")"
 [ "$(q "select status || ',' || (current_period_start = to_timestamp($p1)) from public.subscriptions where business_id = '$b'")" = "active,true" ] && ok "the period moves to Stripe's new one" || bad "period"
 [ "$(q "select string_agg(kind || ':' || granted::int, ',' order by kind) from public.allowance_buckets k join public.billing_periods p on p.id = k.period_id where k.business_id = '$b' and k.resource = 'minutes' and p.period_start = to_timestamp($p1)")" = "plan:500,rollover:100" ] && ok "fresh 500 minutes and a 100 minute rollover (20%, 150 unused)" || bad "rollover: $(q "select string_agg(kind || ':' || granted, ',') from public.allowance_buckets where business_id = '$b'")"
-r=$(zf_apply evt_r6 invoice.paid "$(inv in_R6 paid 29900 29900 "[$(line 29900 price_R1 $((now - 5000000)) $((now - 2400000)))]")"); [ "$(q "select current_period_start = to_timestamp($p1) from public.subscriptions where business_id = '$b'")" = "t" ] && ok "an older period's invoice never moves the subscription back" || bad "older"
-r=$(zf_apply evt_f1 invoice.payment_failed "$(inv in_F1 open 0 29900 "[$(line 29900 price_R1)]")"); [ "$r" = "applied" ] && [ "$(q "select status from public.subscriptions where business_id = '$b'")" = "past_due" ] && ok "a failed renewal is past due" || bad "failed: $r"
+r=$(zf_apply evt_r6 invoice.paid "$(inv in_R6 paid 29900 29900 "[$(line 29900 price_R1 $((now - 5000000)) $((now - 2400000)))]")")
+[ "$r" = "applied" ] && [ "$(q "select count(*) from public.payments where business_id = '$b' and metadata ->> 'stripe_invoice' = 'in_R6' and status = 'succeeded'")" = "1" ] \
+  && [ "$(q "select current_period_start = to_timestamp($p1) from public.subscriptions where business_id = '$b'")" = "t" ] \
+  && ok "an older period's invoice is recorded (its payment) and never moves the subscription back" || bad "older: $r"
+r=$(zf_apply evt_f0 invoice.payment_failed "$(inv in_F0 open 0 29900 "[$(line 29900 price_R1 $((now - 5000000)) $((now - 2400000)))]")")
+[ "$r" = "applied" ] && [ "$(q "select status from public.subscriptions where business_id = '$b'")" = "active" ] && [ "$(q "select status from public.billing_invoices where stripe_invoice_id = 'in_F0'")" = "payment_failed" ] \
+  && ok "a delayed failure of an older invoice is recorded, and never makes a paid newer period past due" || bad "older failure: $r"
+r=$(zf_apply evt_f1 invoice.payment_failed "$(inv in_F1 open 0 29900 "[$(line 29900 price_R1 $p2 $((p2 + 2592000)))]")"); [ "$r" = "applied" ] && [ "$(q "select status from public.subscriptions where business_id = '$b'")" = "past_due" ] && ok "a failed renewal is past due" || bad "failed: $r"
 [ "$(q "select count(*) from public.staff_notifications where business_id = '$b' and title = 'Your payment did not go through'")" -ge 1 ] && ok "with an urgent notice to the owner" || bad "notice: $(q "select string_agg(title, ',') from public.staff_notifications where business_id = '$b'")"
-r=$(zf_apply evt_f2 invoice.payment_failed "$(inv in_F1 paid 29900 29900 "[$(line 29900 price_R1)]")"); [ "$r" = "older" ] && ok "a failure event fetched after the invoice was paid changes nothing" || bad "fail after paid: $r"
+r=$(zf_apply evt_f2 invoice.payment_failed "$(inv in_F1 paid 29900 29900 "[$(line 29900 price_R1 $p2 $((p2 + 2592000)))]")"); [ "$r" = "older" ] && ok "a failure event fetched after the invoice was paid changes nothing" || bad "fail after paid: $r"
+r=$(zf_apply evt_r5b invoice.paid "$(inv in_R5 paid 29900 29900 "[$(line 29900 price_R1)]")")
+[ "$(q "select status from public.subscriptions where business_id = '$b'")" = "past_due" ] && [ "$(q "select count(*) from public.staff_notifications where business_id = '$b' and title = 'Payment received'")" = "0" ] \
+  && ok "the already granted period's invoice seen again (a new event id) never clears the nonpayment" || bad "repeat paid: $r $(q "select status from public.subscriptions where business_id = '$b'")"
 q "update public.subscriptions set past_due_since = now() - interval '6 days' where business_id = '$b'" > /dev/null
 q "update public.platform_settings set value = 'false' where key = 'payments_live'" > /dev/null
 [ "$(q "select public.zella_billing_nonpayment_sweep() ->> 'off'")" = "true" ] && [ "$(q "select status from public.subscriptions where business_id = '$b'")" = "past_due" ] && ok "the pause waits while payments are off" || bad "sweep off"
@@ -45,12 +54,14 @@ r=$(zf_apply evt_a1 invoice.payment_action_required "$(inv in_A1 open 0 29900 "[
 # a trial ends: plan price plus our setup fee item
 t=$(zf_business "Renew Trial"); tplan=$(zf_plan "$t" 19900 10000 monthly true); zf_active "$t" "$tplan" 19900 T1
 q "update public.subscriptions set status = 'trial', trial_start_at = now() - interval '5 days', trial_end_at = to_timestamp($p1), current_period_start = null, current_period_end = null where business_id = '$t'" > /dev/null
+r=$(zf_apply evt_w1 customer.subscription.trial_will_end '{"id":"sub_T1","object":"subscription","status":"trialing","trial_end":'$p1',"livemode":false}')
+[ "$r" = "applied" ] && [ "$(q "select count(*) from public.staff_notifications where business_id = '$t' and title = 'Your trial ends soon'")" = "1" ] \
+  && ok "trial will end (still trialing): the owner is reminded" || bad "trial will end: $r"
 oid=$(q "select (public.zella_billing_outbox_add('$t', 'invoice_item', 'setupfee:test', 'POST', '/v1/invoiceitems', '{\"amount\":10000,\"metadata\":{\"kind\":\"setup_fee\"}}')).id")
-q "select id from public.zella_billing_outbox_claim(1, '$oid')" > /dev/null; q "select public.zella_billing_outbox_result('$oid', true, 'ii_T1', '{\"id\":\"ii_T1\",\"amount\":10000,\"livemode\":false}', null, false, false)" > /dev/null
+q "select id from public.zella_billing_outbox_claim(1, '$oid')" > /dev/null; q "select public.zella_billing_outbox_result('$oid', true, 'ii_T1', '{\"id\":\"ii_T1\",\"amount\":10000,\"livemode\":false}', null, false, false, (select attempts from public.billing_outbox where id = '$oid'))" > /dev/null
 [ "$(q "select expected_amount_minor from public.billing_stripe_links where stripe_id = 'ii_T1'")" = "10000" ] && ok "our invoice item is linked with its amount" || bad "item link"
 r=$(zf_apply evt_t1 invoice.paid "$(inv in_T1 paid 29900 29900 "[$(line 19900 price_T1), {\"amount\":10000,\"parent\":{\"invoice_item_details\":{\"invoice_item\":\"ii_T1\"}}}]" subscription_cycle cus_T1 | sed 's/sub_R1/sub_T1/')")
 [ "$r" = "applied" ] && [ "$(q "select status from public.subscriptions where business_id = '$t'")" = "active" ] && ok "the trial end invoice (plan + setup fee) activates the plan" || bad "trial end: $r $(q "select error from public.billing_events where external_event_id = 'evt_t1'")"
-r=$(zf_apply evt_w1 customer.subscription.trial_will_end '{"id":"sub_T1","object":"subscription","status":"trialing","trial_end":'$p1',"livemode":false}'); [ "$r" = "applied" ] && ok "trial will end: the owner is reminded" || bad "trial will end: $r"
 out=$(q "set role authenticated; select public.zella_billing_nonpayment_sweep()" 2>&1)
 [[ "$out" == *"permission denied"* ]] && ok "signed in users can't run the sweep" || bad "sweep auth"
 echo "$fails failed"; [ "$fails" = 0 ]

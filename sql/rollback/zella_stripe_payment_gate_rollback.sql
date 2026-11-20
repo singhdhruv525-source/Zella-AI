@@ -21,7 +21,7 @@ begin
     execute d;
   end loop;
   if to_regprocedure('public.zella_onboarding_payment_passed(uuid)') is not null then
-    if md5(pg_get_functiondef('public.zella_onboarding_payment_passed(uuid)'::regprocedure)) <> 'e70908add03c370de86fdc4893bc984f' then
+    if md5(pg_get_functiondef('public.zella_onboarding_payment_passed(uuid)'::regprocedure)) <> '6065905149390deeed6e519af5464864' then
       raise exception 'ROLLBACK_DRIFT: zella_onboarding_payment_passed is not the version zella_stripe_payment_gate.sql made';
     end if;
     drop function public.zella_onboarding_payment_passed(uuid);

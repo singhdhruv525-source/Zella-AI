@@ -27,16 +27,20 @@ declare s text; d text;
     "public.zella_onboarding_payment(uuid)": ["65909f32d9e0e9259bd5b07b1e1a5543", "c777f4fddec15495ef2f1fa2c2c95cd8"]
   }';
   owned constant jsonb := '{
-    "public.zella_billing_checkout_continue(uuid,boolean)": "2d0f417be1edd6dba431e972a2b3123d",
+    "public.zella_billing_checkout_continue(uuid,boolean)": "7f998f18370021b4668ce06f057d0055",
     "public.zella_billing_checkout_next_command(uuid)": "1de829f1bf61b380be0b25226d03368f",
-    "public.zella_owner_billing_checkout_start(uuid,text)": "096c4a95c59712984e15ace4b4b69a27",
+    "public.zella_owner_billing_checkout_start(uuid,text)": "ccd57eed688b61cf9cec456b33fd4f55",
     "public.zella_stripe_after_customer(billing_outbox)": "79869917c8050995b88a9bebeaa57c31",
     "public.zella_stripe_after_product(billing_outbox)": "a9eb61e5d51628b53253a83df4efdb68",
     "public.zella_stripe_after_price(billing_outbox)": "651dce986b81b8bcf00033b3f32c8323",
     "public.zella_stripe_after_checkout_session(billing_outbox)": "5df8106e56d16ca2580479906e4aa8f0",
     "public.zella_stripe_failed_checkout_session(billing_outbox)": "3274f0c8857d89ebf9790d2ffa6d4295",
-    "public.zella_stripe_on_checkout_session_completed(billing_events,jsonb)": "eb6740164eb5dd99408886144c09d2e6",
-    "public.zella_stripe_on_checkout_session_expired(billing_events,jsonb)": "8e12fc8a241aad650435134fa83ae0cd",
+    "public.zella_stripe_failed_customer(billing_outbox)": "564a538acd61da179d341d99bccb8d47",
+    "public.zella_stripe_failed_product(billing_outbox)": "a41bc5d5f292e6862e8b0b0e770468fc",
+    "public.zella_stripe_failed_price(billing_outbox)": "fea8c8ed9d6a8abec71237a97e20276b",
+    "public.zella_stripe_after_checkout_expire(billing_outbox)": "cc2a749acddcf304d7bc5e69821e2949",
+    "public.zella_stripe_on_checkout_session_completed(billing_events,jsonb)": "f73812ee1419833c6ec08db5011e5a2a",
+    "public.zella_stripe_on_checkout_session_expired(billing_events,jsonb)": "61970b0fbe942ccaa1dbc7e3a06afe56",
     "public.zella_stripe_grant_subscription_create(jsonb,jsonb)": "617d28551ada05a996984777eae97aa2"
   }';
 begin
@@ -66,7 +70,7 @@ create table if not exists public.billing_checkouts (
   business_id uuid not null references public.businesses(id) on delete restrict,
   business_plan_id uuid not null references public.business_plans(id) on delete restrict,
   mode text not null check (mode in ('pay', 'trial')),
-  status text not null default 'preparing' check (status in ('preparing', 'open', 'completed', 'paid', 'expired', 'failed')),
+  status text not null default 'preparing' check (status in ('preparing', 'open', 'expiring', 'completed', 'paid', 'expired', 'failed')),
   first_amount_minor bigint not null check (first_amount_minor >= 0),
   setup_fee_minor bigint not null check (setup_fee_minor >= 0),
   trial_end_at timestamptz,
@@ -80,7 +84,7 @@ create table if not exists public.billing_checkouts (
   updated_at timestamptz not null default now(),
   unique (business_id, idempotency_key)
 );
-create unique index if not exists billing_checkouts_one_open_uidx on public.billing_checkouts (business_id) where status in ('preparing', 'open', 'completed');
+create unique index if not exists billing_checkouts_one_open_uidx on public.billing_checkouts (business_id) where status in ('preparing', 'open', 'expiring', 'completed');
 alter table public.billing_checkouts enable row level security;
 revoke all on public.billing_checkouts from anon, authenticated;
 grant select, insert, update on public.billing_checkouts to service_role;
@@ -183,6 +187,12 @@ begin
         'subscription_data', jsonb_strip_nulls(jsonb_build_object('metadata', jsonb_build_object('business_id', c.business_id, 'checkout_id', c.id),
                                                                   'trial_end', extract(epoch from c.trial_end_at)::bigint)))), 'checkout', c.id);
   end if;
+  -- a setup command Stripe refused for good (held for a person) never leaves this Checkout waiting: it fails, and the
+  -- owner's next start is a new attempt (the held command still needs the person the alert asked for)
+  if o.status = 'held' then
+    update public.billing_checkouts set status = 'failed', updated_at = now() where id = c.id;
+    return null;
+  end if;
   return o.id;
 end $$;
 
@@ -200,13 +210,23 @@ begin
   select * into p from public.business_plans where business_id = p_business_id order by version desc limit 1;
   if p.id is null then raise exception 'PLAN_MISSING'; end if;
   if p.version is distinct from o.plan_accepted_version then raise exception 'PLAN_CHANGED'; end if;
-  -- the same key returns the same checkout (a double click); another key while one is open returns that one (two tabs)
+  -- the same key returns the same checkout (a double click); another key while one is in progress returns that one
+  -- (two tabs, or a payment Stripe took that the webhook hasn't confirmed yet: 'completed' stays until it is paid)
   select * into c from public.billing_checkouts where business_id = p_business_id and idempotency_key = p_idempotency_key;
   if c.id is null then
-    select * into c from public.billing_checkouts where business_id = p_business_id and status in ('preparing', 'open') order by created_at desc limit 1;
-    if c.id is not null and (c.business_plan_id <> p.id or (c.status = 'open' and c.expires_at <= now())) then
-      update public.billing_checkouts set status = 'expired', updated_at = now() where id = c.id;
-      c := null;
+    select * into c from public.billing_checkouts where business_id = p_business_id and status in ('preparing', 'open', 'expiring', 'completed') order by created_at desc limit 1;
+    if c.id is not null and c.status in ('preparing', 'open') and (c.business_plan_id <> p.id or (c.status = 'open' and c.expires_at <= now())) then
+      if c.status = 'open' and c.expires_at > now() and c.stripe_session_id is not null then
+        -- the old session could still be paid at Stripe: Stripe expires it first; a new one is offered only after Stripe
+        -- confirms (zella_stripe_after_checkout_expire). If it was paid meanwhile, that payment is processed as usual.
+        update public.billing_checkouts set status = 'expiring', url = null, updated_at = now() where id = c.id;
+        perform public.zella_billing_outbox_add(p_business_id, 'checkout_expire', 'checkoutexpire:' || c.id, 'POST',
+          '/v1/checkout/sessions/' || c.stripe_session_id || '/expire', '{}'::jsonb, 'checkout', c.id);
+        select * into c from public.billing_checkouts where id = c.id;
+      else
+        update public.billing_checkouts set status = 'expired', updated_at = now() where id = c.id;
+        c := null;
+      end if;
     end if;
   end if;
   if c.id is null then
@@ -273,6 +293,31 @@ language sql security definer set search_path = public as $$
   update public.billing_checkouts set status = 'failed', updated_at = now() where id = r.local_id and status = 'preparing';
 $$;
 
+-- A setup command (customer, product, price) Stripe refused for good: the Checkout that waited for it fails, so the
+-- owner can start again; the held command stays for the person the outbox alert asked for.
+create or replace function public.zella_stripe_failed_customer(r public.billing_outbox) returns void
+language sql security definer set search_path = public as $$
+  update public.billing_checkouts set status = 'failed', updated_at = now() where id = r.local_id and r.local_kind = 'checkout' and status = 'preparing';
+$$;
+create or replace function public.zella_stripe_failed_product(r public.billing_outbox) returns void
+language sql security definer set search_path = public as $$
+  update public.billing_checkouts set status = 'failed', updated_at = now() where id = r.local_id and r.local_kind = 'checkout' and status = 'preparing';
+$$;
+create or replace function public.zella_stripe_failed_price(r public.billing_outbox) returns void
+language sql security definer set search_path = public as $$
+  update public.billing_checkouts set status = 'failed', updated_at = now() where id = r.local_id and r.local_kind = 'checkout' and status = 'preparing';
+$$;
+
+-- Stripe expired the old session (it can no longer be paid): the owner's next start opens a new one.
+create or replace function public.zella_stripe_after_checkout_expire(r public.billing_outbox) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if r.response ->> 'status' is distinct from 'expired' then raise exception 'BINDING: Stripe did not expire the session'; end if;
+  update public.billing_checkouts set status = 'expired', url = null, updated_at = now() where id = r.local_id and status = 'expiring';
+end $$;
+-- If Stripe refuses to expire it (usually because it was just paid), nothing is replaced: the payment is processed
+-- from its events, and the held command's alert asks a person to check.
+
 -- ---------------------------------------------------------------------------------------------------------------
 -- 2, 3. Events
 -- ---------------------------------------------------------------------------------------------------------------
@@ -292,7 +337,7 @@ begin
   values (l.business_id, 'pending_payment', p.billing_interval, 'stripe', o ->> 'subscription', jsonb_build_object('checkout_id', c.id))
   on conflict (business_id) do update set external_subscription_id = excluded.external_subscription_id, provider = 'stripe', updated_at = now()
    where subscriptions.status in ('pending_payment', 'cancelled', 'expired') or subscriptions.external_subscription_id is null;
-  update public.billing_checkouts set status = case when status in ('preparing', 'open') then 'completed' else status end, stripe_subscription_id = o ->> 'subscription', updated_at = now()
+  update public.billing_checkouts set status = case when status in ('preparing', 'open', 'expiring') then 'completed' else status end, stripe_subscription_id = o ->> 'subscription', updated_at = now()
    where id = c.id;
   -- the events that were waiting for this link are due again now (their invoice.paid usually is among them)
   update public.billing_events set next_attempt_at = now()
@@ -306,7 +351,7 @@ language plpgsql security definer set search_path = public as $$
 declare l public.billing_stripe_links := public.zella_stripe_link(o ->> 'id', 'checkout_session');
 begin
   if l.stripe_id is null then raise exception 'BINDING: checkout session is not ours'; end if;
-  update public.billing_checkouts set status = 'expired', url = null, updated_at = now() where id = l.local_id and status in ('preparing', 'open');
+  update public.billing_checkouts set status = 'expired', url = null, updated_at = now() where id = l.local_id and status in ('preparing', 'open', 'expiring');
   return 'applied';
 end $$;
 
@@ -358,12 +403,17 @@ end $$;
 do $$ declare f text; begin
   foreach f in array array['zella_billing_checkout_continue(uuid,boolean)', 'zella_billing_checkout_next_command(uuid)', 'zella_stripe_after_customer(billing_outbox)', 'zella_stripe_after_product(billing_outbox)',
     'zella_stripe_after_price(billing_outbox)', 'zella_stripe_after_checkout_session(billing_outbox)', 'zella_stripe_failed_checkout_session(billing_outbox)',
+    'zella_stripe_failed_customer(billing_outbox)', 'zella_stripe_failed_product(billing_outbox)', 'zella_stripe_failed_price(billing_outbox)',
+    'zella_stripe_after_checkout_expire(billing_outbox)',
     'zella_stripe_on_checkout_session_completed(billing_events,jsonb)', 'zella_stripe_on_checkout_session_expired(billing_events,jsonb)',
     'zella_stripe_grant_subscription_create(jsonb,jsonb)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
 end $$;
+-- the payment state and its Checkout link are read only through the owner functions, which check the caller first
+revoke execute on function public.zella_onboarding_payment(uuid) from public, anon, authenticated;
+revoke execute on function public.zella_onboarding_payment_confirmed_at(uuid) from public, anon, authenticated;
 -- the rules constant (read by owners) now asks whether payments are live: a yes or no only
 grant execute on function public.zella_payments_live() to authenticated;
 revoke execute on function public.zella_owner_billing_checkout_start(uuid, text) from public, anon;

@@ -25,8 +25,10 @@ begin
   drop trigger if exists zella_billing_email_subscription on public.subscriptions;
   drop trigger if exists zella_billing_email_pack on public.pack_purchases;
   if to_regclass('public.billing_email_intents') is not null then
-    execute 'select exists (select 1 from public.billing_email_intents where status in (''pending'', ''claimed''))' into v_has;
-    if v_has then raise exception 'ROLLBACK_HAS_DATA: billing emails are waiting to be queued'; end if;
+    lock table public.billing_email_intents in access exclusive mode;   -- held until commit: no notice can be added before the drop
+    -- any notice (waiting, held for a person, or already queued) is a record a person may need: refuse, delete nothing
+    execute 'select exists (select 1 from public.billing_email_intents)' into v_has;
+    if v_has then raise exception 'ROLLBACK_HAS_DATA: billing notices exist; a person decides what to keep'; end if;
   end if;
   for s in select jsonb_object_keys(owned) loop
     if to_regprocedure(s) is not null then execute format('drop function %s', s::regprocedure); end if;

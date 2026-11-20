@@ -10,7 +10,9 @@ test("cents to dollars, without rounding errors, and unknowns said in words", ()
   assert.equal(usd(1), "$0.01");
   assert.equal(usd(0), "$0.00");
   assert.equal(usd(-2900), "-$29.00");
-  assert.equal(usd(null), "$0.00");
+  assert.equal(usd(null), "Not available");
+  assert.equal(usd(""), "Not available");
+  assert.equal(usd(" "), "Not available");
   assert.equal(usd("abc"), "Not available");
 });
 test("every status the database writes has words and a known tone", () => {

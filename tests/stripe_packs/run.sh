@@ -34,8 +34,24 @@ zf_apply evt_p2 payment_intent.succeeded "$(pi pi_P1 succeeded 2900)" > /dev/nul
 [ "$(zf_apply evt_p3 payment_intent.succeeded "$(pi pi_SUBSCRIPTION succeeded 29900)")" = "ignored" ] && ok "a plan invoice's PaymentIntent is left to invoice.paid" || bad "unlinked"
 pid2=$(as_user "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_250', 'pack-key-0002') ->> 'purchase_id'")
 oid=$(q "select id from public.billing_outbox where local_id = '$pid2'"); q "select id from public.zella_billing_outbox_claim(1, '$oid')" > /dev/null
-q "select public.zella_billing_outbox_result('$oid', false, null, '{\"type\":\"card_error\",\"code\":\"card_declined\",\"payment_intent\":\"pi_P2\"}', 'card_error card_declined', false, false)" > /dev/null
+q "select public.zella_billing_outbox_result('$oid', false, null, '{\"type\":\"card_error\",\"code\":\"card_declined\",\"payment_intent\":\"pi_P2\"}', 'card_error card_declined', false, false, (select attempts from public.billing_outbox where id = '$oid'))" > /dev/null
 [ "$(q "select status || ',' || failure_reason from public.pack_purchases where id = '$pid2'")$(q "select count(*) from public.allowance_buckets where pack_purchase_id = '$pid2'")" = "failed,card_declined0" ] && ok "a declined card fails the purchase, nothing granted" || bad "decline"
+# an unknown outcome (no clear answer after every retry) keeps the purchase pending and reserved; the owner isn't told it failed
+pid3=$(as_user "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'pack-key-0003') ->> 'purchase_id'")
+o3=$(q "select id from public.billing_outbox where local_id = '$pid3'"); q "select id from public.zella_billing_outbox_claim(1, '$o3')" > /dev/null
+notes=$(q "select count(*) from public.staff_notifications where business_id = '$b' and title = 'A pack could not be bought'")
+q "select public.zella_billing_outbox_result('$o3', false, null, '{\"status\":0,\"type\":\"network_error\"}', 'network_error: timeout', false, false, 1)" > /dev/null
+[ "$(q "select status from public.pack_purchases where id = '$pid3'")" = "pending" ] && [ "$(q "select status from public.billing_outbox where id = '$o3'")" = "held" ] \
+  && [ "$(q "select count(*) from public.staff_notifications where business_id = '$b' and title = 'A pack could not be bought'")" = "$notes" ] \
+  && ok "an unknown charge outcome stays pending (held for a person), never reported as not charged" || bad "unknown outcome: $(q "select status from public.pack_purchases where id = '$pid3'")"
+# an early payment event for our own pack command, before its answer is recorded, waits instead of being dropped
+pid4=$(as_user "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_250', 'pack-key-0004') ->> 'purchase_id'")
+[ "$(zf_apply evt_p4 payment_intent.succeeded "{\"id\":\"pi_P4\",\"object\":\"payment_intent\",\"status\":\"succeeded\",\"amount\":5900,\"currency\":\"usd\",\"customer\":\"cus_P1\",\"livemode\":false,\"metadata\":{\"purchase_id\":\"$pid4\"}}")" = "waiting" ] \
+  && ok "a pack payment event that arrives before its command's answer waits (retried), never dropped" || bad "early event"
+# an owner key never replays an admin grant
+q "insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source, reason, period_id, idempotency_key)
+   select '$b', 'minutes_100', 'minutes', 100, 0, 'granted', 'admin_grant', 'Goodwill', id, 'pack-key-admin1' from public.billing_periods where business_id = '$b' order by period_start desc limit 1" > /dev/null
+[ "$(as_user_e "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'pack-key-admin1')")" = "IDEMPOTENCY_CONFLICT" ] && ok "an owner purchase never returns an admin grant that used the same key" || bad "admin key"
 # auto reload
 q "insert into public.auto_reload_settings (business_id, resource, enabled, threshold, pack_code, monthly_cap_cents) values ('$b', 'minutes', true, 50, 'minutes_100', 5000)" > /dev/null
 per=$(q "select id from public.billing_periods where business_id = '$b' order by period_start desc limit 1")

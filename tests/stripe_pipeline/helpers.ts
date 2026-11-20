@@ -3,8 +3,26 @@ const DB = Deno.env.get("ZF_DB") ?? "";
 if (!/^zlf_t_[a-z0-9_]+$/.test(DB)) throw new Error("REFUSED: the flow tests run only on a zlf_t_ test database");
 export const BACKEND = Deno.env.get("ZF_BACKEND") ?? "http://127.0.0.1:54336";
 export const SERVER_KEY = "sb_secret_local_test_only";   // tests/browser/local-backend.mjs's test key
+// The same server the shell builder used (ZPG_HOST, ZPG_PORT, with the same defaults), checked the same way as
+// tests/lib/isolated_guard.sh before the first statement: a plain local socket directory and port, and a server whose
+// data directory is the isolated test cluster's.
+const PG_HOST = Deno.env.get("ZPG_HOST") ?? "/var/lib/postgresql/zella-sec";
+const PG_PORT = Deno.env.get("ZPG_PORT") ?? "55433";
+if (!/^\/[A-Za-z0-9/._-]+$/.test(PG_HOST) || !/^[0-9]{1,5}$/.test(PG_PORT)) throw new Error("REFUSED: ZPG_HOST must be a local socket directory and ZPG_PORT a port number");
+const psql = (db: string, text: string) =>
+  new Deno.Command("psql", { args: ["-h", PG_HOST, "-p", PG_PORT, "-U", "postgres", "-d", db, "-qtAX", "-v", "ON_ERROR_STOP=1", "-c", text] }).output();
+let isolated: Promise<void> | null = null;
+function requireIsolated(): Promise<void> {
+  isolated ??= (async () => {
+    const out = await psql("postgres", "select case when inet_server_addr() is null then current_setting('data_directory') end");
+    const dir = new TextDecoder().decode(out.stdout).trim();
+    if (!out.success || dir !== "/var/lib/postgresql/zella-sec/data") throw new Error("REFUSED: not the isolated test server");
+  })();
+  return isolated;
+}
 export async function sql(text: string): Promise<string> {
-  const out = await new Deno.Command("psql", { args: ["-h", "/var/lib/postgresql/zella-sec", "-p", "55433", "-U", "postgres", "-d", DB, "-qtAX", "-v", "ON_ERROR_STOP=1", "-c", text] }).output();
+  await requireIsolated();
+  const out = await psql(DB, text);
   if (!out.success) throw new Error(new TextDecoder().decode(out.stderr));
   return new TextDecoder().decode(out.stdout).trim();
 }

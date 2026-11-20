@@ -6,13 +6,13 @@ do $$
 declare s text; v_has boolean;
   owned constant jsonb := '{
     "public.zella_billing_pack_next_command(uuid)": "2a5d455f3775411b79535374a09fc1c6",
-    "public.zella_owner_pack_buy(uuid,text,text)": "d6a31963fd637d0b57584df3349157a1",
-    "public.zella_billing_maybe_reload(uuid,text)": "d802867b376a6ed0c4ba30344c649b47",
+    "public.zella_owner_pack_buy(uuid,text,text)": "14f5dc41a480e7d25a876d897519d579",
+    "public.zella_billing_maybe_reload(uuid,text)": "b6b17e578427352f918fb5c324c70448",
     "public.zella_billing_reload_trg()": "8ca4aed8ecc092d3ba4916d9fe3902bc",
     "public.zella_billing_pack_command(pack_purchases)": "6509163e4d12bbf5186b0610f0524f5f",
     "public.zella_stripe_after_payment_intent(billing_outbox)": "838b8a815320adee2f4a368c79492250",
-    "public.zella_stripe_failed_payment_intent(billing_outbox)": "0367f4bb6f1682640c50c398597390ad",
-    "public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)": "d744eacbdf8179827a0ec86f765e6ec8",
+    "public.zella_stripe_failed_payment_intent(billing_outbox)": "e0134082bbbff7cf41290314c04ab303",
+    "public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)": "e7a39b17547fe5eefda25aa12c7fc0d2",
     "public.zella_stripe_on_payment_intent_payment_failed(billing_events,jsonb)": "f8a364ae8345e8d0ddeb787e82bb8ab8",
     "public.zella_stripe_on_payment_intent_requires_action(billing_events,jsonb)": "b5f1c4f5240f4e958947a575241cd6e9"
   }';
@@ -26,9 +26,9 @@ begin
     raise exception 'ROLLBACK_HAS_DATA: packs bought through Stripe exist; a person decides what to keep';
   end if;
   drop trigger if exists zella_billing_reload on public.usage_charges;
-  if md5(pg_get_functiondef('public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)'::regprocedure)) = '697fc98401d8f2f588fdff1ec93c1454' then
+  if md5(pg_get_functiondef('public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)'::regprocedure)) = '5ecdf2844d5d37c14c9ae1f027119fe6' then
     execute (select definition from public.zella_function_archive where migration = 'zella_stripe_packs' and signature = 'public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)');
-  elsif md5(pg_get_functiondef('public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)'::regprocedure)) <> 'c02680d28b2527875d15e3ec1d8f354a' then
+  elsif md5(pg_get_functiondef('public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)'::regprocedure)) <> 'cdbc9f06927ff12a5675b733a991d15f' then
     raise exception 'ROLLBACK_DRIFT: zella_stripe_on_customer_subscription_updated is not a known version';
   end if;
   delete from public.zella_function_archive where migration = 'zella_stripe_packs';

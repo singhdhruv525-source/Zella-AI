@@ -49,6 +49,7 @@ Deno.test("signed events are stored once, fetched, applied in order, and unbound
     // linked (what checkout.session.completed does from our own stored session): applied, oldest first
     const sub = fake.events.find((e) => e.type === "customer.subscription.created")!.data.object.id;
     await rpc("zella_stripe_link_add", { p_stripe_id: sub, p_kind: "subscription", p_business_id: business, p_livemode: false });
+    await sql(`update public.subscriptions set external_subscription_id = '${sub}' where business_id = '${business}'`);
     for (let i = 0; i < 6; i++) { await sql("update public.billing_events set next_attempt_at = now() where status = 'received'"); await runWorkerOnce(rpc, stripe); }
     assertEquals(await sql("select status from public.billing_events where type = 'customer.subscription.created'"), "processed");
     // this migration grants nothing for a first payment yet: the paid invoice is quarantined, not guessed

@@ -4,7 +4,7 @@
 //   2. Inbox: claim stored events (oldest first per subscription), fetch the object each one names from Stripe with our
 //      key (fetch before grant), and hand that object to the database, which runs the binding check and applies it.
 // Everything that changes money happens in one database transaction per event, guarded by unique keys.
-import { type StripeClient, StripeError } from "./stripe.ts";
+import { type StripeClient, StripeError, type StripeObject } from "./stripe.ts";
 import { queueBillingEmails } from "./billingEmails.ts";
 
 type Json = Record<string, any>;
@@ -34,20 +34,31 @@ const FETCH_PATH: Record<string, (id: string) => string> = {
   dispute: (id) => `/v1/disputes/${id}`,
 };
 
-type OutboxRow = { id: string; method: "POST" | "DELETE"; path: string; body: Json; idempotency_key: string };
+type OutboxRow = { id: string; method: "POST" | "DELETE"; path: string; body: Json; idempotency_key: string; attempts: number };
+
+// A step that may fail without stopping the run: the failure is logged by step name (never a secret or a body).
+const soft = <T>(step: string, p: Promise<T>): Promise<T | null> =>
+  p.catch((e) => { console.error("billing worker step failed", step, e instanceof Error ? e.message.slice(0, 200) : "error"); return null; });
 type EventRow = { id: string; type: string; object_type: string; object_id: string; livemode: boolean; payload: Json | null };
 
+// Stripe's answer and its recording are kept apart: a failure to RECORD a success is never reported as a Stripe
+// failure (the row stays "sending", its lease lapses and the same key is sent again, so Stripe answers the same).
+// Each result names the claim's attempt number, so a late answer from an earlier claim changes nothing.
 export async function sendOutboxRow(rpc: Rpc, stripe: StripeClient, row: OutboxRow): Promise<string> {
+  let out: StripeObject;
   try {
-    const out = row.method === "DELETE" ? await stripe.del(row.path, row.idempotency_key) : await stripe.post(row.path, row.body, row.idempotency_key);
-    return String(await rpc("zella_billing_outbox_result", { p_id: row.id, p_ok: true, p_stripe_id: out.id, p_response: out, p_error: null, p_retryable: false, p_conflict: false }));
+    out = row.method === "DELETE" ? await stripe.del(row.path, row.idempotency_key) : await stripe.post(row.path, row.body, row.idempotency_key);
   } catch (e) {
     const se = e instanceof StripeError ? e : new StripeError(0, "network_error", null, "unexpected error");
     return String(await rpc("zella_billing_outbox_result", {
       p_id: row.id, p_ok: false, p_stripe_id: null, p_response: { status: se.status, type: se.type, code: se.code, decline_code: se.declineCode, payment_intent: se.paymentIntent },
       p_error: `${se.type}${se.code ? ` ${se.code}` : ""}: ${se.message}`.slice(0, 300), p_retryable: se.retryable, p_conflict: se.idempotencyConflict,
+      p_attempt: row.attempts,
     }));
   }
+  return String(await rpc("zella_billing_outbox_result", {
+    p_id: row.id, p_ok: true, p_stripe_id: out.id, p_response: out, p_error: null, p_retryable: false, p_conflict: false, p_attempt: row.attempts,
+  }));
 }
 
 // Runs one outbox row now (the billing API uses it so the owner gets the Checkout link at once).
@@ -94,18 +105,23 @@ async function applyClaimed(rpc: Rpc, stripe: StripeClient, rows: EventRow[], co
 // §10, §12: events the webhook missed are read from Stripe's Events API and stored exactly as the webhook stores them
 // (repeats are ignored), and once a day Stripe's invoices, refunds and disputes of the last 7 days are matched to our
 // rows. Nothing is corrected here: the database records each difference as an alert for a person.
-export async function reconcile(rpc: Rpc, stripe: StripeClient, nowSeconds = Math.floor(Date.now() / 1000)): Promise<Json> {
+// The scan reads every page since the watermark (less an hour of overlap); only a scan that reached the last page
+// (has_more false) moves the watermark, to when this scan started. A scan cut short at maxPages moves nothing and the
+// database raises an alert: a longer backfill is a separate, manual step a person approves.
+export async function reconcile(rpc: Rpc, stripe: StripeClient, nowSeconds = Math.floor(Date.now() / 1000), maxPages = 50): Promise<Json> {
   const out: Json = {};
   const since = Number(await rpc("zella_billing_events_cursor", {}));
-  let stored = 0, starting: string | undefined;
-  for (let page = 0; page < 10; page++) {
+  let stored = 0, starting: string | undefined, complete = false;
+  for (let page = 0; page < maxPages; page++) {
     const list = await stripe.get("/v1/events", { created: { gte: since }, limit: 100, ...(starting ? { starting_after: starting } : {}) });
     const data = (list.data ?? []) as Json[];
     for (const ev of data) if ((await rpc("zella_stripe_event_store", { p_event: ev, p_key_livemode: stripe.livemode })) === "stored") stored++;
-    if (!list.has_more || !data.length) break;
+    if (!list.has_more || !data.length) { complete = true; break; }
     starting = String(data[data.length - 1].id);
   }
+  await rpc("zella_billing_events_scanned", { p_started: nowSeconds, p_stored: stored, p_complete: complete });
   out.events_recovered = stored;
+  out.events_scan_complete = complete;
   if ((await rpc("zella_billing_reconcile_due", {})) === true) {
     const week = nowSeconds - 7 * 86400, objects: Json[] = [];
     for (const [type, path] of [["invoice", "/v1/invoices"], ["refund", "/v1/refunds"], ["dispute", "/v1/disputes"]] as const) {
@@ -125,7 +141,8 @@ export async function sendOutbox(rpc: Rpc, stripe: StripeClient, limit = 10): Pr
   const counts: Record<string, number> = {};
   const rows = (await rpc("zella_billing_outbox_claim", { p_limit: limit, p_id: null })) as OutboxRow[] | null;
   for (const row of rows ?? []) {
-    const r = await sendOutboxRow(rpc, stripe, row);
+    // one row that can't be recorded never stops the others
+    const r = await soft("outbox_row", sendOutboxRow(rpc, stripe, row)) ?? "record_failed";
     counts[r] = (counts[r] ?? 0) + 1;
   }
   return counts;
@@ -134,14 +151,15 @@ export async function sendOutbox(rpc: Rpc, stripe: StripeClient, limit = 10): Pr
 // One run: commands first (so a link is stored before its events arrive), then events, then any commands the events
 // queued. Each step only claims what is due, so overlapping runs never send or apply anything twice.
 export async function runWorkerOnce(rpc: Rpc, stripe: StripeClient): Promise<Json> {
-  const outbox = await sendOutbox(rpc, stripe);
-  const events = await applyEvents(rpc, stripe);
-  const followUp = await sendOutbox(rpc, stripe);
+  // each step runs even if the one before failed (logged by name)
+  const outbox = await soft("outbox", sendOutbox(rpc, stripe));
+  const events = await soft("events", applyEvents(rpc, stripe));
+  const followUp = await soft("outbox_follow_up", sendOutbox(rpc, stripe));
   // REQ-BIL-33: 5 days past due pauses the receptionist (the database decides; nothing is called here)
-  const sweep = await rpc("zella_billing_nonpayment_sweep", {}).catch(() => null);
+  const sweep = await soft("nonpayment_sweep", rpc("zella_billing_nonpayment_sweep", {}));
   // billing emails: renewal and trial notices decided now, then every notice rendered into the platform outbox (held while email_live is off)
-  await rpc("zella_billing_email_sweep", {}).catch(() => null);
-  const emails = await queueBillingEmails(rpc).catch(() => null);
-  const recon = await reconcile(rpc, stripe).catch(() => null);
+  await soft("email_sweep", rpc("zella_billing_email_sweep", {}));
+  const emails = await soft("billing_emails", queueBillingEmails(rpc));
+  const recon = await soft("reconcile", reconcile(rpc, stripe));
   return { outbox, events, follow_up: followUp, sweep, emails, reconcile: recon };
 }

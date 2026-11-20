@@ -20,13 +20,13 @@ begin;
 do $$
 declare s text;
   owned constant jsonb := '{
-    "public.zella_stripe_bind_lines(jsonb,uuid)": "c017d8779db4f747aae18d689f7b7b09",
-    "public.zella_stripe_grant_subscription_cycle(jsonb,jsonb)": "073fe04eba152d2664d0a96490545b9c",
-    "public.zella_stripe_payment_problem(billing_events,jsonb,text)": "656e996016f8ec5d799ceb032993affc",
+    "public.zella_stripe_bind_lines(jsonb,uuid)": "d20af37d876578dbdd72a9d8e5ed37cf",
+    "public.zella_stripe_grant_subscription_cycle(jsonb,jsonb)": "96ca750a5334b9d42954f18ce6e90762",
+    "public.zella_stripe_payment_problem(billing_events,jsonb,text)": "6efab25581c8aef537953a460a763f4d",
     "public.zella_stripe_on_invoice_payment_failed(billing_events,jsonb)": "ea433b09813c3176bb3b408dba00794f",
     "public.zella_stripe_on_invoice_payment_action_required(billing_events,jsonb)": "8b29e15953f994f65f949e655af1c7b1",
     "public.zella_stripe_on_customer_subscription_trial_will_end(billing_events,jsonb)": "4117094051bffaf3c64c131a44216db6",
-    "public.zella_stripe_after_invoice_item(billing_outbox)": "c47a6bf0884c6ce3a6c53814a2b3c1f4",
+    "public.zella_stripe_after_invoice_item(billing_outbox)": "eb2b6fe71fefa1a0112725306d5f7133",
     "public.zella_billing_nonpayment_sweep()": "3c0ff3871fd640b0a5751034a1cc7473"
   }';
 begin
@@ -51,7 +51,8 @@ begin
     v_price := coalesce(x #>> '{pricing,price_details,price}', x #>> '{price,id}');
     if v_item is not null then
       select * into l from public.billing_stripe_links where stripe_id = v_item and kind = 'invoice_item';
-      if l.stripe_id is null or l.business_id <> p_business_id or l.expected_amount_minor is distinct from abs((x ->> 'amount')::bigint) then
+      -- signed: an item we created for +N never matches a credit of -N
+      if l.stripe_id is null or l.business_id <> p_business_id or l.expected_amount_minor is distinct from (x ->> 'amount')::bigint then
         raise exception 'BINDING: invoice item % is not ours at this amount', v_item;
       end if;
     elsif v_price is not null then
@@ -73,7 +74,7 @@ end $$;
 
 create or replace function public.zella_stripe_grant_subscription_cycle(o jsonb, b jsonb) returns void
 language plpgsql security definer set search_path = public as $$
-declare v_biz uuid := (b ->> 'business_id')::uuid; s public.subscriptions; v jsonb; v_start timestamptz; v_end timestamptz; v_was text;
+declare v_biz uuid := (b ->> 'business_id')::uuid; s public.subscriptions; v jsonb; v_start timestamptz; v_end timestamptz; v_was text; per public.billing_periods;
 begin
   if b ->> 'link_kind' <> 'subscription' then raise exception 'BINDING: renewal of a subscription we did not start'; end if;
   v := public.zella_stripe_bind_lines(o, v_biz);
@@ -81,7 +82,9 @@ begin
   v_start := to_timestamp((v ->> 'start')::double precision); v_end := to_timestamp((v ->> 'end')::double precision);
   select * into s from public.subscriptions where business_id = v_biz for update;
   if s.id is null or s.external_subscription_id is distinct from b ->> 'subscription' then raise exception 'BINDING: not this business''s current subscription'; end if;
-  if s.current_period_start is not null and v_start < s.current_period_start then return; end if;   -- an older period's invoice: recorded, never backwards
+  -- an older (or the same, already granted) period's invoice: its payment is recorded, the subscription never moves back
+  -- and a nonpayment it didn't cause is not cleared
+  if s.current_period_start is not null and v_start <= s.current_period_start then return; end if;
   v_was := s.status;
   if s.status <> 'active' and not public.zella_subscription_transition_ok(s.status, 'active') then
     if s.status = 'suspended_dispute' then   -- the saved state moves on; service stays suspended (§7)
@@ -92,7 +95,11 @@ begin
   end if;
   update public.subscriptions set status = 'active', current_period_start = v_start, current_period_end = v_end, past_due_since = null,
          trial_end_at = case when v_was = 'trial' then coalesce(trial_end_at, v_start) else trial_end_at end, updated_at = now() where id = s.id;
-  perform public.zella_billing_open_period(v_biz, greatest(v_start, least(now(), v_end - interval '1 second')));
+  per := public.zella_billing_open_period(v_biz, greatest(v_start, least(now(), v_end - interval '1 second')));
+  -- the balances must be the plan Stripe billed: a plan saved here but not yet on Stripe is refused, never guessed
+  if per.id is not null and per.business_plan_id is distinct from (v ->> 'plan_version_id')::uuid then
+    raise exception 'BINDING: Stripe billed plan version % but the period uses %', v ->> 'plan_version_id', per.business_plan_id;
+  end if;
   if v_was in ('past_due', 'paused_nonpayment', 'grace_period') then
     perform public.zella_notify_owners(v_biz, 'payment_received', 'Payment received', 'Thank you. Your payment went through and your service is fully back on.', 'info', 'settings');
     perform public.zella_resolve_platform_alerts('billing_nonpayment', v_biz, null, 'Paid');
@@ -103,6 +110,7 @@ end $$;
 create or replace function public.zella_stripe_payment_problem(e public.billing_events, o jsonb, p_kind text) returns text
 language plpgsql security definer set search_path = public as $$
 declare b jsonb := public.zella_stripe_bind_invoice(o, false); v_biz uuid := (b ->> 'business_id')::uuid; inv public.billing_invoices; s public.subscriptions;
+  v_line_start timestamptz := (select max(to_timestamp((x #>> '{period,start}')::double precision)) from jsonb_array_elements(coalesce(o #> '{lines,data}', '[]'::jsonb)) x);
 begin
   if o ->> 'status' = 'paid' then return 'older'; end if;   -- fetched now: it was paid meanwhile
   inv := public.zella_stripe_invoice_upsert(v_biz, o, null);
@@ -110,7 +118,11 @@ begin
   update public.billing_invoices set status = case when status in ('draft', 'open') then 'payment_failed' else status end, updated_at = now() where id = inv.id;
   update public.billing_events set business_id = v_biz where id = e.id;
   select * into s from public.subscriptions where business_id = v_biz for update;
-  if b ->> 'link_kind' = 'subscription' and s.id is not null and s.status in ('active', 'trial', 'renewal_due') and o ->> 'billing_reason' in ('subscription_cycle', 'subscription_create') then
+  -- only a failure of THIS subscription's current or next period changes service; an older invoice's failure is recorded
+  -- only (a newer period is already paid)
+  if b ->> 'link_kind' = 'subscription' and s.id is not null and s.status in ('active', 'trial', 'renewal_due') and o ->> 'billing_reason' in ('subscription_cycle', 'subscription_create')
+     and s.external_subscription_id is not distinct from b ->> 'subscription'
+     and (s.current_period_start is null or v_line_start is null or v_line_start > s.current_period_start) then
     update public.subscriptions set status = 'past_due', past_due_since = coalesce(past_due_since, now()), updated_at = now() where id = s.id;
   end if;
   perform public.zella_notify_owners(v_biz, 'payment_failed',
@@ -142,9 +154,9 @@ end $$;
 create or replace function public.zella_stripe_after_invoice_item(r public.billing_outbox) returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if abs((r.response ->> 'amount')::bigint) is distinct from abs((r.body ->> 'amount')::bigint) then raise exception 'BINDING: Stripe invoice item amount differs'; end if;
+  if (r.response ->> 'amount')::bigint is distinct from (r.body ->> 'amount')::bigint then raise exception 'BINDING: Stripe invoice item amount differs'; end if;
   perform public.zella_stripe_link_add(r.stripe_id, 'invoice_item', r.business_id, (r.response ->> 'livemode')::boolean, r.body #>> '{metadata,kind}', r.local_id,
-                                       abs((r.body ->> 'amount')::bigint));
+                                       (r.body ->> 'amount')::bigint);
 end $$;
 
 -- REQ-BIL-33: 5 days overdue pauses the receptionist (calls go to the fallback number). The days are a billing rule

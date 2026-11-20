@@ -24,7 +24,7 @@ q "delete from public.payments" > /dev/null
 
 zf_cycle zella_stripe_checkout zella_stripe_checkout_rollback 'public.zella_stripe_grant_subscription_create(jsonb,jsonb)' '^zella_(onboarding_(rules|payment)|billing_checkout|owner_billing|stripe_(after|failed|on_checkout|grant))'
 q "insert into public.payments (business_id, amount, amount_minor, currency, status, provider, external_payment_id, paid_at) values ('$b', 1, 100, 'usd', 'succeeded', 'stripe', 'pi_unbound', now())" > /dev/null
-[ -z "$(q "select public.zella_onboarding_payment_confirmed_at('$b')")" ] && ok "after: an unbound payments row no longer passes the gate" || bad "unbound counts"
+[ "$(q "select public.zella_onboarding_payment_confirmed_at('$b') is null")" = "t" ] && ok "after: an unbound payments row no longer passes the gate" || bad "unbound counts"
 q "delete from public.payments" > /dev/null
 [ "$(as_user "$u" aal2 "select public.zella_owner_onboarding_get('$b') -> 'rules' ->> 'payments_connected'")" = "false" ] && ok "payments_connected follows the switch (off)" || bad "rules off"
 
@@ -62,6 +62,10 @@ e=$(ev evt_cs_1 checkout.session.completed cs_T1 checkout.session)
 [ "$(app "$e" '{"id":"cs_T1","object":"checkout.session","livemode":false,"status":"complete","customer":"cus_T1","mode":"subscription","subscription":"sub_T1"}')" = "applied" ] \
   && [ "$(q "select status || ',' || external_subscription_id from public.subscriptions where business_id = '$b'")" = "pending_payment,sub_T1" ] && ok "our completed session links the subscription; still unpaid" || bad "session completed"
 [ "$(as_user "$u" aal2 "select public.zella_owner_onboarding_payment_status('$b') ->> 'reason'")" = "processing" ] && ok "back from Stripe the owner sees processing, not paid" || bad "processing"
+[ "$(as_user "$u" aal2 "select public.zella_owner_billing_checkout_start('$b', 'chk-key-0003') ->> 'checkout_id'")" = "$cid" ] && ok "a start while Stripe's payment is being confirmed returns that Checkout, never a second one" || bad "processing start"
+for fn in "zella_onboarding_payment('$b')" "zella_onboarding_payment_confirmed_at('$b')"; do
+  [ "$(as_user "$u2" aal2 "select public.$fn" 2>&1 | grep -c 'permission denied')" = "1" ] && ok "a signed in user can't call $fn directly (another business's link or payment time)" || bad "direct $fn"
+done
 now=$(date +%s); later=$((now + 2592000))
 inv() { echo "{\"id\":\"$1\",\"object\":\"invoice\",\"status\":\"paid\",\"currency\":\"usd\",\"amount_paid\":$2,\"amount_due\":$2,\"total\":$2,\"customer\":\"cus_T1\",\"billing_reason\":\"subscription_create\",\"livemode\":false,\"created\":$now,\"parent\":{\"subscription_details\":{\"subscription\":\"sub_T1\"}},\"payments\":{\"data\":[{\"status\":\"paid\",\"payment\":{\"payment_intent\":\"pi_$1\"}}]},\"lines\":{\"data\":[{\"amount\":29900,\"pricing\":{\"price_details\":{\"price\":\"price_T1\"}},\"period\":{\"start\":$now,\"end\":$later}},{\"amount\":$(( $2 - 29900 )),\"pricing\":{\"price_details\":{\"price\":\"$3\"}},\"period\":{\"start\":$now,\"end\":$now}}]}}"; }
 e=$(ev evt_in_bad1 invoice.paid in_T1 invoice); [ "$(app "$e" "$(inv in_T1 89700 price_T1fee)")" = "quarantined" ] && ok "a first payment of another amount is quarantined" || bad "wrong amount"
@@ -76,6 +80,32 @@ e=$(ev evt_in_ok invoice.paid in_T3 invoice); [ "$(app "$e" "$(inv in_T3 89800 p
 [ "$(as_user "$u" aal2 "select public.zella_owner_onboarding_complete_step('$b', 'payment') ->> 'changed'")" = "true" ] && ok "the owner can finish the payment step" || bad "complete step"
 e=$(ev evt_in_again invoice.paid in_T3 invoice); app "$e" "$(inv in_T3 89800 price_T1fee)" > /dev/null
 [ "$(q "select count(*) from public.payments")$(q "select count(*) from public.money_ledger")$(q "select count(*) from public.allowance_buckets where business_id = '$b'")" = "145" ] && ok "a second event for the same invoice grants and posts nothing more" || bad "replay"
+
+# a Checkout open for a plan that changed: Stripe expires the old session first; a new one only after Stripe confirms
+b4=$(zf_business "Checkout Four"); u4=$(owner_of "$b4"); zf_plan "$b4" 19900 0 > /dev/null; zf_at_payment "$b4"
+c4=$(as_user "$u4" aal2 "select public.zella_owner_billing_checkout_start('$b4', 'chk-four-0001') ->> 'checkout_id'")
+q "select public.zella_billing_checkout_continue('$c4', false)" > /dev/null
+zf_sent "$b4" cus_F4 > /dev/null; zf_sent "$b4" prod_F4 > /dev/null; zf_sent "$b4" price_F4 '{"unit_amount":19900}' > /dev/null
+zf_sent "$b4" cs_F4 "{\"url\":\"https://checkout.example.test/cs_F4\",\"amount_total\":19900,\"expires_at\":$(date -d '+1 day' +%s)}" > /dev/null
+zf_plan "$b4" 24900 0 monthly false 2 > /dev/null; q "update public.owner_onboarding set plan_accepted_version = 2 where business_id = '$b4'" > /dev/null
+r4=$(as_user "$u4" aal2 "select public.zella_owner_billing_checkout_start('$b4', 'chk-four-0002')")
+[ "$(echo "$r4" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['checkout_id'], d['status'], d['url'])")" = "$c4 expiring None" ] \
+  && [ "$(q "select method || ' ' || path from public.billing_outbox where business_id = '$b4' and kind = 'checkout_expire'")" = "POST /v1/checkout/sessions/cs_F4/expire" ] \
+  && ok "a changed plan with a session still payable at Stripe: Stripe expires it first, no new link yet" || bad "expiring: $r4"
+zf_sent "$b4" cs_F4 '{"object":"checkout.session","status":"expired"}' > /dev/null
+c4b=$(as_user "$u4" aal2 "select public.zella_owner_billing_checkout_start('$b4', 'chk-four-0003') ->> 'checkout_id'")
+[ "$(q "select status from public.billing_checkouts where id = '$c4'")" = "expired" ] && [ -n "$c4b" ] && [ "$c4b" != "$c4" ] \
+  && [ "$(q "select first_amount_minor from public.billing_checkouts where id = '$c4b'")" = "24900" ] && ok "once Stripe confirms the expiry, the new plan gets a new Checkout" || bad "after expiry: $c4b"
+# a setup command Stripe refuses for good fails the Checkout (the owner can start again), never leaves it preparing
+b5=$(zf_business "Checkout Five"); u5=$(owner_of "$b5"); zf_plan "$b5" 19900 0 > /dev/null; zf_at_payment "$b5"
+c5=$(as_user "$u5" aal2 "select public.zella_owner_billing_checkout_start('$b5', 'chk-five-0001') ->> 'checkout_id'")
+q "select public.zella_billing_checkout_continue('$c5', false)" > /dev/null; zf_sent "$b5" cus_F5 > /dev/null
+o5=$(q "select id from public.billing_outbox where business_id = '$b5' and kind = 'product'"); q "select id from public.zella_billing_outbox_claim(1, '$o5')" > /dev/null
+q "select public.zella_billing_outbox_result('$o5', false, null, '{\"type\":\"invalid_request_error\"}', 'refused', false, false, 1)" > /dev/null
+[ "$(q "select status from public.billing_checkouts where id = '$c5'")" = "failed" ] && ok "a product command refused for good fails the Checkout" || bad "held product: $(q "select status from public.billing_checkouts where id = '$c5'")"
+c5b=$(as_user "$u5" aal2 "select public.zella_owner_billing_checkout_start('$b5', 'chk-five-0002') ->> 'checkout_id'")
+q "select public.zella_billing_checkout_continue('$c5b', false)" > /dev/null
+[ "$(q "select status from public.billing_checkouts where id = '$c5b'")" = "failed" ] && ok "a new start meets the same held command: that attempt fails too (a person checks the alert), never stuck preparing" || bad "again: $(q "select status from public.billing_checkouts where id = '$c5b'")"
 
 # the saved card trial, under the other rule value (on a copy: the rule is a constant in the file)
 "${P[@]}" -d postgres -c "drop database if exists zlf_t_checkout_trial" -c "create database zlf_t_checkout_trial template $DB" > /dev/null; DB=zlf_t_checkout_trial

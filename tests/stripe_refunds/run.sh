@@ -52,5 +52,33 @@ zf_apply evt_rf2 refund.updated "$(ref re_F1 succeeded 29900)" > /dev/null
   && [ "$(q "select count(*) from public.platform_alerts where kind = 'refund_outside_zella'")" = "1" ] && [ "$(q "select count(*) from public.audit_logs where action = 'billing.refund_outside_zella'")" = "1" ] && ok "a refund made in the Stripe Dashboard is recorded, audited and alerted (C-8)" || bad "outside"
 [ "$(as_user_e "$owner" aal2 "select public.zella_admin_refund_raise('$pay', 999999, 'Charged twice by mistake')")" = "NOT_ELIGIBLE" ] && ok "an error refund can't exceed what is left on the payment" || bad "raise cap"
 [ -n "$(as_user "$owner" aal2 "select public.zella_admin_refund_raise('$pay', 500, 'Charged twice by mistake')")" ] && ok "the owner can raise an error refund (REQ-BIL-43)" || bad "raise"
+rid5=$(q "select id from public.billing_refunds where kind = 'error' and amount_minor = 500")
+big=$(as_user "$owner" aal2 "select public.zella_admin_refund_raise('$pay', 58000, 'Charged the wrong plan')")
+# a refund made in the Stripe Dashboard meanwhile: the error refund no longer fits, so approval refuses it
+[ "$(zf_apply evt_rf4 refund.created "$(ref re_DASH2 succeeded 1000)")" = "applied" ] && ok "a second Dashboard refund is recorded" || bad "dash2"
+[ "$(q "select status from public.payments where id = '$pay'")" = "succeeded" ] && ok "the payment's status follows what was refunded, not what is only requested" || bad "status: $(q "select status from public.payments where id = '$pay'")"
+[ "$(as_user_e "$owner" aal2 "select public.zella_admin_refund_decide('$big', true, 'Charged the wrong plan')")" = "NOT_ELIGIBLE" ] && ok "approving an error refund re-checks what the payment still has free" || bad "error capacity"
+# an approved request's refund event that arrives before Stripe's answer is recorded is bound to it, never an outside refund
+as_user "$owner" aal2 "select public.zella_admin_refund_decide('$big', false, 'Not the wrong plan after all')" > /dev/null
+as_user "$owner" aal2 "select public.zella_admin_refund_decide('$rid5', true, 'Charged twice by mistake')" > /dev/null
+alerts=$(q "select count(*) from public.platform_alerts where kind = 'refund_outside_zella'")
+[ "$(zf_apply evt_rf5 refund.created "{\"id\":\"re_E5\",\"object\":\"refund\",\"status\":\"succeeded\",\"amount\":500,\"currency\":\"usd\",\"payment_intent\":\"pi_F1\",\"livemode\":false,\"metadata\":{\"refund_id\":\"$rid5\"}}")" = "applied" ] \
+  && [ "$(q "select status || ',' || stripe_refund_id from public.billing_refunds where id = '$rid5'")" = "processed,re_E5" ] \
+  && [ "$(q "select count(*) from public.platform_alerts where kind = 'refund_outside_zella'")" = "$alerts" ] && [ "$(q "select count(*) from public.billing_refunds where stripe_refund_id = 're_E5'")" = "1" ] \
+  && ok "an approved refund's event seen before its command's answer is recorded as that request (no outside refund, no alert)" || bad "early refund event: $(q "select string_agg(kind || ':' || status, ',') from public.billing_refunds where stripe_refund_id = 're_E5' or id = '$rid5'")"
+# a pack can't be used while its refund is pending: the unused units are taken back at approval and given back on failure
+per=$(q "select id from public.billing_periods where business_id = '$b' order by period_start desc limit 1")
+pk=$(q "insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source, reason, period_id, idempotency_key, stripe_payment_intent)
+        values ('$b', 'minutes_100', 'minutes', 100, 2900, 'granted', 'owner_purchase', 'Bought by the owner', '$per', 'pack-refund-01', 'pi_PK') returning id" | head -1)
+q "insert into public.allowance_buckets (business_id, period_id, resource, kind, pack_purchase_id, granted, expires_at) select '$b', '$per', 'minutes', 'pack', '$pk', 100, period_end from public.billing_periods where id = '$per';
+   insert into public.payments (business_id, amount, amount_minor, currency, status, provider, external_payment_id, paid_at, metadata) values ('$b', 29, 2900, 'usd', 'succeeded', 'stripe', 'pi_PK', now(), '{\"bound\":true,\"kind\":\"pack\"}')" > /dev/null
+ppay=$(q "select id from public.payments where external_payment_id = 'pi_PK'")
+prid=$(as_user "$u" aal2 "select public.zella_owner_refund_request('$b', 'pack', '$ppay', 'refund-pack-01') ->> 'refund_id'")
+as_user "$owner" aal2 "select public.zella_admin_refund_decide('$prid', true, 'Unused pack, within 14 days')" > /dev/null
+[ "$(q "select granted::int || ',' || used::int from public.allowance_buckets where pack_purchase_id = '$pk'")" = "100,100" ] && ok "approving a pack refund holds its units at once (no use while the refund is pending)" || bad "pack revoke: $(q "select granted || ',' || used from public.allowance_buckets where pack_purchase_id = '$pk'")"
+po=$(q "select id from public.billing_outbox where local_id = '$prid'"); q "select id from public.zella_billing_outbox_claim(1, '$po')" > /dev/null
+q "select public.zella_billing_outbox_result('$po', false, null, '{\"type\":\"invalid_request_error\"}', 'refused', false, false, 1)" > /dev/null
+[ "$(q "select status from public.billing_refunds where id = '$prid'")" = "failed" ] && [ "$(q "select granted::int || ',' || used::int from public.allowance_buckets where pack_purchase_id = '$pk'")" = "100,0" ] \
+  && ok "a pack refund Stripe refuses gives the units back" || bad "pack restore: $(q "select granted from public.allowance_buckets where pack_purchase_id = '$pk'")"
 out=$("${P[@]}" -d "$DB" -f "$ZF_REPO/sql/rollback/zella_stripe_refunds_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_HAS_DATA* ]] && ok "the rollback refuses while refunds exist" || bad "rollback data"
 echo "$fails failed"; [ "$fails" = 0 ]

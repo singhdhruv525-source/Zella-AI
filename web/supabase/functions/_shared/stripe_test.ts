@@ -50,6 +50,9 @@ Deno.test("errors are classified: retry only 429, 5xx and network; idempotency e
   assertEquals([e402.retryable, e402.code, e402.paymentIntent], [false, "authentication_required", "pi_9"]);
   const eid = await assertRejects(() => answer(400, { error: { type: "idempotency_error" } }).post("/v1/refunds", {}, "k2"), StripeError);
   assertEquals([eid.retryable, eid.idempotencyConflict], [false, true]);
+  // the first request with this key is still running at Stripe: wait and send the same key again, never held
+  const inUse = await assertRejects(() => answer(409, { error: { type: "idempotency_error", code: "idempotency_key_in_use" } }).post("/v1/refunds", {}, "k3"), StripeError);
+  assertEquals([inUse.retryable, inUse.idempotencyConflict], [true, false]);
   const down = stripeClient({ secretKey: "sk_test_unit", baseUrl: "http://127.0.0.1:1", fetchImpl: (() => Promise.reject(new TypeError("refused"))) as typeof fetch });
   const en = await assertRejects(() => down.get("/v1/customers/c"), StripeError);
   assertEquals([en.status, en.retryable], [0, true]);

@@ -341,7 +341,7 @@ export default function PlansPage({ onOpenBusiness }) {
         )}
       </div>
 
-      <BillingRecords onOpenBusiness={onOpenBusiness} />
+      <BillingRecords onOpenBusiness={onOpenBusiness} me={me} />
     </section>
   );
 }

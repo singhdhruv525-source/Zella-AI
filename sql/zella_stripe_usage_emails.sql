@@ -11,7 +11,7 @@ begin;
 do $$
 declare s text;
   owned constant jsonb := '{
-    "public.zella_billing_usage_email_trg()": "12714112e5797b311c616dc01aa8b3e3"
+    "public.zella_billing_usage_email_trg()": "d7655706d1a394d07f654b5f3c1f7333"
   }';
 begin
   if to_regprocedure('public.zella_billing_email(uuid,text,text,text,jsonb)') is null or to_regprocedure('public.zella_onboarding_payment_passed(uuid)') is null then
@@ -30,7 +30,10 @@ declare v_pct int := nullif(split_part(new.threshold_key, ':pct:', 2), '')::int;
 begin
   if new.resource <> 'minutes' or v_pct is null or not public.zella_payments_live() then return null; end if;
   begin   -- never fails the usage entry that recorded the threshold
-    select * into p from public.business_plans where business_id = new.business_id order by version desc limit 1;
+    -- the plan the usage's period is billed on (its bound version), never a newer version saved since; no period found:
+    -- no rate, so the F2 notice is held for a person rather than quoting a guess
+    select bp.* into p from public.billing_periods per join public.business_plans bp on bp.id = per.business_plan_id
+     where per.business_id = new.business_id and per.period_start <= now() and now() < per.period_end order by per.period_start desc limit 1;
     select * into u from public.business_usage_preferences where business_id = new.business_id;
     select current_period_end into v_end from public.subscriptions where business_id = new.business_id;
     if v_pct >= 100 then

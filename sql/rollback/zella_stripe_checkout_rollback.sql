@@ -6,16 +6,20 @@ begin;
 do $$
 declare s text; v_has boolean; d text;
   owned constant jsonb := '{
-    "public.zella_billing_checkout_continue(uuid,boolean)": "2d0f417be1edd6dba431e972a2b3123d",
+    "public.zella_billing_checkout_continue(uuid,boolean)": "7f998f18370021b4668ce06f057d0055",
     "public.zella_billing_checkout_next_command(uuid)": "1de829f1bf61b380be0b25226d03368f",
-    "public.zella_owner_billing_checkout_start(uuid,text)": "096c4a95c59712984e15ace4b4b69a27",
+    "public.zella_owner_billing_checkout_start(uuid,text)": "ccd57eed688b61cf9cec456b33fd4f55",
     "public.zella_stripe_after_customer(billing_outbox)": "79869917c8050995b88a9bebeaa57c31",
     "public.zella_stripe_after_product(billing_outbox)": "a9eb61e5d51628b53253a83df4efdb68",
     "public.zella_stripe_after_price(billing_outbox)": "651dce986b81b8bcf00033b3f32c8323",
     "public.zella_stripe_after_checkout_session(billing_outbox)": "5df8106e56d16ca2580479906e4aa8f0",
     "public.zella_stripe_failed_checkout_session(billing_outbox)": "3274f0c8857d89ebf9790d2ffa6d4295",
-    "public.zella_stripe_on_checkout_session_completed(billing_events,jsonb)": "eb6740164eb5dd99408886144c09d2e6",
-    "public.zella_stripe_on_checkout_session_expired(billing_events,jsonb)": "8e12fc8a241aad650435134fa83ae0cd",
+    "public.zella_stripe_failed_customer(billing_outbox)": "564a538acd61da179d341d99bccb8d47",
+    "public.zella_stripe_failed_product(billing_outbox)": "a41bc5d5f292e6862e8b0b0e770468fc",
+    "public.zella_stripe_failed_price(billing_outbox)": "fea8c8ed9d6a8abec71237a97e20276b",
+    "public.zella_stripe_after_checkout_expire(billing_outbox)": "cc2a749acddcf304d7bc5e69821e2949",
+    "public.zella_stripe_on_checkout_session_completed(billing_events,jsonb)": "f73812ee1419833c6ec08db5011e5a2a",
+    "public.zella_stripe_on_checkout_session_expired(billing_events,jsonb)": "61970b0fbe942ccaa1dbc7e3a06afe56",
     "public.zella_stripe_grant_subscription_create(jsonb,jsonb)": "617d28551ada05a996984777eae97aa2"
   }';
   replaced constant jsonb := '{
@@ -35,6 +39,7 @@ begin
     end if;
   end loop;
   if to_regclass('public.billing_checkouts') is not null then
+    lock table public.billing_checkouts in access exclusive mode;   -- held until commit: no checkout can be added before the drop
     execute 'select exists (select 1 from public.billing_checkouts)' into v_has;
     if v_has then raise exception 'ROLLBACK_HAS_DATA: checkouts exist; a person decides what to keep'; end if;
   end if;

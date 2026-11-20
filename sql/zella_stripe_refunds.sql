@@ -24,13 +24,14 @@ declare s text;
     "public.zella_refund_options(uuid)": "1a801d9fbf110d4ae1aeb640438ca9c4",
     "public.zella_refund_reserved(uuid)": "86a0e7dd8cf26483b2af5b42769221c5",
     "public.zella_owner_refund_options(uuid)": "adf719c917ac43f79dac312f3169c0a3",
-    "public.zella_owner_refund_request(uuid,text,uuid,text)": "7411595c442081b93b884b8efb2a9402",
+    "public.zella_owner_refund_request(uuid,text,uuid,text)": "a827fd269d7ea1ed193cc7413da3a940",
     "public.zella_admin_refunds(text,integer)": "49c1d30f43b41e0c2d0d136a59d2218f",
-    "public.zella_admin_refund_decide(uuid,boolean,text)": "e8bb6744cfb16c9c5c949e40da0acb6a",
+    "public.zella_admin_refund_decide(uuid,boolean,text)": "99ef0dbd48fd24a1b9ef2aaa553a322f",
     "public.zella_admin_refund_raise(uuid,bigint,text)": "35634947680c18b9324a029c6490695e",
     "public.zella_stripe_after_refund(billing_outbox)": "5f6011231dd937b32cc627adcb7fc1a2",
-    "public.zella_stripe_failed_refund(billing_outbox)": "b48f43e391d0839f1bc28933031ede34",
-    "public.zella_stripe_on_refund_created(billing_events,jsonb)": "c74769d7177b2ecfdd2c7a649f85135c",
+    "public.zella_stripe_failed_refund(billing_outbox)": "31f2febf3d3ddf4342bf76379830ccb9",
+    "public.zella_refund_pack_restore(uuid)": "65ed6641ae30ced4affb8a1480bf509b",
+    "public.zella_stripe_on_refund_created(billing_events,jsonb)": "a8f17e05eef38ae2dd3f241bef368f99",
     "public.zella_stripe_on_refund_updated(billing_events,jsonb)": "02183a60f1cb3ccbb7762e163778bfd4",
     "public.zella_stripe_on_refund_failed(billing_events,jsonb)": "b7d0fffc8b7a092c37012040d3f52bae"
   }';
@@ -135,6 +136,12 @@ begin
   end if;
   select * into p from public.payments where id = p_payment_id and business_id = p_business_id for update;   -- serialises requests on one payment
   if p.id is null then raise exception 'NOT_ELIGIBLE'; end if;
+  -- the same key again, now that the payment is locked: an overlapping retry gets the first request's answer
+  select * into r from public.billing_refunds where business_id = p_business_id and idempotency_key = p_idempotency_key;
+  if r.id is not null then
+    if r.kind <> p_kind or r.payment_id <> p_payment_id then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+    return jsonb_build_object('refund_id', r.id, 'status', r.status, 'amount_minor', r.amount_minor);
+  end if;
   select x into o from jsonb_array_elements(public.zella_refund_options(p_business_id) -> 'options') x
    where x ->> 'kind' = p_kind and (x ->> 'payment_id')::uuid = p_payment_id limit 1;
   if o is null or not (o ->> 'eligible')::boolean then raise exception 'NOT_ELIGIBLE' using detail = coalesce(o ->> 'reason', 'no_such_option'); end if;
@@ -167,9 +174,10 @@ begin
   if r.id is null then raise exception 'NOT_FOUND'; end if;
   if r.status <> 'requested' then return jsonb_build_object('refund_id', r.id, 'status', r.status, 'changed', false); end if;
   select * into p from public.payments where id = r.payment_id for update;
+  -- every approval, an error refund too: never more than the payment still has free (refunds recorded since included)
+  if p_approve and p.amount_minor - (public.zella_refund_reserved(p.id) - r.amount_minor) < r.amount_minor then raise exception 'NOT_ELIGIBLE'; end if;
   if p_approve and r.kind <> 'error' then   -- a stale screen never refunds what the policy no longer allows: the rules again, this request aside
-    if p.amount_minor - (public.zella_refund_reserved(p.id) - r.amount_minor) < r.amount_minor
-       or (r.kind = 'guarantee' and (p.paid_at <= now() - interval '30 days'
+    if (r.kind = 'guarantee' and (p.paid_at <= now() - interval '30 days'
             or exists (select 1 from public.billing_refunds x where x.business_id = r.business_id and x.kind = 'guarantee' and x.id <> r.id and x.status not in ('rejected', 'failed'))))
        or (r.kind = 'setup_fee' and p.paid_at <= now() - interval '48 hours')
        or (r.kind = 'annual' and p.paid_at <= now() - interval '7 days')
@@ -180,6 +188,12 @@ begin
   end if;
   update public.billing_refunds set status = case when p_approve then 'sending' else 'rejected' end, decided_by = auth.uid(), decision_reason = left(trim(p_reason), 500), decided_at = now()
    where id = r.id returning * into r;
+  if p_approve and r.kind = 'pack' then
+    -- the pack can't be used while its refund is pending (default chosen pending owner decision): its units are marked
+    -- used now (none were used, checked above), and freed again only if Stripe's refund fails
+    update public.allowance_buckets set used = granted
+     where pack_purchase_id in (select id from public.pack_purchases where business_id = r.business_id and stripe_payment_intent = p.external_payment_id);
+  end if;
   if p_approve then
     perform public.zella_billing_outbox_add(r.business_id, 'refund', 'refund:' || r.id, 'POST', '/v1/refunds',
       jsonb_build_object('payment_intent', p.external_payment_id, 'amount', r.amount_minor, 'metadata', jsonb_build_object('refund_id', r.id, 'business_id', r.business_id)), 'refund', r.id);
@@ -215,9 +229,23 @@ begin
 end $$;
 
 create or replace function public.zella_stripe_failed_refund(r public.billing_outbox) returns void
-language sql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public as $$
+begin
   update public.billing_refunds set status = 'failed', settled_at = now() where id = r.local_id and status = 'sending';
-$$;
+  if found then perform public.zella_refund_pack_restore(r.local_id); end if;
+end $$;
+
+-- A pack refund that failed: the units held at approval are free again (approval needed them all unused).
+create or replace function public.zella_refund_pack_restore(p_refund_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare f public.billing_refunds;
+begin
+  select * into f from public.billing_refunds where id = p_refund_id;
+  if f.kind is distinct from 'pack' or f.decided_at is null then return; end if;
+  update public.allowance_buckets set used = 0
+   where pack_purchase_id in (select pp.id from public.pack_purchases pp join public.payments p on p.provider = 'stripe' and p.external_payment_id = pp.stripe_payment_intent
+                               where p.id = f.payment_id and pp.business_id = f.business_id);
+end $$;
 
 -- A refund from Stripe (fetched). Ours: processed or failed, posted once. Not ours (the Stripe Dashboard): recorded
 -- against its payment, audited, urgent alert (REQ-BIL-45 says every refund needs the owner's approval in Zella Voice).
@@ -228,6 +256,18 @@ begin
   select * into p from public.payments where provider = 'stripe' and external_payment_id = o ->> 'payment_intent' for update;
   if p.id is null then raise exception 'WAITING: payment % not recorded yet', o ->> 'payment_intent'; end if;
   if lower(o ->> 'currency') <> 'usd' then raise exception 'BINDING: refund currency is not usd'; end if;
+  if l.stripe_id is null and coalesce(o #>> '{metadata,refund_id}', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    -- an approved request whose Stripe answer isn't recorded yet: bound only through our own stored command (same
+    -- payment, same amount), never through the metadata alone
+    select * into r from public.billing_refunds f where f.id = (o #>> '{metadata,refund_id}')::uuid and f.status = 'sending' and f.payment_id = p.id
+       and exists (select 1 from public.billing_outbox b where b.kind = 'refund' and b.local_id = f.id and b.business_id = p.business_id
+                    and b.body ->> 'payment_intent' = o ->> 'payment_intent' and (b.body ->> 'amount')::bigint = v_amount)
+       for update;
+    if r.id is not null then
+      l := public.zella_stripe_link_add(o ->> 'id', 'refund', p.business_id, (o ->> 'livemode')::boolean, 'refund', r.id, v_amount);
+      update public.billing_refunds set stripe_refund_id = o ->> 'id' where id = r.id;
+    end if;
+  end if;
   if l.stripe_id is not null then
     select * into r from public.billing_refunds where id = l.local_id for update;
     if r.payment_id <> p.id or r.amount_minor <> v_amount then raise exception 'BINDING: refund differs from the approved request'; end if;
@@ -244,15 +284,18 @@ begin
   if o ->> 'status' = 'succeeded' and r.status <> 'processed' then
     update public.billing_refunds set status = 'processed', settled_at = now() where id = r.id;
     perform public.zella_ledger_post(p.business_id, 'refund:' || (o ->> 'id'), jsonb_build_array(jsonb_build_object('account', 'refunds', 'amount', v_amount), jsonb_build_object('account', 'cash', 'amount', -v_amount)));
-    update public.payments set status = case when public.zella_refund_reserved(p.id) >= p.amount_minor then 'refunded' else status end,
+    -- the status follows what was actually refunded (processed), never what is only requested
+    update public.payments set status = case when (select coalesce(sum(amount_minor), 0) from public.billing_refunds where payment_id = p.id and status = 'processed') >= p.amount_minor
+                                              then 'refunded' else status end,
            metadata = metadata || jsonb_build_object('refunded_minor', (select coalesce(sum(amount_minor), 0) from public.billing_refunds where payment_id = p.id and status = 'processed')), updated_at = now()
      where id = p.id;
-    if r.kind = 'pack' then
-      update public.allowance_buckets set granted = used where pack_purchase_id = (select id from public.pack_purchases where stripe_payment_intent = p.external_payment_id);
-    end if;
+    -- a refunded pack (approved here or made outside Zella Voice) can't be used any more: what is left is marked used
+    update public.allowance_buckets set used = granted
+     where used < granted and pack_purchase_id in (select id from public.pack_purchases where business_id = p.business_id and stripe_payment_intent = p.external_payment_id);
     perform public.zella_notify_owners(p.business_id, 'refund_processed', 'Refund on its way', 'Your refund was sent to your card. It usually arrives in 5 to 10 business days.', 'info', 'settings');
   elsif o ->> 'status' in ('failed', 'canceled') and r.status not in ('processed', 'failed') then
     update public.billing_refunds set status = 'failed', settled_at = now() where id = r.id;
+    perform public.zella_refund_pack_restore(r.id);
     perform public.zella_platform_alert('refund_failed', 'A refund failed at Stripe', o ->> 'failure_reason', 'urgent', p.business_id, 'refund_failed:' || r.id);
   end if;
   update public.billing_events set business_id = p.business_id where id = e.id;
@@ -266,6 +309,7 @@ language sql security definer set search_path = public as $$ select public.zella
 
 do $$ declare f text; begin
   foreach f in array array['zella_refund_options(uuid)', 'zella_refund_reserved(uuid)', 'zella_stripe_after_refund(billing_outbox)', 'zella_stripe_failed_refund(billing_outbox)',
+    'zella_refund_pack_restore(uuid)',
     'zella_stripe_on_refund_created(billing_events,jsonb)', 'zella_stripe_on_refund_updated(billing_events,jsonb)', 'zella_stripe_on_refund_failed(billing_events,jsonb)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);

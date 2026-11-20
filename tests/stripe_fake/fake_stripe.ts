@@ -241,11 +241,12 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
     if (r0 === "invoiceitems" && method === "POST" && !r1) {
       const amount = Number(b.amount);
       if (!Number.isSafeInteger(amount)) return err(400, "invalid_request_error", "amount must be an integer", "parameter_invalid_integer");
+      // the target invoice is checked first: a refused request leaves no pending item behind (as at Stripe)
+      const inv = b.invoice ? need(b.invoice, "invoice") : null;
+      if (b.invoice && !inv) return err(400, "invalid_request_error", "No such invoice", "resource_missing");
+      if (inv && inv.status !== "draft") return err(400, "invalid_request_error", "Invoice is not a draft", "invoice_not_editable");
       const ii = put({ id: id("ii"), object: "invoiceitem", customer: b.customer, amount, currency: "usd", description: b.description ?? null, metadata, invoice: null, livemode });
-      if (b.invoice) {
-        const inv = need(b.invoice, "invoice");
-        if (!inv) return err(400, "invalid_request_error", "No such invoice", "resource_missing");
-        if (inv.status !== "draft") return err(400, "invalid_request_error", "Invoice is not a draft", "invoice_not_editable");
+      if (inv) {
         ii.invoice = inv.id; inv.lines.data.push({ id: id("il"), object: "line_item", amount, description: ii.description, metadata, period: { start: clock, end: clock }, parent: { type: "invoice_item_details", invoice_item_details: { invoice_item: ii.id } } });
         recompute(inv);
       }

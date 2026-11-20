@@ -28,13 +28,13 @@ do $$
 declare s text; d text;
   owned constant jsonb := '{
     "public.zella_payments_live()": "17eb6407291d5642a4f8e0f5e4a4c305",
-    "public.zella_payments_switch(boolean,text)": "9f216d93b1d883dcbb79ff4a81fefd61",
+    "public.zella_payments_switch(boolean,text)": "b03c10f53aadce11186261bd159497d7",
     "public.zella_billing_worker_check(text)": "48bd09e5f2fa8108e15e7c197ad723af",
-    "public.zella_billing_worker_kick()": "e7410c05734f53363314985e75176e30",
-    "public.zella_stripe_event_types()": "38437caf891689436cc57eb3a369ae38",
+    "public.zella_billing_worker_kick()": "bbfbf30bf75a440dff76ed28691bff37",
+    "public.zella_stripe_event_types()": "72349917704935916bf10c4cbe7f7be1",
     "public.zella_stripe_event_store(jsonb,boolean)": "63264b976eb9fa90992694e84fb16631",
-    "public.zella_stripe_claim_events(integer)": "01d396ae1920974e24130703268cede8",
-    "public.zella_stripe_apply_event(uuid,jsonb,boolean)": "b1b286473be7231542a35ba155fa58eb",
+    "public.zella_stripe_claim_events(integer)": "d27adc365d875decc6d561b52ce0781a",
+    "public.zella_stripe_apply_event(uuid,jsonb,boolean)": "980fa27a2355488b094dddf09192605b",
     "public.zella_stripe_event_retry(uuid,text)": "5f985866e386f4e28efbac32b17715fc",
     "public.zella_stripe_quarantine(uuid,uuid,text,jsonb)": "fb95b9bbbc4c9f48e1221f27e66fb147",
     "public.zella_stripe_link_add(text,text,uuid,boolean,text,uuid,bigint)": "fce64f6b109108f226aa0a42ae52f04c",
@@ -44,13 +44,13 @@ declare s text; d text;
     "public.zella_subscription_transition_ok(text,text)": "ed6b9888e76e790efeaa5d67096a05ea",
     "public.zella_stripe_invoice_upsert(uuid,jsonb,text)": "5df9fab080ab0b92cc1d9a865ccb8a1c",
     "public.zella_stripe_bind_invoice(jsonb,boolean)": "12e6b5314c0346992ea2da3803c37bae",
-    "public.zella_billing_outbox_add(uuid,text,text,text,text,jsonb,text,uuid)": "d581e27cd98d3202f30deefda9d552d6",
-    "public.zella_billing_outbox_claim(integer,uuid)": "8b02344a6c040927385db541dcc7d900",
-    "public.zella_billing_outbox_result(uuid,boolean,text,jsonb,text,boolean,boolean)": "86ed2ed7d697632e8fbf88a2d504a9e1",
-    "public.zella_stripe_on_invoice_paid(billing_events,jsonb)": "1f484a4c9319fbb2595a3677b706b6f2",
+    "public.zella_billing_outbox_add(uuid,text,text,text,text,jsonb,text,uuid)": "c15cfd429cf4843adc80db1fbf2988a3",
+    "public.zella_billing_outbox_claim(integer,uuid)": "e3c617b57ee99c6cea9d0d626f8e35ae",
+    "public.zella_billing_outbox_result(uuid,boolean,text,jsonb,text,boolean,boolean,integer)": "1adcdd5ce49c09f26854121a5561c71f",
+    "public.zella_stripe_on_invoice_paid(billing_events,jsonb)": "2c91b24c363573d7eadb693aebf57403",
     "public.zella_stripe_on_customer_subscription_created(billing_events,jsonb)": "e150fff5538a8f20cc7c4b4e816fcb97",
-    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": "c02680d28b2527875d15e3ec1d8f354a",
-    "public.zella_stripe_on_customer_subscription_deleted(billing_events,jsonb)": "14e87317e9337577e67b33c7ac391332",
+    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": "cdbc9f06927ff12a5675b733a991d15f",
+    "public.zella_stripe_on_customer_subscription_deleted(billing_events,jsonb)": "0d15491cc1f4f77eac724fd9ef8fa399",
     "public.zella_stripe_on_charge_refunded(billing_events,jsonb)": "d413820b3034990a620248bb972dbd42"
   }';
 begin
@@ -59,6 +59,12 @@ begin
      or to_regprocedure('public.zella_reconcile_billing_events(integer)') is null
      or to_regprocedure('public.zella_platform_alert(text,text,text,text,uuid,text,jsonb)') is null then
     raise exception 'VERSION_MISMATCH: needs zella_billing_hardening.sql and zella_billing_allowances.sql';
+  end if;
+  -- the rollback removes these settings and the worker secret by name, so on the first apply they must not exist yet
+  if to_regclass('public.billing_outbox') is null
+     and (exists (select 1 from public.platform_settings where key in ('payments_live', 'billing_worker_url'))
+          or exists (select 1 from vault.secrets where name = 'zella_billing_worker_secret')) then
+    raise exception 'VERSION_MISMATCH: payments_live, billing_worker_url or zella_billing_worker_secret already exists; a person decides what to keep';
   end if;
   for s in select jsonb_object_keys(owned) loop
     if to_regprocedure(s) is not null then
@@ -110,6 +116,7 @@ create table if not exists public.billing_outbox (
   local_id uuid,
   status text not null default 'pending' check (status in ('pending', 'sending', 'sent', 'retry_wait', 'held', 'cancelled')),
   attempts integer not null default 0,
+  first_sent_at timestamptz,
   lease_until timestamptz,
   next_attempt_at timestamptz not null default now(),
   stripe_id text,
@@ -118,6 +125,7 @@ create table if not exists public.billing_outbox (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.billing_outbox add column if not exists first_sent_at timestamptz;   -- when the first send could have reached Stripe
 create index if not exists billing_outbox_due_idx on public.billing_outbox (next_attempt_at) where status in ('pending', 'retry_wait', 'sending');
 create index if not exists billing_outbox_business_idx on public.billing_outbox (business_id, created_at desc);
 
@@ -216,6 +224,16 @@ begin
   if v_job is not null and to_regprocedure('cron.alter_job(bigint,text,text,text,text,boolean)') is not null then perform cron.alter_job(job_id := v_job, active := p_on);
   elsif v_job is not null then update cron.job set active = p_on where jobid = v_job; end if;
   insert into public.audit_logs (action, entity_type, new_data) values ('billing.payments_switch', 'platform_setting', jsonb_build_object('payments_live', p_on));
+  -- default chosen pending owner decision: a business whose owner finished the payment step while payments were off
+  -- keeps its access; each one is flagged for the owner to decide (nothing is charged, nothing is blocked)
+  if p_on and to_regclass('public.owner_onboarding_steps') is not null then
+    perform public.zella_platform_alert('onboarding_unpaid_before_live', 'Finished setup before payments were on: the owner decides', null, 'warning', x.business_id,
+                                        'unpaid_setup:' || x.business_id)
+       from public.owner_onboarding_steps x
+      where x.step = 'payment' and x.completed_at is not null
+        and not exists (select 1 from public.payments p where p.business_id = x.business_id and p.provider = 'stripe' and p.metadata ->> 'bound' = 'true'
+                         and p.status in ('succeeded', 'refunded'));
+  end if;
   return jsonb_build_object('payments_live', p_on, 'job', v_job is not null);
 end $$;
 
@@ -232,8 +250,12 @@ language plpgsql security definer set search_path = public as $$
 declare v_url text := nullif(trim(public.zella_setting('billing_worker_url', '""'::jsonb) #>> '{}'), ''); v_secret text;
 begin
   if not public.zella_payments_live() then return 'off'; end if;
-  if v_url is null or v_url !~ '^https://' then return 'not_set_up'; end if;
-  if not exists (select 1 from public.billing_outbox where status in ('pending', 'retry_wait', 'sending') and next_attempt_at <= now())
+  -- only the address the owner's switch accepted (pg_net does not follow redirects, so the secret goes only there)
+  if v_url is null or v_url !~ '^https://[A-Za-z0-9.-]+/functions/v1/billing-worker$' then return 'not_set_up'; end if;
+  -- the worker's periodic steps (missed events, the daily check, the nonpayment and email sweeps) run every 15 minutes
+  -- even when no event or command is due; otherwise it is called only when there is work
+  if extract(minute from now())::int % 15 <> 0
+     and not exists (select 1 from public.billing_outbox where status in ('pending', 'retry_wait', 'sending') and next_attempt_at <= now())
      and not exists (select 1 from public.billing_events where pipeline = 'stripe_v2' and status = 'received' and next_attempt_at <= now()) then
     return 'nothing_due';
   end if;
@@ -259,6 +281,7 @@ create or replace function public.zella_stripe_event_types() returns text[]
 language sql immutable set search_path = '' as $$
   select array['checkout.session.completed', 'checkout.session.expired',
     'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted', 'customer.subscription.trial_will_end',
+    'customer.subscription.pending_update_expired',
     'invoice.created', 'invoice.finalized', 'invoice.paid', 'invoice.payment_failed', 'invoice.payment_action_required', 'invoice.voided', 'invoice.deleted',
     'payment_intent.succeeded', 'payment_intent.payment_failed', 'payment_intent.requires_action',
     'refund.created', 'refund.updated', 'refund.failed', 'charge.refunded',
@@ -307,8 +330,8 @@ begin
        and not exists (select 1 from public.billing_events o
                         where o.pipeline = 'stripe_v2' and o.status = 'received' and o.ordering_key = e.ordering_key and o.id <> e.id
                           and coalesce(o.error, '') not like 'WAITING:%'
-                          and (o.event_created_at, o.received_at) < (e.event_created_at, e.received_at))
-     order by e.event_created_at, e.received_at limit greatest(1, least(p_limit, 100)) for update skip locked)
+                          and (o.event_created_at, o.received_at, o.id) < (e.event_created_at, e.received_at, e.id))
+     order by e.event_created_at, e.received_at, e.id limit greatest(1, least(p_limit, 100)) for update skip locked)
   update public.billing_events e set next_attempt_at = now() + interval '2 minutes', attempts = e.attempts + 1
     from due where e.id = due.id
   returning e.id, e.type, e.object_type, e.object_id, e.livemode, e.payload;
@@ -376,7 +399,8 @@ begin
       perform public.zella_stripe_quarantine(e.id, null, trim(substr(v_err, 9)), jsonb_build_object('type', e.type, 'object', e.object_id));
       return 'quarantined';
     end if;
-    perform public.zella_stripe_event_retry(e.id, v_err);
+    v_res := public.zella_stripe_event_retry(e.id, v_err);
+    if v_res = 'quarantined' then return 'quarantined'; end if;
     return case when v_err like 'WAITING:%' then 'waiting' else 'retry' end;
   end;
   update public.billing_events set status = case when v_res in ('applied', 'older') then 'processed' else 'ignored' end,
@@ -440,9 +464,10 @@ language sql immutable set search_path = '' as $$
     ('suspended_dispute', 'cancelled'));
 $$;
 
+-- added NOT VALID (no scan under the table lock; new writes are checked at once), validated after this transaction
 alter table public.subscriptions drop constraint if exists subscriptions_status_check;
 alter table public.subscriptions add constraint subscriptions_status_check check (status in ('trial', 'active', 'renewal_due', 'past_due',
-  'grace_period', 'cancelled', 'expired', 'pending_payment', 'paused_nonpayment', 'suspended_dispute'));
+  'grace_period', 'cancelled', 'expired', 'pending_payment', 'paused_nonpayment', 'suspended_dispute')) not valid;
 
 -- Records the fetched invoice (never the payload). Status moves forward only.
 create or replace function public.zella_stripe_invoice_upsert(p_business_id uuid, p_inv jsonb, p_kind text default null) returns public.billing_invoices
@@ -519,12 +544,14 @@ begin
   values (p_business_id, p_kind, p_key, p_method, p_path, coalesce(p_body, '{}'::jsonb), p_local_kind, p_local_id)
   on conflict (idempotency_key) do nothing;
   select * into r from public.billing_outbox where idempotency_key = p_key;
-  if r.business_id <> p_business_id or r.body <> coalesce(p_body, '{}'::jsonb) or r.path <> p_path then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+  if r.business_id <> p_business_id or r.body <> coalesce(p_body, '{}'::jsonb) or r.path <> p_path or r.method <> p_method then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
   return r;
 end $$;
 
--- Claims rows to send. A row whose lease lapsed mid-send (the reply was lost) is sent again with the SAME body and
--- key while Stripe still remembers the key (within 23 hours), so Stripe returns the first result; later it is held.
+-- Claims rows to send. A row whose lease lapsed mid-send (the reply was lost), or one waiting to retry, is sent again
+-- with the SAME body and key while Stripe still remembers the key (within 23 hours of the FIRST send), so Stripe
+-- returns the first result; later it is held for a person. Each claim returns its attempt number, which the result
+-- must name, so a late answer from an earlier claim is refused.
 create or replace function public.zella_billing_outbox_claim(p_limit integer default 10, p_id uuid default null) returns setof public.billing_outbox
 language plpgsql security definer set search_path = public as $$
 declare r public.billing_outbox;
@@ -534,27 +561,32 @@ begin
             where (p_id is null or o.id = p_id) and o.next_attempt_at <= now()
               and (o.status in ('pending', 'retry_wait') or (o.status = 'sending' and o.lease_until < now()))
             order by o.created_at limit greatest(1, least(p_limit, 50)) for update skip locked loop
-    if r.created_at < now() - interval '23 hours' and r.status = 'sending' then
+    if r.status in ('sending', 'retry_wait') and coalesce(r.first_sent_at, r.created_at) < now() - interval '23 hours' then
       update public.billing_outbox set status = 'held', error = 'reply lost after Stripe''s idempotency window', updated_at = now() where id = r.id;
       perform public.zella_platform_alert('billing_outbox_held', 'A Stripe command needs a person to check it', r.kind, 'urgent', r.business_id, 'billing_outbox:' || r.id);
       continue;
     end if;
-    update public.billing_outbox set status = 'sending', attempts = attempts + 1, lease_until = now() + interval '2 minutes', updated_at = now()
+    update public.billing_outbox set status = 'sending', attempts = attempts + 1, lease_until = now() + interval '2 minutes',
+           first_sent_at = coalesce(first_sent_at, now()), updated_at = now()
      where id = r.id returning * into r;
     return next r;
   end loop;
 end $$;
 
 -- Records the result of one send, then runs the kind's after-send step (zella_stripe_after_<kind>) if there is one.
+-- p_attempt is the attempt number the claim returned: a result from an earlier, superseded claim changes nothing.
+-- A PaymentIntent's client_secret is never stored.
+drop function if exists public.zella_billing_outbox_result(uuid, boolean, text, jsonb, text, boolean, boolean);
 create or replace function public.zella_billing_outbox_result(p_id uuid, p_ok boolean, p_stripe_id text, p_response jsonb, p_error text,
-  p_retryable boolean default false, p_conflict boolean default false) returns text
+  p_retryable boolean default false, p_conflict boolean default false, p_attempt integer default null) returns text
 language plpgsql security definer set search_path = public as $$
-declare r public.billing_outbox; v_fn text;
+declare r public.billing_outbox; v_fn text; v_resp jsonb := p_response - 'client_secret';
 begin
   select * into r from public.billing_outbox where id = p_id for update;
   if r.id is null or r.status <> 'sending' then return 'not_sending'; end if;
+  if p_attempt is null or p_attempt <> r.attempts then return 'stale'; end if;
   if p_ok then
-    update public.billing_outbox set status = 'sent', stripe_id = left(p_stripe_id, 255), response = p_response, error = null, lease_until = null, updated_at = now()
+    update public.billing_outbox set status = 'sent', stripe_id = left(p_stripe_id, 255), response = v_resp, error = null, lease_until = null, updated_at = now()
      where id = r.id returning * into r;
     v_fn := 'zella_stripe_after_' || r.kind;
     if to_regprocedure(format('public.%I(public.billing_outbox)', v_fn)) is not null then execute format('select public.%I($1)', v_fn) using r; end if;
@@ -565,7 +597,7 @@ begin
            next_attempt_at = now() + least(interval '1 hour', interval '30 seconds' * power(2, least(r.attempts, 7))) where id = r.id;
     return 'retry_wait';
   end if;
-  update public.billing_outbox set status = 'held', error = left(p_error, 300), response = p_response, lease_until = null, updated_at = now() where id = r.id returning * into r;
+  update public.billing_outbox set status = 'held', error = left(p_error, 300), response = v_resp, lease_until = null, updated_at = now() where id = r.id returning * into r;
   v_fn := 'zella_stripe_failed_' || r.kind;
   if to_regprocedure(format('public.%I(public.billing_outbox)', v_fn)) is not null then execute format('select public.%I($1)', v_fn) using r; end if;
   perform public.zella_platform_alert('billing_outbox_held', case when p_conflict then 'A Stripe command was refused as a repeat with other values' else 'A Stripe command was refused' end,
@@ -589,12 +621,16 @@ begin
   update public.billing_invoices set payment_intent = coalesce(v_pi, payment_intent) where id = inv.id;
   select * into v_sub from public.subscriptions where business_id = v_biz;
   if v_amount > 0 then
+    -- a payment id already recorded for another business is never taken over: a person checks it
+    if exists (select 1 from public.payments where provider = 'stripe' and external_payment_id = coalesce(v_pi, o ->> 'id') and business_id <> v_biz) then
+      raise exception 'BINDING: payment % is recorded for another business', coalesce(v_pi, o ->> 'id');
+    end if;
     insert into public.payments (business_id, subscription_id, amount, amount_minor, currency, status, provider, external_payment_id, paid_at, metadata)
     values (v_biz, v_sub.id, public.zella_minor_to_amount(v_amount, 'usd'), v_amount, 'usd', 'succeeded', 'stripe', coalesce(v_pi, o ->> 'id'), now(),
             jsonb_build_object('stripe_invoice', o ->> 'id', 'billing_reason', v_reason, 'bound', true))
     on conflict (provider, external_payment_id) where external_payment_id is not null do update set status = 'succeeded', paid_at = coalesce(payments.paid_at, now()),
        amount_minor = excluded.amount_minor, amount = excluded.amount, metadata = payments.metadata || excluded.metadata, updated_at = now()
-     where payments.status in ('pending', 'processing', 'failed');
+     where payments.status in ('pending', 'processing', 'failed') and payments.business_id = excluded.business_id;
     perform public.zella_ledger_post(v_biz, 'invoice:' || (o ->> 'id'), jsonb_build_array(jsonb_build_object('account', 'receivable', 'amount', v_amount), jsonb_build_object('account', 'revenue', 'amount', -v_amount)));
     perform public.zella_ledger_post(v_biz, 'payment:' || coalesce(v_pi, o ->> 'id'), jsonb_build_array(jsonb_build_object('account', 'cash', 'amount', v_amount), jsonb_build_object('account', 'receivable', 'amount', -v_amount)));
   end if;
@@ -612,6 +648,7 @@ begin
   if l.stripe_id is null then raise exception 'WAITING: subscription % is not linked yet', o ->> 'id'; end if;
   select * into s from public.subscriptions where business_id = l.business_id for update;
   if s.id is null then raise exception 'WAITING: no local subscription'; end if;
+  if s.external_subscription_id is distinct from o ->> 'id' then return 'ignored'; end if;   -- an earlier, replaced Stripe subscription
   if s.billing_event_at is not null and e.event_created_at < s.billing_event_at then return 'older'; end if;
   update public.subscriptions set metadata = metadata || jsonb_strip_nulls(jsonb_build_object('stripe_status', o ->> 'status',
            'cancel_at_period_end', (o ->> 'cancel_at_period_end')::boolean, 'stripe_trial_end', o ->> 'trial_end')),
@@ -638,6 +675,7 @@ begin
   if o ->> 'status' is distinct from 'canceled' then raise exception 'BINDING: deleted event for a subscription that is not canceled'; end if;
   select * into s from public.subscriptions where business_id = l.business_id for update;
   if s.id is null then raise exception 'WAITING: no local subscription'; end if;
+  if s.external_subscription_id is distinct from o ->> 'id' then return 'ignored'; end if;   -- an earlier, replaced Stripe subscription
   if s.status <> 'cancelled' and public.zella_subscription_transition_ok(s.status, 'cancelled') then
     update public.subscriptions set status = 'cancelled', cancelled_at = coalesce(cancelled_at, now()), billing_event_at = greatest(coalesce(billing_event_at, e.event_created_at), e.event_created_at) where id = s.id;
     perform public.zella_notify_owners(l.business_id, 'subscription_cancelled', 'Your plan has ended', 'Your Zella Voice plan has ended. Contact support if this is a mistake.', 'warning', 'settings');
@@ -671,7 +709,7 @@ do $$ declare f text; begin
     'zella_stripe_quarantine(uuid,uuid,text,jsonb)', 'zella_stripe_link_add(text,text,uuid,boolean,text,uuid,bigint)', 'zella_stripe_link(text,text)', 'zella_stripe_customer(uuid)',
     'zella_ledger_post(uuid,text,jsonb)', 'zella_stripe_invoice_upsert(uuid,jsonb,text)', 'zella_stripe_bind_invoice(jsonb,boolean)',
     'zella_billing_outbox_add(uuid,text,text,text,text,jsonb,text,uuid)', 'zella_billing_outbox_claim(integer,uuid)',
-    'zella_billing_outbox_result(uuid,boolean,text,jsonb,text,boolean,boolean)', 'zella_stripe_on_invoice_paid(billing_events,jsonb)',
+    'zella_billing_outbox_result(uuid,boolean,text,jsonb,text,boolean,boolean,integer)', 'zella_stripe_on_invoice_paid(billing_events,jsonb)',
     'zella_stripe_on_customer_subscription_created(billing_events,jsonb)', 'zella_stripe_on_customer_subscription_updated(billing_events,jsonb)',
     'zella_stripe_on_customer_subscription_deleted(billing_events,jsonb)', 'zella_stripe_on_charge_refunded(billing_events,jsonb)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
@@ -680,3 +718,6 @@ do $$ declare f text; begin
 end $$;
 
 commit;
+
+-- the status check was added NOT VALID above; checked here, in its own transaction, after the change is committed
+alter table public.subscriptions validate constraint subscriptions_status_check;

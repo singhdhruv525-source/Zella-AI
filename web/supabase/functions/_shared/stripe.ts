@@ -22,9 +22,11 @@ export class StripeError extends Error {
     readonly paymentIntent: string | null = null,
   ) { super(message); this.name = "StripeError"; }
   // The outbox resends the SAME stored body with the SAME key only for these (§8: 429, 5xx, timeout).
-  get retryable(): boolean { return this.status === 0 || this.status === 429 || this.status >= 500; }
+  // idempotency_key_in_use: the first request with this key is still running at Stripe; the same key and body are sent
+  // again later, and Stripe then answers with that first request's result.
+  get retryable(): boolean { return this.status === 0 || this.status === 429 || this.status >= 500 || this.code === "idempotency_key_in_use"; }
   // A key reused with a different body is a bug: held and alerted, never a new key automatically (§8.1 rule 4).
-  get idempotencyConflict(): boolean { return this.type === "idempotency_error" || this.code === "idempotency_key_in_use"; }
+  get idempotencyConflict(): boolean { return this.type === "idempotency_error" && this.code !== "idempotency_key_in_use"; }
 }
 
 // Stripe's form encoding: a[b]=1, a[c][0][d]=2. Booleans as true/false, null and undefined left out.

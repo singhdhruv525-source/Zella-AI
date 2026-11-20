@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
 import { Actions, EmptyNote, ErrorText, useAction, useLatest } from "./kit";
 import { allowance, billingPeriod, errorCode, errorWords, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
@@ -74,7 +74,10 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const st = paymentState(state.payment);
   const [checking, setChecking] = useState(false);
   const [problem, setProblem] = useState("");
-  const [key] = useState(newKey);
+  // one key per attempt: a double click reuses it, but after a failed start the next try uses a new one (an expired
+  // or failed Checkout is never handed back for the old key)
+  const [key, setKey] = useState(newKey);
+  const inFlight = useRef(false);
   const [returned] = useState(() => new URLSearchParams(window.location.search).get("checkout"));
   const action = useAction();
   const trial = state.payment?.checkout?.mode === "trial" || state.payment?.due_now_minor === 0;
@@ -89,8 +92,10 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
     finally { if (reads.isLatest(ticket)) setChecking(false); }
   }
   async function pay() {
-    const r = await api.startCheckout(state.business_id, key);
-    if (typeof r?.url !== "string") throw new Error("We couldn't open the payment page. Please try again in a minute.");
+    let r;
+    try { r = await api.startCheckout(state.business_id, key); }
+    catch (err) { setKey(newKey()); throw err; }
+    if (typeof r?.url !== "string") { setKey(newKey()); throw new Error("We couldn't open the payment page. Please try again in a minute."); }
     window.location.assign(r.url);
   }
   // back from Stripe: ask the server to look again (it applies the verified events), then tidy the address bar
@@ -105,7 +110,12 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   useEffect(() => {
     if (st.key === "confirmed") return undefined;
     const every = st.key === "processing" || returned === "return" ? 5000 : 60000;
-    const t = setInterval(() => { if (document.visibilityState === "visible") refresh(st.key === "processing"); }, every);
+    // never a second look while one is still on its way (a slow answer still updates the screen)
+    const t = setInterval(() => {
+      if (document.visibilityState !== "visible" || inFlight.current) return;
+      inFlight.current = true;
+      refresh(st.key === "processing").finally(() => { inFlight.current = false; });
+    }, every);
     return () => clearInterval(t);
   }, [st.key]); // eslint-disable-line react-hooks/exhaustive-deps
   return (

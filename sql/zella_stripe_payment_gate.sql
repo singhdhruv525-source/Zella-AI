@@ -15,16 +15,19 @@ begin;
 do $$ begin
   if to_regprocedure('public.zella_admin_plan_change_start(uuid,uuid,text)') is null then raise exception 'VERSION_MISMATCH: needs zella_stripe_plan_change.sql'; end if;
   if to_regprocedure('public.zella_onboarding_payment_passed(uuid)') is not null
-     and md5(pg_get_functiondef(to_regprocedure('public.zella_onboarding_payment_passed(uuid)'))) <> 'e70908add03c370de86fdc4893bc984f' then
+     and md5(pg_get_functiondef(to_regprocedure('public.zella_onboarding_payment_passed(uuid)'))) <> '6065905149390deeed6e519af5464864' then
     raise exception 'VERSION_MISMATCH: zella_onboarding_payment_passed is not the version this file makes';
   end if;
 end $$;
 
--- the helper first (the replaced bodies call it)
+-- the helper first (the replaced bodies call it). An owner who finished step 6 while payments were off is not blocked
+-- afterwards (default chosen pending owner decision): switching payments on flags each such business for the owner
+-- (zella_payments_switch raises an alert per business) and changes no one's access.
 create or replace function public.zella_onboarding_payment_passed(p_business_id uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select public.zella_onboarding_rules() ->> 'first_payment' = 'not_until_payments_live'
-      or public.zella_onboarding_payment_confirmed_at(p_business_id) is not null;
+      or public.zella_onboarding_payment_confirmed_at(p_business_id) is not null
+      or exists (select 1 from public.owner_onboarding_steps where business_id = p_business_id and step = 'payment' and completed_at is not null);
 $$;
 
 do $$
@@ -55,7 +58,8 @@ begin
     execute d;
   end loop;
 end $$;
-revoke execute on function public.zella_onboarding_payment_passed(uuid) from public, anon;
-grant execute on function public.zella_onboarding_payment_passed(uuid) to authenticated, service_role;
+-- server only: owners and admins reach it only through the functions that check the caller first
+revoke execute on function public.zella_onboarding_payment_passed(uuid) from public, anon, authenticated;
+grant execute on function public.zella_onboarding_payment_passed(uuid) to service_role;
 
 commit;

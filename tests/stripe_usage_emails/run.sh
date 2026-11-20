@@ -18,6 +18,9 @@ q "update public.platform_settings set value = 'true' where key = 'payments_live
 ev minutes 80 p2; ev minutes 100 p2; ev texts 80 p2
 [ "$(q "select string_agg(code || '=' || coalesce(data ->> 'minutesUsed', data ->> 'rate'), ',' order by code) from public.billing_email_intents")" = "F1=400,F2=\$0.20" ] && ok "80% gives F1 with the minutes used, 100% gives F2 with the rate; texts give nothing" || bad "codes: $(q "select string_agg(code || ':' || data::text, ' ') from public.billing_email_intents")"
 [ "$(q "select (data ->> 'limit') || ',' || (data ->> 'daysLeft' is not null) from public.billing_email_intents where code = 'F1' or code = 'F2' order by code desc limit 1")" = "\$300.00,false" ] && ok "F2 carries the monthly limit" || bad "limit"
+zf_plan "$b" 39900 0 monthly false 2 35 > /dev/null   # saved after the period started, at another rate
+ev minutes 100 p3
+[ "$(q "select data ->> 'rate' from public.billing_email_intents where code = 'F2' order by created_at desc limit 1")" = "\$0.20" ] && ok "F2 quotes the rate of the plan the period is billed on, not a version saved since" || bad "period plan: $(q "select data ->> 'rate' from public.billing_email_intents where code = 'F2' order by created_at desc limit 1")"
 q "insert into public.usage_threshold_events (business_id, threshold_key, period_key, event_type, usage_minutes, limit_minutes, resource) values ('$b', 'minutes:pct:80', 'p2b', 'approaching', 400, 500, 'minutes')" > /dev/null
-[ "$(q "select count(*) from public.usage_threshold_events where business_id = '$b'")" -ge 5 ] && ok "every threshold row is kept" || bad "rows"
+[ "$(q "select count(*) from public.usage_threshold_events where business_id = '$b'")" -ge 6 ] && ok "every threshold row is kept" || bad "rows"
 echo "$fails failed"; [ "$fails" = 0 ]

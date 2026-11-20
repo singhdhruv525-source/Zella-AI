@@ -30,4 +30,12 @@ q "insert into public.payments (business_id, amount, amount_minor, currency, sta
 # back off: the off state again; the first business can now pass step 6 without paying
 q "update public.platform_settings set value = 'false' where key = 'payments_live'" > /dev/null
 [ "$(as_user "$u" aal2 "select public.zella_owner_onboarding_complete_step('$b', 'payment') ->> 'changed'")" = "true" ] && ok "off: the owner passes step 6 without a payment" || bad "off pass"
+# payments switched on afterwards: that owner is not blocked retroactively, and is flagged for the owner to decide
+q "select public.zella_payments_switch(true, 'https://example.supabase.co/functions/v1/billing-worker')" > /dev/null
+[ "$(check)" = "true" ] && ok "on later: an owner who passed step 6 while payments were off is not blocked (default pending the owner's decision)" || bad "grandfather"
+[ "$(q "select count(*) from public.platform_alerts where kind = 'onboarding_unpaid_before_live' and business_id = '$b'")" = "1" ] \
+  && [ "$(q "select count(*) from public.platform_alerts where kind = 'onboarding_unpaid_before_live' and business_id = '$c'")" = "0" ] \
+  && ok "switching payments on flags each business that finished setup unpaid (not the one that paid)" || bad "flag"
+[ "$(as_user "$u" aal2 "select public.zella_onboarding_payment_passed('$b')" 2>&1 | grep -c 'permission denied')" = "1" ] && ok "a signed in user can't ask about any business's payment directly" || bad "direct helper"
+q "select public.zella_payments_switch(false)" > /dev/null
 echo "$fails failed"; [ "$fails" = 0 ]

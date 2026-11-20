@@ -80,7 +80,7 @@ The state carries them in `rules`, so the screens can show the right words. Each
 | `first_payment` | `"pay_before_live"` | a confirmed payment is needed before the receptionist goes live. With the payment gate (lane F), it is `"not_until_payments_live"` while payments aren't live: no payment is needed then (the owner's decision of 16 Nov 2026). The other value, `"trial_with_card"`, is not built |
 | `failed_check` | `"retry_then_review"` | after a failed check the owner can try again; after `identity_attempts` failures it goes to manual review |
 | `identity_attempts` | `2` | failed checks allowed before manual review |
-| `payments_connected` | `false` | Stripe Checkout is not built; step 6 shows waiting |
+| `payments_connected` | `false` | follows `platform_settings.payments_live` (version 3): `false` while payments are off, and step 6 shows waiting; `true` once the owner switches payments on, and step 6 opens Stripe Checkout |
 
 ## 4. Error codes
 
@@ -222,8 +222,15 @@ Notes:
 - `plan.available` is false when no plan is saved (then `current` is `null`). `estimate` and margin warnings are never
   sent to the owner.
 - `payment.status`: `locked` (reason `identity_first`: identity isn't verified yet, so checkout can't open),
-  `waiting` (reason `payments_not_connected`), `confirmed`. `checkout_available` stays `false` until Stripe
-  Checkout is built.
+  `waiting`, `confirmed`. While `waiting`, `reason` says why: `payments_not_connected` (payments are off),
+  `checkout_not_started` (no Checkout open: the owner can start one), `checkout_open` (a Checkout is open: its link is
+  in `checkout.url`), `processing` (back from Stripe; the payment isn't confirmed by a verified Stripe event yet).
+- `payment.required` (version 4): `true` only while payments are live and no payment is confirmed yet; while payments
+  are off it is `false` and step 6 can be completed without a payment.
+- `payment.checkout_available` is `true` only when no payment is confirmed, identity is verified and payments are
+  live (`payments_connected`). `payment.checkout` (version 3) is `null` until a Checkout starts, then `mode` (`pay` or
+  `trial`), `amount_minor`, `currency`, `url` (only while the Checkout is open and not expired), `expires_at` and
+  `trial_end_at`. A Checkout that expires is not paid: the owner starts again, nothing is charged automatically.
 - `go_live` is the same checklist as the CRM's AI receptionist page (`zella_activation_report`), including the two
   new checks. Going live itself stays in the CRM (`zella_request_activation`).
 

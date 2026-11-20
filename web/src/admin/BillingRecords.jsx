@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DISPUTE_STATUS, INVOICE_STATUS, REFUND_KIND, REFUND_STATUS, usd } from "./billingRecords";
-import { DataTable, ErrorNote, Filters, Panel, Pill, Select, Tabs, rpc, useLoad, when } from "./adminOps";
+import { DataTable, ErrorNote, Filters, Panel, Pill, Select, Tabs, can, rpc, useLoad, when } from "./adminOps";
 
 // Admin > Plans & subscriptions: what Stripe charged and refunded, as Zella Voice recorded it from verified Stripe
 // events (docs/PAYMENTS_ARCHITECTURE.md §6.7, §6.8, §6.11). Read only, except the Zella Voice owner's refund decision,
@@ -9,10 +9,12 @@ import { DataTable, ErrorNote, Filters, Panel, Pill, Select, Tabs, rpc, useLoad,
 
 const status = (map, s) => { const [label, tone] = map[s] ?? [String(s ?? "Unknown"), "neutral"]; return <Pill tone={tone}>{label}</Pill>; };
 const notSetUp = (e) => /needs a database update|PGRST202/i.test(String(e ?? ""));
+// A list must come back as a list: a missing or malformed answer is an error with a retry, never "nothing yet".
+const list = (name, args) => rpc(name, args).then((v) => { if (!Array.isArray(v)) throw new Error("The list could not be loaded. Please try again."); return v; });
 
 function Invoices({ onOpenBusiness }) {
   const [st, setSt] = useState(null);
-  const r = useLoad(() => rpc("zella_admin_invoices", { p_business_id: null, p_status: st, p_limit: 200 }), [st]);
+  const r = useLoad(() => list("zella_admin_invoices", { p_business_id: null, p_status: st, p_limit: 200 }), [st]);
   return (
     <>
       <Filters><Select label="Status" value={st} onChange={setSt} options={Object.entries(INVOICE_STATUS).map(([k, [l]]) => [k, l])} /></Filters>
@@ -32,13 +34,15 @@ function Invoices({ onOpenBusiness }) {
   );
 }
 
-function Refunds() {
+function Refunds({ me }) {
+  // only the Zella Voice owner with billing.manage decides (the server checks the same); while unknown: read only
+  const mayDecide = me?.role === "zella_owner" && can(me, "billing.manage");
   const [st, setSt] = useState("requested");
   const [deciding, setDeciding] = useState(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const r = useLoad(() => rpc("zella_admin_refunds", { p_status: st, p_limit: 200 }), [st]);
+  const r = useLoad(() => list("zella_admin_refunds", { p_status: st, p_limit: 200 }), [st]);
   async function decide(approve) {
     setBusy(true); setErr("");
     try { await rpc("zella_admin_refund_decide", { p_refund_id: deciding.id, p_approve: approve, p_reason: reason }); setDeciding(null); setReason(""); r.reload(); }
@@ -56,9 +60,9 @@ function Refunds() {
           ["Amount", (x) => usd(x.amount_minor), "op-num"],
           ["Status", (x) => status(REFUND_STATUS, x.status)],
           ["Asked", (x) => when(x.created_at)],
-          ["", (x) => x.status === "requested" ? <button type="button" className="owner-secondary-button" onClick={(e) => { e.stopPropagation(); setDeciding(x); setErr(""); }}>Decide</button> : null],
+          ["", (x) => mayDecide && x.status === "requested" ? <button type="button" className="owner-secondary-button" onClick={(e) => { e.stopPropagation(); if (deciding?.id !== x.id) setReason(""); setDeciding(x); setErr(""); }}>Decide</button> : null],
         ]} />
-      {deciding && (
+      {mayDecide && deciding && (
         <div className="wiz-section op-gap" role="group" aria-label="Refund decision">
           <p><strong>{deciding.business_name}</strong>: {REFUND_KIND[deciding.kind] ?? deciding.kind}, {usd(deciding.amount_minor)}. Only the Zella Voice owner can decide; the rules are checked again.</p>
           <label className="owner-field wiz-field-full"><span>Reason (kept in the audit log)</span>
@@ -76,7 +80,7 @@ function Refunds() {
 }
 
 function Disputes({ onOpenBusiness }) {
-  const r = useLoad(() => rpc("zella_admin_disputes", { p_limit: 200 }), []);
+  const r = useLoad(() => list("zella_admin_disputes", { p_limit: 200 }), []);
   return (
     <>
       {notSetUp(r.error) ? <p className="op-muted">Disputes appear here once payments are set up.</p> : <ErrorNote error={r.error} onRetry={r.reload} />}
@@ -96,13 +100,13 @@ function Disputes({ onOpenBusiness }) {
 
 const TABS = [["invoices", "Invoices"], ["refunds", "Refunds"], ["disputes", "Disputes"]];
 
-export default function BillingRecords({ onOpenBusiness }) {
+export default function BillingRecords({ onOpenBusiness, me }) {
   const [tab, setTab] = useState("invoices");
   return (
     <Panel title="Payments" description="Invoices, refunds and disputes, recorded from verified Stripe events. Payments are switched off until the owner connects Stripe, so these lists stay empty until then.">
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "invoices" && <Invoices onOpenBusiness={onOpenBusiness} />}
-      {tab === "refunds" && <Refunds />}
+      {tab === "refunds" && <Refunds me={me} />}
       {tab === "disputes" && <Disputes onOpenBusiness={onOpenBusiness} />}
     </Panel>
   );

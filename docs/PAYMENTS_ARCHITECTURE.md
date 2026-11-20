@@ -1308,6 +1308,7 @@ forget keys after 24 hours.
 | `customer.subscription.created`, `.updated` | state only (trialing, active, past_due, cancel at period end); a status alone grants nothing |
 | `customer.subscription.trial_will_end` | our trial reminder (§6.2) |
 | `customer.subscription.deleted` | `cancelled` at period end, or a trial cancel |
+| `customer.subscription.pending_update_expired` | Stripe dropped an unpaid pending upgrade: the confirmed plan change fails, the plan stays (§6.6) |
 | `invoice.created` | add pay as you go to the renewal draft, then 200 quickly (§6.9) |
 | `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined; then the Paid email (§6.11) |
 | `invoice.voided`, `invoice.deleted` | find, **from our own records**, every billing row (main, pending, late, re-bill) and every credit line attached to that invoice id; lock their periods in ascending period id, then in one transaction: each billing row `attached` → `held` with one alert and finance task, each claimed credit line back to open (§6.9). `invoice.voided`: the invoice is fetched first and nothing is done if it was paid. `invoice.deleted`: no fetch (Stripe deletes only drafts, and a deleted invoice may not be retrievable). It acts only if **our** `invoices` row for that id is still `draft`: we record `invoice.created` (draft) and every later status from `invoice.finalized`, `invoice.paid` and `invoice.voided`, and the event's own payload must also say `status: draft`. If our row says finalised or paid, or we have no row, nothing is changed: the event is held with an alert for a person. To be confirmed in the Stripe sandbox with the pinned API version before this goes live. `invoice.voided` for an invoice already emailed also sends the Invoice cancelled email (§6.11) |
@@ -1345,8 +1346,11 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
 4. A sandbox webhook endpoint pointing at the staging `billing-webhook`, with the events in §16.5.
 5. After the sandbox proofs (§16.8) and the owner's approval: live keys, live webhook, one pilot business (§14).
 
-**Going live, once the lane F work is applied and deployed (each step needs the owner's approval).** Everything else
-is built and switched off; these three steps are all that is left, first on staging with sandbox keys:
+**Going live, once the lane F work is applied and deployed (each step needs the owner's approval).** The flows of
+lane F (Checkout, renewals, packs, refunds, cancel, invoices, disputes, billing emails, reconcile, plan changes) are
+built and switched off. Still not built, and not covered by these steps: pay as you go charging (§6.9), switching
+between monthly and yearly, and the owner screens listed as not built in this document. The sandbox proofs of §16.8
+come first, on staging, before any live key. Then these three steps, first on staging with sandbox keys:
 
 1. **Secrets and price IDs.** In Supabase, Edge Functions, Secrets: `STRIPE_SECRET_KEY` (the restricted key of §9;
    `rk_test_` on staging, `rk_live_` in production) and `STRIPE_WEBHOOK_SECRET` (the endpoint's signing secret from
@@ -1359,6 +1363,19 @@ is built and switched off; these three steps are all that is left, first on stag
    'https://<project>.supabase.co/functions/v1/billing-worker');`. It sets `payments_live`, saves the worker's
    address and turns the `zella_billing_worker` job on. `select public.zella_payments_switch(false);` turns it all
    off again; stored events wait and nothing is lost.
+
+**Defaults chosen pending owner decision (20 Nov 2026).** Where the review found a product choice, the most
+conservative default that matches production today was built (money never moves twice, nothing is charged or refunded
+automatically that wasn't before, the code refuses rather than guesses). The owner decides each before go live:
+1. A downgrade already scheduled at Stripe stays; no other plan change starts until it takes effect or a person
+   cancels it (`DOWNGRADE_SCHEDULED`). Both are never applied.
+2. Missed events are read from a stored watermark (the last complete scan, less an hour); it moves only when a scan
+   read every page. A scan cut short raises an alert; a longer backfill is a separate, manual step a person approves.
+3. A pack can't be used while its refund is pending: its units are held at approval and freed if the refund fails.
+4. A Checkout session that expires is not paid: the owner starts again and nothing is charged automatically. A session
+   for a plan that changed while it was open is expired at Stripe before a new one opens.
+5. An owner who finished onboarding step 6 while payments were off is not blocked afterwards: switching payments on
+   flags each such business for the owner (alert `onboarding_unpaid_before_live`) and changes no access.
 
 ### 16.8 Sandbox proofs before each flow ships
 

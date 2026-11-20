@@ -53,8 +53,8 @@ Deno.test("plan saved -> Checkout -> signed webhook -> payment confirmed -> go l
   assertEquals(await sql(`select (x ->> 'ok') from jsonb_array_elements(public.zella_activation_checks('${business}') -> 'checks') x where x ->> 'key' = 'payment'`), "true");
   assertEquals(await sql(`select amount_minor || ' ' || (metadata ->> 'bound') from public.payments where business_id = '${business}'`), "89800 true");
   assertEquals(await sql(`select count(*) from public.billing_quarantine`), "0");
-  // a redelivery of every event changes nothing
-  await fake.deliver(hookUrl, SECRET, { only: fake.events });
+  // a redelivery of every event is answered 200 (Stripe would resend anything else) and changes nothing
+  assert((await fake.deliver(hookUrl, SECRET, { only: fake.events })).every((s) => s === 200));
   await runWorkerOnce(rpc, stripe);
   assertEquals(await sql(`select count(*) || ' ' || sum(amount_minor) from public.payments where business_id = '${business}'`), "1 89800");
 });

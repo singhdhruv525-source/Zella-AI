@@ -20,17 +20,17 @@ begin;
 do $$
 declare s text; d text;
   known constant jsonb := '{
-    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": ["c02680d28b2527875d15e3ec1d8f354a", "697fc98401d8f2f588fdff1ec93c1454"]
+    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": ["cdbc9f06927ff12a5675b733a991d15f", "5ecdf2844d5d37c14c9ae1f027119fe6"]
   }';
   owned constant jsonb := '{
     "public.zella_billing_pack_next_command(uuid)": "2a5d455f3775411b79535374a09fc1c6",
-    "public.zella_owner_pack_buy(uuid,text,text)": "d6a31963fd637d0b57584df3349157a1",
-    "public.zella_billing_maybe_reload(uuid,text)": "d802867b376a6ed0c4ba30344c649b47",
+    "public.zella_owner_pack_buy(uuid,text,text)": "14f5dc41a480e7d25a876d897519d579",
+    "public.zella_billing_maybe_reload(uuid,text)": "b6b17e578427352f918fb5c324c70448",
     "public.zella_billing_reload_trg()": "8ca4aed8ecc092d3ba4916d9fe3902bc",
     "public.zella_billing_pack_command(pack_purchases)": "6509163e4d12bbf5186b0610f0524f5f",
     "public.zella_stripe_after_payment_intent(billing_outbox)": "838b8a815320adee2f4a368c79492250",
-    "public.zella_stripe_failed_payment_intent(billing_outbox)": "0367f4bb6f1682640c50c398597390ad",
-    "public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)": "d744eacbdf8179827a0ec86f765e6ec8",
+    "public.zella_stripe_failed_payment_intent(billing_outbox)": "e0134082bbbff7cf41290314c04ab303",
+    "public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)": "e7a39b17547fe5eefda25aa12c7fc0d2",
     "public.zella_stripe_on_payment_intent_payment_failed(billing_events,jsonb)": "f8a364ae8345e8d0ddeb787e82bb8ab8",
     "public.zella_stripe_on_payment_intent_requires_action(billing_events,jsonb)": "b5f1c4f5240f4e958947a575241cd6e9"
   }';
@@ -67,6 +67,7 @@ begin
   if l.stripe_id is null then raise exception 'WAITING: subscription % is not linked yet', o ->> 'id'; end if;
   select * into s from public.subscriptions where business_id = l.business_id for update;
   if s.id is null then raise exception 'WAITING: no local subscription'; end if;
+  if s.external_subscription_id is distinct from o ->> 'id' then return 'ignored'; end if;   -- an earlier, replaced Stripe subscription
   if s.billing_event_at is not null and e.event_created_at < s.billing_event_at then return 'older'; end if;
   update public.subscriptions set metadata = metadata || jsonb_strip_nulls(jsonb_build_object('stripe_status', o ->> 'status',
            'cancel_at_period_end', (o ->> 'cancel_at_period_end')::boolean, 'stripe_trial_end', o ->> 'trial_end',
@@ -105,9 +106,11 @@ begin
   perform public.zella_onboarding_authorize(p_business_id, true, true);   -- active owner of THIS business, code verified session
   if p_idempotency_key is null or p_idempotency_key !~ '^[A-Za-z0-9_-]{8,100}$' then raise exception 'INVALID_INPUT'; end if;
   if not public.zella_payments_live() then raise exception 'PAYMENTS_NOT_LIVE'; end if;
+  perform 1 from public.businesses where id = p_business_id for update;   -- one purchase at a time per business: a retry sees the first
   select * into v from public.pack_purchases where business_id = p_business_id and idempotency_key = p_idempotency_key;
   if v.id is not null then
-    if v.pack_code <> p_pack_code then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
+    -- an owner key replays only an owner purchase; an admin grant with the same key is never shown as a purchase
+    if v.pack_code <> p_pack_code or v.source <> 'owner_purchase' then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
     return jsonb_build_object('purchase_id', v.id, 'status', v.status, 'price_cents', v.price_cents);
   end if;
   select * into c from public.billing_pack_catalog where code = p_pack_code and active;
@@ -134,6 +137,10 @@ begin
   if not public.zella_payments_live() then return null; end if;
   select * into a from public.auto_reload_settings where business_id = p_business_id and resource = p_resource and enabled for update;
   if a.business_id is null then return null; end if;
+  -- the monthly cap is shared by every resource and period: one business-wide check at a time. Never waited for (a
+  -- usage entry holding another period's lock could deadlock): if another check is running, this one skips, and the
+  -- next usage entry checks again. A reload is never bought twice and the cap never passed.
+  if not pg_try_advisory_xact_lock(hashtextextended('zella_auto_reload:' || p_business_id, 0)) then return null; end if;
   if exists (select 1 from public.pack_purchases where business_id = p_business_id and resource = p_resource and source = 'auto_reload' and status = 'pending') then return null; end if;
   if (select status from public.subscriptions where business_id = p_business_id) is distinct from 'active' then return null; end if;
   v_left := coalesce((public.zella_billing_balance(p_business_id, p_resource, now()) ->> 'remaining')::numeric, 0);
@@ -181,23 +188,34 @@ begin
 end $$;
 
 -- Stripe refused the charge (402: declined, or the bank wants the owner to confirm): the purchase fails, nothing granted.
+-- An unknown outcome (no answer after every retry, or any refusal other than a card error) keeps the purchase pending
+-- and reserved, and the owner is told nothing yet: the held command's alert asks a person to check it with Stripe.
 create or replace function public.zella_stripe_failed_payment_intent(r public.billing_outbox) returns void
 language plpgsql security definer set search_path = public as $$
 declare v_code text := coalesce(r.response ->> 'code', 'refused');
 begin
+  if r.response ->> 'type' is distinct from 'card_error' then return; end if;
   update public.pack_purchases set status = 'failed', failure_reason = left(v_code, 80), settled_at = now(),
          stripe_payment_intent = coalesce(r.response ->> 'payment_intent', stripe_payment_intent) where id = r.local_id and status = 'pending';
   perform public.zella_notify_owners(r.business_id, 'pack_failed', 'A pack could not be bought',
     case when v_code = 'authentication_required' then 'Your bank wants to confirm this payment. Update or confirm your card in Settings, Billing, then try again. Nothing was charged.'
          else 'Your card was declined, so nothing was charged and no pack was added. Update your card in Settings, Billing.' end, 'warning', 'settings');
-  update public.billing_outbox set status = 'cancelled', updated_at = now() where id = r.id and r.response ->> 'type' = 'card_error';   -- a decline is final: no alert for a person
+  update public.billing_outbox set status = 'cancelled', updated_at = now() where id = r.id;   -- a decline is final: no alert for a person
 end $$;
 
 create or replace function public.zella_stripe_on_payment_intent_succeeded(e public.billing_events, o jsonb) returns text
 language plpgsql security definer set search_path = public as $$
 declare l public.billing_stripe_links := public.zella_stripe_link(o ->> 'id', 'payment_intent'); p public.pack_purchases; per public.billing_periods; v_amount bigint := (o ->> 'amount')::bigint;
 begin
-  if l.stripe_id is null then return 'ignored'; end if;   -- a plan invoice's payment: invoice.paid handles it
+  if l.stripe_id is null then
+    -- our own pack command whose answer isn't recorded yet (sent, reply pending): wait for its link, never drop the event
+    if coalesce(o #>> '{metadata,purchase_id}', '') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+       and exists (select 1 from public.billing_outbox b where b.kind = 'payment_intent' and b.local_kind = 'pack'
+                    and b.local_id = (o #>> '{metadata,purchase_id}')::uuid and b.status in ('pending', 'sending', 'retry_wait', 'held')) then
+      raise exception 'WAITING: pack payment % is not linked yet', o ->> 'id';
+    end if;
+    return 'ignored';   -- a plan invoice's payment: invoice.paid handles it
+  end if;
   if l.local_kind is distinct from 'pack' then return 'ignored'; end if;
   select * into p from public.pack_purchases where id = l.local_id for update;
   if p.id is null or p.business_id <> l.business_id then raise exception 'BINDING: no purchase for this payment'; end if;

@@ -5,8 +5,9 @@
 --     subscription once (a second dispute never overwrites it); an urgent alert with the respond by date. A dispute on a
 --     cancelled subscription is recorded only.
 --   - charge.dispute.updated: Stripe's status recorded. funds_withdrawn / funds_reinstated: ledger postings, once each.
---   - charge.dispute.closed: won -> closed; the saved state comes back only when no other dispute is open. Lost -> a
---     ledger posting for the loss; the account stays suspended until a person settles it.
+--   - charge.dispute.closed: won (or warning_closed, an inquiry closed with no chargeback) -> closed; the saved state
+--     comes back only when no other dispute is open and no lost one waits for a person. Lost -> a ledger posting for
+--     the loss; the account stays suspended until a person settles it (settled_at set by that person).
 --   - zella_admin_disputes (billing.view) for the admin Payments panel. Evidence is submitted by a person in Stripe.
 -- Rollback: sql/rollback/zella_stripe_disputes_rollback.sql. Tests: tests/stripe_disputes/run.sh.
 begin;
@@ -17,10 +18,10 @@ declare s text;
     "public.zella_stripe_dispute_record(billing_events,jsonb)": "76437d76896444c4f72afe8a05966ea9",
     "public.zella_stripe_on_charge_dispute_created(billing_events,jsonb)": "0f74a1c3ef1d39166484910db5f789f3",
     "public.zella_stripe_on_charge_dispute_updated(billing_events,jsonb)": "eba8a07a7b0d6695637fffebbdfaec93",
-    "public.zella_stripe_on_charge_dispute_closed(billing_events,jsonb)": "2868a8e0ba499a4da17e77d98eab91bd",
+    "public.zella_stripe_on_charge_dispute_closed(billing_events,jsonb)": "45a0c24e0c5304f088f8d9349c241cd4",
     "public.zella_stripe_on_charge_dispute_funds_withdrawn(billing_events,jsonb)": "bb010998c378707f9a21215f374a4879",
     "public.zella_stripe_on_charge_dispute_funds_reinstated(billing_events,jsonb)": "fc13098a88196ad37db3e7f46280ba82",
-    "public.zella_admin_disputes(integer)": "8597d21f7747dbdd47a58a512568b2d7"
+    "public.zella_admin_disputes(integer)": "0000613f03e350d055a7665b628c9bc1"
   }';
 begin
   if to_regprocedure('public.zella_admin_invoices(uuid,text,integer)') is null then raise exception 'VERSION_MISMATCH: needs zella_stripe_invoices.sql'; end if;
@@ -39,11 +40,13 @@ create table if not exists public.billing_disputes (
   amount_minor bigint not null check (amount_minor >= 0),
   reason text,
   stripe_status text,
-  outcome text not null default 'open' check (outcome in ('open', 'won', 'lost')),
+  outcome text not null default 'open' check (outcome in ('open', 'won', 'lost', 'warning_closed')),
   respond_by timestamptz,
   created_at timestamptz not null default now(),
-  closed_at timestamptz
+  closed_at timestamptz,
+  settled_at timestamptz   -- a lost dispute: when a person settled it (until then the account stays suspended)
 );
+alter table public.billing_disputes add column if not exists settled_at timestamptz;
 create index if not exists billing_disputes_open_idx on public.billing_disputes (business_id) where outcome = 'open';
 alter table public.billing_disputes enable row level security;
 revoke all on public.billing_disputes from anon, authenticated;
@@ -103,17 +106,18 @@ create or replace function public.zella_stripe_on_charge_dispute_closed(e public
 language plpgsql security definer set search_path = public as $$
 declare d public.billing_disputes := public.zella_stripe_dispute_record(e, o); s public.subscriptions; v_out text;
 begin
-  v_out := case o ->> 'status' when 'won' then 'won' when 'lost' then 'lost' else null end;
+  v_out := case o ->> 'status' when 'won' then 'won' when 'lost' then 'lost' when 'warning_closed' then 'warning_closed' else null end;
   if v_out is null then raise exception 'BINDING: closed dispute with status %', o ->> 'status'; end if;
   if d.outcome <> 'open' then return 'applied'; end if;
   update public.billing_disputes set outcome = v_out, closed_at = now() where id = d.id;
   insert into public.audit_logs (business_id, action, entity_type, entity_id, new_data)
   values (d.business_id, 'billing.dispute_' || v_out, 'billing_dispute', d.id, jsonb_build_object('amount_minor', d.amount_minor));
-  if v_out = 'won' then
+  if v_out in ('won', 'warning_closed') then
     select * into s from public.subscriptions where business_id = d.business_id for update;
-    if s.status = 'suspended_dispute' and not exists (select 1 from public.billing_disputes where business_id = d.business_id and outcome = 'open') then
+    if s.status = 'suspended_dispute' and not exists (select 1 from public.billing_disputes where business_id = d.business_id
+                                                       and (outcome = 'open' or (outcome = 'lost' and settled_at is null))) then
       update public.subscriptions set status = coalesce(metadata ->> 'saved_status', 'active'), metadata = metadata - 'saved_status', updated_at = now() where id = s.id;
-      perform public.zella_resolve_platform_alerts('payment_disputed', d.business_id, null, 'Won');
+      perform public.zella_resolve_platform_alerts('payment_disputed', d.business_id, null, case when v_out = 'won' then 'Won' else 'Closed' end);
     end if;
   else
     perform public.zella_ledger_post(d.business_id, 'dispute:' || d.stripe_dispute_id || ':lost',
@@ -130,7 +134,7 @@ begin
   return coalesce((select jsonb_agg(jsonb_build_object('id', d.id, 'business_id', d.business_id, 'business_name', b.name, 'amount_minor', d.amount_minor,
            'reason', d.reason, 'outcome', d.outcome, 'stripe_status', d.stripe_status, 'respond_by', d.respond_by, 'created_at', d.created_at, 'closed_at', d.closed_at)
            order by (d.outcome = 'open') desc, d.created_at desc)
-    from (select * from public.billing_disputes order by created_at desc limit greatest(1, least(p_limit, 500))) d join public.businesses b on b.id = d.business_id), '[]'::jsonb);
+    from (select * from public.billing_disputes order by (outcome = 'open') desc, created_at desc limit greatest(1, least(p_limit, 500))) d join public.businesses b on b.id = d.business_id), '[]'::jsonb);
 end $$;
 
 do $$ declare f text; begin

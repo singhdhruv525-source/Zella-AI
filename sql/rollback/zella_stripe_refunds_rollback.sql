@@ -8,13 +8,14 @@ declare s text; v_has boolean;
     "public.zella_refund_options(uuid)": "1a801d9fbf110d4ae1aeb640438ca9c4",
     "public.zella_refund_reserved(uuid)": "86a0e7dd8cf26483b2af5b42769221c5",
     "public.zella_owner_refund_options(uuid)": "adf719c917ac43f79dac312f3169c0a3",
-    "public.zella_owner_refund_request(uuid,text,uuid,text)": "7411595c442081b93b884b8efb2a9402",
+    "public.zella_owner_refund_request(uuid,text,uuid,text)": "a827fd269d7ea1ed193cc7413da3a940",
     "public.zella_admin_refunds(text,integer)": "49c1d30f43b41e0c2d0d136a59d2218f",
-    "public.zella_admin_refund_decide(uuid,boolean,text)": "e8bb6744cfb16c9c5c949e40da0acb6a",
+    "public.zella_admin_refund_decide(uuid,boolean,text)": "99ef0dbd48fd24a1b9ef2aaa553a322f",
     "public.zella_admin_refund_raise(uuid,bigint,text)": "35634947680c18b9324a029c6490695e",
     "public.zella_stripe_after_refund(billing_outbox)": "5f6011231dd937b32cc627adcb7fc1a2",
-    "public.zella_stripe_failed_refund(billing_outbox)": "b48f43e391d0839f1bc28933031ede34",
-    "public.zella_stripe_on_refund_created(billing_events,jsonb)": "c74769d7177b2ecfdd2c7a649f85135c",
+    "public.zella_stripe_failed_refund(billing_outbox)": "31f2febf3d3ddf4342bf76379830ccb9",
+    "public.zella_refund_pack_restore(uuid)": "65ed6641ae30ced4affb8a1480bf509b",
+    "public.zella_stripe_on_refund_created(billing_events,jsonb)": "a8f17e05eef38ae2dd3f241bef368f99",
     "public.zella_stripe_on_refund_updated(billing_events,jsonb)": "02183a60f1cb3ccbb7762e163778bfd4",
     "public.zella_stripe_on_refund_failed(billing_events,jsonb)": "b7d0fffc8b7a092c37012040d3f52bae"
   }';
@@ -25,6 +26,7 @@ begin
     end if;
   end loop;
   if to_regclass('public.billing_refunds') is not null then
+    lock table public.billing_refunds in access exclusive mode;   -- held until commit: no row can be added before the drop
     execute 'select exists (select 1 from public.billing_refunds)' into v_has;
     if v_has then raise exception 'ROLLBACK_HAS_DATA: refunds exist; a person decides what to keep'; end if;
   end if;

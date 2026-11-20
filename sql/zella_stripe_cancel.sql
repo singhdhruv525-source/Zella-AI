@@ -8,7 +8,7 @@
 --     every older one still waiting, so an older choice is never sent after a newer one;
 --   - customer.subscription.updated compares Stripe's cancel_at_period_end with the latest desired value and, if they
 --     differ and nothing is waiting, resends the latest value with a new attempt number;
---   - a trial is cancelled at once instead (DELETE, key cancelnow:<subscription>): nothing has been paid (§6.2);
+--   - a trial is cancelled at once instead (DELETE, key cancelnow:<subscription>:<version>): nothing has been paid (§6.2);
 --   - the period ends: customer.subscription.deleted (step 2) records the cancellation; the daily cancellation job
 --     still does the full business cancellation at cancel_at, as before.
 -- Who: the trigger runs as the definer; the functions are server only. Rollback: sql/rollback/zella_stripe_cancel_rollback.sql.
@@ -18,13 +18,14 @@ begin;
 do $$
 declare s text; d text;
   known constant jsonb := '{
-    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": ["697fc98401d8f2f588fdff1ec93c1454", "35b81b539743ee7935df7f5d64b9e933"]
+    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": ["5ecdf2844d5d37c14c9ae1f027119fe6", "159c43b07625ac49bdd9deffcf244b5c"]
   }';
   owned constant jsonb := '{
-    "public.zella_stripe_cancel_sync(uuid,integer)": "8c6d3674a5ee68a7e7d463c4573e5758",
+    "public.zella_stripe_cancel_sync(uuid,integer)": "95a45270466f1cd39ee5c389b911e56a",
     "public.zella_stripe_cancel_trg()": "ce4aaa1585d141e40be1ab9ef94c9256",
-    "public.zella_stripe_after_cancel(billing_outbox)": "7dfed3c4ced107e3ec7aba1d12c12fa5",
-    "public.zella_stripe_cancel_check(billing_events,jsonb)": "71310991cffb5388795687df2ffd544e"
+    "public.zella_stripe_after_cancel(billing_outbox)": "7c65d1baa034eced5c2803761f21139c",
+    "public.zella_stripe_cancel_check(billing_events,jsonb)": "fbfb923606af688cbaf3ff1582901a51",
+    "public.zella_stripe_cancel_next_attempt(subscriptions)": "b4b15cf6cdb35ac177a761cb07732a6f"
   }';
 begin
   if to_regprocedure('public.zella_owner_pack_buy(uuid,text,text)') is null or to_regprocedure('public.zella_process_cancellations()') is null then
@@ -50,22 +51,33 @@ alter table public.subscriptions add column if not exists cancel_version integer
 -- Queues the latest desired value (or the trial's immediate cancel). p_attempt > 1 is a resend after reconciliation.
 create or replace function public.zella_stripe_cancel_sync(p_business_id uuid, p_attempt integer default 1) returns uuid
 language plpgsql security definer set search_path = public as $$
-declare s public.subscriptions; o public.billing_outbox;
+declare s public.subscriptions; o public.billing_outbox; v_key text; v_now boolean;
 begin
   select * into s from public.subscriptions where business_id = p_business_id and provider = 'stripe' and external_subscription_id is not null for update;
   if s.id is null or s.status in ('cancelled', 'expired', 'pending_payment') or s.desired_cancel_at_period_end is null then return null; end if;
-  -- older versions still waiting are never sent: the latest choice wins
+  v_now := s.status = 'trial' and s.desired_cancel_at_period_end;
+  -- one key per choice (version) and attempt: a new choice is never answered by an older, cancelled command
+  v_key := case when v_now then 'cancelnow:' || s.external_subscription_id || ':' || s.cancel_version
+                else 'cancel:' || s.external_subscription_id || ':' || s.cancel_version || ':' || p_attempt end;
+  -- older versions still waiting are never sent: the latest choice wins (one already being sent stays tracked)
   update public.billing_outbox set status = 'cancelled', updated_at = now()
-   where business_id = p_business_id and kind = 'cancel' and status in ('pending', 'retry_wait') and local_id = s.id
-     and idempotency_key <> 'cancel:' || s.external_subscription_id || ':' || s.cancel_version || ':' || p_attempt;
-  if s.status = 'trial' and s.desired_cancel_at_period_end then
-    o := public.zella_billing_outbox_add(p_business_id, 'cancel', 'cancelnow:' || s.external_subscription_id, 'DELETE', '/v1/subscriptions/' || s.external_subscription_id, '{}'::jsonb, 'subscription', s.id);
+   where business_id = p_business_id and kind = 'cancel' and status in ('pending', 'retry_wait') and local_id = s.id and idempotency_key <> v_key;
+  if v_now then
+    o := public.zella_billing_outbox_add(p_business_id, 'cancel', v_key, 'DELETE', '/v1/subscriptions/' || s.external_subscription_id, '{}'::jsonb, 'subscription', s.id);
   else
-    o := public.zella_billing_outbox_add(p_business_id, 'cancel', 'cancel:' || s.external_subscription_id || ':' || s.cancel_version || ':' || p_attempt,
+    o := public.zella_billing_outbox_add(p_business_id, 'cancel', v_key,
       'POST', '/v1/subscriptions/' || s.external_subscription_id, jsonb_build_object('cancel_at_period_end', s.desired_cancel_at_period_end), 'subscription', s.id);
   end if;
   return o.id;
 end $$;
+
+-- The next unused attempt number for the subscription's current choice (called under its row lock): the highest one
+-- recorded for this version, plus one, so a held or delayed attempt is never reused.
+create or replace function public.zella_stripe_cancel_next_attempt(s public.subscriptions) returns integer
+language sql stable security definer set search_path = public as $$
+  select coalesce(max(nullif(split_part(idempotency_key, ':', 4), '')::int), 0) + 1 from public.billing_outbox
+   where kind = 'cancel' and local_id = s.id and idempotency_key like 'cancel:' || s.external_subscription_id || ':' || s.cancel_version || ':%';
+$$;
 
 -- The owner's choice changed (cancel_at set or cleared, by anyone): a new version, then the command.
 create or replace function public.zella_stripe_cancel_trg() returns trigger
@@ -85,15 +97,14 @@ create trigger zella_stripe_cancel after update of cancel_at on public.businesse
 -- landed last), resend the latest with the next attempt number.
 create or replace function public.zella_stripe_after_cancel(r public.billing_outbox) returns void
 language plpgsql security definer set search_path = public as $$
-declare s public.subscriptions; v_attempt int;
+declare s public.subscriptions;
 begin
   select * into s from public.subscriptions where id = r.local_id for update;
   if s.id is null or r.method = 'DELETE' then return; end if;
   update public.subscriptions set metadata = metadata || jsonb_build_object('cancel_at_period_end', (r.response ->> 'cancel_at_period_end')::boolean) where id = s.id;
   if (r.response ->> 'cancel_at_period_end')::boolean is distinct from s.desired_cancel_at_period_end
      and not exists (select 1 from public.billing_outbox where kind = 'cancel' and local_id = s.id and status in ('pending', 'retry_wait', 'sending') and id <> r.id) then
-    v_attempt := coalesce(split_part(r.idempotency_key, ':', 4)::int, 1) + 1;
-    perform public.zella_stripe_cancel_sync(s.business_id, v_attempt);
+    perform public.zella_stripe_cancel_sync(s.business_id, public.zella_stripe_cancel_next_attempt(s));
   end if;
 end $$;
 
@@ -101,15 +112,15 @@ end $$;
 -- waiting is resent. Called by the step 2 handler through this hook name.
 create or replace function public.zella_stripe_cancel_check(e public.billing_events, o jsonb) returns text
 language plpgsql security definer set search_path = public as $$
-declare l public.billing_stripe_links := public.zella_stripe_link(o ->> 'id', 'subscription'); s public.subscriptions; v_n int;
+declare l public.billing_stripe_links := public.zella_stripe_link(o ->> 'id', 'subscription'); s public.subscriptions;
 begin
   if l.stripe_id is null then raise exception 'WAITING: subscription % is not linked yet', o ->> 'id'; end if;
   select * into s from public.subscriptions where business_id = l.business_id for update;
   if s.id is null or s.desired_cancel_at_period_end is null or o ->> 'status' in ('canceled', 'incomplete_expired') then return 'ignored'; end if;
+  if s.external_subscription_id is distinct from o ->> 'id' then return 'ignored'; end if;   -- an earlier, replaced Stripe subscription
   if (o ->> 'cancel_at_period_end')::boolean is distinct from s.desired_cancel_at_period_end
      and not exists (select 1 from public.billing_outbox where kind = 'cancel' and local_id = s.id and status in ('pending', 'retry_wait', 'sending')) then
-    select count(*) + 1 into v_n from public.billing_outbox where kind = 'cancel' and local_id = s.id and idempotency_key like 'cancel:' || s.external_subscription_id || ':' || s.cancel_version || ':%';
-    perform public.zella_stripe_cancel_sync(s.business_id, v_n);
+    perform public.zella_stripe_cancel_sync(s.business_id, public.zella_stripe_cancel_next_attempt(s));
     return 'applied';
   end if;
   return 'ignored';
@@ -123,6 +134,7 @@ begin
   if l.stripe_id is null then raise exception 'WAITING: subscription % is not linked yet', o ->> 'id'; end if;
   select * into s from public.subscriptions where business_id = l.business_id for update;
   if s.id is null then raise exception 'WAITING: no local subscription'; end if;
+  if s.external_subscription_id is distinct from o ->> 'id' then return 'ignored'; end if;   -- an earlier, replaced Stripe subscription
   if s.billing_event_at is not null and e.event_created_at < s.billing_event_at then return 'older'; end if;
   update public.subscriptions set metadata = metadata || jsonb_strip_nulls(jsonb_build_object('stripe_status', o ->> 'status',
            'cancel_at_period_end', (o ->> 'cancel_at_period_end')::boolean, 'stripe_trial_end', o ->> 'trial_end',
@@ -139,7 +151,8 @@ begin
 end $$;
 
 do $$ declare f text; begin
-  foreach f in array array['zella_stripe_cancel_sync(uuid,integer)', 'zella_stripe_cancel_trg()', 'zella_stripe_after_cancel(billing_outbox)', 'zella_stripe_cancel_check(billing_events,jsonb)'] loop
+  foreach f in array array['zella_stripe_cancel_sync(uuid,integer)', 'zella_stripe_cancel_trg()', 'zella_stripe_after_cancel(billing_outbox)', 'zella_stripe_cancel_check(billing_events,jsonb)',
+    'zella_stripe_cancel_next_attempt(subscriptions)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
