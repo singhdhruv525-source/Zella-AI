@@ -34,6 +34,7 @@ GROUPS = [
         "platform_report_runs": "One weekly platform summary per week for Zella Voice admins (counts only; server only, read through zella_admin_weekly_reports with reports.view).",
         "zella_text_archive": "Every stored text value the writing cleanup changed, with the original, kept for its exact rollback (server only).",
         "rate_limits": "Counters that slow down repeated requests per key and window.",
+        "zella_migration_settings": "Platform settings a migration inserted, so its rollback removes only those (server only).",
         "oauth_states": "Calendar sign ins in progress: hash of a single use value per person, business and provider, 5 minutes (server only).",
     }),
     ("Business setup and industry configuration", {
