@@ -18,6 +18,7 @@ export const SETTING_LABELS = {
   invitation_reminder_hours: "Invitation reminders after (hours)",
   setup_incomplete_after_days: "Flag an unfinished setup after (days)",
   trial_notice_days: "Tell the owner before a trial ends (days)",
+  draft_abandon_days: "Mark a draft abandoned after (days without changes)",
 };
 
 export const settingLabel = (key) => SETTING_LABELS[key] ?? humanize(key);

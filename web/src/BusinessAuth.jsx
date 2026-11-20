@@ -267,6 +267,21 @@ export function BusinessSignIn() {
   );
 }
 
+// A business owner invited by the Zella Voice team goes through the onboarding journey (/welcome/setup) instead of the
+// plain password page. Returns true when it is opening. Anything else (staff invitations, the journey not deployed yet,
+// an error) stays here, so an invitation always works.
+async function openOwnerJourney() {
+  try {
+    const { waitingJourney } = await import("./onboarding/api.js");
+    const waiting = await waitingJourney({ accept: true });
+    if (!waiting) return false;
+    window.location.replace(`/welcome/setup?business=${encodeURIComponent(waiting.business_id)}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Opened from the invitation email or a password-reset email. Supabase signs
 // the person in from the link; here they choose their password.
 export function Welcome() {
@@ -294,9 +309,12 @@ export function Welcome() {
     }
 
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return;
       if (data.session) {
+        // a business owner's invitation opens the onboarding journey, when there is one
+        if (link.type === "invite" && await openOwnerJourney()) return;
+        if (!active) return;
         setEmail(data.session.user.email ?? "");
         setState("ready");
       } else {
@@ -322,6 +340,7 @@ export function Welcome() {
         window.location.replace("/app");
         return;
       }
+      if (link.type === "invite" && await openOwnerJourney()) return;
       setEmail(data?.user?.email ?? data?.session?.user?.email ?? "");
       setState("ready");
     } catch (err) {

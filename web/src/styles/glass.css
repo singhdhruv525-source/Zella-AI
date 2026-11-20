@@ -246,3 +246,8 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(table th) { backgro
 /* the toggle only makes sense where the sidebar is shown beside the page */
 @media (max-width: 760px) { .ba-sidebar .zella-dock-toggle { display: none; } }
 @media (max-width: 600px) { .owner-sidebar .zella-dock-toggle { display: none; } }
+
+/* Glass keeps the sidebar as a floating frosted card, so the full height column (OwnerDashboard) stays clear and the
+   card inside keeps its own surface. */
+html[data-zella-theme="glass"]:has(.owner-app) .owner-sidebar-col { background: transparent; border-right: 0; }
+html[data-zella-theme="glass"]:has(.owner-app) .owner-sidebar-col > .owner-sidebar { background: var(--zella-sidebar); }

@@ -1,0 +1,138 @@
+/* Industry configuration: page scoped styles (header, change banner, danger zone).
+   Tokens only (web/src/styles/tokens.css). */
+
+/* Detail header: the PageHeader pattern (title, meta line, actions on the right) */
+.ic-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--zella-space-3) var(--zella-space-4);
+}
+
+.ic-detail-title { min-width: 0; }
+
+.ic-detail-title h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zella-space-2);
+  margin: 0;
+  color: var(--zella-text);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: var(--zella-leading-tight);
+}
+
+.ic-detail-meta {
+  margin: var(--zella-space-1) 0 0;
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.ic-detail-actions,
+.ic-danger-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--zella-space-2) var(--zella-space-3);
+}
+
+.ic-disabled-reason {
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+}
+
+/* How changes apply: two sentences, the rest behind a disclosure */
+.ic-apply {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--zella-space-3);
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border: 1px solid var(--zella-info-border);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-info-bg);
+  color: var(--zella-text-2);
+  font-size: var(--zella-text-sm);
+  font-weight: 400;
+  line-height: var(--zella-leading);
+}
+
+.ic-apply .ic-apply-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--zella-info);
+  font-size: 20px;
+}
+
+.ic-apply p { margin: 0; }
+
+.ic-apply strong {
+  color: var(--zella-info);
+  font-weight: 600;
+}
+
+.ic-apply-more { margin-top: var(--zella-space-1); }
+
+.ic-apply-more summary {
+  width: fit-content;
+  color: var(--zella-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ic-apply-more summary:hover,
+.ic-apply-more summary:focus-visible { text-decoration: underline; }
+
+.ic-apply-more[open] p { margin-top: var(--zella-space-1); }
+
+/* Danger zone: last card on the page */
+.ic-danger { border-color: var(--zella-danger-border); }
+
+.ic-danger h3 {
+  margin: 0 0 var(--zella-space-3);
+  color: var(--zella-text);
+  font-size: var(--zella-text-lg);
+  font-weight: 600;
+}
+
+.ic-danger-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--zella-space-3) var(--zella-space-4);
+}
+
+.ic-danger-row > div:first-child {
+  display: flex;
+  flex: 1 1 280px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ic-danger-row strong {
+  color: var(--zella-text);
+  font-size: var(--zella-text-base);
+  font-weight: 600;
+}
+
+.ic-danger-row small {
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-sm);
+}
+
+.owner-secondary-button.ic-danger-button { color: var(--zella-danger); }
+
+.owner-secondary-button.ic-danger-button:hover:not(:disabled) {
+  border-color: var(--zella-danger-border);
+  background: var(--zella-danger-bg);
+  color: var(--zella-danger);
+}
+
+@media (max-width: 600px) {
+  .ic-danger-action { width: 100%; justify-content: flex-start; }
+}

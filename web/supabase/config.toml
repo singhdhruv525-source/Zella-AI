@@ -474,6 +474,13 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/record-files/index.ts"
 
+# Whole business export worker (SET-DL-EXPORT). Server key only; the server key is not a JWT, so the gateway check is
+# off. Nothing calls it until the owner turns its timed call on.
+[functions.business-export]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/business-export/index.ts"
+
 # Calendar sign-in (Google, Outlook). "start" is checked with the owner's or admin's own sign-in through the database;
 # the provider's redirect back carries no Supabase sign-in, so the gateway check must stay off. The redirect is trusted
 # only with a valid signed state, and the database checks the person's role again when the token is stored.
@@ -494,3 +501,19 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/staff-invite/deno.json"
 entrypoint = "./functions/staff-invite/index.ts"
+
+# Owner onboarding, step 4: the owner's new identity document. Checks the owner's own sign in through the database
+# (zella_owner_identity_upload_check) itself, so the gateway check stays off, like staff-invite.
+[functions.owner-onboarding]
+enabled = true
+verify_jwt = false
+import_map = "./functions/owner-onboarding/deno.json"
+entrypoint = "./functions/owner-onboarding/index.ts"
+
+# Identity provider results (Persona later). The provider's signature (IDENTITY_WEBHOOK_SECRET) is the proof; off
+# (503) unless IDENTITY_WEBHOOK_ENABLED is "true" and the database's rule names the provider.
+[functions.identity-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/identity-webhook/deno.json"
+entrypoint = "./functions/identity-webhook/index.ts"

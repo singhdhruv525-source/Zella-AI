@@ -2,11 +2,14 @@
 // so all three show the same names, the same order and the same "Preferred for this business" label.
 import { automationDefaultsFor } from "./industryAutomations";
 
+// A title always starts with a capital, whatever case the business's appointment word is in ("visit" or "Visit").
+const cap = (word) => String(word ?? "").replace(/^./, (c) => c.toUpperCase());
+
 // [type, title(appointmentWord), description(appointmentWord)]
 export const CATALOG = [
-  ["appointment_reminder", (a) => `${a} reminders`, (a) => `Remind customers before their ${a}.`],
+  ["appointment_reminder", (a) => `${cap(a)} reminders`, (a) => `Remind customers before their ${a}.`],
   ["appointment_confirmation", () => "Confirmation & check in", (a) => `Ask customers to confirm their ${a}.`],
-  ["no_show_follow_up", () => "no show follow up", (a) => `Reach out when someone misses their ${a} and offer to rebook.`],
+  ["no_show_follow_up", () => "No show follow up", (a) => `Reach out when someone misses their ${a} and offer to rebook.`],
   ["missed_call_follow_up", () => "Missed call recovery", () => "Call back anyone whose call was missed."],
   ["new_lead_callback", () => "New lead callback", () => "Call new leads from Meta, the website and other sources."],
   ["post_appointment_follow_up", (a) => `Follow up after ${a.toLowerCase()}`, () => "Thank customers and ask for feedback."],
@@ -32,6 +35,19 @@ export function isPreferred(type, industryName) {
 export function orderTypes(types, industryName) {
   const rank = (t) => { const i = CATALOG.findIndex(([k]) => k === t); return i === -1 ? 999 : i; };
   return [...types].sort((a, b) => (isPreferred(b, industryName) - isPreferred(a, industryName)) || (rank(a) - rank(b)));
+}
+
+// One status language for automations everywhere (OPS-22, docs/ZELLA_STATUS_LANGUAGE_GUIDE.md): the stored
+// status, the word admins see and the pill tone. "disabled" is "Turned off", never "off" or "Archived".
+export const AUTOMATION_STATUS = {
+  active: { label: "Active", tone: "success" },
+  paused: { label: "Paused", tone: "warning" },
+  disabled: { label: "Turned off", tone: "neutral" },
+};
+
+// The pill for a stored status; an unknown status still reads as words.
+export function automationStatusPill(status) {
+  return AUTOMATION_STATUS[status] ?? { label: String(status ?? "Unknown").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()), tone: "neutral" };
 }
 
 export const catalogEntry = (type) => CATALOG.find(([k]) => k === type);

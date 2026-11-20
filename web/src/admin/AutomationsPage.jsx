@@ -3,8 +3,11 @@ import { navigate } from "../router";
 import { N8nConfig, Webhooks } from "../settings/AdminPanels";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
-  ReasonDialog, Search, Select, Tabs, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words,
+  ReasonDialog, Search, Select, Tabs, can, duration, num, pct, rpc, since, useLoad, useOptions, useToast, when, words, numText, whenText
 } from "./adminOps";
+import ScheduledJobs from "./ScheduledJobs";
+import "./AutomationsPage.css";
+import { answersByWorkflow, dispatchAnswer } from "./dispatchAnswer";
 
 // Admin page: every business's automations, what they ran, what failed and the scheduler that drives them. Data
 // comes from the zella_admin_* functions (sql/zella_admin_ops.sql). Pausing, resuming and retrying change the
@@ -20,8 +23,8 @@ export default function AutomationsPage({ me, sub, onOpenBusiness }) {
   const [toast, say] = useToast();
   const options = useOptions();
   return (
-    <section className="owner-page ao-page">
-      <PageHeader title="Automations" description="Reminders, follow ups and other automations for every business: their status, every run, failures and the scheduler." />
+    <section className="owner-page ao-page ap-page">
+      <PageHeader eyebrow="Operations" title="Automations" description="Reminders, follow ups and other automations for every business: their status, every run, failures and the scheduler." />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
       {tab === "overview" && <Overview onTab={setTab} />}
@@ -62,18 +65,18 @@ function Overview({ onTab }) {
       )}
       {o && (
         <div className="owner-stat-grid ao-stats">
-          <Metric label="Automations" value={num(o.automations.total)} note={`${num(o.automations.active)} active · ${num(o.automations.paused)} paused · ${num(o.automations.disabled)} archived`} />
+          <Metric label="Automations" value={num(o.automations.total)} note={`${numText(o.automations.active)} active · ${numText(o.automations.paused)} paused · ${numText(o.automations.disabled)} archived`} />
           <Metric label="Workflow runs succeeded" value={num(o.workflows.succeeded)} note={`Success rate ${pct(o.success_rate)}`} />
           <Metric label="Workflow runs failed" value={num(o.workflows.failed)} tone={o.workflows.failed ? "danger" : null} />
           <Metric label="Running now" value={num(o.workflows.running + o.runs.running)} />
           <Metric label="Average run time" value={duration(o.workflows.avg_seconds)} />
           <Metric label="Need a person" value={num(o.workflows.needs_manual)} tone={o.workflows.needs_manual ? "warning" : null} />
-          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${num(o.waiting.reminders)} reminders · ${num(o.waiting.followups)} follow ups · ${num(o.waiting.events)} events`} />
+          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${numText(o.waiting.reminders)} reminders · ${numText(o.waiting.followups)} follow ups · ${numText(o.waiting.events)} events`} />
           <Metric label="Unresolved dead letters" value={num(o.dead_letters_open)} tone={o.dead_letters_open ? "warning" : null} />
         </div>
       )}
       {o?.latest_failure && (
-        <NotAvailable title={`Latest failure: ${o.latest_failure.workflow} at ${when(o.latest_failure.at)}`}>{o.latest_failure.error ?? "No error message recorded."}</NotAvailable>
+        <NotAvailable title={`Latest failure: ${o.latest_failure.workflow} at ${whenText(o.latest_failure.at)}`}>{o.latest_failure.error ?? "No error message recorded."}</NotAvailable>
       )}
       <div className="ao-two">
         <Panel title="Needs attention"><ErrorNote error={health.error} onRetry={health.reload} /><AlertList error={health.error} alerts={alerts} onOpen={(a) => onTab(a.link)} /></Panel>
@@ -93,6 +96,7 @@ function Directory({ me, options, say, onOpenBusiness }) {
   const list = useLoad(() => rpc("zella_admin_automations", { p_q: f.q || null, p_status: f.status, p_trigger: f.trigger, p_business: f.business, p_industry: f.industry, p_limit: PAGE, p_offset: f.offset }), [f]);
   const [open, setOpen] = useState(null);
   const [pauseAll, setPauseAll] = useState(false);
+  const [resumeAll, setResumeAll] = useState(false);
   const manage = can(me, "integrations.manage");
   const businessName = options?.businesses.find((b) => b.id === f.business)?.name;
   return (
@@ -103,9 +107,10 @@ function Directory({ me, options, say, onOpenBusiness }) {
         <Select label="Trigger" value={f.trigger} onChange={set("trigger")} options={(list.data?.triggers ?? []).map((t) => [t, words(t)])} />
         <Select label="Business" value={f.business} onChange={set("business")} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
         <Select label="Industry" value={f.industry} onChange={set("industry")} options={(options?.industries ?? []).map((i) => [i.id, i.name])} />
-        {manage && f.business && <button type="button" className="bd-danger-button" onClick={() => setPauseAll(true)}>Pause all for this business</button>}
+        {manage && f.business && <button type="button" className="owner-secondary-button ap-danger-text ap-filter-action" onClick={() => setPauseAll(true)}>Pause all for this business</button>}
+        {manage && f.business && <button type="button" className="owner-secondary-button ap-filter-action" onClick={() => setResumeAll(true)}>Resume all for this business</button>}
       </Filters>
-      <p className="op-muted">Automations are created from templates when a business is set up, and changed by the business in their app. There is no "create automation" here.</p>
+      <p className="op-muted ap-helper">Automations are created from templates when a business is set up, and changed by the business in their app. There is no "create automation" here.</p>
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={(r) => setOpen(r.id)} empty="No automations match these filters."
         columns={[
@@ -120,7 +125,13 @@ function Directory({ me, options, say, onOpenBusiness }) {
       {pauseAll && (
         <ReasonDialog title={`Pause every automation for ${businessName}?`} icon="pause_circle" danger confirmLabel="Pause all" onClose={() => setPauseAll(false)}
           onConfirm={async (reason) => { const r = await rpc("zella_admin_business_automations_pause", { p_business_id: f.business, p_reason: reason }); say(`${r.paused} automation${r.paused === 1 ? "" : "s"} paused.`); list.reload(); }}>
-          <p>Every active automation for this business stops sending reminders and follow ups. Nothing for other businesses changes. Each one can be resumed separately.</p>
+          <p>Every active automation for this business stops sending reminders and follow ups. Nothing for other businesses changes. Resume all brings back exactly these, or each one can be resumed separately.</p>
+        </ReasonDialog>
+      )}
+      {resumeAll && (
+        <ReasonDialog title={`Resume what Pause all paused for ${businessName}?`} icon="play_circle" confirmLabel="Resume all" onClose={() => setResumeAll(false)}
+          onConfirm={async (reason) => { const r = await rpc("zella_admin_business_automations_resume", { p_business_id: f.business, p_reason: reason }); say(r.resumed ? `${r.resumed} automation${r.resumed === 1 ? "" : "s"} resumed.` : "Nothing to resume: no automation is still paused by Pause all."); list.reload(); }}>
+          <p>Only automations that Pause all paused, and that nobody has changed since, start again. Ones the business paused itself, ones paused before, and ones paused because the business is suspended stay paused.</p>
         </ReasonDialog>
       )}
     </Panel>
@@ -148,7 +159,7 @@ function AutomationDrawer({ id, onClose, onOpenBusiness, onChanged }) {
           <Facts rows={[["Follow ups", queue(d.data.queue.followups)], d.data.queue.reminders !== null ? ["Reminders", queue(d.data.queue.reminders)] : null]} />
           <h3 className="ao-h3">Recent runs</h3>
           {d.data.runs.length ? (
-            <ol className="ao-timeline">{d.data.runs.map((r) => <li key={r.id}><strong><Pill tone={tone(r.status)}>{words(r.status)}</Pill> {when(r.created_at)}</strong><span>{r.error ?? (r.completed_at ? `Finished ${when(r.completed_at)}` : "")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.runs.map((r) => <li key={r.id}><strong><Pill tone={tone(r.status)}>{words(r.status)}</Pill> {when(r.created_at)}</strong><span>{r.error ?? (r.completed_at ? `Finished ${whenText(r.completed_at)}` : "")}</span></li>)}</ol>
           ) : <p className="op-muted">No runs recorded. Reminders and follow ups are sent from the queue above rather than as runs.</p>}
           <h3 className="ao-h3">Changes</h3>
           {d.data.history.length ? (
@@ -223,7 +234,7 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
             r.correlation_id ? ["Correlation id", <code key="c">{r.correlation_id}</code>] : null]} />
           <h3 className="ao-h3">Steps</h3>
           {d.data.steps.length ? (
-            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && when(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
+            <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && whenText(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>
           ) : <p className="op-muted">No steps recorded.</p>}
           <p className="op-muted">Step inputs and outputs aren't shown: they can hold customer details.</p>
           {d.data.event && <><h3 className="ao-h3">Started by</h3><Facts rows={[["Event", words(d.data.event.type)], ["From", words(d.data.event.source)], ["Event status", words(d.data.event.status)],
@@ -291,17 +302,13 @@ function Templates() {
 
 function Infrastructure() {
   const h = useLoad(() => rpc("zella_admin_scheduler_health"), []);
+  // n8n's answer per workflow (OPS-17); until sql/zella_dispatch_response.sql is applied the column reads Not available
+  const answers = useLoad(() => rpc("zella_admin_dispatch_responses"), []);
+  const byWorkflow = answersByWorkflow(answers.data);
   const s = h.data;
   return (
     <>
-      <Panel title="Scheduled jobs" description="Jobs inside the database. They find due work and hand it to n8n." action={<button type="button" className="owner-secondary-button" onClick={h.reload}>Refresh</button>}>
-        <ErrorNote error={h.error} onRetry={h.reload} />
-        {s && <DataTable error={h.error} rows={s.jobs} rowKey={(j) => j.name} empty="No Zella Voice jobs found."
-          columns={[["Job", (j) => <code>{j.name}</code>], ["Schedule", (j) => <code>{j.schedule}</code>], ["State", (j) => <Pill tone={j.active ? "success" : "neutral"}>{j.active ? "Running" : "Off"}</Pill>],
-            ["Last run", (j) => (j.last_run ? <span><Pill tone={j.last_run.status === "succeeded" ? "success" : "danger"}>{words(j.last_run.status)}</Pill> {when(j.last_run.at)}</span> : "Never")],
-            ["Last success", (j) => when(j.last_success, "Never")], ["Failures (24 h)", (j) => (j.failures_24h ? <Pill tone="danger">{j.failures_24h}</Pill> : 0)]]} />}
-        <p className="op-muted">Jobs are switched on at go live, following the n8n go live guide, not from this page, so a click can't start sending to customers.</p>
-      </Panel>
+      <ScheduledJobs health={h} />
       {s && (
         <Panel title="Queue">
           <div className="owner-stat-grid ao-stats">
@@ -313,6 +320,8 @@ function Infrastructure() {
           </div>
           <DataTable error={h.error} rows={s.dispatch} rowKey={(d) => d.workflow} empty="Nothing has been handed to n8n yet."
             columns={[["n8n workflow", (d) => words(d.workflow)], ["Last handed over", (d) => when(d.last_triggered_at, "Never")], ["Waiting then", (d) => num(d.waiting)],
+              ["n8n answer", (d) => { const a = dispatchAnswer(byWorkflow.get(d.workflow));
+                return a ? <span data-answer={a.kind}><Pill tone={a.tone}>{a.label}</Pill>{byWorkflow.get(d.workflow)?.answered_at ? ` ${whenText(byWorkflow.get(d.workflow).answered_at)}` : ""}</span> : <span className="op-muted">Not available</span>; }],
               ["Total", (d) => num(d.total)], ["Attention", (d) => d.stuck && <Pill tone="warning">Looks stuck</Pill>]]} />
         </Panel>
       )}
