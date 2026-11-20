@@ -161,8 +161,8 @@ test("words: money in cents and allowances", () => {
   assert.equal(allowance(undefined, "text"), "Not set");
 });
 
-test("stand in: the whole journey, with the server's gates", async () => {
-  const api = createFakeApi({ storage: memory(), delay: 0 });
+test("stand in: the whole journey, with the server's gates (a payment required)", async () => {
+  const api = createFakeApi({ scenario: "payrequired", storage: memory(), delay: 0 });
   const { businesses } = await api.listBusinesses();
   const id = businesses[0].business_id;
   let s = await api.getState(id);
@@ -267,6 +267,45 @@ test("contract version 2: MFA_REQUIRED from the request check, and the upload fu
   assert.equal(errorWords({ code: "INVALID_INPUT", words: "A well-meant reply" }), "That didn't work. Reload the page and try again.", "words with a hyphen fall back to the table");
   assert.equal(errorWords({ code: "INVALID_INPUT" }), "That didn't work. Reload the page and try again.");
   assert.equal(isNotReady({ status: 404, notReady: true }), true);
+});
+
+test("Pay with Stripe: ready, confirming, confirmed; never confirmed by coming back alone", () => {
+  assert.equal(paymentState({ status: "waiting", reason: "checkout_not_started", checkout_available: true }).key, "ready");
+  assert.equal(paymentState({ status: "waiting", reason: "checkout_open", checkout_available: true }).label, "Ready to pay");
+  assert.equal(paymentState({ status: "waiting", reason: "processing", checkout_available: true }).key, "processing");
+  assert.equal(paymentState({ status: "waiting", reason: "payments_not_connected", checkout_available: false }).key, "waiting");
+  assert.equal(paymentState({ status: "waiting", checkout_available: "true" }).key, "waiting", "only a real true opens Checkout");
+  assert.equal(paymentPassed({ status: "waiting", reason: "processing" }), false);
+  for (const code of ["PAYMENTS_NOT_LIVE", "ALREADY_PAID", "CHECKOUT_NOT_READY"]) assert.ok(ERROR_WORDS[code] && !DASH.test(ERROR_WORDS[code]), code);
+});
+
+test("stand in, scenario pay: Checkout opens with a key, the return confirms only after a start", async () => {
+  const api = createFakeApi({ scenario: "pay", storage: memory(), delay: 0 });
+  const id = (await api.listBusinesses()).businesses[0].business_id;
+  api.approveIdentity();
+  const before = await api.paymentStatus(id);
+  assert.equal(paymentState(before).key, "ready");
+  assert.equal((await api.checkoutReturn(id)).payment.status, "waiting", "coming back without starting proves nothing");
+  await assert.rejects(api.startCheckout(id, "bad key!"), (e) => errorCode(e) === "INVALID_INPUT");
+  await assert.rejects(api.startCheckout("someone-else", "a-good-key-1"), (e) => errorCode(e) === "NOT_ALLOWED");
+  const r = await api.startCheckout(id, "a-good-key-1");
+  assert.match(r.url, /checkout=return/);
+  assert.equal((await api.checkoutReturn(id)).payment.status, "confirmed");
+  const off = createFakeApi({ storage: memory(), delay: 0 });
+  await assert.rejects(off.startCheckout(id, "a-good-key-1"), (e) => errorCode(e) === "PAYMENTS_NOT_LIVE");
+});
+
+test("owner decision: until payments are live the payment isn't required; step 6 says it opens soon and can be passed", async () => {
+  const off = { status: "waiting", reason: "payments_not_connected", checkout_available: false, required: false, confirmed_at: null };
+  assert.equal(paymentState(off).label, "Payment opens here soon");
+  assert.equal(paymentState(off).key, "waiting", "never Payment received");
+  assert.equal(paymentPassed(off), true);
+  assert.equal(paymentPassed({ ...off, required: true }), false);
+  assert.equal(paymentPassed({ ...off, required: "false" }), false, "only a real false skips it");
+  const api = createFakeApi({ storage: memory(), delay: 0 });
+  const id = (await api.listBusinesses()).businesses[0].business_id;
+  api.approveIdentity();
+  assert.equal((await api.paymentStatus(id)).required, false);
 });
 
 // Finish later, then Carry on now, after the password saved but reading the next step failed: the screen must show the

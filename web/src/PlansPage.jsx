@@ -9,6 +9,7 @@ import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import { humanize } from "./copy/labels";
 import { Facts, Pager, PAGE, can, friendlyError, rpc } from "./admin/adminOps";
+import BillingRecords from "./admin/BillingRecords";
 import { planAllowances, planFeatures } from "./copy/planAllowances";
 import { allowanceText, balanceText, planFacts, planFromGet, priceText, tierName, tierShort } from "./businessPlans.js";
 
@@ -340,6 +341,7 @@ export default function PlansPage({ onOpenBusiness }) {
         )}
       </div>
 
+      <BillingRecords onOpenBusiness={onOpenBusiness} me={me} />
     </section>
   );
 }

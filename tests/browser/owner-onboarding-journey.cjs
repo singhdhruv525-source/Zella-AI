@@ -200,7 +200,8 @@ async function journey(browser, variant) {
   await waitHeading(page, "Pay for your plan");
   if (main) {
     check("6 Pay: focus on the heading, step 6 of 7", (await heading(page)) === "Pay for your plan" && (await progress(page)) === "6", await heading(page));
-    check("6 Pay: a calm waiting screen, never a fake success", await page.isVisible("text=Payment opens here soon") && !(await page.isVisible("text=Payment received")) && !(await page.isVisible(".zob-actions button:has-text('Continue')")));
+    // owner decision (16 Nov 2026): until payments are live the payment isn't required, so Continue is offered
+    check("6 Pay: a calm waiting screen, never a fake success; Continue while payments are off", await page.isVisible("text=Payment opens here soon") && !(await page.isVisible("text=Payment received")) && await page.isVisible(".zob-actions button:has-text('Continue')"));
     await page.click(".zob-back");
     await waitHeading(page, "Your plan");
     check("Back: the plan again, marked accepted", await page.isVisible("text=You accepted this plan."));
@@ -208,11 +209,9 @@ async function journey(browser, variant) {
     await waitHeading(page, "Pay for your plan");
   }
   await shot("pay-waiting");
-  await hook(page, "confirmPayment");
-  await page.click("button:has-text('Check again')");
-  await page.waitForSelector("text=Payment received", { timeout: 5000 }).catch(() => {});
-  if (main) check("6 Pay: Payment received only after the server confirms it", await page.isVisible("text=Payment received"));
-  await shot("pay-received");
+  // Payment received after a real payment is covered by tests/browser/stripe-pay-screen.cjs (scenario "pay")
+  if (main) check("6 Pay: says nothing is charged and the owner can continue", await page.isVisible("text=You can continue now."));
+  await shot("pay-later");
   await page.click(".zob-actions button:has-text('Continue')");
 
   // 7 You're all set

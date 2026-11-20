@@ -436,7 +436,8 @@ entrypoint = "./functions/continue-plan/index.ts"
 #   reschedule-appointment  the 64-character private code in the customer's link (checked in the database)
 #   website-lead            the business's form key, allowed websites, spam and rate limits (checked in the database)
 #   google-lead             the business's Google key inside the lead (hash checked in the database), duplicates, rate limits
-#   billing-webhook         the payment provider's signature (STRIPE_WEBHOOK_SECRET), timestamp and event id
+#   billing-webhook         Stripe's signature (STRIPE_WEBHOOK_SECRET), timestamp and the key's mode; it only stores events
+#   billing-worker          the X-Zella-Secret header from the Vault (zella_billing_worker_secret), checked by the database
 #   voice-rules             Vapi's HMAC signature, checked by the database (zella_vapi_authenticate); Vapi's server URL
 # Without these lines a plain `supabase functions deploy` would turn sign-in checks on and every call would be refused.
 [functions.reschedule-appointment]
@@ -465,6 +466,11 @@ entrypoint = "./functions/google-lead/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/billing-webhook/index.ts"
+
+[functions.billing-worker]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/billing-worker/index.ts"
 
 # Files on records: checks each upload's contents for its uploader, and server-only cleanup. Checks the caller itself:
 # "check" passes the member's sign-in to the database (which verifies it and their permissions); "cleanup" accepts only
