@@ -24,22 +24,22 @@ language sql immutable set search_path = '' as $$
   -- the marker is an explicit statement that the receptionist is an AI, never a bare "AI" (a business can be called
   -- "AI Dental")
   select case split_part(coalesce(p_lang, 'en'), '-', 1)
-    when 'es' then '{"sentence": "Soy la recepcionista virtual con inteligencia artificial.", "marker": "(recepcionista|asistente) (virtual|de inteligencia artificial)|con inteligencia artificial", "recording": "grabad[ao]s?|grabación"}'
-    when 'fr' then '{"sentence": "Je suis la réceptionniste virtuelle, une intelligence artificielle.", "marker": "(réceptionniste|assistante?) virtuelle?|une intelligence artificielle", "recording": "enregistr"}'
-    when 'de' then '{"sentence": "Ich bin eine virtuelle Rezeptionistin mit künstlicher Intelligenz.", "marker": "mit künstlicher Intelligenz|virtuelle (Rezeptionistin|Assistentin)", "recording": "aufgezeichnet|Aufzeichnung"}'
-    when 'pt' then '{"sentence": "Sou a recepcionista virtual com inteligência artificial.", "marker": "(recepcionista|assistente) virtual|com inteligência artificial", "recording": "gravad[ao]s?|gravação"}'
-    when 'it' then '{"sentence": "Sono la receptionist virtuale con intelligenza artificiale.", "marker": "(receptionist|assistente) virtuale|con intelligenza artificiale", "recording": "registrat[ao]|registrazione"}'
-    when 'nl' then '{"sentence": "Ik ben de virtuele receptioniste met kunstmatige intelligentie.", "marker": "virtuele (receptioniste|assistent)|met kunstmatige intelligentie", "recording": "opgenomen|opname"}'
-    when 'pl' then '{"sentence": "Jestem wirtualną recepcjonistką opartą na sztucznej inteligencji.", "marker": "wirtualn\\S* (recepcjonistk|asystent)|na sztucznej inteligencji", "recording": "nagrywan|nagran"}'
-    when 'ru' then '{"sentence": "Я виртуальный администратор на основе искусственного интеллекта.", "marker": "виртуальн\\S* (администратор|ассистент)|на основе искусственного интеллекта", "recording": "записывае|записан"}'
-    when 'tr' then '{"sentence": "Ben yapay zekâ destekli sanal resepsiyonistim.", "marker": "sanal (resepsiyonist|asistan)|yapay zek[aâ] destekli", "recording": "kaydedil|kayıt altına"}'
-    when 'ta' then '{"sentence": "நான் செயற்கை நுண்ணறிவு வரவேற்பாளர்.", "marker": "செயற்கை நுண்ணறிவு வரவேற்பாளர்", "recording": "பதிவு செய்யப்"}'
-    when 'vi' then '{"sentence": "Tôi là lễ tân ảo sử dụng trí tuệ nhân tạo.", "marker": "lễ tân ảo|trợ lý ảo|sử dụng trí tuệ nhân tạo", "recording": "ghi âm"}'
-    when 'id' then '{"sentence": "Saya resepsionis virtual berbasis kecerdasan buatan.", "marker": "(resepsionis|asisten) virtual|berbasis kecerdasan buatan", "recording": "direkam|rekaman"}'
-    when 'hi' then '{"sentence": "मैं एआई रिसेप्शनिस्ट हूँ।", "marker": "एआई (रिसेप्शनिस्ट|सहायक)", "recording": "रिकॉर्ड"}'
-    when 'ja' then '{"sentence": "私はAI受付です。", "marker": "AI(受付|アシスタント)", "recording": "録音"}'
-    when 'ko' then '{"sentence": "저는 AI 상담원입니다.", "marker": "AI ?(상담원|비서|안내원)", "recording": "녹음"}'
-    when 'zh' then '{"sentence": "我是AI接待员。", "marker": "AI(接待员|助手|客服)", "recording": "录音"}'
+    when 'es' then '{"sentence": "Soy la recepcionista virtual con inteligencia artificial.", "marker": "(recepcionista|asistente) (virtual|de inteligencia artificial)|con inteligencia artificial", "recording": "grabad[ao]s?|grabación", "call": "llamada|conversación"}'
+    when 'fr' then '{"sentence": "Je suis la réceptionniste virtuelle, une intelligence artificielle.", "marker": "(réceptionniste|assistante?) virtuelle?|une intelligence artificielle", "recording": "enregistr", "call": "appel|conversation"}'
+    when 'de' then '{"sentence": "Ich bin eine virtuelle Rezeptionistin mit künstlicher Intelligenz.", "marker": "mit künstlicher Intelligenz|virtuelle (Rezeptionistin|Assistentin)", "recording": "aufgezeichnet|Aufzeichnung", "call": "Anruf|Gespräch|Telefonat"}'
+    when 'pt' then '{"sentence": "Sou a recepcionista virtual com inteligência artificial.", "marker": "(recepcionista|assistente) virtual|com inteligência artificial", "recording": "gravad[ao]s?|gravação", "call": "chamada|ligação|conversa"}'
+    when 'it' then '{"sentence": "Sono la receptionist virtuale con intelligenza artificiale.", "marker": "(receptionist|assistente) virtuale|con intelligenza artificiale", "recording": "registrat[ao]|registrazione", "call": "chiamata|telefonata|conversazione"}'
+    when 'nl' then '{"sentence": "Ik ben de virtuele receptioniste met kunstmatige intelligentie.", "marker": "virtuele (receptioniste|assistent)|met kunstmatige intelligentie", "recording": "opgenomen|opname", "call": "gesprek|oproep"}'
+    when 'pl' then '{"sentence": "Jestem wirtualną recepcjonistką opartą na sztucznej inteligencji.", "marker": "wirtualn\\S* (recepcjonistk|asystent)|na sztucznej inteligencji", "recording": "nagrywan|nagran", "call": "rozmow|połączeni"}'
+    when 'ru' then '{"sentence": "Я виртуальный администратор на основе искусственного интеллекта.", "marker": "виртуальн\\S* (администратор|ассистент)|на основе искусственного интеллекта", "recording": "записывае|записан", "call": "звон|разговор"}'
+    when 'tr' then '{"sentence": "Ben yapay zekâ destekli sanal resepsiyonistim.", "marker": "sanal (resepsiyonist|asistan)|yapay zek[aâ] destekli", "recording": "kaydedil|kayıt altına", "call": "görüşme|arama"}'
+    when 'ta' then '{"sentence": "நான் செயற்கை நுண்ணறிவு வரவேற்பாளர்.", "marker": "செயற்கை நுண்ணறிவு வரவேற்பாளர்", "recording": "பதிவு செய்யப்", "call": "அழைப்பு"}'
+    when 'vi' then '{"sentence": "Tôi là lễ tân ảo sử dụng trí tuệ nhân tạo.", "marker": "lễ tân ảo|trợ lý ảo|sử dụng trí tuệ nhân tạo", "recording": "ghi âm", "call": "cuộc gọi"}'
+    when 'id' then '{"sentence": "Saya resepsionis virtual berbasis kecerdasan buatan.", "marker": "(resepsionis|asisten) virtual|berbasis kecerdasan buatan", "recording": "direkam|rekaman", "call": "panggilan|percakapan"}'
+    when 'hi' then '{"sentence": "मैं एआई रिसेप्शनिस्ट हूँ।", "marker": "एआई (रिसेप्शनिस्ट|सहायक)", "recording": "रिकॉर्ड", "call": "कॉल"}'
+    when 'ja' then '{"sentence": "私はAI受付です。", "marker": "AI(受付|アシスタント)", "recording": "録音", "call": "通話"}'
+    when 'ko' then '{"sentence": "저는 AI 상담원입니다.", "marker": "AI ?(상담원|비서|안내원)", "recording": "녹음", "call": "통화"}'
+    when 'zh' then '{"sentence": "我是AI接待员。", "marker": "AI(接待员|助手|客服)", "recording": "录音", "call": "通话|电话"}'
     else '{"sentence": "I''m the AI receptionist.", "marker": "\\m(an?|the|your) (AI|artificial intelligence|virtual) (receptionist|assistant|agent)\\M|\\mI''m an? AI\\M"}' end::jsonb
 $$;
 
@@ -61,10 +61,13 @@ begin
   v_g := regexp_replace(v_g, ',\s*[^.!?,]*\m(this|the|your) call (is|may be|will be) (being )?recorded[^.!?,]*', '', 'gi');
   v_g := btrim(regexp_replace(v_g, '\s*[^.!?,]*\m(this|the|your) call (is|may be|will be) (being )?recorded[^.!?,]*[.!?,]?', '', 'gi'));
   v_d := public.zella_ai_disclosure(v_lang);
-  -- the same in the business's own language: a clause or sentence that mentions recording goes
+  -- the same in the business's own language: a clause or sentence that says the call is recorded (a word for the
+  -- call and a word for recording together, so "I can book your appointment" style sentences stay) goes
   if v_d ? 'recording' then
-    v_g := regexp_replace(v_g, '[,，、]\s*[^.!?。！？,，、]*(' || (v_d ->> 'recording') || ')[^.!?。！？,，、]*', '', 'gi');
-    v_g := btrim(regexp_replace(v_g, '\s*[^.!?。！？,，、]*(' || (v_d ->> 'recording') || ')[^.!?。！？,，、]*[.!?。！？,，、]?', '', 'gi'));
+    v_rec := '((' || (v_d ->> 'call') || ')[^.!?。！？,，、]*(' || (v_d ->> 'recording') || ')|(' || (v_d ->> 'recording') || ')[^.!?。！？,，、]*(' || (v_d ->> 'call') || '))';
+    v_g := regexp_replace(v_g, '[,，、]\s*[^.!?。！？,，、]*' || v_rec || '[^.!?。！？,，、]*', '', 'gi');
+    v_g := btrim(regexp_replace(v_g, '\s*[^.!?。！？,，、]*' || v_rec || '[^.!?。！？,，、]*[.!?。！？,，、]?', '', 'gi'));
+    v_rec := null;
   end if;
   if v_g !~* (v_d ->> 'marker') then v_g := v_g || ' ' || (v_d ->> 'sentence'); end if;
   if public.zella_recording_effective(p_business_id) then

@@ -19,11 +19,11 @@ export default function AccountDeletions({ me }) {
   const manage = Boolean(me?.permissions?.includes("security.manage"));
   return (
     <LoadState state={state}>{(rows) => (
-      <Card title="Account deletion requests" sub="Owners ask in their Settings. Confirming freezes the account at once; it is deleted 30 days later, unless the owner cancels.">
+      <Card title="Account deletion requests" sub="Owners ask in their Settings. Confirming freezes the account at once. After 30 days it can be deleted, unless the owner cancels, once purges are switched on, the period is legally approved and no legal hold applies.">
         <Table rows={rows} rowKey={(r) => r.id} empty="No requests." columns={[
           ["Business", (r) => r.business_name], ["Asked", (r) => when(r.requested_at)],
           ["Status", (r) => <Pill tone={LABEL[r.status]?.[0]}>{LABEL[r.status]?.[1] ?? r.status}</Pill>],
-          ["Deleted on", (r) => (r.purge_after ? when(r.purge_after) : "")], ["Why waiting", (r) => (r.status === "blocked" ? (r.last_error ?? "").replace(/_/g, " ").toLowerCase() : "")],
+          ["Can be deleted from", (r) => (r.purge_after ? when(r.purge_after) : "")], ["Why waiting", (r) => (r.status === "blocked" ? (r.last_error ?? "").replace(/_/g, " ").toLowerCase() : "")],
           ["", (r) => manage && r.status === "requested" && <button type="button" className="zs-btn sm danger" onClick={() => setConfirming(r)}>Confirm</button>],
         ]} />
         {confirming && (

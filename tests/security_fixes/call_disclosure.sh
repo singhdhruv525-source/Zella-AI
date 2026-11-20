@@ -47,6 +47,7 @@ r=$(save es "Gracias por llamar a {name}. Esta llamada puede ser grabada. ¿En q
 [ "$(first)" = "Gracias por llamar a Sunny Salon. ¿En qué puedo ayudarle? Soy la recepcionista virtual con inteligencia artificial." ] && ok "a Spanish recording sentence goes while recording is off" || bad "spanish strip: $(first)"
 r=$(save es "Gracias por llamar a {name}, esta llamada será grabada, ¿en qué puedo ayudarle?"); [ "$(first)" = "Gracias por llamar a Sunny Salon, ¿en qué puedo ayudarle? Soy la recepcionista virtual con inteligencia artificial." ] && ok "and a Spanish recording clause between commas" || bad "spanish comma: $(first)"
 r=$(save es "Gracias por llamar a {name}."); [ "$r" = saved ] || bad "spanish save back: $r"
+r=$(save fr "Merci d'avoir appelé {name}. Cet appel est enregistré. Je peux enregistrer votre rendez-vous."); [ "$(first)" = "Merci d'avoir appelé Sunny Salon. Je peux enregistrer votre rendez-vous. Je suis la réceptionniste virtuelle, une intelligence artificielle." ] && ok "French: the recording sentence goes, booking an appointment (enregistrer) stays" || bad "french strip: $(first)"
 r=$(save fr ""); [[ "$(first)" == *"intelligence artificielle"* ]] && ok "the standard French greeting gets it too" || bad "french: $(first)"
 r=$(save en-US ""); 
 q "create or replace function public.zella_recording_effective(p_business uuid) returns boolean language sql stable as \$f\$ select true \$f\$" > /dev/null
