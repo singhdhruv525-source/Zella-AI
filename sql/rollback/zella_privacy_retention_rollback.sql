@@ -33,7 +33,11 @@ begin
       raise exception 'ROLLBACK_DRIFT: a recording or transcript period was changed after this migration';
     end if;
     update public.data_retention_policies p set days = (v.value #>> '{}')::integer,
-           note = regexp_replace(p.note, '^Owner decision 18 Nov 2026: 90 days, deleted automatically \(zella_retention_auto_run\)\. ', '')
+           note = coalesce((select n.value #>> '{}' from public.zella_migration_values n
+                             where n.migration = 'zella_privacy_retention' and n.key = 'note:' || p.data_class),
+                           case when exists (select 1 from public.zella_migration_values n
+                                              where n.migration = 'zella_privacy_retention' and n.key = 'note:' || p.data_class) then null
+                                else regexp_replace(p.note, '^Owner decision 18 Nov 2026: 90 days, deleted automatically \(zella_retention_auto_run\)\. ', '') end)
       from public.zella_migration_values v where v.migration = 'zella_privacy_retention' and v.key = 'days:' || p.data_class;
     delete from public.zella_migration_values where migration = 'zella_privacy_retention';
     if not exists (select 1 from public.zella_migration_values) then drop table public.zella_migration_values; end if;

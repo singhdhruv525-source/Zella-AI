@@ -100,12 +100,13 @@ create table if not exists public.zella_migration_values (migration text not nul
 alter table public.zella_migration_values enable row level security;
 revoke all on public.zella_migration_values from public, anon, authenticated;
 insert into public.zella_migration_values (migration, key, value)
-select 'zella_privacy_retention', 'days:' || data_class, to_jsonb(days) from public.data_retention_policies
- where data_class in ('call_recordings', 'call_transcripts') and note not like 'Owner decision 18 Nov 2026%'
+select 'zella_privacy_retention', k || data_class, case k when 'days:' then to_jsonb(days) else to_jsonb(note) end
+  from public.data_retention_policies, unnest(array['days:', 'note:']) k
+ where data_class in ('call_recordings', 'call_transcripts') and coalesce(note, '') not like 'Owner decision 18 Nov 2026%'
 on conflict do nothing;
 update public.data_retention_policies set days = 90, updated_at = now(),
        note = 'Owner decision 18 Nov 2026: 90 days, deleted automatically (zella_retention_auto_run). ' || coalesce(note, '')
- where data_class in ('call_recordings', 'call_transcripts') and (days <> 90 or note not like 'Owner decision 18 Nov 2026%');
+ where data_class in ('call_recordings', 'call_transcripts') and (days <> 90 or coalesce(note, '') not like 'Owner decision 18 Nov 2026%');
 
 create or replace function public.zella_retention_auto_run()
 returns jsonb language plpgsql security definer set search_path = '' as $$

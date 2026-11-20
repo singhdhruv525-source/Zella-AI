@@ -28,7 +28,7 @@ export default function DataRetention({ me }) {
   return (
     <LoadState state={state}>{(o) => (
       <>
-        <Card title="Retention periods" sub="Proposed from the architecture and pending legal review. Nothing is deleted automatically.">
+        <Card title="Retention periods" sub="Proposed from the architecture and pending legal review. While purges are switched on, the daily job removes recordings and transcripts past their period, for kinds that are legally approved.">
           <Table rows={o.policies} rowKey={(p) => p.data_class} columns={[
             ["Data", (p) => <span title={CLASS_LABELS[p.data_class]?.[1]}>{classLabel(p.data_class)}</span>],
             ["Kept for", (p) => periodWords(p.days)], ["Proposed", (p) => periodWords(p.architecture_days)],
@@ -80,7 +80,7 @@ export default function DataRetention({ me }) {
               <Field label="Legal review"><select value={dialog.legalStatus} onChange={(e) => setDialog({ ...dialog, legalStatus: e.target.value })}>
                 <option value="pending_legal_review">Pending legal review</option><option value="approved">Approved by legal</option></select></Field>
             </div>
-            {dialog.legalStatus === "approved" && <Banner tone="warn">Only after counsel has approved this period. Approved kinds can be purged once two people approve each run.</Banner>}
+            {dialog.legalStatus === "approved" && <Banner tone="warn">Only after counsel has approved this period. A manual purge run of an approved kind still needs two people to approve it; while purges are switched on, the daily job also removes approved recordings and transcripts past their period.</Banner>}
           </Confirm>
         )}
         {dialog && "switchOn" in dialog && (

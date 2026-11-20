@@ -39,6 +39,8 @@ q "update public.business_languages set greeting = 'Welcome to AI Dental. How ca
 [ "$(first)" = "Welcome to AI Dental. How can I help? I'm the AI receptionist." ] && ok "and a stored one like it still gets the sentence on calls" || bad "AI Dental call: $(first)"
 q "update public.business_languages set greeting = 'Hello from {name}. This call is recorded. I''m the AI receptionist.' where business_id = '$BIZ'" > /dev/null
 [ "$(first)" = "Hello from Sunny Salon. I'm the AI receptionist." ] && ok "a stored greeting that claims recording loses that sentence while recording is off" || bad "strip: $(first)"
+q "update public.business_languages set greeting = 'I''m the AI receptionist at {name}, this call is recorded, how can I help?' where business_id = '$BIZ'" > /dev/null
+[ "$(first)" = "I'm the AI receptionist at Sunny Salon, how can I help?" ] && ok "a recording clause between commas goes, the rest of the greeting stays" || bad "comma strip: $(first)"
 r=$(save es "Gracias por llamar a {name}."); [ "$r" = saved ] || bad "spanish save: $r"
 [[ "$(first)" == *"inteligencia artificial"* ]] && ok "a Spanish greeting gets the Spanish disclosure: $(first)" || bad "spanish: $(first)"
 r=$(save fr ""); [[ "$(first)" == *"intelligence artificielle"* ]] && ok "the standard French greeting gets it too" || bad "french: $(first)"

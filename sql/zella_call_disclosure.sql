@@ -57,7 +57,9 @@ begin
     v_g := replace('Thank you for calling {name}. I''m the AI receptionist. How can I help you today?', '{name}', coalesce(v_name, 'us'));
   end if;
   -- recording wording is managed here, never kept from a saved greeting: removed, then added only while recording is on
-  v_g := btrim(regexp_replace(v_g, '\s*[^.!?]*\m(this|the|your) call (is|may be|will be) (being )?recorded[^.!?]*[.!?]?', '', 'gi'));
+  -- only the clause goes: one after a comma keeps what follows it; one that starts a sentence goes with its end mark
+  v_g := regexp_replace(v_g, ',\s*[^.!?,]*\m(this|the|your) call (is|may be|will be) (being )?recorded[^.!?,]*', '', 'gi');
+  v_g := btrim(regexp_replace(v_g, '\s*[^.!?,]*\m(this|the|your) call (is|may be|will be) (being )?recorded[^.!?,]*[.!?,]?', '', 'gi'));
   v_d := public.zella_ai_disclosure(v_lang);
   if v_g !~* (v_d ->> 'marker') then v_g := v_g || ' ' || (v_d ->> 'sentence'); end if;
   if public.zella_recording_effective(p_business_id) then

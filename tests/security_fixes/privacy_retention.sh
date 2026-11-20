@@ -11,7 +11,8 @@ apply "$REPO/tests/security_fixes/prod_erase_customer.sql" > /dev/null || { bad 
 SIGS="'public.zella_erase_customer(uuid,uuid)','public.zella_run_scheduled_job(text)','public.zella_run_schedule_group(text)'"
 fp() { q "select string_agg(md5(pg_get_functiondef(s::regprocedure)), ',' order by s) from unnest(array[$SIGS]) s"; }; before=$(fp)
 # an owner set the recording period to 60 days before this file: the rollback must put back 60, not lane G's 30
-q "update public.data_retention_policies set days = 60 where data_class = 'call_recordings'" > /dev/null
+q "update public.data_retention_policies set days = 60, note = null where data_class = 'call_recordings'" > /dev/null
+NOTE_T=$(q "select note from public.data_retention_policies where data_class = 'call_transcripts'")
 out=$(apply "$REPO/sql/zella_privacy_retention.sql") && ok "applies" || { bad "applies: $out"; finish; }
 out=$(apply "$REPO/sql/zella_privacy_retention.sql") && ok "applies again" || bad "second apply: $out"
 [ "$(q "select count(*) from public.legal_documents where kind in ('privacy', 'terms') and status = 'draft' and title like '%Draft for owner and legal review%'")" = 2 ] && ok "privacy policy and terms are stored as drafts" || bad "drafts"
@@ -72,6 +73,7 @@ r=$(as_user $O aal1 "perform count(*) from public.provider_deletions; raise noti
 apply "$REPO/sql/rollback/zella_privacy_retention_rollback.sql" > /dev/null && apply "$REPO/sql/rollback/zella_privacy_retention_rollback.sql" > /dev/null && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores the three functions exactly" || bad "after rollback"
 [ "$(q "select days from public.data_retention_policies where data_class = 'call_recordings'")" = 60 ] && ok "and exactly the periods it found (60 days, set by the owner)" || bad "periods back: $(q "select days from public.data_retention_policies where data_class = 'call_recordings'")"
+[ "$(q "select (note is null)::text from public.data_retention_policies where data_class = 'call_recordings'")" = true ] && [ "$(q "select note from public.data_retention_policies where data_class = 'call_transcripts'")" = "$NOTE_T" ] && ok "and the notes it found (an empty note stays empty)" || bad "notes back"
 [ "$(q "select count(*) from public.provider_deletions")" -ge 1500 ] && ok "and keeps the Vapi deletion queue" || bad "queue dropped"
 apply "$REPO/sql/zella_privacy_retention.sql" > /dev/null && ok "applies again after the rollback" || bad "reapply"
 q "update public.data_retention_policies set days = 45 where data_class = 'call_transcripts'" > /dev/null

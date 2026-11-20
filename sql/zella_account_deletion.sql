@@ -206,6 +206,15 @@ begin
   return jsonb_build_object('purged', v_n);
 end $$;
 
+-- applied again after a rollback (which lifted its freezes): every open confirmed or blocked request is frozen again,
+-- the same way confirming freezes, before the daily purge can reach it; a business suspended for another reason is left as is
+with f as (
+  update public.businesses b set suspended_at = now(), suspension_reason = public.zella_business_deletion_freeze_note(), updated_at = now()
+    from public.business_deletion_requests r
+   where r.business_id = b.id and r.status in ('confirmed', 'blocked') and b.suspended_at is null
+  returning b.id)
+update public.business_deletion_requests r set froze_business = true from f where r.business_id = f.id and r.status in ('confirmed', 'blocked');
+
 revoke all on function public.zella_business_deletion_freeze_note(), public.zella_business_deletion_purge_due() from public, anon, authenticated;
 grant execute on function public.zella_business_deletion_freeze_note(), public.zella_business_deletion_purge_due() to service_role;
 revoke all on function public.zella_business_deletion_status(uuid), public.zella_business_deletion_request(uuid, text, text),

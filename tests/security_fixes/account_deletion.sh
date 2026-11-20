@@ -85,7 +85,9 @@ purge > /dev/null
 apply "$REPO/sql/rollback/zella_account_deletion_rollback.sql" > /dev/null && apply "$REPO/sql/rollback/zella_account_deletion_rollback.sql" > /dev/null && ok "rollback runs twice" || bad "rollback"
 [ "$(q "select count(*) from public.business_deletion_requests")" -ge 3 ] && ok "and keeps every deletion request and its history" || bad "requests lost"
 [ "$(fp)" = "$before" ] && ok "rollback restores the job lists exactly" || bad "after rollback"
+[ "$(q "select (suspended_at is null)::text from public.businesses where id = '$B3'")" = true ] && ok "the rollback lifted the freeze on the open (blocked) request" || bad "rollback freeze"
 apply "$REPO/sql/zella_account_deletion.sql" > /dev/null
+[ "$(q "select (b.suspended_at is not null and b.suspension_reason = public.zella_business_deletion_freeze_note() and r.froze_business)::text from public.businesses b join public.business_deletion_requests r on r.business_id = b.id and r.status = 'blocked' where b.id = '$B3'")" = true ] && ok "applying again freezes every open confirmed or blocked request before the purge can reach it" || bad "refreeze: $(q "select suspended_at, suspension_reason from public.businesses where id = '$B3'")"
 q "create or replace function public.zella_business_deletion_cancel(p_business_id uuid) returns jsonb language sql as \$f\$ select '{}'::jsonb \$f\$" > /dev/null
 out=$(apply "$REPO/sql/zella_account_deletion.sql"); [[ "$out" == *VERSION_MISMATCH* ]] && ok "a different existing version stops the file" || bad "drift: $out"
 finish
