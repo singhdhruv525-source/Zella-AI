@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 207 |
 | Tables with row security on | 207 of 207 |
 | Row security policies | 353 |
-| Columns | 2421 |
+| Columns | 2422 |
 | Views | 1 |
-| Functions | 1165 (1083 security definer, 29 callable by `anon`) |
+| Functions | 1166 (1084 security definer, 29 callable by `anon`) |
 
 Rules every table follows:
 
@@ -4450,6 +4450,7 @@ Upgrades and downgrades through Stripe: from and to plan version, Stripe's previ
 | `preview_expires_at` | timestamp with time zone |  |  |
 | `stripe_invoice_id` | text |  |  |
 | `stripe_schedule_id` | text |  |  |
+| `release_error` | text |  |  |
 | `reason` | text | yes |  |
 | `created_by` | uuid |  |  |
 | `confirmed_by` | uuid |  |  |
@@ -6325,7 +6326,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 
-### `zella_stripe_*` (68)
+### `zella_stripe_*` (69)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -6361,6 +6362,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_failed_price(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_failed_product(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_failed_refund(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_failed_schedule_release(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_failed_upgrade(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_grant_subscription_create(o jsonb, b jsonb)` | void | yes | server only |
 | `zella_stripe_grant_subscription_cycle(o jsonb, b jsonb)` | void | yes | server only |
