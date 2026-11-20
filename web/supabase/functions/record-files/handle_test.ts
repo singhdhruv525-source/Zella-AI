@@ -111,3 +111,32 @@ Deno.test("a body over the size limit answers 413 (SEC-12)", async () => {
   const r = await handle(new Request("http://fn/record-files", { method: "POST", body: JSON.stringify({ action: "check", pad: "x".repeat(20_000) }), headers: { "content-type": "application/json" } }));
   assertEquals(r.status, 413);
 });
+
+// BIZ-18a: never confirmed verification uploads, server only
+const BIZ = "b1000000-0000-0000-0000-000000000001";
+const orphans = (list: unknown[], opts: { del?: number; note?: number } = {}) => (c: Call) =>
+  c.url.endsWith("zella_document_orphans") ? j(list)
+  : c.url.endsWith("zella_document_orphans_removed") ? j(null, opts.note ?? 200)
+  : c.method === "DELETE" ? j([], opts.del ?? 200) : j({}, 404);
+Deno.test("documents_cleanup: only with the server key, nothing read otherwise", mock(orphans([`${BIZ}/owner_identity/a.pdf`]), async (calls) => {
+  for (const auth of [undefined, "Bearer user-jwt", "Bearer anon-key"]) assertEquals((await call({ action: "documents_cleanup" }, auth)).status, 403);
+  assertEquals(calls.length, 0);
+}));
+Deno.test("documents_cleanup: deletes the listed orphans from business-documents and audits the run", mock(orphans([`${BIZ}/owner_identity/a.pdf`, `${BIZ}/business_registration/b.png`, "../escape", "no-folder.pdf"]), async (calls) => {
+  const r = await call({ action: "documents_cleanup" }, "Bearer server-key");
+  assertEquals(r.status, 200); assertEquals(await r.json(), { ok: true, deleted: 2 });
+  const del = calls.find((c) => c.method === "DELETE")!;
+  assertEquals(del.url, "http://db.test/storage/v1/object/business-documents");
+  assertEquals(JSON.parse(del.body), { prefixes: [`${BIZ}/owner_identity/a.pdf`, `${BIZ}/business_registration/b.png`] });
+  assertEquals(JSON.parse(calls.find((c) => c.url.endsWith("zella_document_orphans_removed"))!.body), { p_paths: [`${BIZ}/owner_identity/a.pdf`, `${BIZ}/business_registration/b.png`] });
+}));
+Deno.test("documents_cleanup: nothing to do writes nothing; a failed delete is not audited", async () => {
+  await mock(orphans([]), async (calls) => {
+    assertEquals(await (await call({ action: "documents_cleanup" }, "Bearer server-key")).json(), { ok: true, deleted: 0 });
+    assertEquals(calls.length, 1);
+  })();
+  await mock(orphans([`${BIZ}/owner_identity/a.pdf`], { del: 500 }), async (calls) => {
+    const r = await call({ action: "documents_cleanup" }, "Bearer server-key");
+    assertEquals(r.status, 503); assertEquals(calls.some((c) => c.url.endsWith("zella_document_orphans_removed")), false);
+  })();
+});

@@ -7,6 +7,7 @@ import "./OwnerDashboard.css";
 import CreateBusinessWizard, { callOwnerFunction } from "./CreateBusinessWizard";
 import OwnerOverview from "./OwnerOverview";
 import BusinessDetails from "./BusinessDetails";
+import { DEFAULT_TAB, isDetailTab } from "./business/tabs";
 import AuditLogs from "./AuditLogs";
 import IndustryConfiguration from "./IndustryConfiguration";
 import AIAgents from "./AIAgents";
@@ -73,7 +74,11 @@ function readRoute(path) {
   const route = { activePage: item.label, wizard: null, detailId: null, section: null, sub: null };
   if (item.label === "Businesses" && second) {
     if (second === "new" && !third) route.wizard = { businessId: null };
-    else if (UUID_RE.test(second) && !third) route.detailId = second;
+    else if (UUID_RE.test(second) && third !== "setup") {
+      // /businesses/<id>/<tab> (business/tabs.js); an unknown tab shows Overview (BIZ-30)
+      route.detailId = second;
+      route.detailTab = isDetailTab(third) ? third : DEFAULT_TAB;
+    }
     else if (UUID_RE.test(second) && third === "setup") route.wizard = { businessId: second };
     else route.activePage = null;
   } else if (item.label === "Settings" && second) {
@@ -97,7 +102,7 @@ export default function OwnerDashboard({ onSignOut }) {
   const me = access.me;
   const authorized = access.state === ACCESS.AUTHORIZED;
   const notice = maintenanceText(usePlatformInfo());
-  const { activePage, wizard, detailId, section, sub } = readRoute(path);
+  const { activePage, wizard, detailId, detailTab, section, sub } = readRoute(path);
   const setActivePage = (label) => navigate(pathFor(label));
   const setDetailId = (id) => navigate(id ? `/businesses/${id}` : "/businesses");
   const setWizard = (next) => navigate(next
@@ -349,6 +354,8 @@ export default function OwnerDashboard({ onSignOut }) {
               onBack={() => navigate("/businesses")}
               onOpenSetup={(id) => setWizard({ businessId: id })}
               can={can}
+              tab={detailTab}
+              onTab={(slug) => navigate(slug === DEFAULT_TAB ? `/businesses/${detailId}` : `/businesses/${detailId}/${slug}`, { replace: true })}
             />
           ) : activePage === "Overview" ? (
             <OwnerOverview

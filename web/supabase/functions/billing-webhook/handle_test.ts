@@ -1,61 +1,84 @@
-// billing-webhook end to end with signed fixture events; the database is mocked (no network).
+// deno test --no-lock --allow-env web/supabase/functions/billing-webhook/handle_test.ts   (no network: the database call is stubbed)
 import { assertEquals } from "jsr:@std/assert@1";
-import { handle } from "./index.ts";
-Deno.env.set("STRIPE_WEBHOOK_SECRET", "test");
-Deno.env.set("ZELLA_SERVER_SECRET_KEY", "test");
-Deno.env.set("STRIPE_LIVEMODE", "false");
-Deno.env.set("SUPABASE_URL", "http://db.test");
-const enc = new TextEncoder();
-async function signed(ev: unknown) {
-  const raw = JSON.stringify(ev), t = Math.floor(Date.now() / 1000);
-  const key = await crypto.subtle.importKey("raw", enc.encode("test"), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const mac = [...new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(`${t}.${raw}`)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-  return new Request("http://fn", { method: "POST", headers: { "stripe-signature": `t=${t},v1=${mac}` }, body: raw });
-}
-async function run(ev: unknown, answer = '"processed"') {
-  const sent: Record<string, unknown>[] = [];
-  const real = globalThis.fetch;
-  globalThis.fetch = ((_u: string, init: RequestInit) => { sent.push(JSON.parse(String(init.body))); return Promise.resolve(new Response(answer)); }) as typeof fetch;
-  try { const r = await handle(await signed(ev)); return { status: r.status, text: await r.text(), sent }; } finally { globalThis.fetch = real; }
-}
-const PAID = { id: "in_1", status: "paid", paid: true, amount_paid: 4900, amount_due: 4900, amount_remaining: 0, currency: "usd", payment_intent: "pi_1", subscription: "sub_1" };
+import { handle, httpStatusFor } from "./index.ts";
+import { signStripePayload } from "../_shared/stripe.ts";
 
-Deno.test("body limit uses bytes and cancels oversized streams", async () => {
+const SECRET = "whsec_test_only";
+const env = { STRIPE_WEBHOOK_SECRET: SECRET, STRIPE_SECRET_KEY: "sk_test_unit", ZELLA_SERVER_SECRET_KEY: "server_unit", SUPABASE_URL: "http://127.0.0.1:9" };
+for (const [k, v] of Object.entries(env)) Deno.env.set(k, v);
+const event = (o: Record<string, unknown> = {}) => JSON.stringify({ id: "evt_1", type: "invoice.paid", livemode: false, created: 1, data: { object: { id: "in_1", object: "invoice" } }, ...o });
+
+let calls: { url: string; body: Record<string, unknown> }[] = [];
+let answer = '"stored"';
+const real = globalThis.fetch;
+globalThis.fetch = ((url: string, init: RequestInit) => { calls.push({ url, body: JSON.parse(String(init.body)) }); return Promise.resolve(new Response(answer)); }) as typeof fetch;
+const post = async (raw: string, sig: string | null) => {
+  const r = await handle(new Request("http://fn", { method: "POST", headers: sig ? { "stripe-signature": sig } : {}, body: raw }));
+  return r.status;
+};
+
+Deno.test("off until both secrets are set", async () => {
+  Deno.env.delete("STRIPE_WEBHOOK_SECRET");
+  assertEquals(await post(event(), await signStripePayload(event(), SECRET)), 503);
+  Deno.env.set("STRIPE_WEBHOOK_SECRET", SECRET);
+  Deno.env.delete("STRIPE_SECRET_KEY");
+  assertEquals(await post(event(), await signStripePayload(event(), SECRET)), 503);
+  Deno.env.set("STRIPE_SECRET_KEY", env.STRIPE_SECRET_KEY);
+  assertEquals((await handle(new Request("http://fn"))).status, 405);
+});
+
+Deno.test("signature: valid stored; tampered, wrong secret, old and missing refused before the database", async () => {
+  calls = []; answer = '"stored"';
+  const raw = event();
+  assertEquals(await post(raw, await signStripePayload(raw, SECRET)), 200);
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].url, "http://127.0.0.1:9/rest/v1/rpc/zella_stripe_event_store");
+  assertEquals(calls[0].body.p_key_livemode, false);
+  calls = [];
+  assertEquals(await post(raw.replace("in_1", "in_2"), await signStripePayload(raw, SECRET)), 400);
+  assertEquals(await post(raw, await signStripePayload(raw, "whsec_other")), 400);
+  assertEquals(await post(raw, await signStripePayload(raw, SECRET, Math.floor(Date.now() / 1000) - 301)), 400);   // a replay of an old delivery
+  assertEquals(await post(raw, null), 400);
+  assertEquals(calls.length, 0);
+});
+
+Deno.test("rotation: the previous secret is accepted only while it is set", async () => {
+  const raw = event();
+  const old = await signStripePayload(raw, "whsec_previous");
+  assertEquals(await post(raw, old), 400);
+  Deno.env.set("STRIPE_WEBHOOK_SECRET_PREVIOUS", "whsec_previous");
+  assertEquals(await post(raw, old), 200);
+  Deno.env.delete("STRIPE_WEBHOOK_SECRET_PREVIOUS");
+});
+
+Deno.test("live key: the event is checked against live mode", async () => {
+  calls = [];
+  Deno.env.set("STRIPE_SECRET_KEY", "rk_live_unit");
+  const raw = event({ livemode: true });
+  assertEquals(await post(raw, await signStripePayload(raw, SECRET)), 200);
+  assertEquals(calls[0].body.p_key_livemode, true);
+  Deno.env.set("STRIPE_SECRET_KEY", env.STRIPE_SECRET_KEY);
+});
+
+Deno.test("database answers map to Stripe's retries: duplicate and ignored are 200, mode mismatch 400, errors 500", async () => {
+  const raw = event();
+  for (const [a, s] of [['"duplicate"', 200], ['"ignored"', 200], ['"mode_mismatch"', 400], ['"bad_event"', 400], ['"weird"', 500], ["{", 500]] as const) {
+    answer = a;
+    assertEquals(await post(raw, await signStripePayload(raw, SECRET)), s, a);
+  }
+  answer = '"stored"';
+  assertEquals([httpStatusFor("stored"), httpStatusFor(null)], [200, 500]);
+});
+
+Deno.test("body limit counts bytes and cancels the stream; bad json and bad utf8 refused", async () => {
   let cancelled = false;
   const body = new ReadableStream({ pull(c) { c.enqueue(new TextEncoder().encode("é".repeat(250001))); }, cancel() { cancelled = true; } });
-  const r = await handle(new Request("http://fn", { method: "POST", body }));
-  assertEquals(r.status, 413);
+  assertEquals((await handle(new Request("http://fn", { method: "POST", body }))).status, 413);
   assertEquals(cancelled, true);
   assertEquals((await handle(new Request("http://fn", { method: "POST", headers: { "content-length": "500001" }, body: "x" }))).status, 413);
+  assertEquals(await post("{bad", await signStripePayload("{bad", SECRET)), 400);
+  const bytes = new Uint8Array([0xff, 0xfe]);
+  assertEquals((await handle(new Request("http://fn", { method: "POST", body: bytes }))).status, 400);
 });
-Deno.test("not configured until the mode is set", async () => {
-  Deno.env.delete("STRIPE_LIVEMODE");
-  try { assertEquals((await handle(await signed({ id: "e", type: "invoice.paid" }))).status, 503); } finally { Deno.env.set("STRIPE_LIVEMODE", "false"); }
-});
-Deno.test("a signed paid invoice reaches the database as the grant", async () => {
-  const r = await run({ id: "evt_paid", type: "invoice.paid", livemode: false, created: 1_800_000_000, data: { object: PAID } });
-  assertEquals([r.status, r.sent[0].p_type, r.sent[0].p_event_id, r.sent[0].p_amount_minor], [200, "payment_succeeded", "evt_paid", 4900]);
-});
-Deno.test("a signed active status update reaches nothing", async () => {
-  const r = await run({ id: "evt_u", type: "customer.subscription.updated", livemode: false, data: { object: { id: "sub_1", status: "active", current_period_end: 2 } } });
-  assertEquals([r.status, r.text, r.sent.length], [200, "ignored", 0]);
-});
-Deno.test("a signed live mode event on the test endpoint is quarantined (stored, never applied) and answered 200, not 422", async () => {
-  const r = await run({ id: "evt_live", type: "invoice.paid", livemode: true, data: { object: PAID } }, '"pending"');
-  assertEquals([r.status, r.sent[0].p_type, String(r.sent[0].p_reason).includes("livemode")], [200, "quarantined", true]);
-  assertEquals(r.sent[0].p_external_subscription_id, undefined);
-});
-Deno.test("a signed event with missing fields is quarantined, not 422", async () => {
-  const r = await run({ id: "evt_bad", type: "charge.refunded", livemode: false, data: { object: {} } }, '"pending"');
-  assertEquals([r.status, r.sent[0].p_type], [200, "quarantined"]);
-});
-Deno.test("unknown event types are 200 and never reach the database", async () => {
-  const r = await run({ id: "evt_x", type: "customer.created", livemode: false, data: { object: {} } });
-  assertEquals([r.status, r.sent.length], [200, 0]);
-});
-Deno.test("database answers map to the provider's retry", async () => {
-  for (const [answer, status] of [['"processed"', 200], ['"private failure"', 500], ['{}', 500], ['{', 500]] as const) {
-    const r = await run({ id: "evt", type: "customer.subscription.deleted", livemode: false, data: { object: { id: "sub" } } }, answer);
-    assertEquals([r.status, r.text], [status, status === 200 ? "ok" : "error"]);
-  }
-});
+
+Deno.test("cleanup", () => { globalThis.fetch = real; });

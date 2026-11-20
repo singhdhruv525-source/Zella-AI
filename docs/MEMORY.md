@@ -132,6 +132,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | **Inbound call routing:** a call whose number and Vapi phone ID match two different businesses' rows is routed by the ID (CodeRabbit, PR #57). Each column is already unique. | Open, owner's decision | Proposed: `zella_business_for_number` returns a business only when both agree; a guarded migration with rollback. |
 | **Billing step 2 (plans, balances, usage, alerts):** `sql/zella_billing_allowances.sql`, tested on the isolated database (tests/billing, and the full rehearsal in tests/deploy/run_all.sh). Applied to production on 14 Nov 2026 with the owner's approval and checked by read-only fingerprints; the one difference is `zella_language_allowance`, where production keeps its earlier, stricter role check | Applied; next steps open | Next: switch on calls to the fallback number at 100% and stopping routine texts and emails at 100% (live changes); set `voice_max_call_seconds` to 1200 for the 20-minute cap; fill in the unit costs (`billing_rules.unit_costs`); then deploy the step 3 pages (`owner-provision-business`, which refuses to finish setup without a saved plan, was deployed on 16 Nov 2026 as v18). `tests/browser/wizard-journey.cjs` needs the billing migration in its database now. |
 | **Payments provider is Stripe** (D-34 changed 13 Nov 2026: Zella Voice is a Wyoming LLC). Integration reference from Stripe's docs in `docs/PAYMENTS_ARCHITECTURE.md` §16; auto-reload and pay as you go charge automatically (D-54 closed) | Open, owner | The owner completes the Stripe account checklist (§16.7: EIN, identity, US bank account, Billing on, sandbox keys saved as staging secrets by the owner), and decides when a trial business pays the setup fee. |
+| **Stripe payments, built switched off (lane F, 16 Nov 2026):** the owner's instruction "complete everything; once Stripe is made we just add the webhook". Built so far: the Stripe client `_shared/stripe.ts` and the local fake `tests/stripe_fake/fake_stripe.ts` (no test reaches Stripe); the rebuilt `billing-webhook` and the new `billing-worker` with `sql/zella_stripe_pipeline.sql` (gaps C-1 to C-8 closed; the live `zella_reconcile_billing_events` job unchanged); Checkout and the saved card trial for onboarding step 6 (`sql/zella_stripe_checkout.sql`, `billing-api`; the go live gate counts only a bound Stripe payment; the rule `first_payment` is set by the payment gate below); renewals, failed payments and the 5 day pause (`sql/zella_stripe_renewals.sql`; Stripe retries, Zella Voice never charges a renewal; 30 days unpaid only alerts a person); packs bought by the owner and auto reload (`sql/zella_stripe_packs.sql`; a PaymentIntent on the saved card; one pending reload at a time; the monthly spend limit; never blocks a usage entry); refund requests with server side eligibility, approved only by the Zella Voice owner (`sql/zella_stripe_refunds.sql`; a Dashboard refund is recorded and alerted); cancel and continue synced to Stripe from `businesses.cancel_at`, latest choice wins (`sql/zella_stripe_cancel.sql`); invoices recorded from Stripe invoice events and the admin Payments panel on Plans & subscriptions (`sql/zella_stripe_invoices.sql`, `web/src/admin/BillingRecords.jsx`); disputes recorded, the account suspended while one is open, shown to admins (`sql/zella_stripe_disputes.sql`); billing emails decided in the database and rendered into the platform outbox, held while `email_live` is off (`sql/zella_stripe_emails.sql`); **open owner decision:** most billing templates show the card's last 4 digits, which §9 says Zella Voice never stores, so those emails are held (MISSING_FIELD card) until the owner decides; reconciliation that never corrects money, the Events API catch up for a webhook that was down, and one end to end journey test through the fake Stripe (`sql/zella_stripe_reconcile.sql`, `tests/stripe_e2e/journey_test.ts`); not built: pay as you go charging (§6.9). **Plan changes for a business paying through Stripe must go through `zella_admin_plan_change_start`:** a renewal Stripe bills on another plan version than the period's is held for a person (quarantined), never granted; upgrade and downgrade (`sql/zella_stripe_plan_change.sql`: Stripe's preview, the owner confirms, applied only when paid at the preview; downgrades by schedule from the period end; switching monthly and yearly is not built); **owner decision 16 Nov 2026:** the pay before going live check is off until payments are live (`sql/zella_stripe_payment_gate.sql`): while `payments_live` is false, go live doesn't wait for a payment and onboarding step 6 says Payment opens here soon and can be passed; once switched on, pay before going live applies (`first_payment`: `not_until_payments_live` while `payments_live` is false, `pay_before_live` while it is true); usage alert emails at 80% and 100% of minutes (`sql/zella_stripe_usage_emails.sql`), held until payments and email are live. **Defaults chosen pending owner decision (20 Nov 2026, review of PR #108):** the most conservative choice that matches production today (money never moves twice, nothing charged or refunded automatically that wasn't before, refuse rather than guess): (1) a downgrade already scheduled at Stripe stays, and no other plan change starts until it takes effect or a person cancels it (`DOWNGRADE_SCHEDULED`); (2) missed events are read from a stored watermark that moves only after a complete scan; a longer backfill is a separate, manual, approved step; (3) a pack can't be used while its refund is pending (its units are held at approval and freed if the refund fails); (4) a Checkout session that expires is not paid: the owner starts again, nothing is charged automatically, and a session for a changed plan is expired at Stripe before a new one opens; (5) an owner who finished step 6 while payments were off is not blocked afterwards: switching payments on flags each such business (alert `onboarding_unpaid_before_live`) and changes no access | Built, not applied or deployed | Going live is three owner steps, in `docs/PAYMENTS_ARCHITECTURE.md` §16.7: (1) secrets `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (no price IDs needed: the worker creates a Price per plan version); (2) the webhook endpoint `.../functions/v1/billing-webhook` in Stripe with the §16.5 events; (3) `select public.zella_payments_switch(true, '<worker url>')` |
 | **The deployed `billing-webhook` doesn't follow the Stripe design yet** (`docs/PAYMENTS_ARCHITECTURE.md` §17, gaps C-1 to C-8): it grants from the payload, treats an active status as a renewal and has no binding check. It is off (no `STRIPE_WEBHOOK_SECRET`). | Open, step 4 | Keep the secret unset until step 4 rebuilds the webhook as in §6.0b and its tests pass. |
 | **Workflow-failure emails:** `sql/zella_workflow_alert_email.sql` (merged, not applied) keeps n8n failures in the dashboard only | Open, owner's decision | Apply with approval, or drop it if admins should be emailed. |
 | **Unsubscribe functions have no rate limit** (SEC-6 gap, architecture §30) | Fixed, applied 14 Nov 2026 | `sql/zella_unsubscribe_limit.sql`: lookup 30 and save 10 per link per 10 minutes, unknown links answered before counting, and an opt-out is never refused (NN-8: it is skipped only when the person's latest choice is already opted out). The web page's busy state keeps the Unsubscribe button and must ship with it. Already applied; do not apply again. |
@@ -240,7 +241,59 @@ most often needed:
   years, audit logs 7 years (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
+- **AI testing (AI-TESTING, recommended default taken 16 Nov 2026, owner can change):** a failing evaluation is a warning
+  only and never blocks going live. A business passes with at least 3 test questions (`ZELLA_EVAL_MIN_CASES`), all
+  passing. Showing the warning on the go live checklist belongs to the Business detail job (BIZ-12).
+- **Sensitive industries (CFG-05, recommended default taken 16 Nov 2026, owner can change):** stored as
+  `industries.sensitive`. Only a Zella Voice owner may change it (`SENSITIVE_ROLE` in config.ts), with a reason, audited;
+  turning it off needs a typed confirmation because staff may then read transcripts. A new industry starts sensitive.
+  The seed equals today's list (7 slugs); check it against the reference configuration once UI-35 is decided.
+- **Plans page permissions (CFG-19, default taken 16 Nov 2026, owner can change):** each kind of plan keeps the one
+  permission its server path already checks: the shared fallback plans need `plans.manage` (plan_save and
+  plan_entitlements_save), each business's own plan needs `billing.manage` (zella_admin_plan_save, REQ-BIL-10), and
+  reading needs `billing.view`. The page hides each editor without its permission.
+- **Connected, answering and live (COM-01, defaults taken 16 Nov 2026, owner can change):** one definition in SQL
+  (`sql/zella_connection_state.sql`, `docs/PRODUCT.md` §9.1). Answering is a served call in the last 7 days and is shown
+  on its own, never folded into live; live needs an active business, the receptionist switched on and an active number
+  linked to Vapi. Email is "not tracked". Real values still need an owner approved read only count in production.
+- **Industry modules (CFG-01, recommended default taken 16 Nov 2026, owner can change):** switching an industry's module
+  off stays a kill switch: it removes the module at once from every business in that industry that has it on
+  (`zella_module_on` needs the module offered). The admin sees "N businesses lose X" and gives a reason first; the server
+  refuses an unconfirmed switch off (`industry_save` `confirmOff`). While `LEGACY_SWITCH_OFF_ALLOWED` (config.ts) is true
+  an older web app that sends no confirmation still works and the audit row says so; set it false once the new web app
+  is live. Deactivating an industry (CFG-08) only stops it being offered for new businesses.
 
+- **Scheduled job intent (PLT-07, 16 Nov 2026, default the owner can change):** every go live job (zella_dispatch,
+  the every 5, every 15, hourly, daily and weekly jobs, zella_cron_cleanup, zella_platform_emails, zella_spam_hourly)
+  is recorded as "Deliberately off until go live" by `sql/zella_job_intent.sql`. Intents live in their own table;
+  recording one needs `platform.configure` and a reason and is audited. An intent is a record, never a switch: no
+  lane or page switches a job, which stays the owner's live switch. zella_usage_thresholds and zella_billing_reconcile
+  (on in production) have no intent recorded, so the page shows them as plain On.
+
+- **n8n answers (OPS-17, 16 Nov 2026, default the owner can change):** a 401 or 403 from n8n (wrong secret) is one
+  urgent `n8n_dispatch_refused` alert for every workflow; a 404 (workflow not published) is a warning per workflow; a
+  later 2xx resolves them. The dispatcher reads pg_net's answer on its next run and never waits for it.
+
+- **Go live checklist (UI-23, 16 Nov 2026):** one list on Platform operations. The server secret list lives in
+  `owner-provision-business/ops.ts` (`SERVER_SECRETS`), shared by Operations' Services and the checklist; add a new
+  secret there. The jobs and email triggers are read by the signed in admin (database functions), the secrets by the
+  function; a part that doesn't load reads "Not checked", never "Ready".
+
+- **n8n's own status (AUTO-N8N-STATUS, 16 Nov 2026):** read on the server (`owner-provision-business` `n8n_status`,
+  `n8n.ts`) with `N8N_API_KEY` and `N8N_API_URL` (https only) as Supabase secrets; read only, the key never leaves the
+  server. Built and tested against a stub; it shows "Not connected yet" until the owner creates the key in n8n and
+  sets both secrets.
+
+- **Voice alerts (UI-14, COM-09, 16 Nov 2026, defaults the owner can change):** missed call alert at 5 or more
+  inbound calls in 24 hours with 25% or more missed, warning (named constants in `zella_admin_voice_alerts`); a
+  refused Vapi request in the last hour is a warning. voice-rules counts refusals (type, reason, header names only)
+  without waiting; its deploy is the live call path and needs its own approval, after the "Fix Vapi call auth" work.
+
+- **Alert rules (SET-ALERT-RULES, 16 Nov 2026, the owner decision's safety default):** urgent alerts can't be switched
+  off or lowered, only rerouted, and a quiet window or repeat interval never holds them back. Protected kinds:
+  service_incident, scheduler_failed, provider_down, integration_disconnected, tenant_leak, plus anything raised as
+  urgent. `sql/zella_run_all.sql` re-creates the old `zella_platform_alert` (line 1519): never re-run it after
+  `sql/zella_alert_rules.sql`, or apply that file again.
 - **Owner decisions of 16 Nov 2026** (architecture §23.1a, and where each requirement lives):
   1. **Growth page (REQ-ADM-18, ACC-36): later**, not before launch. `growth.manage` doesn't exist yet and is not
      listed as an existing permission (`docs/PRODUCT.md`).
@@ -262,6 +315,86 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Weekly platform report (owner, 16 Nov 2026):** one weekly summary of the whole platform for Zella Voice admins,
+  readable with `reports.view` (owner and super admins by default). The bell alert and the email digest only say it is
+  ready, never the figures, because every admin sees the bell and gets the digest. Built, not applied
+  (`sql/zella_weekly_platform_report.sql`); runs once `zella_jobs_weekly` is on. Found while building it:
+  `zella_check_business_moments` is in the hourly list but not in `zella_run_scheduled_job`'s allowed list, so the
+  hourly job would return not_allowed for it. Fixed by `sql/zella_business_moments_job.sql` (built, not applied;
+  apply it after the weekly report file).
+- **Member support from the Business page (lane E review, 19 Nov 2026, defaults the owner can change):** a two step
+  reset is refused for someone who also belongs to another business, because an authenticator protects the person's
+  sign in everywhere, not one membership. Deactivate, Reactivate and Cancel invitation run in one database step each
+  (`sql/zella_business_member_admin.sql`, built, not applied) and only from what the page showed; until that file is
+  applied they answer that the database update is needed. Pack grants by RPC rely on `sql/zella_admin_mfa.sql` (lane A)
+  for two step sign in in the database: apply it before the pack grant page is used.
+- **Admin Business page reads (lane E defaults, 16 Nov 2026, owner can change):** the Activity list and who did each
+  action go only to admins with `audit.view` (BIZ-04); caller numbers and connection account details are masked by
+  default with the `zella_admin_mask` rule (`mask.ts`), the Spam page keeps its older rule for now (BIZ-22). The
+  permission set comes from `adminPermissions` in `owner-provision-business/detail.ts`, the same answer `me_admin` gives.
+
+- **Business size goes through the admin function (BIZ-08, 16 Nov 2026):** `business_size_save` (businesses.manage).
+  Until EXECUTE on `zella_set_business_size` is revoked from signed in users (deferred: after
+  `sql/zella_admin_permissions.sql` is applied or dropped, whose version guard covers that function), an owner or
+  super admin can still call the old RPC by hand from a browser, skipping the two step check.
+
+- **Admin audit rows record before and after (BIZ-17, lane E default, 16 Nov 2026):** a failed audit write alerts
+  (`audit_write_failed`, urgent) and warns the admin; it does not fail the action. Failing closed for suspend and
+  cancel would need the audit row written first inside the handler (the dispatcher writes it after the action has
+  committed); not built, the database trigger already records those changes. COM-04 confirmed from the function
+  definitions: a receptionist edit reaches the next call (`zella_assistant_for_call` reads the live configuration);
+  the audit row records `config_hash` before and after.
+
+- **Automations' live rule is behind a switch (BIZ-07, 16 Nov 2026):** `ZELLA_AUTOMATIONS_START_ON_SAVE=on` (an
+  edge function secret) makes an automation turned on for a live business start at once (real messages), because
+  every deploy is cut from main and production's four businesses are all `onboarding_status` active. Off by default:
+  saves behave as before. No backfill of automations already left paused on live businesses (owner decision).
+- **Deleting a draft business (Lane B, BIZ-13a, 16 Nov 2026):** only a Zella Voice owner or super admin, with the
+  name typed and a reason, and only a business that never finished setup and has no calls, numbers, billing or
+  accepted owner. Audit history is never deleted with a business (ACC-10, owner decision, 16 Nov 2026):
+  audit_logs.business_id is SET NULL, and the deletion entry keeps the business id and name.
+
+- **Abandoned drafts (Lane B, BIZ-13b, D-30 recommended default, 16 Nov 2026):** a draft with no change for 30 days
+  (`draft_abandon_days`, 7 to 365) is marked Abandoned and alerted once ever; nothing is deleted automatically. The
+  alert is raised when Business onboarding is opened (no scheduled job for it yet).
+
+- **Missing documents (Lane B, UI-11, 16 Nov 2026):** live businesses without documents are listed too (Live without
+  documents); Request documents is allowed once per business per 24 hours, read from the last audit entry. Defaults,
+  owner can change.
+
+- **Provisioning steps (Lane B, SET-ONB-RETRY part 1, 16 Nov 2026):** every setup save is recorded through
+  zella_track_provisioning. A deliberate refusal (bad input, or setup can't finish yet) is not a failed step and
+  raises no alert; only an unexpected error or a failed invitation email is.
+
+- **Setup step retry (Lane B, SET-ONB-RETRY part 2, 16 Nov 2026):** only modules, the receptionist and automations
+  are retried, by Retry step or by the timed job zella_provisioning_retry (off until the owner switches it on, at most 3
+  tries each). The invitation email and provider steps are never retried on their own. Default, owner can change.
+
+- **Whole business export (Lane B, SET-DL-EXPORT, 16 Nov 2026):** an admin requests, a Zella Voice owner other than the
+  requester approves, downloadable for 7 days through signed links that end with it, by the requester or an owner.
+  Never in an export: secret tables and columns, recording links, and transcripts in sensitive industries. Default,
+  owner can change.
+
+- **Export worker limit (Lane B, 16 Nov 2026; changed in review 19 Nov 2026):** each worker run has about 2 minutes. A run
+  that runs out pauses the job (zella_export_pause): it saves where it stopped, page by page, and isn't counted as a try,
+  so a large business takes as many runs as it needs; only failures and runs that stop answering count toward the 3.
+  Each export also has its own file list, taken once, so files removed or added later never shift it.
+
+- **Spanish template versions aren't sent yet (Lane B review, 19 Nov 2026):** every sender asks zella_resolve_template
+  for en-US, so a Spanish version made on Messaging, Templates is kept but not used. How a send picks its language (the
+  business's language setting, or Spanish creation held back until then) is waiting on the owner; the page says so.
+
+- **Held emails to businesses (Lane B, 16 Nov 2026):** an email held after 5 tries is released (back to queued, tries
+  reset) or discarded by an admin with comms.manage and a reason. A discard ends as `failed`, which only a discard
+  writes, shown as Discarded; the sender never marks an email failed (it holds it). Default, owner can change.
+
+- **Template versions (Lane B, UI-20, 16 Nov 2026):** Create only makes an industry or Spanish version of a key that
+  already has a platform version (no sender uses a brand new key); Retire only archives such overrides. Default,
+  owner can change.
+
+- **Contact lookup privacy (Lane B, COM-29, 16 Nov 2026):** comms.manage only, one business, at least 4 digits or a
+  full email, a reason, masked results (last 4 digits), every lookup audited. Default, owner can change.
+
 - **CodeRabbit review routine (owner, 17 Nov 2026):** CodeRabbit reviews a PR in full once, when it opens. Later
   pushes (merges of main, fixes) are reviewed only when someone comments `@coderabbitai review`, and the author must
   request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
@@ -269,10 +402,56 @@ most often needed:
   `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
   from the one account. Draft PRs get no review when they open (`drafts: false`): when a draft is marked ready for review, comment
   `@coderabbitai review` to start the first review.
+- **Number orders (VOICE-PROVIDERS, built 16 Nov 2026, not deployed):** every Telnyx or Vapi purchase or release is an
+  order an admin with `telephony.manage` asks for and a Zella Voice owner **who didn't ask** approves (an owner's own
+  request needs another owner); the approver's click places it once (claim), and a lost answer is "Check at Telnyx",
+  never retried. Bought numbers are added to Vapi but not assigned to a business: that stays the audited Assign step.
+  Off until the owner adds `TELNYX_API_KEY`, `VAPI_API_KEY` (and optionally `VAPI_TELNYX_CREDENTIAL_ID`,
+  `TELNYX_CONNECTION_ID`, `TELNYX_MESSAGING_PROFILE_ID`) and sets `number_orders_enabled` to true. The Telnyx and Vapi
+  request shapes follow their public API docs and are proven only against local fakes; confirm them with a sandbox key.
+
+- **Recording policy (SET-RECORDING-POLICY, built 16 Nov 2026, not deployed):** off for every business. A business can
+  be switched on only after a Zella Voice owner records `recording_legal_approved` with the caller disclosure line
+  (`recording_disclosure_text`, empty until legal provides it); those two settings can't be changed any other way.
+  Not connected to the live call path: today Zella Voice's assistant config doesn't set Vapi's recording option at
+  all, so Vapi's own default and dashboard settings decide whether calls are recorded. Making voice-rules send
+  recording off (or the policy) is a call path change that needs its own approval.
+
+- **Retention (SET-RETENTION, BIZ-18b, built 16 Nov 2026, not deployed):** each kind of data has its own period, set to
+  the architecture's proposal and marked pending legal review (recordings 30 days, transcripts 90, message words 2
+  years, audit logs 7 years, replaced verification copies 30 days, owner identity files 90 days after verification,
+  a cancelled business's documents and the business itself 30 days after cancellation, never before its
+  `retention_until`, which still uses `retention_days`, 90 today). The dry run lists what is past its period and
+  deletes nothing. Legal holds keep a business out of every list and make it undeletable. Defaults taken: placing a
+  hold needs security.manage, releasing one needs a Zella Voice owner; message bodies are redacted, not deleted.
+
+- **Purge runs (built 16 Nov 2026, not deployed):** a run removes only the rows listed when it was asked for, after
+  two different people approve (one a Zella Voice owner) and one of them types "PURGE <rows>", with
+  `retention_purge_enabled` on and the period legally approved. Lesson: emptying a call's transcript makes
+  `zella_call_integrity` re-mark a short old call as missed and start a missed call callback, so a purged transcript
+  is replaced by "Removed under the retention policy." instead. Defaults taken: at most 1000 rows per run; the second
+  person needs security.manage (or is another owner). Recordings at Vapi are not deleted (provider copy, needs Vapi).
+
+- **Business purge (BIZ-13d, built 16 Nov 2026, not deployed):** a cancelled business is deleted only by an approved
+  purge run (two people, one a Zella Voice owner), after a recorded final export offer at least 14 days old (default
+  taken), with its name typed and purges switched on. It waits for: legal approval of the cancelled business period,
+  lane B's `zella_draft_delete.sql` and the owner's ACC-10 decision (`audit_logs.business_id` to ON DELETE SET NULL, so
+  its audit history survives; lane B keeps it CASCADE until then), and the whole business export (B8, B9)
+  for the offer. Refused while it has payment or billing records: how long those are kept after deletion is an owner
+  and legal decision not taken. Provider copies: numbers must be released first; deleting Vapi assistants or call
+  recordings at Vapi isn't built.
 
 Waiting on the owner:
 
 - whether suspended businesses keep read-only access (L-5);
+- the identity check written for a member's two step reset (REQ-LC-19) and whether a fresh admin code is required
+  once ACC-19 exists (UI-06);
+- the owner invitation defaults (BIZ-21): resend cooldown 5 minutes, a reason to cancel, `businesses.manage`, and a
+  never used account kept after a cancel;
+- the support access defaults on the Business page (BIZ-22): every open audited with a 30 minute dedupe, a reason
+  to reveal contacts, `businesses.manage` to reveal, member and invitee emails masked;
+- when to turn on `ZELLA_AUTOMATIONS_START_ON_SAVE`, and whether to start automations already left paused on live
+  businesses (BIZ-07);
 - whether to remove the never-used super-admin account that looks like a typo;
 - the trademark check for "Zella Voice";
 - an Anthropic key for knowledge drafting, when the budget allows;
@@ -333,6 +512,10 @@ Waiting on the owner:
   merging.
 - **Production's text sort order differs from the test database.** Use `collate "C"` when comparing ordered lists or
   hashes between them.
+
+- **A business could not be deleted at all before zella_draft_delete.sql.** The privileged audit trigger wrote a row
+  pointing at the business being deleted, which failed the audit foreign key. Test any delete path on a business
+  made the real way (with its receptionist), not a bare row.
 
 ## 7. Where to look
 

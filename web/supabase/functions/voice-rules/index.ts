@@ -18,7 +18,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { lookupOrder } from "./orders.ts";
-import { assistantReply, AUTH_OK, authHeaders, brainInvalidReply, brainToolReply, plan, type ToolCall, toolResult, transferReply, unsupported } from "./logic.ts";
+import { assistantReply, AUTH_OK, authHeaders, brainInvalidReply, brainToolReply, plan, recordRefusal, refusalArgs, type ToolCall, toolResult, transferReply, unsupported } from "./logic.ts";
 import { readBodyLimited } from "../_shared/body.ts";
 
 const json = (data: unknown, status = 200) => Response.json(data, { status });
@@ -80,6 +80,7 @@ Deno.serve(async (req: Request) => {
     let type = "unknown";
     try { const m = JSON.parse(raw)?.message; if (typeof m?.type === "string") type = m.type.slice(0, 40); } catch { /* not JSON */ }
     console.log(JSON.stringify({ voice_refused: type, headers: Object.keys(authHeaders(req.headers)) }));
+    recordRefusal((a) => call(db, "zella_vapi_refusal_record", a, 1500), refusalArgs(type, Object.keys(authHeaders(req.headers)), auth.data));
     return respond({ error: "Unauthorized" }, 401, t, started, "refused_" + String(auth.data).slice(0, 20));
   }
 

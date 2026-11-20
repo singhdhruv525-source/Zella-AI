@@ -1,9 +1,10 @@
 // The automation list shown to the admin on a business's Automations tab. It lists every automation
 // (even ones not set up yet), the ones preferred for the industry first, and how the owner is told.
-import { CATALOG, NOTIFY_LABEL, catalogEntry, isPreferred, orderTypes } from "./automationCatalog";
+import { CATALOG, NOTIFY_LABEL, automationStatusPill, catalogEntry, isPreferred, orderTypes } from "./automationCatalog";
 import { Pill } from "./OwnerOverview";
 
-export default function AutomationOverview({ rows, industryName, appointmentWord = "appointment", describeSettings }) {
+// renderAction(row, type): an optional last column (the business page puts Pause, Resume or Set up there).
+export default function AutomationOverview({ rows, industryName, appointmentWord = "appointment", describeSettings, renderAction }) {
   const list = rows ?? [];
   const baseTypes = CATALOG.map(([t]) => t);
   // The ten standard automations (listed even when not set up) plus each industry rule, preferred first.
@@ -16,13 +17,14 @@ export default function AutomationOverview({ rows, industryName, appointmentWord
   return (
     <div className="owner-table-wrap" tabIndex={0}>
       <table className="owner-table">
-        <thead><tr><th>Automation</th><th>Status</th><th>Tells owner by</th><th>Settings</th></tr></thead>
+        <thead><tr><th>Automation</th><th>Status</th><th>Tells owner by</th><th>Settings</th>{renderAction && <th aria-label="Actions" />}</tr></thead>
         <tbody>
           {items.map(({ key, type, row }) => {
             const entry = catalogEntry(type);
             const name = row?.name || (entry ? entry[1](appointmentWord) : type);
             const on = row && row.status !== "disabled";
             const cfg = row?.trigger_config ?? {};
+            const pill = row ? automationStatusPill(row.status) : null;
             return (
               <tr key={key}>
                 <td>
@@ -31,9 +33,10 @@ export default function AutomationOverview({ rows, industryName, appointmentWord
                   {entry && <div className="op-muted">{entry[2](appointmentWord)}</div>}
                   {!entry && row?.description && <div className="op-muted">{row.description}</div>}
                 </td>
-                <td>{row ? <Pill tone={row.status === "active" ? "success" : row.status === "paused" ? "info" : "neutral"}>{row.status === "disabled" ? "off" : row.status}</Pill> : <span className="op-muted">Not set up</span>}</td>
-                <td>{on ? NOTIFY_LABEL[cfg.notify_via] ?? "Text and email" : "None"}</td>
-                <td>{on ? (entry ? describeSettings(cfg) : "Industry rule") : "None"}</td>
+                <td>{pill ? <Pill tone={pill.tone}>{pill.label}</Pill> : <span className="op-muted">Not set up</span>}</td>
+                <td>{on ? NOTIFY_LABEL[cfg.notify_via] ?? "Text and email" : <span className="op-muted">Not in use</span>}</td>
+                <td>{on ? (entry ? describeSettings(cfg) : "Industry rule") : <span className="op-muted">Not in use</span>}</td>
+                {renderAction && <td>{renderAction(row, type)}</td>}
               </tr>
             );
           })}

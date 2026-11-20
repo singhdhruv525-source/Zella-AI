@@ -289,9 +289,20 @@ sequenceDiagram
   DB-->>BO: CRM shows "Active"
 ```
 
+**Built (lane F, switched off, `sql/zella_stripe_checkout.sql`, `billing-api`, the onboarding Pay screen):** the owner's
+`checkout_start` computes the amount from the accepted plan (price + setup fee, or $0 for the saved card trial); the
+customer, product, prices and session are outbox commands sent at once by `billing-api`, each with its own key
+(`customer:<business>`, `product:<business>`, `price:<plan version>`, `price:<plan version>:setup`, `checkout:<id>`);
+one open Checkout per business; `checkout.session.completed` links the subscription from our stored session; the
+first `invoice.paid` must equal our amount with only our prices; the trial puts the setup fee on the first paid
+invoice (a pending invoice item), so nothing is charged at the start (REQ-BIL-12). Tested end to end against the local
+fake Stripe (`tests/stripe_checkout/flow_test.ts`).
+
 The return to our page only shows "processing". **Access is granted only when the verified webhook (or the worker's
 fetch from Stripe) confirms the paid invoice, and the payment passes the binding check below.** A lost redirect never
 loses a payment, and a forged redirect never grants anything.
+
+**Owner decision (16 Nov 2026), built in `sql/zella_stripe_payment_gate.sql`:** the first payment is required for go live only while `payments_live` is true. While it is false, `zella_onboarding_rules().first_payment` is `not_until_payments_live`, the go live gate doesn't wait for a payment, and onboarding step 6 shows "Payment opens here soon" with Continue. Switching payments on applies "pay before going live" to every business not live yet.
 
 ### 6.0a Payment binding (applies to every paid grant)
 
@@ -391,6 +402,8 @@ sequenceDiagram
   end
 ```
 
+**Built (lane F, switched off, `sql/zella_stripe_renewals.sql`):** the renewal grant checks every line (our plan Price at its amount, or an invoice item we created at its stored amount) and that they add up to the paid total, then opens the new period (fresh balances, 20% rollover, unchanged `zella_billing_open_period`); an older period's invoice is recorded only. Failures set past due once and notify the owner; a failure fetched after the invoice was paid changes nothing. The worker runs `zella_billing_nonpayment_sweep` each minute: 5 days past due (`billing_rules.pause_after_days`) is `paused_nonpayment`, which the call gate already treats as inactive (forwarding needs `usage_enforcement.calls`); 30 days unpaid raises an alert for a person and nothing is cancelled automatically.
+
 `invoice.payment_action_required` (the bank asks for 3-D Secure on a renewal) sends the owner a link to Stripe's page
 to confirm the payment. Which unpaid invoices must be settled before a `past_due` subscription returns to `active` is
 a Dashboard setting; we set it to the most recent invoice, and service is restored only when the current period's
@@ -420,6 +433,8 @@ A unique partial index `(business_id) where status = 'pending'` on auto-reload p
 impossible while one is in flight, however many calls finish at the same moment. A pack bought by the owner on the
 Billing page is a Checkout Session in payment mode (or a confirmed PaymentIntent on the saved card), granted the same
 way on `payment_intent.succeeded` / `checkout.session.completed` after the binding check.
+
+**Built (lane F, switched off, `sql/zella_stripe_packs.sql`):** an owner pack and an auto reload are both one pending `pack_purchases` row and one PaymentIntent on the saved card (`off_session`, the subscription's default payment method id recorded from the fetched subscription), keyed `pack:<id>` or `reload:<id>`. Only `payment_intent.succeeded` for our own PaymentIntent, at the catalog amount, grants the pack (until the end of the period it was bought in). Auto reload is checked after each usage entry under the settings row lock, with a partial unique index for one pending reload, and stops at the monthly spend limit with a notice. The Billing page's buy button is not built yet (the API is `billing-api` `pack_buy`).
 
 ### 6.5 Entitlement check at call time (`REQ-BIL-22`)
 
@@ -468,6 +483,11 @@ sequenceDiagram
   Note over DB: features above the lower plan stay until the period end, then the lower version applies
 ```
 
+**Plan changes for a business paying through Stripe must go through this flow:** a new version saved without starting
+the change gives the new allowances from the next period while Stripe still bills the old Price.
+
+**Built (lane F, switched off, `sql/zella_stripe_plan_change.sql`):** an admin saves the new version and starts the change (`zella_admin_plan_change_start`); for an upgrade the owner sees Stripe's previewed amount and confirms within 15 minutes; the paid `subscription_update` invoice must equal the preview with only the old and new Prices of this business; a downgrade is a schedule from the period end. Switching between monthly and yearly is refused (`INTERVAL_CHANGE_NOT_BUILT`). The owner's confirm screen in the CRM is not built (the functions exist).
+
 **Stripe mechanics (§16.2):** a Stripe Price cannot change its amount, so each sold `business_plans` version gets
 its own Price. An **upgrade** updates the subscription item to the new Price with `proration_behavior: always_invoice`
 and `payment_behavior: pending_if_incomplete`: Stripe invoices the prorated difference at once, and **applies the new
@@ -513,6 +533,8 @@ uncertain refunds all count against the payment, so concurrent requests can neve
 **A refund made outside this flow** (for example in the Stripe Dashboard) still arrives as `refund.created` /
 `charge.refunded`. It is recorded against the payment (unique refund id), matched to an approved request if one exists,
 and otherwise raises a platform alert and an audit entry, so no refund goes unnoticed or bypasses `REQ-BIL-45` silently.
+
+**Built (lane F, switched off, `sql/zella_stripe_refunds.sql`):** `zella_refund_options` decides eligibility (the guarantee covers the plan fee of the first payment only, so the setup fee is its own 48 hour option); a request locks the payment row and reserves the amount; only the Zella Voice owner (`zella_admin_role() = 'zella_owner'`) approves, with a reason, and approval re-checks the rules with the request itself set aside; `refund.created` / `refund.updated` / `refund.failed` settle it and post `refund:<stripe id>` once. Not built: the owner's Refund button on the CRM Billing page and the admin approval screen (the functions and `billing-api` `refund_options` / `refund_request` exist).
 
 ### 6.9 Pay as you go (D-44), billed with the next renewal
 
@@ -706,6 +728,8 @@ sequenceDiagram
   WH->>DB: cancelled · paid service ended at current_end · final pay-as-you-go invoices (§6.9)
 ```
 
+**Built (lane F, switched off, `sql/zella_stripe_cancel.sql`):** the source of the owner's choice stays `businesses.cancel_at` (the merged scheduled cancellations, Settings, the admin, the Continue my plan link and `zella_owner_continue_plan` all write it); a trigger on it raises the version and queues the command, cancelling older versions still waiting; the check after each send and on each subscription event resends the latest value with a new attempt key when Stripe disagrees. The daily cancellation job still does the full business cancellation at `cancel_at`.
+
 A trial is cancelled at once instead (`DELETE /v1/subscriptions/:id`, key `cancelnow:<subscription id>`), because nothing has
 been paid. A cancelled subscription is never restarted; a returning owner starts a new one through Checkout.
 
@@ -731,6 +755,8 @@ Settings › Billing › Payment method (audited, confirmed by email): the subsc
 **Pay now** link in our email or in the app (Settings › Billing › Invoices). Both open Stripe's hosted payment page for
 that one invoice, so it can never be paid twice. An invoice still unpaid at its due date follows the failed-payment path
 (§6.3): reminders, final notice, pause on day 5. Switching back on needs a working saved card.
+
+**Built (lane F, switched off, `sql/zella_stripe_emails.sql`, `_shared/billingEmails.ts`):** the database decides each notice from our own records (one key per business object, so doubled events never send twice); the worker renders it strictly with the shared catalogue and queues one copy per owner in the platform outbox, which stays in test mode while `email_live` is off. **Owner decision needed:** the templates that say "card ending 4242" (A2, A3, A4, A6, B1, B2, C1, C2, C3, D1) need the last 4 digits, which §9 says are never stored; until the owner decides (fetch them from Stripe at render time, or reword the templates), those emails are held with `MISSING_FIELD:<code>:card` and nothing invents a value. A1, C4, D2, D5 and similar card free notices are queued.
 
 The full list of billing emails, their content, the SMS copies of the urgent ones, settings and tests is in
 `docs/BILLING_EMAILS.md`.
@@ -764,6 +790,8 @@ Rules:
 - **No real email from development or tests.** Staging uses Stripe's sandbox and a test inbox; sending to real owners
   happens only in production after the owner's approval (§14).
 
+**Built (lane F, switched off, `sql/zella_stripe_invoices.sql`):** `invoice.created`, `invoice.finalized` and `invoice.voided` record the fetched invoice; `invoice.deleted` follows the §16.5 rule (our draft only, else held). Admins read them on Plans & subscriptions, Payments (`web/src/admin/BillingRecords.jsx`, invoices, refunds with the owner's decision, disputes); owners through `zella_owner_invoices`. The invoice, receipt and payment emails are queued by the billing emails step.
+
 ### 6.8 Disputes (chargebacks)
 
 ```mermaid
@@ -794,6 +822,8 @@ suspended until settled. `charge.dispute.updated` and `charge.dispute.funds_with
 recorded and alert a platform admin; evidence is submitted through Stripe's dispute API or Dashboard by a person.
 
 ---
+
+**Built (lane F, switched off, `sql/zella_stripe_disputes.sql`):** as above, with the saved state kept in `subscriptions.metadata.saved_status`; a renewal paid during a dispute moves the saved state (step 4a). Evidence stays a person's job in Stripe.
 
 ## 7. State machines
 
@@ -1040,6 +1070,8 @@ flowchart LR
 
 ---
 
+**Built (lane F, switched off, `sql/zella_stripe_reconcile.sql`, `reconcile` in `_shared/billingWorker.ts`):** as above, run by the billing worker; the live `zella_reconcile_billing_events` job keeps production's exact body (the file's guard checks its md5). The end to end test `tests/stripe_e2e/journey_test.ts` runs Checkout, a renewal, a failed payment and the pause, recovery, a pack, a refund, invoices, held emails and a clean reconciliation through the fake Stripe.
+
 ## 11. Scalable architecture: 1 to 10,000 people
 
 The same design serves one owner or 10,000 people at once because every request is stateless, every tenant query is
@@ -1181,15 +1213,16 @@ step 2 and step 3 work in PR #59 (built and tested on the isolated database, not
 | C-7 | No outbox, money ledger, idempotency-key, quarantine or provider-account tables; no Stripe API calls | §4, §8, §8.1 | — (nothing calls Stripe yet) |
 | C-8 | A refund made directly in the Stripe Dashboard arrives only as `charge.refunded` | every refund needs the owner's approval (`REQ-BIL-45`); a Dashboard refund is recorded, matched to an approved request if one exists, otherwise alerted and audited | a refund outside the approval rule goes unnoticed |
 
-**Security audit fixes (18 Nov 2026, M13, branch `claude/security-fixes`, not deployed):** the webhook now grants a paid
-period only from `invoice.paid` with `status: paid`, `amount_paid = amount_due`, nothing remaining, more than 0, in the
-endpoint's currency (`invoice.payment_succeeded` and `checkout.session.completed` no longer grant: C-2, C-3 partly);
-`customer.subscription.updated` never opens a period (canceled or `incomplete_expired` cancels; a price change is a
-`plan_changed`; `past_due` and `unpaid` come through `invoice.payment_failed`); every event must match the endpoint's
-mode (`STRIPE_LIVEMODE`, required) and account (`STRIPE_ACCOUNT_ID`, optional), otherwise it is stored as `quarantined`
-(never applied; unmatched after 7 days it alerts) and answered 200, never 422 (C-5). Still open: the amount is not yet
-compared with the stored invoice or plan price, and grants still happen in the request (C-1, rest of C-4, C-6 to C-8):
-step 4.
+**Rebuilt (lane F, 16 Nov 2026, built and tested locally, not applied or deployed):** `sql/zella_stripe_pipeline.sql`
+with the rebuilt `billing-webhook` and the new `billing-worker` close C-1 to C-8: the webhook verifies the signature
+and the key's mode and only stores the event; the worker claims events oldest first per subscription (an event waiting
+for its parent doesn't hold the others back), fetches each object from Stripe and hands it to the database, where one
+handler per event type (`zella_stripe_on_<type>`) and one grant per billing reason (`zella_stripe_grant_<reason>`)
+apply it after the binding check (`zella_stripe_bind_invoice`: our own links, customer, `usd`, fully paid, mode);
+anything unbound is quarantined and answered 200; subscription events record state only; every refund is recorded
+and one made outside Zella Voice is alerted. The old functions, including the live `zella_reconcile_billing_events`
+job, keep their exact bodies and never see the new rows. Tests: `tests/stripe_pipeline/run.sh` (database) and
+`tests/stripe_pipeline/flow.sh` (signed events from a local fake Stripe through the webhook and worker).
 
 **Until step 4 is built and its tests pass, `STRIPE_WEBHOOK_SECRET` stays unset**, so the old webhook can't process
 anything. Step 4 replaces the webhook's mapping with the §6.0b pipeline, adds the §4 tables with the §9 database rules,
@@ -1236,6 +1269,15 @@ pinned in the request header and changed only on purpose.
 | Dispute evidence | `POST /v1/disputes/:id` | evidence fields, `submit` | a person decides |
 | Look-ups | `GET` invoices, PaymentIntents, refunds, events, balance transactions | | reconciler (§10) |
 
+**Built (lane F, switched off):** one client for every call, `web/supabase/functions/_shared/stripe.ts`: plain
+`fetch` to the REST API, form encoded, the API version pinned (`STRIPE_API_VERSION`, confirm in the sandbox), a 10 s
+timeout, an `Idempotency-Key` required on every POST, errors classified for the outbox (429, 5xx and network are the
+only retries; `idempotency_error` is held), live mode read from the key prefix (`sk_live_`/`rk_live_`), and field
+access that works on both invoice shapes (`parent.subscription_details` and the older `subscription`). The base URL is
+injectable: tests run against the in-memory fake in `tests/stripe_fake/fake_stripe.ts`, which refuses live keys and
+models Stripe's idempotency (same key and body replays, another body is an `idempotency_error`). No test reaches
+api.stripe.com.
+
 **Every POST carries `Idempotency-Key`**, built as in §8.1 (at most 255 characters, no personal data). A key is reused only to retry the identical request.
 Stripe returns the first result for a repeated key with the same parameters, errors if the parameters differ, and may
 forget keys after 24 hours.
@@ -1266,6 +1308,7 @@ forget keys after 24 hours.
 | `customer.subscription.created`, `.updated` | state only (trialing, active, past_due, cancel at period end); a status alone grants nothing |
 | `customer.subscription.trial_will_end` | our trial reminder (§6.2) |
 | `customer.subscription.deleted` | `cancelled` at period end, or a trial cancel |
+| `customer.subscription.pending_update_expired` | Stripe dropped an unpaid pending upgrade: the confirmed plan change fails, the plan stays (§6.6) |
 | `invoice.created` | add pay as you go to the renewal draft, then 200 quickly (§6.9) |
 | `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined; then the Paid email (§6.11) |
 | `invoice.voided`, `invoice.deleted` | find, **from our own records**, every billing row (main, pending, late, re-bill) and every credit line attached to that invoice id; lock their periods in ascending period id, then in one transaction: each billing row `attached` → `held` with one alert and finance task, each claimed credit line back to open (§6.9). `invoice.voided`: the invoice is fetched first and nothing is done if it was paid. `invoice.deleted`: no fetch (Stripe deletes only drafts, and a deleted invoice may not be retrievable). It acts only if **our** `invoices` row for that id is still `draft`: we record `invoice.created` (draft) and every later status from `invoice.finalized`, `invoice.paid` and `invoice.voided`, and the event's own payload must also say `status: draft`. If our row says finalised or paid, or we have no row, nothing is changed: the event is held with an alert for a person. To be confirmed in the Stripe sandbox with the pinned API version before this goes live. `invoice.voided` for an invoice already emailed also sends the Invoice cancelled email (§6.11) |
@@ -1302,6 +1345,38 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
    owner as edge function secrets on **staging only** (never pasted in chat, code or docs, `NN-2`).
 4. A sandbox webhook endpoint pointing at the staging `billing-webhook`, with the events in §16.5.
 5. After the sandbox proofs (§16.8) and the owner's approval: live keys, live webhook, one pilot business (§14).
+
+**Going live, once the lane F work is applied and deployed (each step needs the owner's approval).** The flows of
+lane F (Checkout, renewals, packs, refunds, cancel, invoices, disputes, billing emails, reconcile, plan changes) are
+built and switched off. Still not built, and not covered by these steps: pay as you go charging (§6.9), switching
+between monthly and yearly, and the owner screens listed as not built in this document. The sandbox proofs of §16.8
+come first, on staging, before any live key. Then these three steps, first on staging with sandbox keys:
+
+1. **Secrets and price IDs.** In Supabase, Edge Functions, Secrets: `STRIPE_SECRET_KEY` (the restricted key of §9;
+   `rk_test_` on staging, `rk_live_` in production) and `STRIPE_WEBHOOK_SECRET` (the endpoint's signing secret from
+   step 2). Plan prices need no IDs: the worker creates a Stripe Product per business and a Price per plan version.
+   Pack prices come from `billing_pack_catalog` and need no IDs either; `STRIPE_API_BASE` stays unset (tests only).
+2. **The webhook.** In Stripe, Developers, Webhooks: add an endpoint at
+   `https://<project>.supabase.co/functions/v1/billing-webhook`, pinned to the API version in
+   `_shared/stripe.ts` (`STRIPE_API_VERSION`), with the events of §16.5. Copy its signing secret into step 1.
+3. **The switch.** In the SQL editor: `select public.zella_payments_switch(true,
+   'https://<project>.supabase.co/functions/v1/billing-worker');`. It sets `payments_live`, saves the worker's
+   address and turns the `zella_billing_worker` job on. `select public.zella_payments_switch(false);` turns it all
+   off again; stored events wait and nothing is lost.
+
+**Defaults chosen pending owner decision (20 Nov 2026).** Where the review found a product choice, the most
+conservative default that matches production today was built (money never moves twice, nothing is charged or refunded
+automatically that wasn't before, the code refuses rather than guesses). The owner decides each before go live:
+1. A downgrade already scheduled at Stripe stays; no other plan change starts until it takes effect (Stripe bills its
+   lower Price) or a person cancels it (`zella_admin_plan_change_cancel`: Stripe releases the schedule first)
+   (`DOWNGRADE_SCHEDULED`). Both are never applied.
+2. Missed events are read from a stored watermark (the last complete scan, less an hour); it moves only when a scan
+   read every page. A scan cut short raises an alert; a longer backfill is a separate, manual step a person approves.
+3. A pack can't be used while its refund is pending: its units are held at approval and freed if the refund fails.
+4. A Checkout session that expires is not paid: the owner starts again and nothing is charged automatically. A session
+   for a plan that changed while it was open is expired at Stripe before a new one opens.
+5. An owner who finished onboarding step 6 while payments were off is not blocked afterwards: switching payments on
+   flags each such business for the owner (alert `onboarding_unpaid_before_live`) and changes no access.
 
 ### 16.8 Sandbox proofs before each flow ships
 

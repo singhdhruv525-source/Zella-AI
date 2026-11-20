@@ -154,3 +154,14 @@ export function authHeaders(h: Headers): Json {
 
 // What the caller of the endpoint is told when the check fails. Nothing more specific: a probe learns nothing.
 export const AUTH_OK = "ok";
+
+// A refused request is counted (COM-09): its message type, the auth header NAMES it carried and the refusal reason;
+// never a value or content. The count is best effort and never waits: the 401 goes back at once whatever happens.
+export const refusalArgs = (type: string, headerNames: string[], reason: unknown) =>
+  ({ p_message_type: String(type).slice(0, 40), p_header_names: headerNames.slice(0, AUTH_HEADERS.length), p_reason: String(reason ?? "").slice(0, 30) });
+export function recordRefusal(record: (args: Record<string, unknown>) => Promise<unknown>, args: Record<string, unknown>): void {
+  let p: Promise<unknown>;
+  try { p = Promise.resolve(record(args)).catch(() => undefined); } catch { return; }
+  // keep the edge runtime alive for the count after the answer is sent, where it can
+  try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(p); } catch { /* not on the edge runtime */ }
+}

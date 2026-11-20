@@ -365,10 +365,12 @@ function unwrap(t) {
   for (;;) {
     t = t.trim();
     if (!t.startsWith("(")) return t;
+    // brackets inside strings don't count (their contents are blanked); the text itself is kept as written
+    const m = maskStrings(t);
     let depth = 0, closes = -1;
-    for (let i = 0; i < t.length; i++) {
-      if (t[i] === "(") depth++;
-      else if (t[i] === ")" && --depth === 0) { closes = i; break; }
+    for (let i = 0; i < m.length; i++) {
+      if (m[i] === "(") depth++;
+      else if (m[i] === ")" && --depth === 0) { closes = i; break; }
     }
     if (closes !== t.length - 1) return t;
     t = t.slice(1, -1);
@@ -674,6 +676,69 @@ export function n8nAlertKinds(raw) {
   return out;
 }
 
+// Edge functions: p_kind given to zella_platform_alert through admin.rpc("zella_platform_alert", { p_kind: "x", ... }).
+// The end results of a value expression: for cond ? a : b (nested, bracketed or not) those of a and b, never cond;
+// a plain string literal gives its text; anything else (a name, a call, a template with a hole) gives null.
+export function valueLeaves(expr, depth = 0) {
+  const t = unwrap(expr);
+  if (depth > 8) return [null];
+  const m = maskStrings(t);
+  let d = 0, q = -1, colon = -1, tern = 0;
+  for (let i = 0; i < m.length; i++) {
+    const c = m[i];
+    if ("([{".includes(c)) d++;
+    else if (")]}".includes(c)) d--;
+    else if (d === 0 && c === "?" && m[i + 1] !== "." && m[i + 1] !== "?" && m[i - 1] !== "?") { if (q < 0) q = i; else if (colon < 0) tern++; }
+    else if (d === 0 && c === ":" && q >= 0 && colon < 0) { if (tern > 0) tern--; else colon = i; }
+  }
+  if (q >= 0 && colon > q) return [...valueLeaves(t.slice(q + 1, colon), depth + 1), ...valueLeaves(t.slice(colon + 1), depth + 1)];
+  const lit = /^(["'])([^"'\\\n]*)\1$/.exec(t.trim()) ?? /^`([^`$\\]*)`$/.exec(t.trim());
+  return [lit ? (lit[2] ?? lit[1]) : null];
+}
+
+export function tsAlertKinds(raw) {
+  const src = stripJsComments(raw);
+  const out = [];
+  const masked = maskStrings(src);
+  const unresolved = (at) => { const line = lineAt(src, at); out.push({ name: `alert kind at line ${line}`, unresolved: true, line }); };
+  for (const m of src.matchAll(/zella_platform_alert["']\s*,\s*/g)) {
+    const at = m.index + m[0].length;
+    // a payload that isn't written here (a variable, a call) can't be read: unresolved, never skipped
+    if (src[at] !== "{") { unresolved(at); continue; }
+    // The payload object, walked to its own closing brace (nested objects and strings skipped), every property of its
+    // own level in order (after { or ,). The key is read bare, quoted or as a computed string (["p_kind"]). The last
+    // p_kind wins, as in JavaScript: its value gives the kinds (every end result of a conditional). A spread after it
+    // (or with no p_kind before it) can change the kind, and a shorthand p_kind can't be read here: unresolved. So is a
+    // payload with no p_kind at all.
+    let depth = 0, kind = null;   // kind: { names, loose, line } of the p_kind that counts so far
+    for (let i = at; i < src.length; i++) {
+      const c = masked[i];
+      if (c === "{" || c === "(" || c === "[") depth++;
+      else if (c === "}" || c === ")" || c === "]") { depth--; if (depth === 0) break; }
+      if (depth !== 1 || (c !== "{" && c !== ",")) continue;
+      const rest = src.slice(i + 1);
+      // a spread, a shorthand p_kind, or a computed key that isn't a plain string may set the kind: unresolved until a
+      // later explicit p_kind (a computed plain string key without escapes, ["p_title"], is known: only ["p_kind"] sets the kind, below)
+      if (/^\s*\.\.\./.test(rest) || /^\s*p_kind\s*[,}]/.test(rest) || (/^\s*\[/.test(rest) && !/^\s*\[\s*(["'])[^"'\n\\]*\1\s*\]\s*:/.test(rest))) {
+        kind = { names: [], loose: true, line: lineAt(src, i + 1) }; continue;
+      }
+      const key = /\s*(?:(["'])(p_kind)\1|(p_kind)\b|\[\s*(["'])p_kind\4\s*\])\s*:\s*/y;
+      key.lastIndex = i + 1;
+      const hit = key.exec(src);
+      if (!hit) continue;
+      const from = i + 1 + hit[0].length;
+      // the value's end results only (each branch of a conditional, nested ones too), never its conditions
+      const leaves = valueLeaves(exprAfter(src, from));
+      const names = leaves.filter((l) => l !== null && /^[a-z][a-z0-9_]*$/.test(l));
+      kind = { names, loose: leaves.some((l) => l === null) || names.length !== leaves.length, line: lineAt(src, from) };
+    }
+    if (!kind) { unresolved(at); continue; }
+    if (kind.loose) out.push({ name: `alert kind at line ${kind.line}`, unresolved: true, line: kind.line });
+    for (const n of kind.names) out.push({ name: n, line: kind.line });
+  }
+  return out;
+}
+
 // The web app: permission names it checks (can("x"), permission: "x", perm: "x", need: "x").
 export function webPermissions(raw) {
   const src = stripJsComments(raw);
@@ -712,6 +777,7 @@ export function inventory(root = ROOT) {
     add("audit", f, tsAuditActions(src));
     add("audit_read", f, tsAuditReads(src));
     add("permission", f, tsPermissions(src));
+    add("alert", f, tsAlertKinds(src));
   }
   for (const f of walk(join(root, "n8n/src"), (n) => n.endsWith(".js"))) add("alert", f, n8nAlertKinds(readFileSync(f, "utf8")));
   for (const f of walk(join(root, "web/src"), (n) => /\.(jsx?|tsx?)$/.test(n))) add("permission", f, webPermissions(readFileSync(f, "utf8")));
