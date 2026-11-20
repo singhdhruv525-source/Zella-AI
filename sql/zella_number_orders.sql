@@ -29,10 +29,12 @@ declare
     "public.zella_actor_audit(uuid,text,text,uuid,uuid,jsonb,jsonb)": "d825b1a4c346740b752802896e7656c9",
     "public.zella_number_order_request(uuid,text,text,uuid,text,text,uuid)": "6b077df156b56b6b2f12e89b926ff295",
     "public.zella_number_order_decide(uuid,uuid,boolean,text)": "6bed4bb76fb04d690d6dba0bcf878556",
-    "public.zella_number_order_claim(uuid,uuid)": "4e834df823bcadf56698873a1221778b",
+    "public.zella_number_order_claim(uuid,uuid)": "5be0217661298653400125c01497dd52",
     "public.zella_number_order_finish(uuid,uuid,text,text,text,text,text)": "2f70695a5cb57a24e454d0c19fbc99ed",
     "public.zella_number_order_cancel(uuid,uuid,text)": "2e3996e7bc6f13664d73e5a476c1abc9",
-    "public.zella_number_orders_list(uuid,integer)": "2bfd73dc45d808eb281915eef75bf426"
+    "public.zella_number_orders_list(uuid,integer)": "2bfd73dc45d808eb281915eef75bf426",
+    "public.zella_number_order_resolve(uuid,uuid,text,text,text,text)": "06f3385235c28d535a1bcf5b26d8a379",
+    "public.zella_number_assign_guard()": "d7a31838b195ac243da4247adb4caca1"
   }';
 begin
   if to_regclass('public.platform_admins') is null or to_regclass('public.audit_logs') is null or to_regclass('public.business_phone_numbers') is null
@@ -161,6 +163,11 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare o public.number_orders;
 begin
   if public.zella_actor_role(p_actor) is distinct from 'zella_owner' then raise exception 'OWNER_REQUIRED'; end if;
+  select * into o from public.number_orders where id = p_id;
+  if o.id is null then raise exception 'NOT_APPROVED'; end if;
+  -- a release is placed only while the number isn't assigned in Zella Voice (the same lock as an assignment)
+  perform pg_advisory_xact_lock(hashtextextended('zella_number:' || o.e164, 0));
+  if o.kind = 'release' and exists (select 1 from public.business_phone_numbers where e164 = o.e164) then raise exception 'RELEASE_IN_USE'; end if;
   update public.number_orders set status = 'placing', updated_at = now()
    where id = p_id and status = 'approved' and decided_by = p_actor returning * into o;
   if o.id is null then raise exception 'NOT_APPROVED'; end if;
@@ -223,15 +230,56 @@ begin
     left join auth.users du on du.id = o.decided_by), '[]'::jsonb);
 end $$;
 
+-- an order waiting for a check is closed with what a Zella Voice owner saw in the provider dashboards; nothing is sent
+-- again (the order can't go back to placing)
+create or replace function public.zella_number_order_resolve(p_actor uuid, p_id uuid, p_outcome text, p_reason text, p_number_id text, p_vapi_id text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare o public.number_orders; v_reason text := left(btrim(coalesce(p_reason, '')), 300); v_was text;
+begin
+  if public.zella_actor_role(p_actor) is distinct from 'zella_owner' then raise exception 'OWNER_REQUIRED'; end if;
+  if length(v_reason) < 3 then raise exception 'REASON_REQUIRED'; end if;
+  if p_outcome is null or p_outcome not in ('completed', 'failed') then raise exception 'INVALID_OUTCOME'; end if;
+  select * into o from public.number_orders where id = p_id for update;
+  if o.id is null then raise exception 'NOT_FOUND'; end if;
+  if o.status <> 'needs_check' then raise exception 'NOT_NEEDS_CHECK'; end if;
+  v_was := o.error;
+  -- the provider's earlier message (kept in the audit below) is replaced by what the owner recorded
+  update public.number_orders set status = p_outcome, error = left('Recorded after a check: ' || v_reason, 500),
+         provider_number_id = coalesce(left(nullif(btrim(coalesce(p_number_id, '')), ''), 100), provider_number_id),
+         vapi_phone_number_id = coalesce(left(nullif(btrim(coalesce(p_vapi_id, '')), ''), 100), vapi_phone_number_id), updated_at = now()
+   where id = o.id returning * into o;
+  perform public.zella_actor_audit(p_actor, 'telephony.number_order_resolved', 'number_order', o.id, o.business_id,
+    jsonb_build_object('status', 'needs_check', 'error', v_was), jsonb_build_object('status', o.status, 'reason', v_reason, 'kind', o.kind, 'e164', o.e164));
+  return to_jsonb(o);
+end $$;
+
+-- every way a number is assigned to a business is refused while a release of that number is open (the same lock as
+-- the claim that places the release)
+create or replace function public.zella_number_assign_guard()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' and new.e164 is not distinct from old.e164 then return new; end if;
+  perform pg_advisory_xact_lock(hashtextextended('zella_number:' || new.e164, 0));
+  if exists (select 1 from public.number_orders where e164 = new.e164 and kind = 'release' and status in ('requested', 'approved', 'placing', 'needs_check')) then
+    raise exception 'NUMBER_RELEASE_OPEN';
+  end if;
+  return new;
+end $$;
+drop trigger if exists zella_number_assign_guard on public.business_phone_numbers;
+create trigger zella_number_assign_guard before insert or update of e164 on public.business_phone_numbers
+  for each row execute function public.zella_number_assign_guard();
+
 revoke all on function public.zella_actor_role(uuid), public.zella_actor_can(uuid, text),
   public.zella_actor_audit(uuid, text, text, uuid, uuid, jsonb, jsonb),
   public.zella_number_order_request(uuid, text, text, uuid, text, text, uuid), public.zella_number_order_decide(uuid, uuid, boolean, text),
   public.zella_number_order_claim(uuid, uuid), public.zella_number_order_finish(uuid, uuid, text, text, text, text, text),
+  public.zella_number_order_resolve(uuid, uuid, text, text, text, text), public.zella_number_assign_guard(),
   public.zella_number_order_cancel(uuid, uuid, text), public.zella_number_orders_list(uuid, integer) from public, anon, authenticated;
 grant execute on function public.zella_actor_role(uuid), public.zella_actor_can(uuid, text),
   public.zella_actor_audit(uuid, text, text, uuid, uuid, jsonb, jsonb),
   public.zella_number_order_request(uuid, text, text, uuid, text, text, uuid), public.zella_number_order_decide(uuid, uuid, boolean, text),
   public.zella_number_order_claim(uuid, uuid), public.zella_number_order_finish(uuid, uuid, text, text, text, text, text),
+  public.zella_number_order_resolve(uuid, uuid, text, text, text, text), public.zella_number_assign_guard(),
   public.zella_number_order_cancel(uuid, uuid, text), public.zella_number_orders_list(uuid, integer) to service_role;
 
 commit;

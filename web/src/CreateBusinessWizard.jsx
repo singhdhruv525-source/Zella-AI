@@ -12,6 +12,7 @@ import { friendlyError } from "./admin/adminOps";
 import { addLeaveGuard } from "./router";
 import { hoursList } from "./automationOptions";
 import { RESUME_AT, WIZARD_STEPS, hasUnsavedChanges, stepProgress } from "./wizardProgress";
+import { duplicateCheck, duplicateState, matchedWords, newCreationKey } from "./businessDuplicates";
 import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
 import PlanStep, { loadPlanInfo } from "./PlanStep";
@@ -1861,6 +1862,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   const [savedKeys, setSavedKeys] = useState(() => new Set());
   const [pending, setPending] = useState(null); // { to: stepIndex | "close" } while asking about unsaved changes
   const busy = useRef(false); // a second click before the first save finishes does nothing
+  // BIZ-14: one creation key for this wizard session, so a retry of the first save never makes a second business
+  const creationKey = useRef(null);
+  if (!creationKey.current) creationKey.current = newCreationKey();
+  const [duplicates, setDuplicates] = useState(null); // possible duplicates found before the draft is made
+  const createAnyway = useRef(false);
   const [planInfo, setPlanInfo] = useState(null);       // the plan's details (billing admins, Plan step only)
   const [planError, setPlanError] = useState("");
   const [planStatus, setPlanStatus] = useState(null);   // whether a plan is saved, no prices: { state, saved, version, error }
@@ -1927,7 +1933,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   // Picking an industry also picks that industry's usual automations. The wording
   // (terminology) follows from the industry on the next save.
   const changeBusiness = (business) =>
-    setError("") || setSetup((current) => {
+    setError("") || setDuplicates(null) || setSetup((current) => {
       if (business.industryId === current.business.industryId) return { ...current, business };
       const industry = industries.find((i) => i.id === business.industryId);
       const cfg = onboardingFor(industry?.slug);
@@ -2013,7 +2019,18 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     const key = STEPS[step].key;
 
     if (key === "business") {
-      const data = await callOwnerFunction("setup_save_business", { businessId, business: setup.business });
+      if (!businessId && !createAnyway.current) {
+        const found = await callOwnerFunction("setup_check_duplicates", { business: setup.business, creationKey: creationKey.current });
+        // a check that couldn't run (not installed yet, or no list back) is said so, never taken as "no duplicates"
+        const check = duplicateCheck(found);
+        if (check === "unchecked") { setDuplicates({ unchecked: true }); return false; }
+        if (check !== "none") {
+          setDuplicates(check);
+          return false;   // not saved: the admin chooses Create anyway or changes the details
+        }
+      }
+      const data = await callOwnerFunction("setup_save_business", { businessId, business: setup.business, creationKey: businessId ? undefined : creationKey.current });
+      setDuplicates(null);
       setBusinessId(data.businessId);
       await reload(data.businessId, false);
       return;
@@ -2103,7 +2120,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     const key = STEPS[step].key;
     try {
       const reloaded = ["business", "owner", "team"].includes(key);
-      await saveCurrentStep();
+      if (await saveCurrentStep() === false) return;
       if (!reloaded) setSaved(onScreen);
       setSavedKeys((keys) => new Set(keys).add(key));
       dirtyRef.current = false;
@@ -2293,6 +2310,33 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} onRetryPlan={reloadPlan} />}
       </div>
 
+      {duplicates && STEPS[step].key === "business" && !businessId && (
+        <div className="wiz-unsaved wiz-duplicates" role="alert">
+          {duplicates.unchecked ? (
+            <>
+              <strong>We couldn't check whether this business is already on Zella Voice.</strong>
+              <p>The duplicate check isn't available right now. Check the businesses list yourself before making it, or try again later.</p>
+            </>
+          ) : (
+            <>
+              <strong>This business may already be on Zella Voice.</strong>
+              <ul>
+                {duplicates.map((d) => (
+                  <li key={d.id}>{d.name}: {matchedWords(d.matched)} ({duplicateState(d)})</li>
+                ))}
+              </ul>
+              <p>Check the businesses list before making another one. If this is a different business, create it anyway.</p>
+            </>
+          )}
+          <div className="wiz-footer-right">
+            <button type="button" className="owner-secondary-button" onClick={() => setDuplicates(null)}>Change details</button>
+            <button type="button" className="owner-primary-button" disabled={saving}
+              onClick={() => { createAnyway.current = true; run(() => setStep(step + 1)); }}>
+              {duplicates.unchecked ? "Create without the check" : "Create anyway"}
+            </button>
+          </div>
+        </div>
+      )}
       {error && <div className="owner-form-error wiz-error" role="alert">{error}</div>}
       {dirty && !error && <div className="wiz-unsaved" role="status">Unsaved changes on this step. Save them before moving on, or they're lost.</div>}
       {pending && (

@@ -93,6 +93,10 @@ srv "select public.zella_retention_switch_set('$OWNER', true, 'For the test')" >
 [[ "$(exe $OWNER $RUNP "Paid Test Salon")" == *EXPORT_OFFER_TOO_RECENT* ]] && ok "refused until 14 days after the export offer" || bad "too recent"
 q "update public.retention_purge_runs set export_offered_at = now() - interval '20 days' where id = '$RUNP'" > /dev/null
 [[ "$(exe $OWNER $RUNP "Paid Test Salon")" == *BILLING_RECORDS_KEPT* ]] && ok "refused while it has payment records (their retention is a legal decision not taken)" || bad "billing"
+q "set session_replication_role = replica; delete from public.payments where business_id = '$PAY';
+   insert into public.billing_periods (id, business_id, business_plan_id, period_start, period_end) values ('e6000000-0000-0000-0000-0000000000b1', '$PAY', gen_random_uuid(), now() - interval '200 days', now() - interval '170 days')" > /dev/null || bad "billing period fixture"
+[[ "$(exe $OWNER $RUNP "Paid Test Salon")" == *BILLING_RECORDS_KEPT* ]] && ok "and while it has billing periods" || bad "billing periods"
+q "set session_replication_role = replica; delete from public.billing_periods where id = 'e6000000-0000-0000-0000-0000000000b1'; insert into public.payments (business_id, amount) values ('$PAY', 10)" > /dev/null
 q "insert into public.business_phone_numbers (business_id, e164, status) values ('$C', '+15550109999', 'paused')" > /dev/null
 [[ "$(exe $OWNER $RUN "Closed Test Salon")" == *NUMBERS_STILL_ASSIGNED* ]] && ok "refused while a phone number is still assigned" || bad "numbers"
 q "delete from public.business_phone_numbers where business_id = '$C'" > /dev/null
@@ -108,10 +112,16 @@ v=$(q "select (select count(*) from public.businesses where id = '$C') || '/' ||
 v=$(q "select user_id || '|' || (old_data ->> 'name') from public.audit_logs where action = 'business.purged' and entity_id = '$C'")
 [ "$v" = "$OWNER|Closed Test Salon" ] && ok "the purge is audited with who ran it and the business's name" || bad "purge audit: $v"
 [ "$(q "select array_to_string(file_paths, ',') from public.retention_purge_runs where id = '$RUN'")" = "brand-assets/$C/logo.png,business-documents/$C/id.png" ] && ok "its storage files, and only its, are handed to the server" || bad "paths"
-[[ "$(srv "select public.zella_business_purge_files_done('$SEC', '$RUN', array['brand-assets/$C/logo.png'], null)")" == *APPROVER_REQUIRED* ]] && ok "only the person who ran it records the files" || bad "files other"
+[[ "$(srv "select public.zella_business_purge_files_done('$RO', '$RUN', array['brand-assets/$C/logo.png'], null)")" == *APPROVER_REQUIRED* ]] && ok "only the person who ran it or an approver records the files" || bad "files other"
+[[ "$(srv "select public.zella_retention_run_files_resume('$OWNER', '$RUN')")" == *BUSINESS_PURGE_SEPARATE* && "$(srv "select public.zella_retention_run_files_done('$OWNER', '$RUN', array['brand-assets/$C/logo.png'], null)")" == *BUSINESS_PURGE_SEPARATE* ]] \
+  && ok "the other purge runs' file functions refuse a business purge" || bad "retention functions on a business run"
+[[ "$(srv "select public.zella_business_purge_files_resume('$OWNER', '$RUN')")" == *REMOVAL_IN_PROGRESS* ]] && ok "a removal can't be resumed while an attempt is in progress" || bad "resume during removal"
+[ "$(srv "select (public.zella_business_purge_files_done('$OWNER', '$RUN', array['brand-assets/$C/logo.png'], 'Storage timed out')) ->> 'status'")" = "failed" ] && ok "a stopped removal is recorded as failed" || bad "files failed"
+[[ "$(srv "select public.zella_business_purge_files_resume('$RO', '$RUN')")" == *APPROVER_REQUIRED* ]] && ok "only the person who ran it or an approver resumes it" || bad "resume other"
+[ "$(srv "select array_to_string(public.zella_business_purge_files_resume('$OWNER', '$RUN'), ',')")" = "business-documents/$C/id.png" ] && ok "resuming hands back only the files still listed" || bad "resume"
 [ "$(srv "select public.zella_business_purge_files_done('$OWNER', '$RUN', array['brand-assets/$C/logo.png', 'business-documents/$C/id.png', 'brand-assets/$A/logo.png'], null) ->> 'files_removed'")" = "2" ] && ok "the removed files are recorded; a path the run didn't list isn't counted" || bad "files done"
 v=$(q "select string_agg(action, ',' order by created_at, action) from public.audit_logs where entity_id = '$RUN'")
-[ "$v" = "business.purge_requested,retention.purge_approved,retention.purge_approved,business.purge_files_removed" ] && ok "every step of the run is audited" || bad "steps: $v"
+[ "$v" = "business.purge_requested,retention.purge_approved,retention.purge_approved,business.purge_files_removed,business.purge_files_removed" ] && ok "every step of the run is audited" || bad "steps: $v"
 [ "$(q "select count(*) from cron.job where command ilike '%purge%'")" = "0" ] && ok "nothing is scheduled" || bad "scheduled"
 for fn in "zella_business_purge_request('$SEC', '$R', now(), 'x', 'Direct')" "zella_business_purge_execute('$OWNER', '$RUNP', 'Paid Test Salon')" "zella_business_purge_files_done('$OWNER', '$RUN', null, null)"; do
   [[ "$(as $OWNER "select public.$fn")" == *"permission denied"* ]] || { bad "a signed in owner could call $fn directly"; continue; }

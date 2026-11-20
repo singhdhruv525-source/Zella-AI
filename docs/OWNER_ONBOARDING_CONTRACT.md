@@ -1,11 +1,13 @@
 # Owner onboarding: the contract between the screens and the server
 
-Status: **version 3, 17 Nov 2026.** Built on branch `claude/owner-onboarding-backend`; nothing is applied to
+Status: **version 5, 17 Nov 2026.** Built on branch `claude/owner-onboarding-backend`; nothing is applied to
 production or deployed. Changes to this contract are listed here, newest first, and are additive unless marked.
 
 | Version | Date | Change |
 |---|---|---|
-| 3 | 17 Nov 2026 | Additive. (a) Each section carries `data_hash`, the fingerprint of the `data` shown; 5.4 takes it as `p_seen_hash`, and Looks right on details that changed since is refused with `DETAILS_CHANGED`. (b) A plan version saved after the owner accepted can be accepted from the plan screen (5.5) while the journey isn't finished; until it is, steps 6 and 7 answer `PLAN_CHANGED`. (c) `zella_activation_report`: for team members other than the owner, the `identity` and `payment` checks are replaced by one check, `owner_setup` ("The owner finished their setup"), so neither result can be told apart; Zella Voice admins with `businesses.view` can read the full report without being members. (e) The identity provider event carries the provider's id for the check (`p_subject`, a Persona inquiry): a declined check counts as one failed try however many declined events describe it. (d) Step 6 and the payment check of the go live gate: the owner's rule and how it changes once Stripe is live (sections 2 and 3). |
+| 5 | 17 Nov 2026 | Additive. (a) Each section carries `data_hash`, the fingerprint of the `data` shown; 5.4 takes it as `p_seen_hash`, and Looks right on details that changed since is refused with `DETAILS_CHANGED`. (b) A plan version saved after the owner accepted can be accepted from the plan screen (5.5) while the journey isn't finished; until it is, steps 6 and 7 answer `PLAN_CHANGED`. (c) `zella_activation_report`: for team members other than the owner, the `identity` and `payment` checks are replaced by one check, `owner_setup` ("The owner finished their setup"), so neither result can be told apart; Zella Voice admins with `businesses.view` can read the full report without being members. (e) The identity provider event carries the provider's id for the check (`p_subject`, a Persona inquiry): a declined check counts as one failed try however many declined events describe it. (d) Step 6 and the payment check of the go live gate: the owner's rule and how it changes once Stripe is live (sections 2 and 3). |
+| 4 | 16 Nov 2026 | Owner decision (`sql/zella_stripe_payment_gate.sql`): `rules.first_payment` is `pay_before_live` only while payments are live; otherwise `not_until_payments_live`, and `payment.required` is `false`: step 6 can be completed without a payment (status stays `waiting`, never `confirmed`) and the go live gate doesn't wait for one. |
+| 3 | 16 Nov 2026 | Additive (lane F, Stripe Checkout, built switched off; `sql/zella_stripe_checkout.sql`): `rules.payments_connected` follows `platform_settings.payments_live`; `payment` gains `due_now_minor` (cents) and `checkout` (`mode` pay or trial, `amount_minor`, `url` while open, `expires_at`, `trial_end_at`), `checkout_available` is true once payments are live and identity is done, and `reason` can be `checkout_not_started`, `checkout_open` or `processing` (back from Stripe, not confirmed yet). New calls through the `billing-api` edge function: `checkout_start` { business_id, idempotency_key } answers { url } (errors `PAYMENTS_NOT_LIVE`, `ALREADY_PAID`, `STEP_LOCKED`, `PLAN_MISSING`, `PLAN_CHANGED`, plus the owner checks), and `checkout_return` { business_id } answers { payment }. `confirmed` now needs a payment bound to our own Stripe Checkout, or under `first_payment` `trial_with_card`, a trial Stripe confirmed. |
 | 2 | 16 Nov 2026 | Additive clarifications, no call or field removed or renamed. (a) `MFA_REQUIRED` can also come from the request check that runs before every database call: HTTP 403 with `code` `42501` and `message` `MFA_REQUIRED`. Always read the code from `message` (section 4). It applies to every owner call, reads included, whenever the owner has a verified authenticator and the session wasn't verified with a code. (b) Owner calls answer `NOT_ALLOWED` for a business that doesn't exist too, so nobody can probe for ids; `NOT_FOUND` comes only from the admin calls. (c) The state also carries `started` (false until the first write) and `resumed_at`. (d) Who can read the progress tables directly: the business's owner and Zella Voice admins with `businesses.view`; no other team member. (e) When the last allowed identity attempt fails, Zella Voice gets an admin alert to review it by hand. |
 | 1 | 16 Nov 2026 | First version. |
 
@@ -78,7 +80,7 @@ The state carries them in `rules`, so the screens can show the right words. Each
 | `first_payment` | `"pay_before_live"` | a confirmed payment is needed before the receptionist goes live. With the payment gate (lane F), it is `"not_until_payments_live"` while payments aren't live: no payment is needed then (the owner's decision of 16 Nov 2026). The other value, `"trial_with_card"`, is not built |
 | `failed_check` | `"retry_then_review"` | after a failed check the owner can try again; after `identity_attempts` failures it goes to manual review |
 | `identity_attempts` | `2` | failed checks allowed before manual review |
-| `payments_connected` | `false` | Stripe Checkout is not built; step 6 shows waiting |
+| `payments_connected` | `false` | follows `platform_settings.payments_live` (version 3): `false` while payments are off, and step 6 shows waiting; `true` once the owner switches payments on, and step 6 opens Stripe Checkout |
 
 ## 4. Error codes
 
@@ -220,8 +222,15 @@ Notes:
 - `plan.available` is false when no plan is saved (then `current` is `null`). `estimate` and margin warnings are never
   sent to the owner.
 - `payment.status`: `locked` (reason `identity_first`: identity isn't verified yet, so checkout can't open),
-  `waiting` (reason `payments_not_connected`), `confirmed`. `checkout_available` stays `false` until Stripe
-  Checkout is built.
+  `waiting`, `confirmed`. While `waiting`, `reason` says why: `payments_not_connected` (payments are off),
+  `checkout_not_started` (no Checkout open: the owner can start one), `checkout_open` (a Checkout is open: its link is
+  in `checkout.url`), `processing` (back from Stripe; the payment isn't confirmed by a verified Stripe event yet).
+- `payment.required` (version 4): `true` only while payments are live and no payment is confirmed yet; while payments
+  are off it is `false` and step 6 can be completed without a payment.
+- `payment.checkout_available` is `true` only when no payment is confirmed, identity is verified and payments are
+  live (`payments_connected`). `payment.checkout` (version 3) is `null` until a Checkout starts, then `mode` (`pay` or
+  `trial`), `amount_minor`, `currency`, `url` (only while the Checkout is open and not expired), `expires_at` and
+  `trial_end_at`. A Checkout that expires is not paid: the owner starts again, nothing is charged automatically.
 - `go_live` is the same checklist as the CRM's AI receptionist page (`zella_activation_report`), including the two
   new checks. Going live itself stays in the CRM (`zella_request_activation`).
 

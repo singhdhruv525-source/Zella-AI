@@ -28,10 +28,11 @@ declare
   mine constant jsonb := '{
     "public.zella_retention_run_request(uuid,text,text)": "5b7a202c8301b7bc61b91027a0a4df21",
     "public.zella_retention_run_approve(uuid,uuid,text)": "eb2ce3685d80968db535e35930b93a93",
-    "public.zella_retention_run_execute(uuid,uuid,text)": "09a572fd21245ac0be0d63ff5e5607dc",
-    "public.zella_retention_run_files_done(uuid,uuid,text[],text)": "77d43f6e7b9907bf50f84584dc5471ac",
+    "public.zella_retention_run_execute(uuid,uuid,text)": "ba48c56b8077b51afb6e7b17f6150fd4",
+    "public.zella_retention_run_files_done(uuid,uuid,text[],text)": "dac2d38238f1817aa8500a152382e6b5",
     "public.zella_retention_run_cancel(uuid,uuid,text)": "f7808954fe2da8c900c77f9c1827fb29",
-    "public.zella_retention_runs(uuid,integer)": "a18b49a1b6d24526ab152d9f4d272f13"
+    "public.zella_retention_runs(uuid,integer)": "64a8d562f80cdf654e0cc185804c58ac",
+    "public.zella_retention_run_files_resume(uuid,uuid)": "2daf163e4a47b309ad52d92c382ec4ec"
   }';
 begin
   if to_regprocedure('public.zella_retention_candidates(text,timestamp with time zone)') is null or to_regclass('public.data_retention_policies') is null then
@@ -76,6 +77,8 @@ create table if not exists public.retention_purge_runs (
   updated_at timestamptz not null default now(),
   check (owner_approved_by is null or second_approved_by is null or owner_approved_by <> second_approved_by)
 );
+-- every listed file the server has confirmed gone (removed now or already absent), so a stopped removal can be finished
+alter table public.retention_purge_runs add column if not exists removed_paths text[] not null default '{}';
 create unique index if not exists retention_purge_runs_one_open on public.retention_purge_runs (data_class, coalesce(business_id, '00000000-0000-0000-0000-000000000000'::uuid))
   where status in ('requested', 'approved', 'running', 'files_pending');
 alter table public.retention_purge_runs enable row level security;
@@ -153,10 +156,14 @@ begin
   if p.legal_status <> 'approved' then raise exception 'LEGAL_REVIEW_PENDING'; end if;
   if coalesce(btrim(p_confirm), '') <> 'PURGE ' || r.item_count then raise exception 'CONFIRM_MISMATCH'; end if;
   update public.retention_purge_runs set status = 'running', executed_by = p_actor, executed_at = now(), updated_at = now() where id = r.id;
+  -- legal holds are placed and released under the same lock, so a hold can't land between this read and the removal
+  perform pg_advisory_xact_lock(hashtextextended('zella_legal_holds', 0));
 
-  -- only the rows listed when the run was asked for that are still past their period and not on hold
+  -- only the rows listed when the run was asked for that are still past their period (the earlier of the approved
+  -- cutoff and the cutoff of the period as it is now, so a longer period never removes a row it now keeps) and not on
+  -- hold
   select coalesce(jsonb_agg(jsonb_build_object('source', c.source, 'id', c.row_id)), '[]'::jsonb) into v_now
-    from public.zella_retention_candidates(r.data_class, r.cutoff) c
+    from public.zella_retention_candidates(r.data_class, least(r.cutoff, now() - make_interval(days => p.days))) c
    where exists (select 1 from jsonb_array_elements(r.items) i where i ->> 'source' = c.source and (i ->> 'id')::uuid = c.row_id);
 
   if r.data_class = 'call_recordings' then
@@ -188,23 +195,69 @@ end $$;
 -- The server removed the document files from storage: record which, so the dry run doesn't list them again.
 create or replace function public.zella_retention_run_files_done(p_actor uuid, p_run uuid, p_removed text[], p_error text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare r public.retention_purge_runs; v_n int;
+declare r public.retention_purge_runs; v_new int; v_total int; v_listed int;
 begin
   select * into r from public.retention_purge_runs where id = p_run for update;
   if r.id is null then raise exception 'NOT_FOUND'; end if;
-  if r.status <> 'files_pending' then raise exception 'NOT_RUNNING'; end if;
-  if p_actor is distinct from r.executed_by then raise exception 'APPROVER_REQUIRED'; end if;
+  if r.data_class = 'cancelled_business' or r.business_id is not null then raise exception 'BUSINESS_PURGE_SEPARATE'; end if;
+  -- only the attempt in progress reports (execute, or files_resume after a stop); a late report once the run was
+  -- recorded as failed changes nothing
+  if r.status <> 'files_pending' or r.executed_at is null then raise exception 'NOT_RUNNING'; end if;
+  if p_actor is null or not coalesce(p_actor = any (array_remove(array[r.executed_by, r.owner_approved_by, r.second_approved_by], null)), false) then
+    raise exception 'APPROVER_REQUIRED';
+  end if;
+  if not public.zella_actor_can(p_actor, 'security.manage') then raise exception 'NOT_ALLOWED'; end if;
   insert into public.retention_removed_files (document_id, file_path, run_id)
   select d.id, d.file_path, r.id from public.business_verification_documents d
    where d.file_path = any (r.file_paths) and d.file_path = any (coalesce(p_removed, '{}'))
   on conflict (document_id) do nothing;
-  get diagnostics v_n = row_count;
-  update public.retention_purge_runs set status = case when p_error is null and v_n = coalesce(array_length(r.file_paths, 1), 0) then 'done' else 'failed' end,
-         files_removed = v_n, removed_count = v_n, error = left(p_error, 500), updated_at = now()
+  get diagnostics v_new = row_count;
+  v_listed := coalesce(array_length(r.file_paths, 1), 0);
+  update public.retention_purge_runs
+     set removed_paths = (select coalesce(array_agg(distinct x order by x), '{}') from unnest(removed_paths || array(
+                            select f from unnest(r.file_paths) f where f = any (coalesce(p_removed, '{}')))) x),
+         updated_at = now()
+   where id = r.id returning * into r;
+  v_total := coalesce(array_length(r.removed_paths, 1), 0);
+  update public.retention_purge_runs set status = case when p_error is null and v_total = v_listed then 'done' else 'failed' end,
+         files_removed = v_total, removed_count = v_total, error = left(p_error, 500), updated_at = now()
    where id = r.id returning * into r;
   perform public.zella_actor_audit(p_actor, 'retention.purge_files_removed', 'retention_purge_run', r.id, null, null,
-    jsonb_build_object('data_class', r.data_class, 'files_removed', v_n, 'files_listed', coalesce(array_length(r.file_paths, 1), 0), 'error', r.error));
+    jsonb_build_object('data_class', r.data_class, 'files_removed_now', v_new, 'files_removed', v_total, 'files_listed', v_listed, 'error', r.error));
   return to_jsonb(r) - 'items';
+end $$;
+
+-- resume a stopped file removal. One attempt at a time: refused (REMOVAL_IN_PROGRESS) while the run is files_pending
+-- and was last changed less than 10 minutes ago, longer than any request to the server can run, so an earlier attempt
+-- has ended before another starts. The same rules as execute apply again now: the purge switch on, the period still
+-- legally approved, and only files of documents still past their period (the earlier of the approved cutoff and the
+-- current period) and not on a legal hold. The run goes back to files_pending, so no hold can be placed for a business
+-- whose files it lists until the attempt reports through files_done.
+create or replace function public.zella_retention_run_files_resume(p_actor uuid, p_run uuid)
+returns text[] language plpgsql security definer set search_path = public as $$
+declare r public.retention_purge_runs; p public.data_retention_policies;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('zella_legal_holds', 0));
+  select * into r from public.retention_purge_runs where id = p_run for update;
+  if r.id is null then raise exception 'NOT_FOUND'; end if;
+  if r.data_class = 'cancelled_business' or r.business_id is not null then raise exception 'BUSINESS_PURGE_SEPARATE'; end if;
+  if r.status not in ('files_pending', 'failed') or r.executed_at is null then raise exception 'NOT_RUNNING'; end if;
+  if p_actor is null or not coalesce(p_actor = any (array_remove(array[r.executed_by, r.owner_approved_by, r.second_approved_by], null)), false) then
+    raise exception 'APPROVER_REQUIRED';
+  end if;
+  if not public.zella_actor_can(p_actor, 'security.manage') then raise exception 'NOT_ALLOWED'; end if;
+  if r.status = 'files_pending' and r.updated_at > now() - interval '10 minutes' then raise exception 'REMOVAL_IN_PROGRESS'; end if;
+  if not coalesce((select value = 'true'::jsonb from public.platform_settings where key = 'retention_purge_enabled'), false) then
+    raise exception 'PURGE_SWITCHED_OFF';
+  end if;
+  select * into p from public.data_retention_policies where data_class = r.data_class;
+  if p.legal_status is distinct from 'approved' then raise exception 'LEGAL_REVIEW_PENDING'; end if;
+  update public.retention_purge_runs set status = 'files_pending', updated_at = now() where id = r.id;
+  return array(select d.file_path from public.business_verification_documents d
+                where d.file_path = any (r.file_paths) and not (d.file_path = any (r.removed_paths))
+                  and d.id in (select c.row_id from public.zella_retention_candidates(r.data_class, least(r.cutoff, now() - make_interval(days => p.days))) c
+                                where c.source = 'business_verification_documents')
+                order by d.file_path);
 end $$;
 
 create or replace function public.zella_retention_run_cancel(p_actor uuid, p_run uuid, p_reason text)
@@ -229,15 +282,18 @@ begin
       'requested_by_email', (select email from auth.users where id = r.requested_by),
       'owner_approved_by_email', (select email from auth.users where id = r.owner_approved_by),
       'second_approved_by_email', (select email from auth.users where id = r.second_approved_by),
-      'business_name', (select name from public.businesses where id = r.business_id)) order by r.created_at desc)
+      'business_name', (select name from public.businesses where id = r.business_id),
+      'files_left', (select count(*) from unnest(r.file_paths) f where not (f = any (r.removed_paths)))) order by r.created_at desc)
     from (select * from public.retention_purge_runs order by created_at desc limit least(greatest(coalesce(p_limit, 50), 1), 200)) r), '[]'::jsonb);
 end $$;
 
 revoke all on function public.zella_retention_run_request(uuid, text, text), public.zella_retention_run_approve(uuid, uuid, text),
   public.zella_retention_run_execute(uuid, uuid, text), public.zella_retention_run_files_done(uuid, uuid, text[], text),
-  public.zella_retention_run_cancel(uuid, uuid, text), public.zella_retention_runs(uuid, integer) from public, anon, authenticated;
+  public.zella_retention_run_cancel(uuid, uuid, text), public.zella_retention_runs(uuid, integer),
+  public.zella_retention_run_files_resume(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.zella_retention_run_request(uuid, text, text), public.zella_retention_run_approve(uuid, uuid, text),
   public.zella_retention_run_execute(uuid, uuid, text), public.zella_retention_run_files_done(uuid, uuid, text[], text),
-  public.zella_retention_run_cancel(uuid, uuid, text), public.zella_retention_runs(uuid, integer) to service_role;
+  public.zella_retention_run_cancel(uuid, uuid, text), public.zella_retention_runs(uuid, integer),
+  public.zella_retention_run_files_resume(uuid, uuid) to service_role;
 
 commit;

@@ -79,8 +79,8 @@ out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_recording_policy_rollback.sq
 [ "$(legal $OWNER false "" "Clearing for the rollback")" = "false" ] || bad "clear"
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_number_orders_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "the number orders rollback refuses while this file uses its helpers" || bad "orders rollback: $out"
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_recording_policy_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_recording_policy_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-v=$(q "select to_regclass('public.business_recording_policies') is null and to_regprocedure('public.zella_recording_effective(uuid)') is null and not exists (select 1 from public.platform_settings where key like 'recording%') and not exists (select 1 from pg_trigger where tgname = 'zella_recording_setting_guard')")
-[ "$v" = "t" ] && ok "rollback removes the table, guards, functions and settings" || bad "leftovers"
+v=$(q "select to_regclass('public.business_recording_policies') is not null and exists (select 1 from public.business_recording_policies) and not exists (select 1 from pg_trigger where tgname = 'zella_recording_policy_guard') and to_regprocedure('public.zella_recording_effective(uuid)') is null and not exists (select 1 from public.platform_settings where key like 'recording%') and not exists (select 1 from pg_trigger where tgname = 'zella_recording_setting_guard')")
+[ "$v" = "t" ] && ok "rollback removes the guards, functions and settings, and keeps every business policy" || bad "leftovers"
 [ "$(q "select count(*) from public.audit_logs where action in ('business.recording_policy_set', 'platform.recording_legal_set')")" = "5" ] && ok "the audit trail survives the rollback" || bad "audit lost"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_recording_policy.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_recording_effective(p_business uuid) returns boolean language sql as \$f\$ select true \$f\$" > /dev/null

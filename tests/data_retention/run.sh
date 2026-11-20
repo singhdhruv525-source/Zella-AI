@@ -37,6 +37,9 @@ q "insert into auth.users (id, email, email_confirmed_at) values ('$OWNER', 'own
      ('e4000000-0000-0000-0000-00000000ca04', '$H', 'inbound', 'completed', now() - interval '100 days', now() - interval '100 days', 'https://rec.test/4', 'Held transcript');
    insert into public.sms_messages (id, business_id, direction, message_body, created_at) values
      ('e4000000-0000-0000-0000-00000000aa01', '$A', 'outbound', 'Old text', now() - interval '800 days'), ('e4000000-0000-0000-0000-00000000aa02', '$A', 'outbound', 'New text', now() - interval '10 days');
+   insert into public.conversations (id, business_id, channel, status, last_message_at) values ('e4000000-0000-0000-0000-00000000cc01', '$A', 'sms', 'open', now() - interval '800 days');
+   insert into public.conversation_messages (id, conversation_id, sender_type, message_type, content, created_at) values
+     ('e4000000-0000-0000-0000-00000000c301', 'e4000000-0000-0000-0000-00000000cc01', 'customer', 'text', 'Old conversation message', now() - interval '800 days');
    insert into public.email_messages (id, business_id, direction, body_text, created_at) values ('e4000000-0000-0000-0000-00000000ee01', '$A', 'outbound', 'Old email', now() - interval '800 days');
    insert into public.audit_logs (id, business_id, action, created_at) values ('e4000000-0000-0000-0000-00000000ad01', null, 'test.old', now() - interval '3000 days'),
      ('e4000000-0000-0000-0000-00000000ad02', '$A', 'test.recent', now() - interval '30 days');
@@ -51,7 +54,8 @@ as() { local role=authenticated; [ -z "$1" ] && role=anon
 prev() { srv "select public.zella_retention_preview('$RO', '$1', 50) ${2:-}"; }
 fp() { q "select md5(string_agg(t, '|' order by t)) from (select md5(c::text) t from public.calls c union all select md5(s::text) from public.sms_messages s
           union all select md5(e::text) from public.email_messages e union all select md5(d::text) from public.business_verification_documents d
-          union all select md5(a::text) from public.audit_logs a where action like 'test.%') x"; }
+          union all select md5(m::text) from public.conversation_messages m
+          union all select md5(a::text) from public.audit_logs a where a.created_at <= '$T0'::timestamptz) x"; }
 
 v=$(q "select to_regclass('public.data_retention_policies') is null and to_regprocedure('public.zella_retention_preview(uuid,text,integer)') is null")
 [ "$v" = "t" ] && ok "before: there is one retention period and nothing lists what is past it (the gap)" || bad "before: $v"
@@ -64,13 +68,14 @@ v=$(q "select string_agg(data_class || '=' || days, ',' order by data_class) || 
 [ "$(srv "select public.zella_retention_overview('$RO') ->> 'scheduled'")" = "false" ] && ok "nothing is scheduled" || bad "scheduled"
 [ "$(q "select count(*) from cron.job where command ilike '%retention%' or jobname ilike '%purge%'")" = "0" ] && ok "and no job runs it" || bad "cron job"
 
-before=$(fp)
+T0=$(q "select clock_timestamp()"); before=$(fp)
 [ "$(prev call_recordings "->> 'count'")" = "3" ] && [ "$(prev call_recordings "-> 'sample' -> 2 ->> 'id'")" = "e4000000-0000-0000-0000-00000000ca02" ] && ok "recordings: only calls older than 30 days, oldest first" || bad "recordings: $(prev call_recordings)"
 [ "$(prev call_transcripts "->> 'count'")" = "2" ] && ok "transcripts: only the ones older than 90 days" || bad "transcripts: $(prev call_transcripts "->> 'count'")"
-q "insert into public.calls (business_id, direction, status, created_at, ended_at, transcript) values ('$A', 'inbound', 'completed', now() - interval '300 days', now() - interval '300 days', 'Removed under the retention policy.')" > /dev/null
+q "insert into public.calls (id, business_id, direction, status, created_at, ended_at, transcript) values ('e4000000-0000-0000-0000-00000000ca09', '$A', 'inbound', 'completed', now() - interval '300 days', now() - interval '300 days', 'Removed under the retention policy.')" > /dev/null || bad "the removed transcript fixture"
+[ "$(q "select count(*) from public.calls where id = 'e4000000-0000-0000-0000-00000000ca09'")" = "1" ] || bad "removed transcript fixture missing"
 [ "$(prev call_transcripts "->> 'count'")" = "2" ] && ok "a transcript already removed under retention isn't listed again" || bad "marker listed"
-q "delete from public.calls where transcript = 'Removed under the retention policy.'" > /dev/null
-[ "$(prev message_bodies "->> 'by_source'")" = '{"sms_messages": 1, "email_messages": 1}' ] && ok "message bodies: the old text and email, not the new text" || bad "bodies: $(prev message_bodies "->> 'by_source'")"
+q "delete from public.calls where id = 'e4000000-0000-0000-0000-00000000ca09'" > /dev/null
+[ "$(prev message_bodies "->> 'by_source'")" = '{"sms_messages": 1, "email_messages": 1, "conversation_messages": 1}' ] && ok "message bodies: the old text, email and conversation message, not the new text" || bad "bodies: $(prev message_bodies "->> 'by_source'")"
 [ "$(prev audit_logs "->> 'count'")" = "1" ] && ok "audit logs: only rows older than 7 years" || bad "audit: $(prev audit_logs "->> 'count'")"
 [ "$(prev documents_replaced "-> 'sample' -> 0 ->> 'id'")" = "e4000000-0000-0000-0000-00000000d001" ] && ok "replaced documents: the copy replaced 40 days ago" || bad "replaced"
 [ "$(prev documents_owner_id_verified "->> 'count'")" = "1" ] && ok "owner identity files: verified more than 90 days ago only" || bad "owner id"
@@ -80,7 +85,7 @@ q "insert into public.retention_removed_files (document_id, file_path) values ('
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_data_retention_rollback.sql" 2>&1); [[ "$out" == *"files were removed"* ]] && ok "the rollback refuses once files were removed (their record would be lost)" || bad "rollback with removed files: $out"
 q "delete from public.retention_removed_files" > /dev/null
 [ "$(prev cancelled_business "->> 'count'")" = "0" ] && ok "the cancelled business itself waits for its retention date too (retention_days, 90 days)" || bad "cancelled business: $(prev cancelled_business "->> 'count'")"
-v=$(prev call_transcripts "::text"); [[ "$v" != *"transcript text"* && "$v" != *"rec.test"* ]] && ok "the dry run never returns content" || bad "content leaked: $v"
+v=$(prev call_transcripts "::text"); [[ "$v" == *e4000000-0000-0000-0000-00000000ca01* && "$v" != *ERROR* && "$v" != *"transcript text"* && "$v" != *"rec.test"* ]] && ok "the dry run never returns content" || bad "content leaked: $v"
 [[ "$(srv "select public.zella_retention_preview('$MEMBER', 'call_recordings', 5)")" == *NOT_ALLOWED* ]] && ok "someone who isn't an admin can't run the dry run" || bad "member preview"
 [[ "$(prev nonsense)" == *UNKNOWN_CLASS* ]] && ok "an unknown kind of data is refused" || bad "unknown class"
 
@@ -99,6 +104,7 @@ HOLD=$(srv "select public.zella_legal_hold_place('$SEC', '$H', 'Counsel asked to
 [[ "$(srv "select public.zella_retention_policy_set('$SEC', 'call_recordings', 30, 'approved', 'Counsel approved')")" == *OWNER_REQUIRED* ]] && ok "only a Zella Voice owner changes a period or its legal status" || bad "sec policy"
 [[ "$(srv "select public.zella_retention_policy_set('$OWNER', 'call_recordings', 0, 'approved', 'Counsel approved')")" == *INVALID_DAYS* ]] && ok "a period is 1 day or more" || bad "days"
 [[ "$(srv "select public.zella_retention_policy_set('$OWNER', 'call_recordings', 30, 'done', 'Counsel approved')")" == *INVALID_STATUS* ]] && ok "the legal status is pending or approved" || bad "status"
+[[ "$(srv "select public.zella_retention_policy_set('$OWNER', 'call_recordings', 30, null, 'Counsel approved')")" == *INVALID_STATUS* ]] && ok "and can't be left out" || bad "null status"
 [ "$(srv "select public.zella_retention_policy_set('$OWNER', 'call_transcripts', 120, 'pending_legal_review', 'Counsel asked for longer') ->> 'days'")" = "120" ] && ok "the owner changes a period" || bad "policy set"
 [ "$(prev call_transcripts "->> 'count'")" = "0" ] && ok "and the dry run follows it" || bad "after change"
 [[ "$(srv "update public.platform_settings set value = 'true' where key = 'retention_purge_enabled'")" == *RETENTION_SWITCH_OWNER_ONLY* ]] && ok "the purge switch can't be changed directly, even by the server" || bad "direct switch"
@@ -119,8 +125,8 @@ srv "select public.zella_legal_hold_release('$OWNER', '$HOLD', 'Counsel released
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_data_retention_rollback.sql" 2>&1); [[ "$out" == *"changed a retention period"* ]] && ok "the rollback refuses while an owner's period would be lost" || bad "rollback with change: $out"
 srv "select public.zella_retention_policy_set('$OWNER', 'call_transcripts', 90, 'pending_legal_review', 'Back to the proposal')" > /dev/null
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_data_retention_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_data_retention_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-v=$(q "select to_regclass('public.data_retention_policies') is null and to_regclass('public.legal_holds') is null and to_regprocedure('public.zella_retention_preview(uuid,text,integer)') is null and not exists (select 1 from public.platform_settings where key = 'retention_purge_enabled') and not exists (select 1 from pg_trigger where tgname = 'zella_retention_setting_guard')")
-[ "$v" = "t" ] && ok "rollback removes the tables, functions, guard and switch" || bad "leftovers"
+v=$(q "select to_regclass('public.data_retention_policies') is not null and exists (select 1 from public.legal_holds where id = '$HOLD') and to_regprocedure('public.zella_retention_preview(uuid,text,integer)') is null and not exists (select 1 from public.platform_settings where key = 'retention_purge_enabled') and not exists (select 1 from pg_trigger where tgname = 'zella_retention_setting_guard')")
+[ "$v" = "t" ] && ok "rollback removes the functions, guard and switch, and keeps the policies and holds" || bad "leftovers"
 [ "$(fp)" = "$before" ] && ok "and leaves every call, message, document and audit row as it was" || bad "rows changed by rollback"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_data_retention.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_retention_on_hold(p_business uuid) returns boolean language sql as \$f\$ select false \$f\$" > /dev/null

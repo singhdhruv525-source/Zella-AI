@@ -130,8 +130,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // `destination` of type "number" transfers at once without an assistant (ServerMessageResponseAssistantRequestDestination).
 const E164 = /^\+[1-9][0-9]{7,14}$/;
 export const FORWARD_MESSAGE = "Connecting you now.";
+// Minutes used up (or unknown) with no number to forward to, or the business's limit on calls at the same time
+// (sql/zella_call_limits.sql): Vapi says this and ends the call (owner's wording, 18 Nov 2026).
+export const CLOSED_MESSAGE = "Sorry, we can't take your call right now. Please try again later.";
 export function assistantReply(ok: boolean, d: unknown): Json {
   const r = obj(d);
+  if (ok && r.outcome === "closed") return { error: CLOSED_MESSAGE };
   if (ok && r.outcome === "forward" && typeof r.forward_number === "string" && E164.test(r.forward_number)) {
     return { destination: { type: "number", number: r.forward_number, message: FORWARD_MESSAGE } };
   }
@@ -150,3 +154,14 @@ export function authHeaders(h: Headers): Json {
 
 // What the caller of the endpoint is told when the check fails. Nothing more specific: a probe learns nothing.
 export const AUTH_OK = "ok";
+
+// A refused request is counted (COM-09): its message type, the auth header NAMES it carried and the refusal reason;
+// never a value or content. The count is best effort and never waits: the 401 goes back at once whatever happens.
+export const refusalArgs = (type: string, headerNames: string[], reason: unknown) =>
+  ({ p_message_type: String(type).slice(0, 40), p_header_names: headerNames.slice(0, AUTH_HEADERS.length), p_reason: String(reason ?? "").slice(0, 30) });
+export function recordRefusal(record: (args: Record<string, unknown>) => Promise<unknown>, args: Record<string, unknown>): void {
+  let p: Promise<unknown>;
+  try { p = Promise.resolve(record(args)).catch(() => undefined); } catch { return; }
+  // keep the edge runtime alive for the count after the answer is sent, where it can
+  try { (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(p); } catch { /* not on the edge runtime */ }
+}

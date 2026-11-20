@@ -103,7 +103,7 @@ function registry() {
       page("audit", "Security audit", (c) => <P.SecurityAudit onNavigate={c.onNavigate} />, "audit log"),
     ] },
     { key: "alerts", label: "Notifications and alerts", icon: "alerts", items: [
-      page("rules", "Alert rules", () => <P.AlertRules />, "severity escalation"),
+      page("rules", "Alert rules", (c) => <P.AlertRules me={c.me} />, "severity escalation quiet hours"),
       page("channels", "Notification channels", () => <P.NotificationChannels />, "email in app"),
       page("history", "Notification history", (c) => <P.NotificationHistory me={c.me} />, "acknowledge resolve"),
     ] },
@@ -114,7 +114,7 @@ function registry() {
     ] },
     { key: "analytics", label: "Analytics and reporting", icon: "analytics", items: [
       page("global", "Global analytics", () => <P.GlobalAnalytics />, "growth revenue usage retention"),
-      page("reporting", "Reporting configuration", () => <P.ReportingConfig />, "scheduled reports"),
+      page("reporting", "Reporting configuration", (c) => <P.ReportingConfig me={c.me} />, "scheduled reports weekly platform report summary"),
       page("quality", "Data quality", () => <P.DataQuality />, "duplicates unmatched"),
     ] },
     { key: "legal", label: "Legal, policy and documents", icon: "legal", items: [

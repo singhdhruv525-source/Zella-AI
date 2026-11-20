@@ -13,7 +13,7 @@ export const BRAIN_TOOLS = TOOLS;
 export const BOOKING_TOOLS = ['check_availability', 'book_appointment', 'find_my_appointments', 'reschedule_appointment', 'cancel_appointment'];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STRINGS = ['query', 'appointment_id', 'date', 'start', 'first_name', 'last_name', 'phone', 'email', 'title', 'notes', 'name', 'message',
-  'preferred_contact_method', 'reason', 'when', 'summary', 'question', 'order_number', 'seating'];
+  'preferred_contact_method', 'reason', 'when', 'summary', 'question', 'order_number', 'seating', 'confirmation_code'];
 const NUMBERS = ['days', 'duration_minutes', 'party_size'];
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const o = (v) => (isObj(v) ? v : {});
@@ -60,6 +60,8 @@ function invalidField(clean) {
   if (clean.email !== undefined && clean.email.length > 200) return 'email is too long';
   if (clean.party_size !== undefined && !(Number.isInteger(clean.party_size) && clean.party_size >= 1 && clean.party_size <= 999)) return 'party_size must be a whole number of people from 1 to 999';
   if (clean.seating !== undefined && clean.seating.length > 40) return 'seating must be a short preference, e.g. patio';
+  // the database reads the spoken code (spaces, dashes and case are ignored) and counts a wrong one
+  if (clean.confirmation_code !== undefined && clean.confirmation_code.length > 40) return 'confirmation_code must be the 6 character code only, e.g. K7Q2MP';
   if (clean.order_number !== undefined && !/^#?[A-Za-z0-9-]{1,30}$/.test(clean.order_number)) return 'order_number must be the order number only, e.g. 1001';
   return null;
 }

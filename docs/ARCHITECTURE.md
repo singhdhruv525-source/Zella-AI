@@ -323,7 +323,9 @@ Every access is checked **in the database**, against the business that owns the 
 | Platform staff | — | platform permission + MFA + audited admin function |
 
 - **REQ-ID-01** Changing or cancelling a booking, or hearing appointment details by phone, needs more than caller ID
-  [D-18].
+  [D-18, decided 18 Nov 2026]: hearing details needs the name on the booking and its date from the number it was made
+  with; cancelling or moving needs the booking's confirmation code; three failed checks per call, then only a message;
+  a caller's new email or phone for a customer on file waits for the team (`sql/zella_caller_verification.sql`).
 - **REQ-ISO-01** Removing a member, suspending a business or changing a role takes effect on the **next request**:
   sessions are re-checked against membership on every call, and open work items re-check business status at claim
   time.
@@ -934,7 +936,7 @@ flowchart LR
 | **10.11 Knowledge** | REQ-LC-11: §16. Activation requires a minimum knowledge set [D-24]. |
 | **10.12 Services, hours, prices, booking rules** | REQ-LC-12: services (duration, price **entered by the business**, buffers, resources, staff), opening hours, holidays, closures, notice and horizon, approval-required bookings. |
 | **10.13 Provider connections** | REQ-LC-13: calendar (Google, Microsoft), lead sources, store (Shopify), reviews. OAuth with signed state; health checks; reconnect prompts. |
-| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. Owner onboarding (REQ-LC-21) adds two checks that `zella_activation_report` shows and `zella_request_activation` checks again itself: **owner identity verified** and **first payment confirmed** (a provider confirmed payment record, under the default "pay before going live"). Built, not applied. (As built here the payment check always waits for a confirmed payment; making it wait only once Stripe is live is the lane F payment gate change.) **Pay before go live (owner, 16 Nov 2026):** once Stripe is live, the first payment must also be confirmed before the business goes live (REQ-BIL-29). Until Stripe is live the go live gate doesn't wait for payment. Whether a business on a trial goes live on its confirmed saved card trial setup (REQ-BIL-12) instead of a first payment is still waiting on the owner (`docs/MEMORY.md`). |
+| **10.14 Testing and activation** | REQ-LC-14: an activation checklist the server computes. Each item must pass before the business goes live: hours, at least one service or "no bookings", knowledge minimum, number routed, test inbound call answered and recorded, test message (dry run), transfer number verified, owner sign-off. Results are stored in `activation_tests`. Owner onboarding (REQ-LC-21) adds two checks that `zella_activation_report` shows and `zella_request_activation` checks again itself: **owner identity verified** and **first payment confirmed** (a confirmed Stripe payment bound to the business's own Checkout, never just any payment record). Built, not applied. (The payment check waits for a confirmed payment only while payments are live, the lane F payment gate, F-13.) **Pay before go live (owner, 16 Nov 2026):** while `payments_live` is on, the gate requires a confirmed Stripe payment bound to the business before it goes live (REQ-BIL-29); while the switch is off, the gate doesn't require a payment. An owner who finished the payment step while payments were off is not blocked afterwards and is flagged for the owner (default chosen pending owner decision). Whether a business on a trial goes live on its confirmed saved card trial setup (REQ-BIL-12) instead of a first payment is still waiting on the owner (`docs/MEMORY.md`). |
 | **10.15–10.18 CRM, admin, billing, reports** | §18, §17, REQ-RPT below |
 | **10.19 Support and incidents** | REQ-LC-19: in-app support requests, tickets linked to the business, audited support access, incident status page, notification of affected businesses. |
 | **10.20 Pause, cancel, export, retention, offboarding** | REQ-LC-20: there is **no pause** (D-25); the owner can schedule cancellation (signed "continue my plan" link), export everything (CSV/JSON + files), and data is deleted on the retention schedule after cancellation. All steps audited. |
@@ -1267,6 +1269,7 @@ Every attempt stores:
 | Callback reminder | staff, before due | internal | in-app, email, SMS | before due | done | — |
 | Staff notification | needs a person, escalation, new lead | internal | per member preference | immediately | read | — |
 | Business reports | schedule | internal | email | 08:00 local / weekly | — | — |
+| Weekly platform report (Zella Voice admins) | schedule | internal | in app alert; admin email digest once email is live | Mondays 08:00 UTC, for the week before, once | never; one report per week | figures in Settings, `reports.view` |
 | Integration disconnected | health | internal | email + in-app | immediately, then daily | reconnected | — |
 | Billing notifications | payment events | internal | email | immediately | paid | — |
 | Knowledge notices | gaps, conflicts | internal | email + in-app | weekly | resolved | — |
@@ -1749,6 +1752,54 @@ Owner decisions of 16 Nov 2026 on platform admin pages (§23.1a):
   (Create Business step 5, industry presets in REQ-ADM-17).
 - **Weekly platform summary report for Zella Voice admins: yes.** Being built in `claude/weekly-admin-report`.
 
+**REQ-ADM-02 detail data (one business):** `business_detail` (`owner-provision-business/detail.ts`) returns, beside the
+setup data: the server's readiness ladder (`zella_business_readiness`), the latest plan (prices only with
+`billing.view`), this period's balances from `billing_periods` and `allowance_buckets` (never
+`zella_billing_overview`, which can open a period: opening the page writes nothing), the business's numbers (20),
+unresolved alerts (10 and a count), the go live checklist (`zella_activation_report` and the latest test call, with
+`businesses.manage`), call routing worked out like `zella_admin_routing_get`, what calls get
+(`zella_assistant_delivery_status`, the 10 latest deliveries without caller data, 7 day not ready counts), each
+member's last sign in and two step status (with `businesses.manage`), the activity total (with `audit.view`) and the
+shared connection state (`zella_business_connections`, lane C's one definition of connected and live). Each
+part reports `available: false` on its own when its table or function is missing, so one card never fails the page.
+
+**REQ-ADM-02 audit rows (BIZ-17):** every setup and lifecycle action on a business records the state before
+(`old_data`) and after (`new_data`). A business's contact fields are recorded by name only (`contact_fields_changed`)
+and people's emails masked. Receptionist edits record `config_hash` before and after (what calls got; edits apply to
+the next call, COM-04 option B). The before values travel to the audit builder on a Symbol key, which JSON leaves out,
+so they never reach the browser. A failed audit write never undoes the action (it has already happened): it raises an
+urgent `audit_write_failed` platform alert (deduplicated per action) and the response carries `auditWarning`.
+Suspensions, reactivations and cancellations are also recorded by the database trigger `zella_audit_privileged` on the
+businesses row, so they are never unrecorded.
+
+**REQ-LC-19 audited support access (admin Business page):** each open of a business writes one `business.viewed`
+row per admin and business in 30 minutes (`VIEW_DEDUPE_MINUTES`). People's emails, caller numbers and connection
+accounts are masked on the page; `business_contacts_reveal` (`businesses.manage`) needs a reason of 10 to 300
+characters, writes `support.contacts_revealed` (reason and field names, no values) first and reveals nothing if that
+write fails. Both actions stay out of the business's Activity list and appear in its Support access list for
+`audit.view` holders. Gap: `setup_load` (the wizard's read, `businesses.view`) still returns the owner's email
+unmasked.
+
+**REQ-LC-19 two step reset for a business member (identity check):** before an admin removes a member's two step
+sign in (`member_mfa_reset`, `businesses.manage`), they confirm who is asking: the request comes from the member's
+own email address on file (or the business owner's, for a member of their team), and the admin calls back the
+business phone number on record, never a number given in the request, and confirms the member's name and role. The
+admin ticks "I checked who is asking" and gives a reason (10 to 300 characters). The audit row
+(`member.mfa_reset`: who, the reason, the number of authenticators) is written first; if it can't be, nothing is
+removed. Only that person's verified authenticators are removed, never a Zella Voice admin's (those are reset through
+Users & access), never the acting admin's own, and never for someone who also belongs to another business (their
+authenticator protects that business's sign in too; lane E default, owner can change). A fresh admin code (ACC-19) will be required in front of it once
+built. Built, needs the owner's approval of this procedure before deploy.
+
+**REQ-ADM-21 One definition of connected, answering and live:** every admin page that says whether a business's
+phone, voice, calendar or leads are connected, whether its receptionist is answering, or whether it is live reads it
+from the database (`zella_business_connections(p_business_ids uuid[])` per business, at most 1000 ids per call, and
+`zella_connection_counts()` for totals; `businesses.view` or server code). No page works it out from its own tables.
+Answering (a served call in the last 7 days) is never folded into live. Email is "not tracked" until there is a mailbox
+connection. The states are defined in `docs/PRODUCT.md` §9.1.
+What calls actually got (`assistant_deliveries`) is read by admins through `zella_admin_agent_deliveries_summary(uuid[])`
+and `zella_admin_agent_deliveries(uuid, integer)` (`businesses.view`), aggregated in SQL.
+
 **REQ-ADM-20 Access states:** loading, authorized, unauthorized (signed out, MFA needed, no permission) and failed
 (couldn't check; grants nothing). A refusal always applies; a failed background refresh keeps the current view.
 
@@ -1787,7 +1838,7 @@ flowchart TD
 |---|---|
 | Save, resume, duplicates | Every step is saved server-side; the draft resumes at the first incomplete step. A creation key prevents a second business on a double submit. A duplicate name, phone or domain shows a warning. |
 | Validation | Server-side per step; nothing is written to live tables until the step's checks pass. |
-| Failure and rollback | Each step is atomic. A failed invite leaves the business inactive and retryable. Abandoned drafts expire [D-30]. |
+| Failure and rollback | Each step is atomic. A failed invite leaves the business inactive and retryable. A draft with no change for 30 days (platform setting `draft_abandon_days`) shows as Abandoned on Settings, Business onboarding and raises one alert; it is never deleted automatically, a person uses Delete draft [D-30, recommended default until the owner decides]. |
 | Audit | Every step and every change is audited. |
 | Provider readiness | Numbers, calendar and lead sources are each checked, with a clear "not set up yet" state. |
 | Test call and message readiness | Part of the activation tests before go-live. |
@@ -2102,6 +2153,12 @@ Knowledge, Automations, Reports, Team, Settings.
 | Pay before go live | Applies only once Stripe is live; until then the go live gate doesn't wait for payment. | REQ-LC-14, REQ-BIL-29 |
 | Public API, API keys, outgoing webhooks | **Not planned** (recorded in PR #91). | §36 |
 
+### 23.1b Decided by the owner (18 Nov 2026, security audit)
+
+| Topic | Decision | Applied in |
+|---|---|---|
+| Caller verification (D-18, REQ-ID-01) | Every booking has a **6 character confirmation code** (upper case letters and digits, no 0/O or 1/I/L), unique per business, shown in every booking confirmation and reminder text and email and in the CRM booking view. **Cancelling or moving by phone needs the code**; without it the receptionist offers a message. **Hearing appointment details** needs the name on the booking plus the date, matched to the calling number, and shares nothing else. **3 failed checks per call**, then a message. `update_caller` never overwrites a known customer's email or phone: the change waits for the team to approve. | §3, `sql/zella_caller_verification.sql` |
+
 ### 23.1c Decided by the owner (18 Nov 2026, security audit)
 
 | Topic | Decision | Applied in |
@@ -2120,12 +2177,11 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-08 | Calendar providers at launch | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
-| D-18 | Caller verification for booking changes by phone | owner |
 | D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
-| D-30 | Draft expiry for abandoned Create Business drafts | owner |
+| D-30 | Draft expiry for abandoned Create Business drafts (default built: flag after 30 days, alert once, never delete automatically) | owner |
 | D-31 | Monitoring and pager provider | owner |
 | D-36 | Late-arrival minutes before staff are prompted to mark a no-show | owner |
 | D-32 | Limit on AI replies per conversation per hour | engineering |

@@ -38,10 +38,11 @@ export default function ProviderOrders({ me, say = () => {} }) {
               ["Asked by", (r) => <span title={r.request_reason}>{r.requested_by_email ?? "Unknown"}<br /><span className="op-muted">{r.request_reason}</span></span>],
               ["Decided", (r) => (r.decided_at ? <span title={r.decision_reason ?? ""}>{r.decided_by_email ?? "Unknown"}, {when(r.decided_at)}</span> : "Not yet")],
               ["Provider", (r) => r.error ?? (r.provider_order_id || r.provider_number_id ? [r.provider_order_id, r.vapi_phone_number_id].filter(Boolean).join(", ") : "None")],
-              ["", (r) => { const a = orderActions(r, { you: o.you, owner, manage, blocked }); return (a.approve || a.reject || a.cancel) && <span className="ao-actions">
+              ["", (r) => { const a = orderActions(r, { you: o.you, owner, manage, blocked }); return (a.approve || a.reject || a.cancel || a.resolve) && <span className="ao-actions">
                 {a.reject && <button type="button" className="owner-secondary-button" disabled={!a.approve} title={a.approve ? undefined : blocked} onClick={() => setDialog({ decide: r, approve: true })}>Approve</button>}
                 {a.reject && <button type="button" className="owner-secondary-button" onClick={() => setDialog({ decide: r, approve: false })}>Reject</button>}
                 {a.cancel && <button type="button" className="owner-secondary-button" onClick={() => setDialog({ cancel: r })}>Cancel</button>}
+                {a.resolve && <button type="button" className="owner-secondary-button" onClick={() => setDialog({ resolve: r, outcome: "" })}>Record outcome</button>}
               </span>; }],
             ]} />
           </>
@@ -62,6 +63,7 @@ export default function ProviderOrders({ me, say = () => {} }) {
             : <p>The number is removed from Vapi and released at Telnyx. It can't be got back.</p>)}
         </ReasonDialog>
       )}
+      {dialog?.resolve && <ResolveDialog order={dialog.resolve} onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.cancel && (
         <ReasonDialog title={`Cancel the order for ${dialog.cancel.e164}?`} icon="close" confirmLabel="Cancel the order" onClose={() => setDialog(null)}
           onConfirm={async (reason) => { await callOwnerFunction("number_order_cancel", { id: dialog.cancel.id, reason }); done("Order cancelled."); }}>
@@ -69,6 +71,32 @@ export default function ProviderOrders({ me, say = () => {} }) {
         </ReasonDialog>
       )}
     </>
+  );
+}
+
+// What the owner saw in the Telnyx and Vapi dashboards for an order whose answer never came back; nothing is sent.
+function ResolveDialog({ order, onClose, onDone }) {
+  const [f, setF] = useState({ outcome: "", numberId: "", vapiPhoneNumberId: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  return (
+    <ReasonDialog title={`Record what the providers show for ${order.e164}`} icon="fact_check" confirmLabel="Record the outcome" onClose={onClose}
+      onConfirm={async (reason) => {
+        if (!f.outcome) throw new Error("Choose what the provider shows.");
+        await callOwnerFunction("number_order_resolve", { id: order.id, outcome: f.outcome, reason, numberId: f.numberId || null, vapiPhoneNumberId: f.vapiPhoneNumberId || null });
+        onDone("Outcome recorded.");
+      }}>
+      <p>{order.error ?? "The provider's answer never came back."} Nothing is sent to a provider from here.</p>
+      <div className="ao-form">
+        <label className="owner-field"><span>What the provider shows</span>
+          <select value={f.outcome} onChange={set("outcome")}><option value="">Choose…</option>
+            <option value="completed">{order.kind === "purchase" ? "The number was bought" : "The number was released"}</option>
+            <option value="failed">{order.kind === "purchase" ? "The number was not bought" : "The number was not released"}</option></select></label>
+        {order.kind === "purchase" && <>
+          <label className="owner-field"><span>Telnyx number id (optional)</span><input value={f.numberId} onChange={set("numberId")} /></label>
+          <label className="owner-field"><span>Vapi phone number id (optional)</span><input value={f.vapiPhoneNumberId} onChange={set("vapiPhoneNumberId")} /></label>
+        </>}
+      </div>
+    </ReasonDialog>
   );
 }
 
@@ -126,7 +154,7 @@ function ProviderErrors({ manage }) {
     try { setState({ data: await callOwnerFunction("provider_errors") }); } catch (e) { setState({ error: e.message }); }
   }
   const part = (name, p) => !p.connected ? <NotAvailable title={`${name} isn't connected yet`}>Its key isn't added on the server, so its errors can't be read.</NotAvailable>
-    : <>{p.error && <ErrorNote error={`${name}: ${p.error}`} />}<DataTable rows={p.rows} rowKey={(r) => r.ref ?? r.at} empty={`No recent errors at ${name}.`} columns={[
+    : <>{p.error && <ErrorNote error={`${name}: ${p.error}`} />}<DataTable rows={p.rows} error={p.error} rowKey={(r) => r.ref ?? r.at} empty={`No recent errors at ${name}.`} columns={[
       ["When", (r) => when(r.at)], ["What", (r) => r.code ?? "Unknown"], ["Detail", (r) => r.detail ?? r.number ?? "None"], ["Reference", (r) => r.ref ? <code>{r.ref}</code> : "None"]]} /></>;
   return (
     <Panel title="Provider error logs" description="Read from Telnyx and Vapi when you ask; nothing is stored. Caller numbers are shortened."
@@ -134,7 +162,8 @@ function ProviderErrors({ manage }) {
       {!manage && <p className="op-muted">Reading provider errors needs telephony.manage.</p>}
       {state?.loading && <p className="op-muted">Loading…</p>}
       <ErrorNote error={state?.error} onRetry={load} />
-      {state?.data && <>{part("Vapi", state.data.vapi)}{part("Telnyx", state.data.telnyx)}</>}
+      {state?.data?.off && <NotAvailable title="Number orders are switched off">Provider errors are read only once a Zella Voice owner switches number orders on, so no provider was asked.</NotAvailable>}
+      {state?.data && !state.data.off && <>{part("Vapi", state.data.vapi)}{part("Telnyx", state.data.telnyx)}</>}
     </Panel>
   );
 }

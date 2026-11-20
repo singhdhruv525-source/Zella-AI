@@ -2,7 +2,8 @@
 // unit-tested in logic_test.ts. Nothing here logs or returns a token.
 export type Provider = "google" | "outlook";
 export const PROVIDERS: Provider[] = ["google", "outlook"];
-export const STATE_SECONDS = 600;
+// a sign in must be finished within 5 minutes, once (the random value is stored server side: zella_oauth_states)
+export const STATE_SECONDS = 300;
 
 export const PROVIDER = {
   google: {
@@ -31,8 +32,8 @@ function same(a: string, b: string) { if (a.length !== b.length) return false; l
 
 export type State = { b: string; p: Provider; u: string; exp: number; n: string };
 // the sign-in state: which business, provider and person, signed so it can't be altered, and short-lived
-export async function signState(secret: string, s: Omit<State, "exp" | "n">, now = Date.now() / 1000): Promise<string> {
-  const body = b64url(enc.encode(JSON.stringify({ ...s, exp: Math.floor(now) + STATE_SECONDS, n: b64url(crypto.getRandomValues(new Uint8Array(12))) })));
+export async function signState(secret: string, s: Omit<State, "exp" | "n"> & { n?: string }, now = Date.now() / 1000): Promise<string> {
+  const body = b64url(enc.encode(JSON.stringify({ ...s, exp: Math.floor(now) + STATE_SECONDS, n: s.n ?? newNonce() })));
   return `${body}.${await hmac(secret, body)}`;
 }
 export async function verifyState(secret: string, token: string, now = Date.now() / 1000): Promise<State | null> {
@@ -41,9 +42,16 @@ export async function verifyState(secret: string, token: string, now = Date.now(
   try {
     const s = JSON.parse(new TextDecoder().decode(fromB64url(body))) as State;
     const uuid = /^[0-9a-f-]{36}$/i;
-    if (!uuid.test(s.b) || !uuid.test(s.u) || !PROVIDERS.includes(s.p) || typeof s.exp !== "number" || s.exp < now) return null;
+    if (!uuid.test(s.b) || !uuid.test(s.u) || !PROVIDERS.includes(s.p) || typeof s.exp !== "number" || s.exp < now
+        || typeof s.n !== "string" || !/^[A-Za-z0-9_-]{16,64}$/.test(s.n)) return null;
     return s;
   } catch { return null; }
+}
+
+// a fresh random value for one sign in, and the hash the database stores (the value itself is only in the signed state)
+export function newNonce(): string { return b64url(crypto.getRandomValues(new Uint8Array(24))); }
+export async function nonceHash(n: string): Promise<string> {
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(n)))].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
 export function authorizeUrl(p: Provider, clientId: string, redirectUri: string, state: string): string {

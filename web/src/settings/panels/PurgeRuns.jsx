@@ -27,11 +27,12 @@ export default function PurgeRuns({ me, policies, purgeEnabled, you }) {
           ["Status", (r) => <Pill tone={RUN_STATUS[r.status]?.[1]}>{RUN_STATUS[r.status]?.[0] ?? r.status}</Pill>],
           ["Asked by", (r) => <span title={r.request_reason}>{r.requested_by_email ?? "Unknown"}, {when(r.created_at)}</span>],
           ["Approved by", (r) => [r.owner_approved_by_email, r.second_approved_by_email].filter(Boolean).join(", ") || "Nobody yet"],
-          ["Result", (r) => (r.executed_at ? `${r.removed_count ?? 0} removed, ${when(r.executed_at)}` : r.error ?? "Not run")],
+          ["Result", (r) => (r.executed_at ? `${r.removed_count ?? 0} removed, ${when(r.executed_at)}${Number(r.files_left) > 0 ? `; ${r.files_left} files left` : ""}${r.error ? `. ${r.error}` : ""}` : r.error ?? "Not run")],
           ["", (r) => { const a = runActions(r, ctx); return <span className="zs-actions">
             {a.approve && <button type="button" className="zs-btn sm" onClick={() => setDialog({ approve: r })}>Approve</button>}
             {a.run && <button type="button" className="zs-btn sm danger-outline" onClick={() => setDialog({ run: r })}>Run</button>}
             {a.cancel && <button type="button" className="zs-btn sm" onClick={() => setDialog({ cancel: r })}>Cancel</button>}
+            {a.retry && <button type="button" className="zs-btn sm" onClick={() => setDialog({ retry: r })}>Remove the files left</button>}
           </span>; }],
         ]} />
         {dialog?.ask && (
@@ -58,6 +59,12 @@ export default function PurgeRuns({ me, policies, purgeEnabled, you }) {
           <Confirm title={`Remove ${dialog.run.item_count} rows of ${classLabel(dialog.run.data_class).toLowerCase()}?`} danger word={`PURGE ${dialog.run.item_count}`} confirmLabel="Run the purge"
             onClose={() => setDialog(null)} onConfirm={async () => { await call("retention_run_execute", { id: dialog.run.id, confirm: `PURGE ${dialog.run.item_count}` }); state.reload(); }}>
             <Banner tone="error">This can't be undone. Rows that went on a legal hold or are no longer past their period are left alone.</Banner>
+          </Confirm>
+        )}
+        {dialog?.retry && (
+          <Confirm title={`Remove the ${dialog.retry.files_left} files left?`} danger confirmLabel="Remove the files" onClose={() => setDialog(null)}
+            onConfirm={async () => { await call(dialog.retry.business_id ? "business_purge_files_retry" : "retention_run_files_retry", { id: dialog.retry.id }); state.reload(); }}>
+            <p>The rows were already removed when the run ran; only the stored files still listed are removed now. Files of a business placed on a legal hold since then are left alone, and a file storage no longer has counts as removed.</p>
           </Confirm>
         )}
         {dialog?.cancel && (

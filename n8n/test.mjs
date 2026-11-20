@@ -1010,6 +1010,8 @@ const wp = (j) => runCode('website-plan.js', { json: j }).json;
 test('website plan: only plain web addresses of the owner\'s own site are read', () => {
   assert.equal(wp(WPLAN).skip, false); assert.equal(wp(WPLAN).host, 'sunnysalon.com');
   for (const u of ['http://localhost/a', 'http://127.0.0.1/', 'http://169.254.169.254/latest', 'https://user@sunnysalon.com/', 'https://sunnysalon.com:8080/', 'ftp://sunnysalon.com/', 'https://intranet.internal/x', 'https://sunnysalon.com/a b', 'https://other-site.com/x']) assert.equal(wp({ ...WPLAN, url: u }).skip, true, u);
+  // wildcard DNS services that map any name to any address (security audit M9)
+  for (const h of ['127.0.0.1.nip.io', '10-0-0-1.sslip.io', 'app.localtest.me', 'lvh.me', 'x.xip.io']) assert.equal(wp({ ...WPLAN, url: `https://${h}/`, host: h }).why, 'internal_host', h);
   assert.equal(wp({ kind: 'page', page_id: 'nope', url: WPLAN.url, host: WPLAN.host }).skip, true);
   assert.equal(wp({ kind: 'delete-everything' }).skip, true);
   assert.equal(wp({ kind: 'discover', source_id: WPLAN.page_id, url: 'https://sunnysalon.com/sitemap.xml', host: 'sunnysalon.com' }).kind, 'discover');
@@ -1053,7 +1055,9 @@ test('website sql: owner approval, safe addresses, drafts only, and nothing is d
   assert.ok(dispatcherSql.includes("('website-crawl')") && dispatcherSql.includes("'website_pages', 'website_sources'"));
   const w = wfJson('zella-website-crawler.json');
   const fetchNode = w.nodes.find((n) => n.name === 'Fetch page');
-  assert.equal(fetchNode.parameters.options.redirect.redirect.followRedirects, false); assert.equal(fetchNode.parameters.authentication, 'none');
+  // the page is read by website-fetch (DNS checked, no redirects followed there), never fetched by n8n from the owner's address
+  assert.equal(fetchNode.parameters.url, 'https://pffqxlumqhjdbzvvoszm.supabase.co/functions/v1/website-fetch'); assert.equal(fetchNode.parameters.method, 'POST');
+  assert.equal(fetchNode.credentials.httpCustomAuth.name, 'Zella Supabase service role'); assert.ok(!JSON.stringify(w).includes('"url":"={{ $json.url }}"'));
   assert.equal(fetchNode.onError, 'continueRegularOutput');
 });
 test('ops automation sql: settings rollback, spot checks, wrong-answer reports, team summary and reconcile are wired in', () => {
@@ -2124,6 +2128,13 @@ test('every workflow reports failures to Failure Alert and keeps no successful-r
     assert.equal(s.saveDataSuccessExecution, 'none', f);
     if (f === 'zella-failure-alert.json') assert.equal(s.errorWorkflow, undefined, f); // no loop back into itself
     else assert.equal(s.errorWorkflow, alert.id, f);
+  }
+});
+
+test('runs that carry a spoken confirmation code are never saved (booking and brain tools)', () => {
+  for (const f of ['zella-appointment-booking.json', 'zella-brain-tools.json']) {
+    const st = wfJson(f).settings;
+    assert.deepEqual([st.saveDataSuccessExecution, st.saveDataErrorExecution, st.saveManualExecutions, st.saveExecutionProgress], ['none', 'none', false, false], f);
   }
 });
 

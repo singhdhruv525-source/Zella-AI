@@ -15,6 +15,7 @@
 import { withCors } from "../_shared/cors.ts";
 import { createClient } from "@supabase/supabase-js";
 import { readBodyLimited } from "../_shared/body.ts";
+import { clientIp } from "../_shared/client_ip.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -25,7 +26,7 @@ function respond(data: unknown, status = 200) {
   return Response.json(data, { status, headers: corsHeaders });
 }
 
-Deno.serve(withCors(async (req: Request) => {
+export const handler = withCors(async (req: Request) => {
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -52,12 +53,15 @@ Deno.serve(withCors(async (req: Request) => {
   });
 
   // Rate limits (the shared, concurrency-safe database counter): per visitor address and per link, so a script
-  // can't hammer slot lookups or confirmations. A failing counter never blocks a real customer.
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim().slice(0, 64) || "unknown";
+  // can't hammer slot lookups or confirmations. A counter that can't be checked refuses (fails closed, M10).
+  const ip = clientIp(req.headers) ?? "unknown";   // never the caller-written first X-Forwarded-For value
   const writes = body.action === "confirm" || body.action === "offer_accept" || body.action === "offer_decline";
   for (const [key, max] of [[`resched:ip:${ip}`, 60], [`resched:token:${token.slice(0, 16)}`, writes ? 10 : 40]] as const) {
     const { data: ok, error: limitError } = await admin.rpc("zella_rate_limit", { p_key: key, p_max: max, p_window_seconds: 60 });
-    if (limitError) { console.error("rate limit check failed", limitError.message); continue; }
+    if (limitError || typeof ok !== "boolean") {
+      console.error("rate limit check failed", limitError?.message?.slice(0, 120) ?? "no answer");
+      return respond({ ok: false, reason: "busy", error: "This page is busy right now. Please try again in a minute." }, 503);
+    }
     if (ok === false) return respond({ ok: false, reason: "busy", error: "Too many tries. Please wait a minute and try again." }, 429);
   }
 
@@ -81,4 +85,6 @@ Deno.serve(withCors(async (req: Request) => {
     return respond({ error: "Something went wrong. Please try again." }, 500);
   }
   return respond(result.data);
-}));
+});
+
+if (import.meta.main) Deno.serve(handler);

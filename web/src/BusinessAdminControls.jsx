@@ -9,6 +9,7 @@ import { friendlyError } from "./admin/adminOps";
 // types (tables, recalls, vehicles ...) are switched on. Module dependencies are checked by the server; switching a
 // record type off hides it in the business's CRM and keeps its records.
 
+// Fallback only: the server sends each module's `requires` (module_deps.ts, CFG-02); an older server doesn't.
 const NEEDS = { "ai-receptionist": ["calls"], "ai-appointments": ["calendar"], "ai-follow-up": ["automations"], "ai-sales": ["calls"], "ai-support": ["calls"] };
 
 function Switch({ on, label, disabled, onChange }) {
@@ -28,17 +29,21 @@ export function BusinessModulesCard({ businessId, modules, onSaved, canEdit = fa
   const [notice, setNotice] = useState("");
   const dirty = modules.some((m) => draft[m.id] !== m.enabled);
   const bySlug = Object.fromEntries(modules.map((m) => [m.slug, m]));
+  const needsOf = (slug) => bySlug[slug]?.requires ?? NEEDS[slug] ?? [];
+  // A module whose dependency this industry doesn't offer can't be switched on (the server refuses it too).
+  const missing = (m) => needsOf(m.slug).filter((dep) => !bySlug[dep]);
+  const nameOf = (slug) => slug.replace(/[-_]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
   // Turning a module on turns on what it needs; turning one off is refused while another needs it.
   function toggle(m, on) {
     const next = { ...draft, [m.id]: on };
     if (on) {
       const stack = [m.slug];
-      while (stack.length) for (const dep of NEEDS[stack.pop()] ?? []) if (bySlug[dep] && !next[bySlug[dep].id]) { next[bySlug[dep].id] = true; stack.push(dep); }
+      while (stack.length) for (const dep of needsOf(stack.pop())) if (bySlug[dep] && !next[bySlug[dep].id]) { next[bySlug[dep].id] = true; stack.push(dep); }
     }
     setDraft(next);
   }
-  const neededBy = (m) => modules.filter((o) => draft[o.id] && (NEEDS[o.slug] ?? []).includes(m.slug));
+  const neededBy = (m) => modules.filter((o) => draft[o.id] && needsOf(o.slug).includes(m.slug));
 
   async function save() {
     setSaving(true);
@@ -61,13 +66,16 @@ export function BusinessModulesCard({ businessId, modules, onSaved, canEdit = fa
       <div className="bac-list">
         {modules.map((m) => {
           const needed = neededBy(m);
+          const lacking = missing(m);
           return (
             <div key={m.id} className={`bac-row ${draft[m.id] ? "on" : ""}`}>
               <div>
                 <strong>{m.name}</strong>
-                <small>{needed.length && draft[m.id] ? `Needed by ${needed.map((n) => n.name).join(", ")}` : m.description || m.slug}</small>
+                <small>{needed.length && draft[m.id] ? `Needed by ${needed.map((n) => n.name).join(", ")}`
+                  : lacking.length && !draft[m.id] ? `Needs ${lacking.map(nameOf).join(" and ")}, which this industry doesn't offer`
+                  : m.description || m.slug}</small>
               </div>
-              <Switch on={Boolean(draft[m.id])} label={m.name} disabled={!canEdit || saving || (draft[m.id] && needed.length > 0)} onChange={(on) => toggle(m, on)} />
+              <Switch on={Boolean(draft[m.id])} label={m.name} disabled={!canEdit || saving || (draft[m.id] && needed.length > 0) || (!draft[m.id] && lacking.length > 0)} onChange={(on) => toggle(m, on)} />
             </div>
           );
         })}

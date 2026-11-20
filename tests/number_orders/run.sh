@@ -109,6 +109,27 @@ for fn in "zella_number_order_request('$OPS', 'purchase', '+15550100009', null, 
 done && ok "signed in people (even an owner) and anonymous can't call the functions directly; only the server can"
 [[ "$(as $OWNER "select count(*) from public.number_orders")" == *"permission denied"* ]] && ok "the table can't be read directly" || bad "table readable"
 
+# a release, and an order that needs a check at the provider
+K5=f2000000-0000-0000-0000-000000000005
+[ "$(req $OPS release +15550100005 null "Line no longer used" $K5)" = "requested" ] || bad "release request"
+ID5=$(q "select id from public.number_orders where idempotency_key = '$K5'")
+[ "$(dec $OWNER $ID5 true "Release approved")" = "approved" ] || bad "release approve"
+[[ "$(q "insert into public.business_phone_numbers (business_id, e164) values ('$BIZ', '+15550100005')" 2>&1)" == *NUMBER_RELEASE_OPEN* ]] && ok "a number can't be given to a business while its release is open" || bad "assign during release"
+q "set session_replication_role = replica; insert into public.business_phone_numbers (business_id, e164) values ('$BIZ', '+15550100005')" > /dev/null
+[[ "$(srv "select public.zella_number_order_claim('$OWNER', '$ID5')")" == *RELEASE_IN_USE* ]] && ok "a release is refused when it is placed if the number was given out after the request" || bad "claim release in use"
+q "delete from public.business_phone_numbers where e164 = '+15550100005'" > /dev/null
+[ "$(srv "select public.zella_number_order_claim('$OWNER', '$ID5') ->> 'status'")" = "placing" ] || bad "release claim"
+[ "$(srv "select public.zella_number_order_finish('$OWNER', '$ID5', 'needs_check', null, null, null, 'No answer') ->> 'status'")" = "needs_check" ] || bad "needs check"
+res() { srv "select public.zella_number_order_resolve('$1', '$ID5', '$2', '$3', null, null) ->> 'status'"; }
+[[ "$(res $OPS completed "Checked at Telnyx")" == *OWNER_REQUIRED* ]] && ok "only a Zella Voice owner resolves an order that needs a check" || bad "ops resolved"
+[[ "$(res $OWNER done "Checked at Telnyx")" == *INVALID_OUTCOME* ]] && ok "it resolves to completed or failed only" || bad "resolve outcome"
+[[ "$(res $OWNER completed "x")" == *REASON_REQUIRED* ]] && ok "and needs a reason" || bad "resolve reason"
+[ "$(res $OWNER completed "Checked at Telnyx: released")" = "completed" ] && ok "an owner records what the provider shows" || bad "resolve"
+[[ "$(res $OWNER failed "Again")" == *NOT_NEEDS_CHECK* ]] && ok "a resolved order can't be resolved again" || bad "double resolve"
+[ "$(q "select user_id || '|' || (new_data ->> 'status') || '|' || (old_data ->> 'error') from public.audit_logs where action = 'telephony.number_order_resolved' and entity_id = '$ID5'")" = "$OWNER|completed|No answer" ] && ok "the resolution is audited with the provider's earlier message" || bad "resolve audit"
+[ "$(q "select error from public.number_orders where id = '$ID5'")" = "Recorded after a check: Checked at Telnyx: released" ] && ok "the order shows what the owner recorded, not the old provider message" || bad "resolve message"
+q "insert into public.business_phone_numbers (business_id, e164) values ('$BIZ', '+15550100005')" > /dev/null && ok "once the release is finished the number can be given out again" || bad "assign after release"
+
 # rollback
 q "update public.number_orders set status = 'needs_check' where id = '$ID4'" > /dev/null
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_number_orders_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "the rollback refuses while an order needs a check at Telnyx" || bad "rollback in flight: $out"
@@ -116,8 +137,9 @@ q "update public.number_orders set status = 'cancelled' where id = '$ID4'; updat
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_number_orders_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "the rollback refuses while number orders are switched on" || bad "rollback switch on: $out"
 q "update public.platform_settings set value = 'false' where key = 'number_orders_enabled'" > /dev/null
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_number_orders_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_number_orders_rollback.sql" > /dev/null 2>&1 && ok "rollback runs twice" || bad "rollback"
-v=$(q "select to_regclass('public.number_orders') is null and to_regprocedure('public.zella_actor_can(uuid,text)') is null and not exists (select 1 from public.platform_settings where key = 'number_orders_enabled')")
-[ "$v" = "t" ] && ok "rollback removes the table, the functions and the setting" || bad "leftovers"
+v=$(q "select to_regclass('public.number_orders') is not null and exists (select 1 from public.number_orders where id = '$ID4') and to_regprocedure('public.zella_actor_can(uuid,text)') is null and to_regprocedure('public.zella_number_order_resolve(uuid,uuid,text,text,text,text)') is null and not exists (select 1 from pg_trigger where tgname = 'zella_number_assign_guard') and not exists (select 1 from public.platform_settings where key = 'number_orders_enabled')")
+[ "$v" = "t" ] && ok "rollback removes the functions, the guard and the setting, and keeps every order" || bad "leftovers"
+"${P[@]}" -d $DB -f "$REPO/sql/zella_number_orders.sql" > /dev/null 2>&1 && [ "$(q "select status from public.number_orders where id = '$ID4'")" = "cancelled" ] && ok "applying the file again uses the kept orders" || bad "reapply after rollback"
 [ "$(q "select count(*) from public.audit_logs where action like 'telephony.number_order_%'")" -ge 7 ] && ok "the audit trail of every order survives the rollback" || bad "audit lost"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_number_orders.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_number_order_claim(p_actor uuid, p_id uuid) returns jsonb language sql as \$f\$ select '{}'::jsonb \$f\$" > /dev/null

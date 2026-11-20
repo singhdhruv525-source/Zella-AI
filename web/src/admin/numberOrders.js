@@ -17,8 +17,10 @@ export function ordersBlocked(o) {
 }
 
 // Who may do what with one order, as offered on the page (the database decides again).
+// An order that needs a check is closed by an owner with what the provider's dashboard shows (nothing is sent).
 export function orderActions(row, { you, owner, manage, blocked }) {
-  if (row?.status !== "requested") return { approve: false, reject: false, cancel: false };
+  const resolve = row?.status === "needs_check" && Boolean(owner);
+  if (row?.status !== "requested") return { approve: false, reject: false, cancel: false, resolve };
   const decide = Boolean(owner) && row.requested_by !== you;
-  return { approve: decide && !blocked, reject: decide, cancel: Boolean(manage) && (row.requested_by === you || Boolean(owner)) };
+  return { approve: decide && !blocked, reject: decide, cancel: Boolean(manage) && (row.requested_by === you || Boolean(owner)), resolve };
 }

@@ -113,9 +113,13 @@ export function paymentState(payment) {
   const s = String(payment?.status ?? "");
   if (s === "confirmed") return { key: "confirmed", label: "Payment received", tone: "good" };
   if (s === "locked") return { key: "locked", label: "Payment opens after verification", tone: "info" };
+  if (s === "waiting" && payment?.reason === "processing") return { key: "processing", label: "Confirming your payment", tone: "info" };
+  if (s === "waiting" && payment?.checkout_available === true) return { key: "ready", label: "Ready to pay", tone: "info" };
   return { key: "waiting", label: "Payment opens here soon", tone: "info" };
 }
-export const paymentPassed = (payment) => paymentState(payment).key === "confirmed";
+// Owner decision (16 Nov 2026): until payments are live the first payment isn't required (required false); the step
+// still shows "Payment opens here soon" and the owner may continue. Never shown as "Payment received".
+export const paymentPassed = (payment) => paymentState(payment).key === "confirmed" || (payment?.required === false && paymentState(payment).key === "waiting");
 
 // Whether the owner may press Continue on a step, from the server's state. The server checks again.
 export function canLeave(step, state = {}) {
@@ -156,6 +160,9 @@ export const ERROR_WORDS = {
   PLAN_CHANGED: "Your plan was just updated. Please review it again.",
   DETAILS_CHANGED: "These details were just updated. Please check them again.",
   PAYMENT_NOT_CONFIRMED: "We haven't received a payment yet.",
+  PAYMENTS_NOT_LIVE: "Payments aren't switched on yet. Nothing has been charged.",
+  ALREADY_PAID: "Your payment is already confirmed.",
+  CHECKOUT_NOT_READY: "We couldn't open the payment page. Please try again in a minute.",
   rate_limited: "Too many attempts. Wait a minute and try again.",
   SERVER_ERROR: "Something went wrong on our side. Please try again.",
 };

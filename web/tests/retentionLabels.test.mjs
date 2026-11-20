@@ -9,6 +9,8 @@ test("periods read as days or whole years", () => {
   assert.equal(periodWords(730), "2 years");
   assert.equal(periodWords(2555), "7 years");
   assert.equal(periodWords(400), "400 days");
+  assert.equal(periodWords(366), "366 days");
+  assert.equal(periodWords(729), "729 days");
   assert.equal(periodWords(0), "Not set");
   assert.equal(periodWords(null), "Not set");
 });

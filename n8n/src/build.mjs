@@ -57,6 +57,8 @@ const link = (to, index = 0) => ({ node: to, type: 'main', index });
 // no error workflow (see below).
 // the id is derived from the workflow's first name and stays fixed, so links to it never change
 const FAILURE_WORKFLOW_ID = id('Zella - Failure Alert');
+// workflows whose runs carry secrets or call content: no execution data is saved, failed or manual runs included
+const NO_SAVED_RUNS = { errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
 const wf = (name, nodes, connections, extraSettings = {}) => ({
   name, nodes, connections, active: false,
   settings: { executionOrder: 'v1', executionTimeout: 300, errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', ...extraSettings }, pinData: {},
@@ -430,7 +432,7 @@ const aiBooking = secureVapi(wf('Zella Voice - Appointment Booking', [
   'Run booking': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-}), 'Vapi booking tool', true);
+}, NO_SAVED_RUNS), 'Vapi booking tool', true);   // runs carry the spoken confirmation code: never saved
 
 // Voice rules: the phone assistant asks "call_rules" during a call (open or closed, take a message, emergency, reach a person).
 // Every decision is made by the database (zella_ai_voice); this workflow only passes the question on and the answer back.
@@ -534,7 +536,6 @@ secureResend(emailEvents, 'Resend event', 'events');
 // Calendar Sync never keeps its runs in n8n's execution history: the claim RPCs hand it each calendar's refresh token
 // (the token exchange happens in this workflow), and a saved execution would store that token in n8n's database.
 // Failures are still recorded in Zella Voice (Finish sync / Mark error write them to calendar_sync_queue and calendar_connections).
-const NO_SAVED_RUNS = { errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
 // Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella Voice.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
 // Select the provider Custom Auth credential on both token boxes; client credentials stay in n8n credentials.
@@ -848,7 +849,7 @@ const brainTools = secureVapi(wf('Zella Voice - Receptionist Brain Tools', [
   'Run tool': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-}), 'Vapi brain tool', true);
+}, NO_SAVED_RUNS), 'Vapi brain tool', true);   // runs carry the spoken confirmation code: never saved
 writeFileSync(join(out, 'zella-brain-tools.json'), JSON.stringify(brainTools, null, 2) + '\n');
 
 // Call Reconciliation: for calls whose end-of-call report never arrived, ask the provider for its record of the call and
@@ -886,11 +887,13 @@ const websiteCrawler = wf('Zella Voice - Website Crawler', [
   rpcNode('Claim work', [240, 200], 'zella_website_claim', '={{ JSON.stringify({ p_limit: 6 }) }}'),
   code('Plan', [480, 200], 'website-plan.js'),
   ifBool('Safe to read', [720, 200], '={{ !$json.skip }}'),
+  // the page is read by the website-fetch edge function: it resolves the name and refuses private and metadata
+  // addresses before it connects (security audit 18 Nov 2026, M9); n8n never fetches the owner's address itself
   node('Fetch page', 'n8n-nodes-base.httpRequest', 4.2, [960, 100], {
-    method: 'GET', url: '={{ $json.url }}', authentication: 'none',
-    sendHeaders: true, headerParameters: { parameters: [{ name: 'User-Agent', value: 'ZellaBot/1.0 (reads pages its owner approved)' }, { name: 'Accept', value: 'text/html,application/xhtml+xml,application/xml;q=0.9' }] },
-    options: { timeout: 15000, redirect: { redirect: { followRedirects: false } }, response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } } },
-  }, { onError: 'continueRegularOutput' }),
+    method: 'POST', url: `${SUPABASE}/functions/v1/website-fetch`, authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify({ url: $json.url, host: $json.host }) }}',
+    options: { timeout: 20000, response: { response: { neverError: true, responseFormat: 'json' } } },
+  }, { credentials: SUPABASE_CRED, onError: 'continueRegularOutput' }),
   code('Parse', [1200, 100], 'website-parse.js'),
   ifBool('Is sitemap', [1440, 100], "={{ $json.mode === 'discover' }}"),
   rpcNode('Record sitemap', [1680, 0], 'zella_website_record_discovery', '={{ JSON.stringify($json.rpc) }}', { full: true }),

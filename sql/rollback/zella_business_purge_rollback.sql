@@ -1,6 +1,7 @@
 -- Rollback of sql/zella_business_purge.sql: removes the business purge functions. Safe to run twice. Refuses
 -- (ROLLBACK_DRIFT) if any function differs from that file's version, or once a business purge has run or is waiting
--- (its record is in retention_purge_runs, which stays). Runs only asked for or approved are cancelled with it.
+-- (its record is in retention_purge_runs, which stays). Runs only asked for or approved are cancelled with it. The
+-- runs table is locked against writes first, so a purge can't start between the check and the removal.
 begin;
 
 do $$
@@ -8,10 +9,13 @@ declare
   f record;
     mine constant jsonb := '{
     "public.zella_business_purge_request(uuid,uuid,timestamp with time zone,text,text)": "605fbfcb53d71fe8f9bdd0aa8df8d58a",
-    "public.zella_business_purge_execute(uuid,uuid,text)": "a3b29b5adcb84dadb12b2ebbe3a87ceb",
-    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "61fb59cee8b0ff4f2c20e068ca7e1428"
+    "public.zella_business_purge_execute(uuid,uuid,text)": "e224a1fefa197dc7c3b2e7290cc7fb95",
+    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "6dc51e59e4b148263f4eafbb79ea3fcc",
+    "public.zella_business_purge_files_resume(uuid,uuid)": "3f56a42ffd4e8990c03610637f9150bc"
   }';
 begin
+  -- no purge can start or move on while this checks and removes (held to the end of the transaction)
+  lock table public.retention_purge_runs in share row exclusive mode;
   for f in select key as sig, value #>> '{}' as want from jsonb_each(mine) loop
     if to_regprocedure(f.sig) is not null and md5(pg_get_functiondef(f.sig::regprocedure)) <> f.want then
       raise exception 'ROLLBACK_DRIFT: % has changed since zella_business_purge.sql', f.sig;
@@ -24,6 +28,7 @@ end $$;
 
 update public.retention_purge_runs set status = 'cancelled', error = 'Cancelled: business purge rolled back', updated_at = now()
  where data_class = 'cancelled_business' and status in ('requested', 'approved');
+drop function if exists public.zella_business_purge_files_resume(uuid, uuid);
 drop function if exists public.zella_business_purge_files_done(uuid, uuid, text[], text);
 drop function if exists public.zella_business_purge_execute(uuid, uuid, text);
 drop function if exists public.zella_business_purge_request(uuid, uuid, timestamptz, text, text);

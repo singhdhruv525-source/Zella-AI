@@ -14,6 +14,8 @@ const ERRORS = {
   BAD_ROLE: "Choose a role from the list.",
   ALREADY_A_MEMBER: "That person already has access.",
   ALREADY_INVITED: "That person already has an invitation waiting.",
+  TOO_MANY_INVITES: "Too many invitations were sent from this workspace in a short time. Try again later.",
+  RESEND_TOO_SOON: "This invitation was sent a few minutes ago. Wait 10 minutes before sending it again.",
   ONLY_OWNER_CAN_INVITE_ADMIN: "Only the owner can invite an admin.",
   LAST_OWNER: "This is the only owner. Make someone else an owner first.",
   TARGET_NOT_ACTIVE: "Choose someone who currently has access.",

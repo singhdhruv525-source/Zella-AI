@@ -108,6 +108,7 @@ Deno.serve(withCors(async (req: Request) => {
     finalize: (invitationId, actorId, userId, existing) =>
       rpcText(admin, "zella_staff_invite_finalize", { p_invitation_id: invitationId, p_actor: actorId, p_auth_user_id: userId, p_existing_account: existing }),
     fail: (invitationId, error) => rpcText(admin, "zella_staff_invite_fail", { p_invitation_id: invitationId, p_error: error.slice(0, 300) }),
+    rateLimit: async (key, max, seconds) => (await rpcText(admin, "zella_rate_limit", { p_key: key, p_max: max, p_window_seconds: seconds })) === "true",
     now: () => new Date(),
   };
 

@@ -54,7 +54,7 @@ v=$(q "select to_regprocedure('public.zella_retention_run_execute(uuid,uuid,text
 "${P[@]}" -d $DB -f "$REPO/sql/zella_retention_purge.sql" > /dev/null 2>&1 && ok "applies" || { bad "applies"; "${P[@]}" -d $DB -f "$REPO/sql/zella_retention_purge.sql" 2>&1 | tail -3; exit 1; }
 "${P[@]}" -d $DB -f "$REPO/sql/zella_retention_purge.sql" > /dev/null 2>&1 && ok "applies again (idempotent)" || bad "second apply"
 "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_retention_purge_rollback.sql" > /dev/null 2>&1 && "${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_retention_purge_rollback.sql" > /dev/null 2>&1 \
-  && [ "$(q "select to_regclass('public.retention_purge_runs') is null and to_regprocedure('public.zella_retention_run_execute(uuid,uuid,text)') is null and to_regclass('public.retention_removed_files') is not null")" = "t" ] \
+  && [ "$(q "select to_regclass('public.retention_purge_runs') is not null and to_regprocedure('public.zella_retention_run_execute(uuid,uuid,text)') is null and to_regclass('public.retention_removed_files') is not null")" = "t" ] \
   && ok "before any run, the rollback runs twice and removes only this file's objects" || bad "early rollback"
 "${P[@]}" -d $DB -f "$REPO/sql/zella_retention_purge.sql" > /dev/null 2>&1 && ok "applies again after the rollback" || bad "reapply"
 out=$("${P[@]}" -d $DB -f "$REPO/sql/rollback/zella_data_retention_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "the retention periods rollback refuses while the purge uses them" || bad "g3 rollback: $out"
@@ -115,11 +115,34 @@ policy audit_logs 2555 approved; R3=$(req $SEC audit_logs); appr $OWNER2 $R3 > /
 policy documents_replaced 30 approved; R4=$(req $SEC documents_replaced); appr $OWNER $R4 > /dev/null; appr $SUPER $R4 > /dev/null
 [ "$(exe $SUPER $R4 "PURGE 1")" = "files_pending" ] && [ "$(q "select array_to_string(file_paths, ',') from public.retention_purge_runs where id = '$R4'")" = "$A/old.pdf" ] \
   && ok "documents: only the replaced copy's file is handed to the server to remove" || bad "documents"
-[[ "$(srv "select public.zella_retention_run_files_done('$OWNER', '$R4', array['$A/old.pdf'], null)")" == *APPROVER_REQUIRED* ]] && ok "only the person who ran it records the files" || bad "files by other"
+[[ "$(srv "select public.zella_legal_hold_place('$SEC', '$A', 'Counsel asked mid removal')")" == *PURGE_IN_PROGRESS* ]] && ok "a hold can't be placed on a business while a run is removing its files" || bad "hold during removal"
+[[ "$(srv "select public.zella_retention_run_files_resume('$OWNER', '$R4')")" == *REMOVAL_IN_PROGRESS* ]] && ok "a removal can't be resumed while an attempt is in progress" || bad "resume during removal"
+[ "$(srv "select public.zella_retention_run_files_done('$SUPER', '$R4', array[]::text[], 'Storage timed out') ->> 'status'")" = "failed" ] && ok "a stopped removal is recorded as failed" || bad "files failed"
+[[ "$(srv "select public.zella_retention_run_files_done('$SUPER', '$R4', array['$A/old.pdf'], null)")" == *NOT_RUNNING* ]] && ok "a late report after the run was recorded as failed changes nothing" || bad "late report"
+policy documents_replaced 30 pending_legal_review
+[[ "$(srv "select public.zella_retention_run_files_resume('$OWNER', '$R4')")" == *LEGAL_REVIEW_PENDING* ]] && ok "a removal can't be resumed once the period is back in legal review" || bad "resume pending legal"
+policy documents_replaced 3650 approved
+[ "$(srv "select coalesce(array_to_string(public.zella_retention_run_files_resume('$OWNER', '$R4'), ','), 'none')")" = "" ] && ok "a period made longer since the run keeps the files it now protects" || bad "resume longer period"
+# an attempt that stopped without reporting (the request ended): 10 minutes later another may start
+q "update public.retention_purge_runs set updated_at = now() - interval '11 minutes' where id = '$R4'" > /dev/null
+policy documents_replaced 30 approved
+[[ "$(srv "select public.zella_retention_run_files_resume('$SEC', '$R4')")" == *APPROVER_REQUIRED* ]] && ok "only the person who ran it or an approver resumes it" || bad "resume by other"
+[ "$(srv "select array_to_string(public.zella_retention_run_files_resume('$OWNER', '$R4'), ',')")/$(q "select status from public.retention_purge_runs where id = '$R4'")" = "$A/old.pdf/files_pending" ] \
+  && ok "an approver resumes it: the files still to remove are handed back and the run is pending again" || bad "resume"
+[[ "$(srv "select public.zella_retention_run_files_done('$SEC', '$R4', array['$A/old.pdf'], null)")" == *APPROVER_REQUIRED* ]] && ok "only the person who ran it or an approver records the files" || bad "files by other"
 [ "$(srv "select public.zella_retention_run_files_done('$SUPER', '$R4', array['$A/old.pdf', '$A/new.pdf'], null) ->> 'status'")" = "done" ] && ok "the removed file is recorded and the run is done" || bad "files done"
 [ "$(q "select count(*) from public.retention_removed_files")/$(q "select count(*) from public.business_verification_documents")" = "1/2" ] \
   && ok "a file the run didn't list is never recorded, and the document rows (the outcome) stay" || bad "removed files"
 [ "$(srv "select public.zella_retention_preview('$RO', 'documents_replaced', 5) ->> 'count'")" = "0" ] && ok "the dry run no longer lists it" || bad "dry run after"
+
+# the period is checked again when the run runs
+policy call_recordings 30 approved; R5=$(req $SEC call_recordings); appr $OWNER $R5 > /dev/null; appr $SUPER $R5 > /dev/null
+n5=$(q "select item_count from public.retention_purge_runs where id = '$R5'")
+policy call_recordings 3650 approved
+[ "${n5:-0}" -ge 1 ] && [ "$(exe $SUPER $R5 "PURGE $n5" removed_count)" = "0" ] \
+  && [ "$(q "select recording_url from public.calls where id = 'e5000000-0000-0000-0000-00000000ca01'")" = "https://rec.test/1" ] \
+  && ok "a period made longer after the approvals keeps the rows it now protects" || bad "longer period: $(exe $SUPER $R5 "PURGE $n5")"
+policy call_recordings 30 approved
 
 # cancel, direct access, schedule
 switch false; policy documents_owner_id_verified 90 approved
@@ -127,7 +150,7 @@ switch false; policy documents_owner_id_verified 90 approved
 policy call_recordings 30 approved; R6=$(req $SEC call_recordings)
 [[ "$(srv "select public.zella_retention_run_cancel('$RO', '$R6', 'No')")" == *NOT_ALLOWED* ]] && ok "security.view can't cancel" || bad "ro cancel"
 [ "$(srv "select public.zella_retention_run_cancel('$SEC', '$R6', 'Not now') ->> 'status'")" = "cancelled" ] && ok "a run is cancelled before it runs" || bad "cancel"
-[ "$(srv "select jsonb_array_length(public.zella_retention_runs('$RO', 50))")" = "5" ] && ok "every run is listed for security.view" || bad "list"
+[ "$(srv "select jsonb_array_length(public.zella_retention_runs('$RO', 50))")" = "6" ] && ok "every run is listed for security.view" || bad "list"
 [ "$(q "select count(*) from cron.job where command ilike '%retention%' or command ilike '%purge%'")" = "0" ] && ok "nothing is scheduled" || bad "scheduled"
 for fn in "zella_retention_run_request('$SEC', 'audit_logs', 'Direct')" "zella_retention_run_approve('$OWNER', '$R6', 'Direct')" "zella_retention_run_execute('$OWNER', '$RUN', 'PURGE 2')" "zella_retention_run_files_done('$SUPER', '$R4', null, null)"; do
   [[ "$(as $OWNER "select public.$fn")" == *"permission denied"* ]] || { bad "a signed in owner could call $fn directly"; continue; }

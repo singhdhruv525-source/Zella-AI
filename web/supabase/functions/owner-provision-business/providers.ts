@@ -23,6 +23,7 @@ export const PROVIDER_PERMISSIONS: Record<string, string> = {
   number_order_request: "telephony.manage",
   number_order_decide: "telephony.manage",
   number_order_cancel: "telephony.manage",
+  number_order_resolve: "telephony.manage",
   provider_errors: "telephony.manage",
 };
 
@@ -80,6 +81,9 @@ const REFUSALS: Record<string, [string, number]> = {
   NOT_PENDING: ["This order has already been decided.", 409],
   NOT_APPROVED: ["This order isn't approved, or is already being placed.", 409],
   NOT_PLACING: ["This order isn't being placed.", 409],
+  NOT_NEEDS_CHECK: ["This order isn't waiting for a check.", 409],
+  INVALID_OUTCOME: ["Choose what the provider shows: done or not done.", 400],
+  NUMBER_RELEASE_OPEN: ["A release of this number is open, so it can't be assigned now.", 409],
 };
 
 const mask = (n: unknown) => (typeof n === "string" && n.length > 4 ? `…${n.replace(/\D/g, "").slice(-4)}` : null);
@@ -136,8 +140,10 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     } catch (e) {
       throw new ProviderLost(`${which === "telnyx" ? "Telnyx" : "Vapi"} didn't answer (${(e as Error).name})`);
     }
-    const body = res.status === 204 ? {} : await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, body: body as Json };
+    // an answer that can't be read is marked unreadable, never taken as an empty success
+    let unreadable = false;
+    const body = res.status === 204 ? {} : await res.json().catch(() => { unreadable = true; return {}; });
+    return { ok: res.ok, status: res.status, body: body as Json, unreadable };
   };
 
   const provider_overview = async () => {
@@ -158,7 +164,9 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     try { r = await send("telnyx", `/available_phone_numbers?${q}`); }
     catch (e) { if (e instanceof ProviderLost) throw new InputError(e.message, 502); throw e; }
     if (!r.ok) throw new InputError(`Telnyx refused the search (${providerMessage(r.body, r.status)})`, 502);
-    const rows = (Array.isArray(r.body.data) ? r.body.data as Json[] : []).map((n) => {
+    // only a real list of numbers is a result; anything else is "not available", never "no numbers found"
+    if (r.unreadable || !Array.isArray(r.body.data)) throw new InputError("Telnyx sent an answer that can't be read. Nothing was searched; try again.", 502);
+    const rows = (r.body.data as Json[]).map((n) => {
       const region = (Array.isArray(n.region_information) ? n.region_information as Json[] : []).map((x) => x.region_name).filter(Boolean).join(", ");
       const cost = (n.cost_information ?? {}) as Json;
       return { e164: clip(n.phone_number, 20), region: clip(region, 100), monthly: cost.monthly_cost ?? null, upfront: cost.upfront_cost ?? null, currency: cost.currency ?? null };
@@ -190,6 +198,13 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     const numberId = clip(((Array.isArray(d.phone_numbers) ? d.phone_numbers[0] : null) as Json | null)?.id, 100);
     const out: Json = { orderId: clip(d.id, 100), numberId };
     if (d.status === "failure") return ["failed", { ...out, error: "Telnyx couldn't complete the order" }];
+    // only a finished order (success) is completed and added to Vapi; pending, or an answer that can't be read, waits for
+    // a check (never placed again)
+    if (t.unreadable || d.status !== "success") {
+      return ["needs_check", { ...out, error: d.status === "pending"
+        ? "Telnyx accepted the order and is still processing it. Check the Telnyx dashboard, then record the outcome."
+        : "Telnyx's answer couldn't be read. Check the Telnyx dashboard, then record the outcome." }];
+    }
     if (!cfg.vapiCredentialId) return ["completed", { ...out, error: "Bought at Telnyx. Not added to Vapi: VAPI_TELNYX_CREDENTIAL_ID isn't set." }];
     try {
       const v = await send("vapi", "/phone-number", { method: "POST", body: JSON.stringify({ provider: "telnyx", number: o.e164, credentialId: cfg.vapiCredentialId, name: `Zella Voice ${o.e164}` }) });
@@ -202,14 +217,27 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
   };
 
   const placeRelease = async (o: Json): Promise<[string, Json]> => {
+    const e164 = String(o.e164);
+    // 1. find the number at Telnyx first (the filter takes digits only) and check it is exactly the approved one
+    const found = await send("telnyx", `/phone_numbers?${new URLSearchParams({ "filter[phone_number]": e164.replace(/\D/g, "") })}`);
+    if (!found.ok) return ["failed", { error: `Telnyx refused the lookup (${providerMessage(found.body, found.status)}). Nothing was changed.` }];
+    const match = (Array.isArray(found.body.data) ? found.body.data as Json[] : []).find((n) => n.phone_number === e164);
+    const id = clip(match?.id, 100);
+    if (!id) return ["failed", { error: "Telnyx has no such number on this account. Nothing was changed." }];
+    // 2. the Vapi resource must be this number, and not one Zella Voice has assigned to a business, before anything is removed
     if (o.vapi_phone_number_id) {
-      const v = await send("vapi", `/phone-number/${encodeURIComponent(String(o.vapi_phone_number_id))}`, { method: "DELETE" });
-      if (!v.ok && v.status !== 404) return ["failed", { error: `Vapi refused to remove it (${providerMessage(v.body, v.status)}). Nothing changed at Telnyx.` }];
+      const vid = String(o.vapi_phone_number_id);
+      const { data: assigned, error: aErr } = await admin.from("business_phone_numbers").select("id").eq("vapi_phone_number_id", vid).limit(1);
+      if (aErr) throw aErr;
+      if ((assigned ?? []).length) return ["failed", { error: "That Vapi number is assigned to a business in Zella Voice. Nothing was changed." }];
+      const g = await send("vapi", `/phone-number/${encodeURIComponent(vid)}`);
+      if (g.ok && g.body.number !== e164) return ["failed", { error: "That Vapi number isn't the number being released. Nothing was changed." }];
+      if (!g.ok && g.status !== 404) return ["failed", { error: `Vapi refused the lookup (${providerMessage(g.body, g.status)}). Nothing was changed.` }];
+      if (g.ok) {
+        const v = await send("vapi", `/phone-number/${encodeURIComponent(vid)}`, { method: "DELETE" });
+        if (!v.ok && v.status !== 404) return ["failed", { error: `Vapi refused to remove it (${providerMessage(v.body, v.status)}). Nothing changed at Telnyx.` }];
+      }
     }
-    const found = await send("telnyx", `/phone_numbers?${new URLSearchParams({ "filter[phone_number]": String(o.e164) })}`);
-    if (!found.ok) return ["failed", { error: `Telnyx refused the lookup (${providerMessage(found.body, found.status)})` }];
-    const id = clip(((Array.isArray(found.body.data) ? found.body.data[0] : null) as Json | null)?.id, 100);
-    if (!id) return ["failed", { error: "Telnyx has no such number on this account" }];
     const t = await send("telnyx", `/phone_numbers/${encodeURIComponent(id)}`, { method: "DELETE" });
     if (!t.ok) return ["failed", { numberId: id, error: `Telnyx refused the release (${providerMessage(t.body, t.status)})` }];
     return ["completed", { numberId: id }];
@@ -224,11 +252,15 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     const reason = text(fields.reason, 300);
     if (!approve) return { order: await rpc("zella_number_order_decide", { p_actor: userId, p_id: id, p_approve: false, p_reason: reason }) };
     await requireLive();
-    const { data: row, error } = await admin.from("number_orders").select("e164").eq("id", id).maybeSingle();
+    const { data: row, error } = await admin.from("number_orders").select("e164, status, decided_by").eq("id", id).maybeSingle();
     if (error) throw error;
     if (!row) throw new InputError(REFUSALS.NOT_FOUND[0], 404);
     if (text(fields.confirm, 20) !== row.e164) throw new InputError(`Type ${row.e164} to confirm.`);
-    await rpc("zella_number_order_decide", { p_actor: userId, p_id: id, p_approve: true, p_reason: reason });
+    // an order this owner already approved whose claim didn't happen (the request stopped in between) resumes at the
+    // claim: it isn't approved again, and an order already placing or waiting for a check is never sent again
+    if (!(row.status === "approved" && row.decided_by === userId)) {
+      await rpc("zella_number_order_decide", { p_actor: userId, p_id: id, p_approve: true, p_reason: reason });
+    }
     const o = await rpc("zella_number_order_claim", { p_actor: userId, p_id: id });
     let outcome: string, r: Json;
     try {
@@ -246,6 +278,17 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
     return { order };
   };
 
+  // an order waiting for a check is closed with what the owner saw in the provider dashboards; nothing is sent
+  const number_order_resolve = async () => {
+    if (role !== "zella_owner") throw new InputError(REFUSALS.OWNER_REQUIRED[0], 403);
+    const outcome = text(fields.outcome, 20);
+    if (outcome !== "completed" && outcome !== "failed") throw new InputError("Choose what the provider shows: done or not done.");
+    return { order: await rpc("zella_number_order_resolve", {
+      p_actor: userId, p_id: kit.requireId(fields.id, "order"), p_outcome: outcome, p_reason: text(fields.reason, 300),
+      p_number_id: text(fields.numberId, 100) || null, p_vapi_id: text(fields.vapiPhoneNumberId, 100) || null,
+    }) };
+  };
+
   const number_order_cancel = async () => ({
     order: await rpc("zella_number_order_cancel", { p_actor: userId, p_id: kit.requireId(fields.id, "order"), p_reason: text(fields.reason, 300) }),
   });
@@ -253,6 +296,8 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
   // Read only. Calls that ended with an error at Vapi, and webhook deliveries Telnyx couldn't make. Caller numbers are
   // masked; nothing is stored.
   const provider_errors = async () => {
+    // providers are contacted only once an owner switched number orders on (the same switch as ordering)
+    if (!(await enabled())) return { off: true, telnyx: { connected: Boolean(cfg.telnyxKey), rows: [] }, vapi: { connected: Boolean(cfg.vapiKey), rows: [] } };
     const out: Json = { telnyx: { connected: Boolean(cfg.telnyxKey), rows: [] as Json[] }, vapi: { connected: Boolean(cfg.vapiKey), rows: [] as Json[] } };
     const read = async (which: "telnyx" | "vapi", path: string, pick: (body: Json) => Json[]) => {
       try {
@@ -276,7 +321,7 @@ export function providerHandlers(admin: SupabaseClient, fields: Json, kit: Platf
   };
 
   const handlers: Record<string, () => Promise<unknown>> = {
-    provider_overview, number_search, number_order_request, number_order_decide, number_order_cancel, provider_errors,
+    provider_overview, number_search, number_order_request, number_order_decide, number_order_cancel, number_order_resolve, provider_errors,
   };
   // Every order step is audited by its database function, in the same transaction, so nothing is added here.
   const audited: Record<string, (r: Json) => Json> = {};

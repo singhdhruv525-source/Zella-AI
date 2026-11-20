@@ -75,7 +75,24 @@ export const realApi = {
     if (error) throw new Error(error.message || "The upload didn't finish.");
   },
   identityUploadConfirm: (meta) => edge("identity_upload_confirm", meta),
+
+  // Pay (docs/PAYMENTS_ARCHITECTURE.md §6.1): the billing-api edge function opens Stripe Checkout for the accepted
+  // plan. The browser sends no amount; it comes back from Stripe and asks the server to look again.
+  startCheckout: (businessId, idempotencyKey) => billing("checkout_start", { business_id: businessId, idempotency_key: idempotencyKey }),
+  checkoutReturn: (businessId) => billing("checkout_return", { business_id: businessId }),
 };
+
+async function billing(action, payload) {
+  const { data, error } = await supabase.functions.invoke("billing-api", { body: { action, ...payload } });
+  if (error) {
+    const status = error.context?.status;
+    let body = null;
+    try { body = await error.context?.json(); } catch { /* not JSON */ }
+    if (status === 404 && !body?.error) throw Object.assign(new Error("Requested function was not found"), { status, notReady: true });
+    throw Object.assign(new Error(body?.error || "Something went wrong. Please try again."), { status, code: typeof body?.code === "string" ? body.code : undefined, words: typeof body?.error === "string" ? body.error : undefined });
+  }
+  return data;
+}
 
 // The api the screens use. With VITE_ONBOARDING_FAKE=1 (local preview and tests only) the stand in answers instead.
 let chosen = null;
