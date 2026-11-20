@@ -32,7 +32,7 @@ declare s text; d text;
     "public.zella_stripe_failed_upgrade(billing_outbox)": "e813e7451754e058e7bc263c2c323eba",
     "public.zella_stripe_grant_subscription_update(jsonb,jsonb)": "84cc70fdbb9213ebb797c61042ebb9e2",
     "public.zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)": "8827b643e7c370b4ca010a0615481cf2",
-    "public.zella_admin_plan_change_cancel(uuid,text)": "cea6980e7a8a5996633fe5a877b5ab37",
+    "public.zella_admin_plan_change_cancel(uuid,text)": "39dcd2be8df1710e6d6f3a2e8097b041",
     "public.zella_stripe_after_schedule_release(billing_outbox)": "326b8dbf19d29fdd543d12ac11a6d5ff",
     "public.zella_stripe_failed_schedule_release(billing_outbox)": "b2a06b9b50eac41d194923ec162cd9bb"
   }';
@@ -122,10 +122,14 @@ begin
   if c.status <> 'scheduled' or c.stripe_schedule_id is null then raise exception 'INVALID_INPUT'; end if;
   -- Stripe refused this release before: the downgrade stays scheduled, and a person resolves the held command first
   if c.release_error is not null then raise exception 'RELEASE_REFUSED'; end if;
+  -- already asked (looked up under the change's lock, even within the same transaction): nothing new, no second audit
+  select * into r from public.billing_outbox where idempotency_key = 'release:' || c.id;
+  if r.id is not null then
+    if r.status in ('held', 'cancelled') then raise exception 'RELEASE_REFUSED'; end if;
+    return jsonb_build_object('change_id', c.id, 'status', 'releasing', 'changed', false);
+  end if;
   r := public.zella_billing_outbox_add(c.business_id, 'schedule_release', 'release:' || c.id, 'POST',
     '/v1/subscription_schedules/' || c.stripe_schedule_id || '/release', '{}'::jsonb, 'plan_change', c.id);
-  if r.status in ('held', 'cancelled') then raise exception 'RELEASE_REFUSED'; end if;
-  if r.created_at < now() then return jsonb_build_object('change_id', c.id, 'status', 'releasing', 'changed', false); end if;   -- already asked: no second audit
   insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
   values (c.business_id, auth.uid(), 'billing.plan_downgrade_cancelled', 'billing_plan_change', c.id, jsonb_build_object('reason', left(trim(p_reason), 500)));
   return jsonb_build_object('change_id', c.id, 'status', 'releasing', 'changed', true);

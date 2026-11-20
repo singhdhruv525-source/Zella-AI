@@ -15,7 +15,7 @@ declare s text; v_has boolean;
     "public.zella_stripe_failed_upgrade(billing_outbox)": "e813e7451754e058e7bc263c2c323eba",
     "public.zella_stripe_grant_subscription_update(jsonb,jsonb)": "84cc70fdbb9213ebb797c61042ebb9e2",
     "public.zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)": "8827b643e7c370b4ca010a0615481cf2",
-    "public.zella_admin_plan_change_cancel(uuid,text)": "cea6980e7a8a5996633fe5a877b5ab37",
+    "public.zella_admin_plan_change_cancel(uuid,text)": "39dcd2be8df1710e6d6f3a2e8097b041",
     "public.zella_stripe_after_schedule_release(billing_outbox)": "326b8dbf19d29fdd543d12ac11a6d5ff",
     "public.zella_stripe_failed_schedule_release(billing_outbox)": "b2a06b9b50eac41d194923ec162cd9bb"
   }';

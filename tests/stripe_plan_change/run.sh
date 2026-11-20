@@ -70,7 +70,9 @@ q "insert into public.billing_plan_changes (business_id, subscription_id, from_p
 # Stripe refuses a release: the refusal is recorded, the downgrade stays scheduled, and a new cancel is refused until a person resolves it
 dn2=$(q "insert into public.billing_plan_changes (business_id, subscription_id, from_plan_id, to_plan_id, direction, status, reason, stripe_schedule_id)
          select '$b', id, '$v2', '$plan', 'down', 'scheduled', 'Fewer minutes, third time', 'sub_sched_PC2' from public.subscriptions where business_id = '$b' returning id" | head -1)
-as_user "$admin" aal2 "select public.zella_admin_plan_change_cancel('$dn2', 'Owner asked to keep the plan')" > /dev/null
+# twice in one transaction, then once more later: one release command, one audit row
+[ "$(as_user "$admin" aal2 "select string_agg(x, ',') from (select public.zella_admin_plan_change_cancel('$dn2', 'Owner asked to keep the plan') ->> 'changed' x union all select public.zella_admin_plan_change_cancel('$dn2', 'Owner asked to keep the plan') ->> 'changed') y")" = "true,false" ] \
+  && ok "two cancels in one transaction: the second finds the first's command" || bad "same transaction"
 [ "$(as_user "$admin" aal2 "select public.zella_admin_plan_change_cancel('$dn2', 'Owner asked to keep the plan') ->> 'changed'")" = "false" ] \
   && [ "$(q "select count(*) from public.audit_logs where action = 'billing.plan_downgrade_cancelled' and entity_id = '$dn2'")" = "1" ] && ok "asking again while the release is pending sends nothing new and audits once" || bad "cancel twice"
 rel2=$(q "select id from public.billing_outbox where idempotency_key = 'release:$dn2'"); q "select id from public.zella_billing_outbox_claim(1, '$rel2')" > /dev/null
