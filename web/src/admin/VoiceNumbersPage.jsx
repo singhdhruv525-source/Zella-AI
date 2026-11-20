@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { callOwnerFunction } from "../CreateBusinessWizard";
 import { navigate } from "../router";
 import { TelephonyProviders, VoiceCosts, VoiceUsage } from "../settings/AdminPanels";
+import ProviderOrders from "./ProviderOrders";
 import { switchHint } from "../copy/liveSwitches";
 import {
   AlertList, DataTable, Drawer, ErrorNote, Facts, Filters, Metric, NotAvailable, PAGE, PageHeader, Pager, Panel, PERIODS, Pill,
@@ -43,7 +44,7 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
       {tab === "numbers" && <Numbers key={refresh} me={me} options={options.data} onAssign={setAssign} onOpenCalls={openCalls} say={say} onOpenBusiness={onOpenBusiness} />}
       {tab === "calls" && <Calls key={JSON.stringify(callFilter)} me={me} options={options.data} initial={callFilter} onOpenBusiness={onOpenBusiness} />}
       {tab === "routing" && <Routing me={me} options={options.data} say={say} />}
-      {tab === "providers" && <Providers me={me} />}
+      {tab === "providers" && <Providers me={me} say={say} />}
       {assign && <AssignDialog edit={assign} options={options.data} onClose={() => setAssign(null)} onDone={(m) => { say(m); setRefresh((n) => n + 1); setTab("numbers"); }} />}
       {toast}
     </section>
@@ -392,11 +393,12 @@ function RoutingForm({ businessId, manage, say, onSaved }) {
 }
 
 // Keys, costs and usage. The connection checks are on the Overview tab only (UI-18), so they aren't repeated here.
-function Providers({ me }) {
+function Providers({ me, say }) {
   const ov = useLoad(() => rpc("zella_admin_voice_overview", { p_from: since(1), p_to: null }), []);
   const o = ov.data;
   return (
     <>
+      <ProviderOrders me={me} say={say} />
       {ov.loading && !o && <p className="op-muted">Loading the Vapi sign in check…</p>}
       <ErrorNote error={ov.error} onRetry={ov.reload} />
       {!ov.loading && !ov.error && o && !o.auth_mode && (

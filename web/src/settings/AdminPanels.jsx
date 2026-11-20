@@ -11,6 +11,8 @@ import AlertRulesPanel from "./panels/AlertRules";
 import { GO_LIVE_PATH } from "../admin/GoLiveChecklist";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, MissingSettings, Needs, Pill, SaveBar, SectionSaveBar, SettingRow, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
+import RecordingPolicy from "./panels/RecordingPolicy";
+import DataRetention from "./panels/DataRetention";
 import { figureRows, reportError, scheduleFacts, weekLabel } from "./weeklyReport";
 
 // Admin Settings content. Every panel reads and writes through the
@@ -808,8 +810,8 @@ export function TelephonyProviders() {
             <Facts rows={[["Telnyx (numbers, texts)", n.telnyx ? "Key configured" : "Key not set"], ["Vapi (AI voice)", n.vapi ? "Key configured" : "Key not set"],
               ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
           </Card>
-          <Needs title="Buying numbers and provider error logs aren't built" have="Numbers bought in Telnyx or Vapi are assigned to businesses under Numbers.">
-            Ordering numbers and reading provider errors need the Telnyx and Vapi APIs from a server action.
+          <Needs title="Buying numbers and provider error logs are off until the keys are added" have="Voice & numbers > Providers: an admin asks, a Zella Voice owner approves, then Telnyx and Vapi are called. Numbers are assigned to businesses under Numbers.">
+            Both keys, and number_orders_enabled switched on by a Zella Voice owner, are needed before anything is bought or released.
           </Needs>
         </>
       );
@@ -1181,11 +1183,10 @@ export function Retention({ me }) {
     <LoadState state={state}>{(p) => (
       <>
         <SettingNumber me={me} keyName="retention_days" label="Days a canceled business's records are kept" current={p.retentionDays} />
-        <Card title="Other records">
-          <Facts rows={[["Customer erasure", "Per customer, with a second approval when a business has two owners or admins"], ["Audit log", "Kept; no automatic deletion"],
-            ["Call recordings and transcripts", "Kept with the call until the customer is erased"]]} />
+        <Card title="Customer erasure">
+          <Facts rows={[["Customer erasure", "Per customer, with a second approval when a business has two owners or admins"]]} />
         </Card>
-        <Needs title="Separate retention for recordings, transcripts and audit logs isn't built" have="Everything above.">It needs a scheduled job per record type that deletes or redacts after the configured days, with a log of what it removed.</Needs>
+        <DataRetention me={me} />
       </>
     )}</LoadState>
   );
@@ -1412,12 +1413,12 @@ export function LegalVersioning({ me }) {
   );
 }
 
-export function PolicyConfig({ onGo }) {
+export function PolicyConfig({ me, onGo }) {
   return (
     <>
       <LinkRows rows={[{ title: "Retention", detail: "Security & privacy > Data retention", onClick: () => onGo("security/retention") },
         { title: "Recording and consent text", detail: "Publish it as the Recording and consent document", onClick: () => onGo("legal/documents") }]} />
-      <Needs title="A recording on/off policy per business isn't built" have="Recordings come from the voice provider's settings. Recordings and transcripts are readable by owners, admins and managers; staff only where the business owner allows it and never in health, legal, financial, insurance or childcare businesses (zella_call_content_privacy.sql, once applied).">It needs a recording switch the phone assistant reads at the start of each call, and a disclosure line it says when recording is on.</Needs>
+      <RecordingPolicy me={me} />
     </>
   );
 }

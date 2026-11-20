@@ -1228,3 +1228,6 @@
 .be-frame.mobile { width: 390px; max-width: 100%; justify-self: center; }
 .be-text { margin: 0; padding: 16px; border: 1px solid var(--border-subtle); border-radius: 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; max-height: 760px; overflow: auto; }
 @media (max-width: 900px) { .be-layout { grid-template-columns: 1fr; } .be-list { max-height: 280px; } .be-facts { grid-template-columns: 1fr; } }
+
+/* Buttons side by side in a panel heading, a table row or a field (Voice & numbers > Providers) */
+.ao-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

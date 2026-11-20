@@ -8,6 +8,8 @@ import { PERMISSIONS, RESTRICTED_ROLES, settingsHandlers } from "./settings.ts";
 import { freshCodeGate, mfaGate, tokenAal } from "./mfa_gate.ts";
 import { ONBOARDING_PERMISSIONS, documentsReady, loadOnboarding, onboardingHandlers } from "./onboarding.ts";
 import { PLATFORM_PERMISSIONS, platformHandlers } from "./platform.ts";
+import { PROVIDER_PERMISSIONS, providerHandlers } from "./providers.ts";
+import { RETENTION_PERMISSIONS, retentionHandlers } from "./retention.ts";
 import { OPS_PERMISSIONS, opsHandlers, serverConfiguration } from "./ops.ts";
 import {
   DETAIL_PERMISSIONS, RESEND_COOLDOWN_MINUTES, adminPermissions, beforeOf, businessChange, businessDetail, detailHandlers, lifecycleOf,
@@ -1177,7 +1179,8 @@ type AuditContext = { userId: string; ip: string | null; userAgent: string | nul
 // The permission one action needs, from every module's table (the dispatcher's one lookup; tests use it too).
 export function permissionFor(action: string): string | undefined {
   return PERMISSIONS[action] ?? ONBOARDING_PERMISSIONS[action] ?? PLATFORM_PERMISSIONS[action] ?? CONFIG_PERMISSIONS[action] ??
-    DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action] ?? OPS_PERMISSIONS[action];
+    DETAIL_PERMISSIONS[action] ?? ACCESS_PERMISSIONS[action] ?? LIFECYCLE_PERMISSIONS[action] ?? OPS_PERMISSIONS[action] ??
+    PROVIDER_PERMISSIONS[action] ?? RETENTION_PERMISSIONS[action];
 }
 
 // One helper for every audit row; returns whether the row was written, and callers act on a failed write (an audit
@@ -3589,11 +3592,13 @@ Deno.serve(withCors(async (req: Request) => {
     });
     const platform = platformHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
     const ops = opsHandlers(adminClient, fields);
+    const providers = providerHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
+    const retention = retentionHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
     const config = configHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, role);
     const detail = detailHandlers(adminClient, fields, { text, requireId, InputError }, user.id, callerClient);
     const access = accessHandlers(adminClient, fields, user.id, { InputError, requireId }, role);
     const lifecycle = lifecycleHandlers(adminClient, fields, { text, bool, obj, requireId, InputError }, user.id, role);
-    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? detail.handlers[action] ?? access.handlers[action] ?? lifecycle.handlers[action] ?? ops.handlers[action];
+    const handler = handlers[action] ?? extra.handlers[action] ?? onboarding.handlers[action] ?? platform.handlers[action] ?? config.handlers[action] ?? detail.handlers[action] ?? access.handlers[action] ?? lifecycle.handlers[action] ?? ops.handlers[action] ?? providers.handlers[action] ?? retention.handlers[action];
     if (!handler) return respond({ error: "Unknown action" }, 400);
 
     try {
@@ -3601,7 +3606,7 @@ Deno.serve(withCors(async (req: Request) => {
 
       // Setup actions describe themselves from the request and result; settings and onboarding actions from
       // their result only (passing the request there recorded empty before/after values).
-      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? detail.audited[action] ?? access.audited[action] ?? lifecycle.audited[action] ?? ops.audited[action];
+      const later = extra.audited[action] ?? onboarding.audited[action] ?? platform.audited[action] ?? config.audited[action] ?? detail.audited[action] ?? access.audited[action] ?? lifecycle.audited[action] ?? ops.audited[action] ?? providers.audited[action] ?? retention.audited[action];
       const entry = AUDITED[action] ? AUDITED[action](fields, result) : later ? (later(result as Json) as AuditEntry) : null;
       const unchanged = action === "ticket_update" &&
         Object.keys(obj((result as Json).changes)).length === 0;

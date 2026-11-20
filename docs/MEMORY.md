@@ -387,6 +387,44 @@ most often needed:
   `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
   from the one account. Draft PRs get no review when they open (`drafts: false`): when a draft is marked ready for review, comment
   `@coderabbitai review` to start the first review.
+- **Number orders (VOICE-PROVIDERS, built 16 Nov 2026, not deployed):** every Telnyx or Vapi purchase or release is an
+  order an admin with `telephony.manage` asks for and a Zella Voice owner **who didn't ask** approves (an owner's own
+  request needs another owner); the approver's click places it once (claim), and a lost answer is "Check at Telnyx",
+  never retried. Bought numbers are added to Vapi but not assigned to a business: that stays the audited Assign step.
+  Off until the owner adds `TELNYX_API_KEY`, `VAPI_API_KEY` (and optionally `VAPI_TELNYX_CREDENTIAL_ID`,
+  `TELNYX_CONNECTION_ID`, `TELNYX_MESSAGING_PROFILE_ID`) and sets `number_orders_enabled` to true. The Telnyx and Vapi
+  request shapes follow their public API docs and are proven only against local fakes; confirm them with a sandbox key.
+
+- **Recording policy (SET-RECORDING-POLICY, built 16 Nov 2026, not deployed):** off for every business. A business can
+  be switched on only after a Zella Voice owner records `recording_legal_approved` with the caller disclosure line
+  (`recording_disclosure_text`, empty until legal provides it); those two settings can't be changed any other way.
+  Not connected to the live call path: today Zella Voice's assistant config doesn't set Vapi's recording option at
+  all, so Vapi's own default and dashboard settings decide whether calls are recorded. Making voice-rules send
+  recording off (or the policy) is a call path change that needs its own approval.
+
+- **Retention (SET-RETENTION, BIZ-18b, built 16 Nov 2026, not deployed):** each kind of data has its own period, set to
+  the architecture's proposal and marked pending legal review (recordings 30 days, transcripts 90, message words 2
+  years, audit logs 7 years, replaced verification copies 30 days, owner identity files 90 days after verification,
+  a cancelled business's documents and the business itself 30 days after cancellation, never before its
+  `retention_until`, which still uses `retention_days`, 90 today). The dry run lists what is past its period and
+  deletes nothing. Legal holds keep a business out of every list and make it undeletable. Defaults taken: placing a
+  hold needs security.manage, releasing one needs a Zella Voice owner; message bodies are redacted, not deleted.
+
+- **Purge runs (built 16 Nov 2026, not deployed):** a run removes only the rows listed when it was asked for, after
+  two different people approve (one a Zella Voice owner) and one of them types "PURGE <rows>", with
+  `retention_purge_enabled` on and the period legally approved. Lesson: emptying a call's transcript makes
+  `zella_call_integrity` re-mark a short old call as missed and start a missed call callback, so a purged transcript
+  is replaced by "Removed under the retention policy." instead. Defaults taken: at most 1000 rows per run; the second
+  person needs security.manage (or is another owner). Recordings at Vapi are not deleted (provider copy, needs Vapi).
+
+- **Business purge (BIZ-13d, built 16 Nov 2026, not deployed):** a cancelled business is deleted only by an approved
+  purge run (two people, one a Zella Voice owner), after a recorded final export offer at least 14 days old (default
+  taken), with its name typed and purges switched on. It waits for: legal approval of the cancelled business period,
+  lane B's `zella_draft_delete.sql` and the owner's ACC-10 decision (`audit_logs.business_id` to ON DELETE SET NULL, so
+  its audit history survives; lane B keeps it CASCADE until then), and the whole business export (B8, B9)
+  for the offer. Refused while it has payment or billing records: how long those are kept after deletion is an owner
+  and legal decision not taken. Provider copies: numbers must be released first; deleting Vapi assistants or call
+  recordings at Vapi isn't built.
 
 Waiting on the owner:
 

@@ -574,7 +574,7 @@ isolated database first.
 
 ### Businesses lifecycle
 - [ ] Delete a draft that was never finished, audited (BIZ-13) · needs approval
-- [ ] "Retention due" list and an owner approved purge of cancelled businesses (BIZ-13) · needs approval
+- [ ] "Retention due" list and an owner approved purge of cancelled businesses (BIZ-13) · needs approval · BIZ-13d purge built, off, in the lane G business purge PR (branch `claude/lane-g-business-purge`): needs legal approval of the period, lane B's draft delete applied (it carries the owner's ACC-10 decision of 16 Nov 2026: audit history kept, business_id set null), and the export (B8, B9) for the final offer
 - [ ] Whole business export and deletion jobs (Settings, Data lifecycle says they aren't built) · needs approval (export: request and approval on branch `claude/lane-b-business-export`, worker and Export card on `claude/lane-b-export-worker`, PRs to be opened; deletion jobs are BIZ-13d)
 - [ ] Automatic retry of failed setup steps (Settings, Business onboarding) · needs approval (part 1, recording every setup step, built on branch `claude/lane-b-provisioning-steps`, PR to be opened); part 2, Retry step and the timed retry of internal steps (off until the owner switches it on), built on branch `claude/lane-b-provisioning-retry`, PR to be opened
 
@@ -583,7 +583,7 @@ isolated database first.
 
 ### Verification
 - [ ] "Missing documents" list with "Request documents" (UI-11)
-- [ ] Document retention rule and cleanup of replaced and orphan files (BIZ-18) · needs approval (legal)
+- [ ] Document retention rule and cleanup of replaced and orphan files (BIZ-18) · needs approval (legal) · BIZ-18b periods and dry run built in the lane G retention dry run PR, pending legal review (orphan files are lane B)
 
 ### Industry configuration
 - [ ] Per industry sensitive flag, booking model and default automations stored as data (CFG-05) · needs approval
@@ -606,7 +606,7 @@ isolated database first.
 - [x] Counter and alert for refused Vapi requests, with auth mode and last refusal shown (COM-09) · needs approval (built, branches `claude/lane-d-voice-admin` and `claude/lane-d-voice-ui`; the voice-rules deploy needs its own approval)
 - [x] Read only switches panel: calls live, usage enforcement for calls, Vapi auth mode (COM-13) · needs approval (built, branch `claude/lane-d-voice-ui`)
 - [x] Tiles that open the filtered call list, and a missed call rate alert (UI-14) · needs approval for the alert (built, branches `claude/lane-d-voice-admin` and `claude/lane-d-voice-ui`)
-- [ ] Buying numbers and provider error logs through Telnyx and Vapi server actions (Providers says they aren't built) · needs approval (provider)
+- [ ] Buying numbers and provider error logs through Telnyx and Vapi server actions (Providers says they aren't built) · needs approval (provider) · built, switched off, in the lane G voice providers PR (branch `claude/lane-g-voice-providers`): needs the keys and the owner's switch
 - [x] "Missing routing" list of businesses without a transfer or fallback number (UI-17) (built, branch `claude/lane-d-routing-missing`)
 
 ### Messaging
@@ -636,8 +636,8 @@ isolated database first.
 - [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval. Built on the branch `claude/weekly-admin-report` (owner's decision: one weekly platform summary, permission `reports.view`); not applied; runs once `zella_jobs_weekly` is switched on
 - Not planned (owner, 16 Nov 2026; architecture §36): public API keys (Settings, API management)
 - [x] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval (built, branch `claude/lane-d-go-live`)
-- [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval
-- [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval
+- [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval · built, off, in the lane G recording policy PR (branch `claude/lane-g-recording-policy`): waits for legal; the live call path is not connected
+- [ ] Separate retention for recordings, transcripts and audit logs (Settings, Data retention) · needs approval · periods, legal holds and the dry run built in the lane G retention dry run PR (branch `claude/lane-g-retention-dry-run`), pending legal review; the approved purge (two people, off) in the lane G retention purge PR (branch `claude/lane-g-retention-purge`)
 
 ### New pages
 - [x] Growth page (prospects, demos, growth.manage), or mark REQ-ADM-18 as later (ACC-36): later (owner, 16 Nov 2026), marked in ARCHITECTURE and PRODUCT

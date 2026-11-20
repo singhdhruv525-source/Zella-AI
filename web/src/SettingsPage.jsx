@@ -120,7 +120,7 @@ function registry() {
     { key: "legal", label: "Legal, policy and documents", icon: "legal", items: [
       page("documents", "Legal documents", (c) => <P.LegalDocuments me={c.me} />, "terms privacy dpa cookie ai disclosure"),
       page("versions", "Document versioning", (c) => <P.LegalVersioning me={c.me} />, "publish review acceptance"),
-      page("policy", "Policy configuration", (c) => <P.PolicyConfig onGo={c.onGo} />, "retention recording consent"),
+      page("policy", "Policy configuration", (c) => <P.PolicyConfig me={c.me} onGo={c.onGo} />, "retention recording consent"),
     ] },
     { key: "developer", label: "Developer and API", icon: "dev", items: [
       page("api", "API management", () => <P.ApiManagement />, "keys scopes"),

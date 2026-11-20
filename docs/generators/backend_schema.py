@@ -229,6 +229,12 @@ GROUPS = [
         "business_report_runs": "Reports produced.",
         "support_tickets": "Support requests from businesses.",
         "support_ticket_notes": "Zella Voice admins' internal notes on support tickets (server only: the business never sees them).",
+        "business_recording_policies": "Recording on or off per business (no row means off); can't be on until a Zella Voice owner records legal approval (server only).",
+        "data_retention_policies": "How long each kind of data is kept, the architecture's proposal and its legal review status (server only).",
+        "retention_removed_files": "Verification files removed under retention: the document row and its outcome stay (server only).",
+        "retention_purge_runs": "Purge runs of data past its retention period: the rows asked for, two approvals (one a Zella Voice owner), who ran it, the file paths it listed and the ones recorded as removed, and the counts (server only).",
+        "legal_holds": "Businesses whose data must be kept whatever the retention periods say, until a Zella Voice owner releases the hold (server only).",
+        "number_orders": "Phone number purchases and releases through Telnyx and Vapi: who asked, which owner approved, the provider's answer (server only).",
         "support_ticket_messages": "The conversation on a support ticket that the business sees: Zella Voice replies and the business's answers (never the internal notes).",
     }),
 ]
