@@ -24,7 +24,7 @@ declare s text; d text;
   }';
   owned constant jsonb := '{
     "public.zella_billing_pack_next_command(uuid)": "2a5d455f3775411b79535374a09fc1c6",
-    "public.zella_owner_pack_buy(uuid,text,text)": "14f5dc41a480e7d25a876d897519d579",
+    "public.zella_owner_pack_buy(uuid,text,text)": "ce968b09b251a2192c48fefd2de0cb52",
     "public.zella_billing_maybe_reload(uuid,text)": "b6b17e578427352f918fb5c324c70448",
     "public.zella_billing_reload_trg()": "8ca4aed8ecc092d3ba4916d9fe3902bc",
     "public.zella_billing_pack_command(pack_purchases)": "6509163e4d12bbf5186b0610f0524f5f",
@@ -106,7 +106,7 @@ begin
   perform public.zella_onboarding_authorize(p_business_id, true, true);   -- active owner of THIS business, code verified session
   if p_idempotency_key is null or p_idempotency_key !~ '^[A-Za-z0-9_-]{8,100}$' then raise exception 'INVALID_INPUT'; end if;
   if not public.zella_payments_live() then raise exception 'PAYMENTS_NOT_LIVE'; end if;
-  perform 1 from public.businesses where id = p_business_id for update;   -- one purchase at a time per business: a retry sees the first
+  perform 1 from public.businesses where id = p_business_id for no key update;   -- one purchase at a time per business (a usage entry's key check still passes): a retry sees the first
   select * into v from public.pack_purchases where business_id = p_business_id and idempotency_key = p_idempotency_key;
   if v.id is not null then
     -- an owner key replays only an owner purchase; an admin grant with the same key is never shown as a purchase

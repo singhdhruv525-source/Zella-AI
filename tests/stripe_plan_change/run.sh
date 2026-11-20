@@ -43,6 +43,10 @@ c3=$(as_user "$admin" aal2 "select public.zella_admin_plan_change_start('$b', '$
 [ -n "$c3" ] && [ "$c3" != "$c2" ] && [ "$(q "select status from public.billing_plan_changes where id = '$c2'")" = "expired" ] && ok "a stale preview is expired when the next change starts" || bad "stale preview: $c3"
 # Stripe drops an unpaid pending upgrade: the confirmed change fails, the plan stays, a new change can start
 q "update public.billing_plan_changes set status = 'confirmed' where id = '$c3'" > /dev/null
+[ "$(zf_apply evt_pe0 customer.subscription.pending_update_expired '{"id":"sub_PC","object":"subscription","status":"active","livemode":false}')" = "ignored" ] \
+  && [ "$(q "select status from public.billing_plan_changes where id = '$c3'")" = "confirmed" ] && ok "an expiry notice never fails a confirmed change whose upgrade wasn't sent to Stripe yet" || bad "unsent upgrade"
+q "select public.zella_billing_outbox_add('$b', 'upgrade', 'upgrade:$c3', 'POST', '/v1/subscriptions/sub_PC', '{}', 'plan_change', '$c3')" > /dev/null
+q "update public.billing_outbox set status = 'sent', updated_at = now() - interval '1 minute' where idempotency_key = 'upgrade:$c3'" > /dev/null
 [ "$(zf_apply evt_pe1 customer.subscription.pending_update_expired '{"id":"sub_PC","object":"subscription","status":"active","livemode":false}')" = "applied" ] \
   && [ "$(q "select status from public.billing_plan_changes where id = '$c3'")" = "failed" ] && ok "an expired pending update fails the confirmed change" || bad "pending update expired"
 [ -n "$(as_user "$admin" aal2 "select public.zella_admin_plan_change_start('$b', '$v3', 'Third try for more minutes') ->> 'change_id'")" ] && ok "after that a new change can start" || bad "start after expiry"
@@ -51,5 +55,17 @@ q "update public.billing_plan_changes set status = 'cancelled' where status in (
    insert into public.billing_plan_changes (business_id, subscription_id, from_plan_id, to_plan_id, direction, status, reason)
    select '$b', id, '$v2', '$plan', 'down', 'scheduled', 'Fewer minutes' from public.subscriptions where business_id = '$b'" > /dev/null
 [ "$(as_user_e "$admin" aal2 "select public.zella_admin_plan_change_start('$b', '$v3', 'Upgrade over a scheduled downgrade')")" = "DOWNGRADE_SCHEDULED" ] && ok "a change over a scheduled downgrade is refused" || bad "scheduled downgrade"
+# a person cancels it: Stripe releases the schedule first, then the change is cancelled and changes can start again
+dn=$(q "select id from public.billing_plan_changes where status = 'scheduled'"); q "update public.billing_plan_changes set stripe_schedule_id = 'sub_sched_PC' where id = '$dn'" > /dev/null
+[ "$(as_user "$admin" aal2 "select public.zella_admin_plan_change_cancel('$dn', 'Owner asked to keep the plan') ->> 'status'")" = "releasing" ] \
+  && [ "$(q "select path from public.billing_outbox where idempotency_key = 'release:$dn'")" = "/v1/subscription_schedules/sub_sched_PC/release" ] && ok "a person cancels a scheduled downgrade: Stripe releases the schedule first" || bad "cancel downgrade"
+rel=$(q "select id from public.billing_outbox where idempotency_key = 'release:$dn'"); q "select id from public.zella_billing_outbox_claim(1, '$rel')" > /dev/null
+q "select public.zella_billing_outbox_result('$rel', true, 'sub_sched_PC', '{\"id\":\"sub_sched_PC\",\"object\":\"subscription_schedule\",\"status\":\"released\",\"livemode\":false}', null, false, false, 1)" > /dev/null
+[ "$(q "select status from public.billing_plan_changes where id = '$dn'")" = "cancelled" ] && ok "once released, the downgrade is cancelled" || bad "released: $(q "select status from public.billing_plan_changes where id = '$dn'")"
+# a scheduled downgrade that took effect (Stripe now bills its lower Price) is finished and no longer blocks a change
+q "insert into public.billing_plan_changes (business_id, subscription_id, from_plan_id, to_plan_id, direction, status, reason)
+   select '$b', id, '$v2', '$plan', 'down', 'scheduled', 'Fewer minutes again' from public.subscriptions where business_id = '$b'" > /dev/null
+[ "$(zf_apply evt_dn1 customer.subscription.updated '{"id":"sub_PC","object":"subscription","status":"active","livemode":false,"items":{"data":[{"id":"si_PC","price":{"id":"price_PC"}}]}}')" = "applied" ] \
+  && [ "$(q "select count(*) from public.billing_plan_changes where status = 'scheduled'")" = "0" ] && ok "the downgrade taking effect ends its block" || bad "downgrade done: $(q "select string_agg(status, ',') from public.billing_plan_changes")"
 out=$("${P[@]}" -d "$DB" -f "$ZF_REPO/sql/rollback/zella_stripe_plan_change_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_HAS_DATA* ]] && ok "the rollback refuses while changes exist" || bad "rollback data"
 echo "$fails failed"; [ "$fails" = 0 ]

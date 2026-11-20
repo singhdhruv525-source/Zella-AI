@@ -80,5 +80,13 @@ po=$(q "select id from public.billing_outbox where local_id = '$prid'"); q "sele
 q "select public.zella_billing_outbox_result('$po', false, null, '{\"type\":\"invalid_request_error\"}', 'refused', false, false, 1)" > /dev/null
 [ "$(q "select status from public.billing_refunds where id = '$prid'")" = "failed" ] && [ "$(q "select granted::int || ',' || used::int from public.allowance_buckets where pack_purchase_id = '$pk'")" = "100,0" ] \
   && ok "a pack refund Stripe refuses gives the units back" || bad "pack restore: $(q "select granted from public.allowance_buckets where pack_purchase_id = '$pk'")"
+# a Dashboard refund settles the same pack while our request is pending, then ours fails: the pack stays unusable
+prid2=$(as_user "$u" aal2 "select public.zella_owner_refund_request('$b', 'pack', '$ppay', 'refund-pack-02') ->> 'refund_id'")
+as_user "$owner" aal2 "select public.zella_admin_refund_decide('$prid2', true, 'Unused pack, second request')" > /dev/null
+zf_apply evt_rpk refund.created '{"id":"re_PKD","object":"refund","status":"succeeded","amount":2900,"currency":"usd","payment_intent":"pi_PK","livemode":false}' > /dev/null
+po2=$(q "select id from public.billing_outbox where local_id = '$prid2'"); q "select id from public.zella_billing_outbox_claim(1, '$po2')" > /dev/null
+q "select public.zella_billing_outbox_result('$po2', false, null, '{\"type\":\"invalid_request_error\"}', 'already refunded', false, false, 1)" > /dev/null
+[ "$(q "select granted::int || ',' || used::int from public.allowance_buckets where pack_purchase_id = '$pk'")" = "100,100" ] \
+  && ok "a failed pack refund never frees a pack another refund already settled" || bad "restore after settle: $(q "select granted || ',' || used from public.allowance_buckets where pack_purchase_id = '$pk'")"
 out=$("${P[@]}" -d "$DB" -f "$ZF_REPO/sql/rollback/zella_stripe_refunds_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_HAS_DATA* ]] && ok "the rollback refuses while refunds exist" || bad "rollback data"
 echo "$fails failed"; [ "$fails" = 0 ]

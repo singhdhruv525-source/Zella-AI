@@ -8,7 +8,7 @@ declare s text; v_has boolean; d text;
   owned constant jsonb := '{
     "public.zella_billing_checkout_continue(uuid,boolean)": "7f998f18370021b4668ce06f057d0055",
     "public.zella_billing_checkout_next_command(uuid)": "1de829f1bf61b380be0b25226d03368f",
-    "public.zella_owner_billing_checkout_start(uuid,text)": "ccd57eed688b61cf9cec456b33fd4f55",
+    "public.zella_owner_billing_checkout_start(uuid,text)": "b7d94de03d337b29491d9121c45eb6e4",
     "public.zella_stripe_after_customer(billing_outbox)": "79869917c8050995b88a9bebeaa57c31",
     "public.zella_stripe_after_product(billing_outbox)": "a9eb61e5d51628b53253a83df4efdb68",
     "public.zella_stripe_after_price(billing_outbox)": "651dce986b81b8bcf00033b3f32c8323",

@@ -29,7 +29,7 @@ declare s text; d text;
   owned constant jsonb := '{
     "public.zella_billing_checkout_continue(uuid,boolean)": "7f998f18370021b4668ce06f057d0055",
     "public.zella_billing_checkout_next_command(uuid)": "1de829f1bf61b380be0b25226d03368f",
-    "public.zella_owner_billing_checkout_start(uuid,text)": "ccd57eed688b61cf9cec456b33fd4f55",
+    "public.zella_owner_billing_checkout_start(uuid,text)": "b7d94de03d337b29491d9121c45eb6e4",
     "public.zella_stripe_after_customer(billing_outbox)": "79869917c8050995b88a9bebeaa57c31",
     "public.zella_stripe_after_product(billing_outbox)": "a9eb61e5d51628b53253a83df4efdb68",
     "public.zella_stripe_after_price(billing_outbox)": "651dce986b81b8bcf00033b3f32c8323",
@@ -214,7 +214,8 @@ begin
   -- (two tabs, or a payment Stripe took that the webhook hasn't confirmed yet: 'completed' stays until it is paid)
   select * into c from public.billing_checkouts where business_id = p_business_id and idempotency_key = p_idempotency_key;
   if c.id is null then
-    select * into c from public.billing_checkouts where business_id = p_business_id and status in ('preparing', 'open', 'expiring', 'completed') order by created_at desc limit 1;
+    -- locked, so a session answer that opens it meanwhile is seen before the replacement decision
+    select * into c from public.billing_checkouts where business_id = p_business_id and status in ('preparing', 'open', 'expiring', 'completed') order by created_at desc limit 1 for update;
     if c.id is not null and c.status in ('preparing', 'open') and (c.business_plan_id <> p.id or (c.status = 'open' and c.expires_at <= now())) then
       if c.status = 'open' and c.expires_at > now() and c.stripe_session_id is not null then
         -- the old session could still be paid at Stripe: Stripe expires it first; a new one is offered only after Stripe

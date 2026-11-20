@@ -30,7 +30,7 @@ declare s text;
     "public.zella_admin_refund_raise(uuid,bigint,text)": "35634947680c18b9324a029c6490695e",
     "public.zella_stripe_after_refund(billing_outbox)": "5f6011231dd937b32cc627adcb7fc1a2",
     "public.zella_stripe_failed_refund(billing_outbox)": "31f2febf3d3ddf4342bf76379830ccb9",
-    "public.zella_refund_pack_restore(uuid)": "65ed6641ae30ced4affb8a1480bf509b",
+    "public.zella_refund_pack_restore(uuid)": "8cbafb3676488c108afb73610037ea32",
     "public.zella_stripe_on_refund_created(billing_events,jsonb)": "a8f17e05eef38ae2dd3f241bef368f99",
     "public.zella_stripe_on_refund_updated(billing_events,jsonb)": "02183a60f1cb3ccbb7762e163778bfd4",
     "public.zella_stripe_on_refund_failed(billing_events,jsonb)": "b7d0fffc8b7a092c37012040d3f52bae"
@@ -235,13 +235,17 @@ begin
   if found then perform public.zella_refund_pack_restore(r.local_id); end if;
 end $$;
 
--- A pack refund that failed: the units held at approval are free again (approval needed them all unused).
+-- A pack refund that failed: the units held at approval are free again (approval needed them all unused), unless
+-- another refund of the same payment went through (then the pack stays unusable). Serialized on the payment row, like
+-- every refund settlement.
 create or replace function public.zella_refund_pack_restore(p_refund_id uuid) returns void
 language plpgsql security definer set search_path = public as $$
 declare f public.billing_refunds;
 begin
   select * into f from public.billing_refunds where id = p_refund_id;
   if f.kind is distinct from 'pack' or f.decided_at is null then return; end if;
+  perform 1 from public.payments where id = f.payment_id for update;
+  if exists (select 1 from public.billing_refunds where payment_id = f.payment_id and id <> f.id and status = 'processed') then return; end if;
   update public.allowance_buckets set used = 0
    where pack_purchase_id in (select pp.id from public.pack_purchases pp join public.payments p on p.provider = 'stripe' and p.external_payment_id = pp.stripe_payment_intent
                                where p.id = f.payment_id and pp.business_id = f.business_id);

@@ -50,6 +50,7 @@
     "billing.paused_nonpayment": "Paused service for nonpayment",
     "billing.payments_switch": "Changed live payments switch",
     "billing.plan_change_started": "Started plan change",
+    "billing.plan_downgrade_cancelled": "Cancelled scheduled plan downgrade",
     "billing.plan_saved": "Saved billing plan",
     "billing.plan_upgrade_confirmed": "Confirmed plan upgrade payment",
     "billing.plan_upgraded": "Upgraded plan",

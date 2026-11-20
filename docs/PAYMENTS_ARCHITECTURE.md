@@ -1367,8 +1367,9 @@ come first, on staging, before any live key. Then these three steps, first on st
 **Defaults chosen pending owner decision (20 Nov 2026).** Where the review found a product choice, the most
 conservative default that matches production today was built (money never moves twice, nothing is charged or refunded
 automatically that wasn't before, the code refuses rather than guesses). The owner decides each before go live:
-1. A downgrade already scheduled at Stripe stays; no other plan change starts until it takes effect or a person
-   cancels it (`DOWNGRADE_SCHEDULED`). Both are never applied.
+1. A downgrade already scheduled at Stripe stays; no other plan change starts until it takes effect (Stripe bills its
+   lower Price) or a person cancels it (`zella_admin_plan_change_cancel`: Stripe releases the schedule first)
+   (`DOWNGRADE_SCHEDULED`). Both are never applied.
 2. Missed events are read from a stored watermark (the last complete scan, less an hour); it moves only when a scan
    read every page. A scan cut short raises an alert; a longer backfill is a separate, manual step a person approves.
 3. A pack can't be used while its refund is pending: its units are held at approval and freed if the refund fails.

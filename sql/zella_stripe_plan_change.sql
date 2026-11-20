@@ -19,7 +19,7 @@ begin;
 do $$
 declare s text; d text;
   known constant jsonb := '{
-    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": ["159c43b07625ac49bdd9deffcf244b5c", "ca7b5347d6305875b341a0a46bed4be5"]
+    "public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)": ["159c43b07625ac49bdd9deffcf244b5c", "c9b70ddd6dfdf324e93d3f2aa79d7ab4"]
   }';
   owned constant jsonb := '{
     "public.zella_admin_plan_change_start(uuid,uuid,text)": "613fbf10d8d84d39afac99a905f21a5e",
@@ -30,8 +30,10 @@ declare s text; d text;
     "public.zella_owner_plan_change(uuid)": "dda2436517e55a9f269d49d45609ff67",
     "public.zella_stripe_after_schedule(billing_outbox)": "cd6b54170113960f975f2a5a9b9a1006",
     "public.zella_stripe_failed_upgrade(billing_outbox)": "e813e7451754e058e7bc263c2c323eba",
-    "public.zella_stripe_grant_subscription_update(jsonb,jsonb)": "42e6518b17f9726e3ed69c54c6eabeec",
-    "public.zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)": "703b81c03fdc862b9b9b1f0f31a5e7db"
+    "public.zella_stripe_grant_subscription_update(jsonb,jsonb)": "84cc70fdbb9213ebb797c61042ebb9e2",
+    "public.zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)": "8827b643e7c370b4ca010a0615481cf2",
+    "public.zella_admin_plan_change_cancel(uuid,text)": "a1cb7f996914716bbec43c3857bec3f5",
+    "public.zella_stripe_after_schedule_release(billing_outbox)": "326b8dbf19d29fdd543d12ac11a6d5ff"
   }';
 begin
   if to_regprocedure('public.zella_billing_ledger_check()') is null then raise exception 'VERSION_MISMATCH: needs zella_stripe_reconcile.sql'; end if;
@@ -94,9 +96,38 @@ begin
     update public.subscriptions set status = v_to, past_due_since = coalesce(past_due_since, now()) where id = s.id;
   end if;
   perform public.zella_stripe_cancel_check(e, o);   -- the owner's latest cancel choice against Stripe's
+  -- a scheduled downgrade has taken effect once Stripe bills its lower Price: it is finished, and no longer blocks a change
+  update public.billing_plan_changes c set status = 'applied', updated_at = now()
+   where c.subscription_id = s.id and c.status = 'scheduled'
+     and exists (select 1 from public.billing_stripe_links k where k.local_id = c.to_plan_id and k.local_kind = 'plan_price'
+                  and k.stripe_id = coalesce(o #>> '{items,data,0,price,id}', o #>> '{items,data,0,price}'));
   update public.billing_events set business_id = l.business_id, subscription_id = s.id where id = e.id;
   return 'applied';
 end $$;
+
+-- A person cancels a downgrade scheduled at Stripe (billing.manage, a reason, audited): Stripe releases the schedule
+-- first (key release:<change id>); the change is cancelled only once Stripe confirms (zella_stripe_after_schedule_release).
+create or replace function public.zella_admin_plan_change_cancel(p_change_id uuid, p_reason text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare c public.billing_plan_changes;
+begin
+  if auth.uid() is null or not public.zella_admin_can('billing.manage') then raise exception 'NOT_ALLOWED'; end if;
+  if p_reason is null or length(trim(p_reason)) < 5 then raise exception 'REASON_REQUIRED'; end if;
+  if not public.zella_payments_live() then raise exception 'PAYMENTS_NOT_LIVE'; end if;
+  select * into c from public.billing_plan_changes where id = p_change_id for update;
+  if c.id is null then raise exception 'NOT_FOUND'; end if;
+  if c.status <> 'scheduled' or c.stripe_schedule_id is null then raise exception 'INVALID_INPUT'; end if;
+  perform public.zella_billing_outbox_add(c.business_id, 'schedule_release', 'release:' || c.id, 'POST',
+    '/v1/subscription_schedules/' || c.stripe_schedule_id || '/release', '{}'::jsonb, 'plan_change', c.id);
+  insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
+  values (c.business_id, auth.uid(), 'billing.plan_downgrade_cancelled', 'billing_plan_change', c.id, jsonb_build_object('reason', left(trim(p_reason), 500)));
+  return jsonb_build_object('change_id', c.id, 'status', 'releasing');
+end $$;
+
+create or replace function public.zella_stripe_after_schedule_release(r public.billing_outbox) returns void
+language sql security definer set search_path = public as $$
+  update public.billing_plan_changes set status = 'cancelled', updated_at = now() where id = r.local_id and status = 'scheduled';
+$$;
 
 -- Queues the change's next command: the new version's Price, then the preview (up) or the schedule (down).
 create or replace function public.zella_plan_change_next(p_change_id uuid) returns uuid
@@ -229,7 +260,11 @@ begin
   select * into s from public.subscriptions where business_id = l.business_id for update;
   if s.id is null or s.external_subscription_id is distinct from o ->> 'id' then return 'ignored'; end if;
   if o -> 'pending_update' is not null and jsonb_typeof(o -> 'pending_update') = 'object' then return 'older'; end if;   -- fetched now: a pending update is still there
-  select * into c from public.billing_plan_changes where subscription_id = s.id and status = 'confirmed' order by created_at desc limit 1 for update;
+  -- only the upgrade Stripe had made pending: its command was sent before this notice; a newer confirmed change whose
+  -- command isn't sent yet is not the one that expired
+  select * into c from public.billing_plan_changes x where x.subscription_id = s.id and x.status = 'confirmed'
+     and exists (select 1 from public.billing_outbox b where b.kind = 'upgrade' and b.local_id = x.id and b.status = 'sent' and b.updated_at <= e.event_created_at)
+   order by x.created_at desc limit 1 for update;
   if c.id is null then return 'ignored'; end if;
   update public.billing_plan_changes set status = 'failed', updated_at = now() where id = c.id;
   perform public.zella_notify_owners(l.business_id, 'plan_upgrade', 'Your plan upgrade did not go through',
@@ -286,6 +321,9 @@ begin
   -- charge used (stored on the change), in the period that time falls in, so a late event grants the same amount
   v_at := to_timestamp(c.proration_date);
   per := public.zella_billing_open_period(v_biz, v_at);
+  -- the period the charge covered can't be found (never opened, and no longer the current one): a person decides the
+  -- extra allowance; nothing is marked applied without it
+  if per.id is null then raise exception 'BINDING: no billing period for the upgrade''s proration time'; end if;
   if per.id is not null then
     v_left := greatest(0, extract(epoch from per.period_end - v_at)) / nullif(extract(epoch from per.period_end - per.period_start), 0);
     foreach r in array array['minutes', 'texts', 'emails'] loop
@@ -304,11 +342,12 @@ end $$;
 do $$ declare f text; begin
   foreach f in array array['zella_plan_change_next(uuid)', 'zella_stripe_after_change_price(billing_outbox)', 'zella_stripe_after_preview(billing_outbox)', 'zella_stripe_after_schedule(billing_outbox)',
     'zella_stripe_failed_upgrade(billing_outbox)', 'zella_stripe_grant_subscription_update(jsonb,jsonb)',
-    'zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)'] loop
+    'zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)', 'zella_stripe_after_schedule_release(billing_outbox)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
-  foreach f in array array['zella_admin_plan_change_start(uuid,uuid,text)', 'zella_owner_plan_change_confirm(uuid,uuid)', 'zella_owner_plan_change(uuid)'] loop
+  foreach f in array array['zella_admin_plan_change_start(uuid,uuid,text)', 'zella_owner_plan_change_confirm(uuid,uuid)', 'zella_owner_plan_change(uuid)',
+    'zella_admin_plan_change_cancel(uuid,text)'] loop
     execute format('revoke execute on function public.%s from public, anon', f);
     execute format('grant execute on function public.%s to authenticated, service_role', f);
   end loop;
