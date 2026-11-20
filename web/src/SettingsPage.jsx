@@ -114,7 +114,7 @@ function registry() {
     ] },
     { key: "analytics", label: "Analytics and reporting", icon: "analytics", items: [
       page("global", "Global analytics", () => <P.GlobalAnalytics />, "growth revenue usage retention"),
-      page("reporting", "Reporting configuration", () => <P.ReportingConfig />, "scheduled reports"),
+      page("reporting", "Reporting configuration", (c) => <P.ReportingConfig me={c.me} />, "scheduled reports weekly platform report summary"),
       page("quality", "Data quality", () => <P.DataQuality />, "duplicates unmatched"),
     ] },
     { key: "legal", label: "Legal, policy and documents", icon: "legal", items: [

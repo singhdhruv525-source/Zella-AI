@@ -379,9 +379,17 @@ footer, until the list is scrolled to the end.
 
 Platform roles use named permissions (`businesses.view/manage`, `telephony.manage`, `comms.manage`, `ai.configure`,
 `integrations.manage`, `billing.view/manage`, `plans.manage`, `support.manage`, `security.view/manage`, `audit.view`,
-`analytics.view`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
+`analytics.view`, `reports.view`). Only the Zella Voice owner manages platform admins. An admin alerts bell shows
 platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its `growth.manage` permission come
 later, not before launch (owner, 16 Nov 2026).
+
+**Weekly platform report** (Settings, Analytics and reporting, Reporting configuration; `reports.view`, which the
+Zella Voice owner and super admins have; a restricted role only when the owner grants it): one summary of the whole
+platform for each week, Monday to Sunday in UTC: new businesses, live businesses, calls, missed calls, texts sent and
+received, open platform alerts, support tickets and failed automations, each with its definition, plus earlier weeks.
+When a report is made every admin gets an alert in the bell that it is ready (no figures in it); the same alert goes in
+the admin email digest once email is live. **Built, not applied** (`sql/zella_weekly_platform_report.sql`); it runs
+only once the weekly job `zella_jobs_weekly` is switched on (the owner's switch, off in production).
 
 When an owner removes an admin or changes their role, that person is signed out on every device, and Users & access
 says how many devices were signed out (needs `sql/zella_admin_sessions.sql`, built, not applied). The change is saved

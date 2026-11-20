@@ -1267,6 +1267,7 @@ Every attempt stores:
 | Callback reminder | staff, before due | internal | in-app, email, SMS | before due | done | — |
 | Staff notification | needs a person, escalation, new lead | internal | per member preference | immediately | read | — |
 | Business reports | schedule | internal | email | 08:00 local / weekly | — | — |
+| Weekly platform report (Zella Voice admins) | schedule | internal | in app alert; admin email digest once email is live | Mondays 08:00 UTC, for the week before, once | never; one report per week | figures in Settings, `reports.view` |
 | Integration disconnected | health | internal | email + in-app | immediately, then daily | reconnected | — |
 | Billing notifications | payment events | internal | email | immediately | paid | — |
 | Knowledge notices | gaps, conflicts | internal | email + in-app | weekly | resolved | — |

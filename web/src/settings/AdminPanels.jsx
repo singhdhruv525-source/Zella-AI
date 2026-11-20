@@ -11,6 +11,7 @@ import AlertRulesPanel from "./panels/AlertRules";
 import { GO_LIVE_PATH } from "../admin/GoLiveChecklist";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, MissingSettings, Needs, Pill, SaveBar, SectionSaveBar, SettingRow, Table, Toggle, money, useAsync, useForm, when, words } from "./SettingsKit";
 import { settingLabel } from "../copy/settingLabels";
+import { figureRows, reportError, scheduleFacts, weekLabel } from "./weeklyReport";
 
 // Admin Settings content. Every panel reads and writes through the
 // owner-provision-business function, which checks the admin's role and
@@ -1295,8 +1296,37 @@ export function GlobalAnalytics() {
   );
 }
 
-export function ReportingConfig() {
-  return <Needs title="Scheduled reports and report permissions aren't built" have="Reports are computed live when opened; each definition is written under its figure.">Scheduled reports need a schedule table, a report runner and an email template.</Needs>;
+// The weekly platform report (sql/zella_weekly_platform_report.sql): figures need reports.view, checked again by the server.
+export function ReportingConfig({ me }) {
+  const allowed = can(me, "reports.view");
+  const state = useAsync(async () => {
+    if (!allowed) return null;
+    const { data, error } = await supabase.rpc("zella_admin_weekly_reports", { p_limit: 12 });
+    if (error) throw new Error(reportError(error.message));
+    return data;
+  }, [allowed]);
+  if (!allowed) return <Banner tone="warn">{reportError("NOT_ALLOWED")}</Banner>;
+  return (
+    <LoadState state={state}>{(d) => {
+      const [latest, ...earlier] = d.reports ?? [];
+      return (
+        <>
+          <Card title="Weekly platform report" sub="Counts only: no names, numbers or messages."><Facts rows={scheduleFacts(d.schedule, when)} /></Card>
+          {latest ? (
+            <Card title={`Latest report: ${weekLabel(latest.period_start, latest.period_end)}`} sub={`Made ${when(latest.created_at)}.`}>
+              <Table rowKey={(r) => r.key} rows={figureRows(latest.summary)} columns={[["Figure", (r) => <strong>{r.label}</strong>], ["Count", (r) => r.value], ["What it counts", (r) => <small className="zs-muted">{r.definition}</small>]]} />
+            </Card>
+          ) : <Empty title="No weekly report yet">The first one is made on the Monday after the weekly scheduled job is switched on.</Empty>}
+          {earlier.length > 0 && (
+            <Card title="Earlier weeks">
+              <Table rowKey={(r) => r.id} rows={earlier} columns={[["Week", (r) => weekLabel(r.period_start, r.period_end)],
+                ...figureRows({}).map(({ key, label }) => [label, (r) => figureRows(r.summary).find((f) => f.key === key).value])]} />
+            </Card>
+          )}
+        </>
+      );
+    }}</LoadState>
+  );
 }
 
 export function DataQuality() {

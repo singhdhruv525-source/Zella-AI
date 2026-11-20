@@ -633,7 +633,7 @@ isolated database first.
 
 ### Settings
 - [x] Editable alert rules (condition, severity, destination, frequency, quiet window) (Settings, Alert rules) · needs approval (built, branches `claude/lane-d-alert-rules` and `claude/lane-d-alert-rules-email`)
-- [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval
+- [ ] Scheduled reports and report permissions (Settings, Reporting configuration) · needs approval. Built on the branch `claude/weekly-admin-report` (owner's decision: one weekly platform summary, permission `reports.view`); not applied; runs once `zella_jobs_weekly` is switched on
 - Not planned (owner, 16 Nov 2026; architecture §36): public API keys (Settings, API management)
 - [x] OAuth application checks (Google client set or not) in the server configuration check (Settings, OAuth applications) · needs approval (built, branch `claude/lane-d-go-live`)
 - [ ] A per business recording on or off policy (Settings, Policy configuration) · needs approval

@@ -300,6 +300,13 @@ most often needed:
   REQ-API-01 to 04, Settings API management and Webhooks). A read only log of incoming provider events for admins is
   still fine.
 
+- **Weekly platform report (owner, 16 Nov 2026):** one weekly summary of the whole platform for Zella Voice admins,
+  readable with `reports.view` (owner and super admins by default). The bell alert and the email digest only say it is
+  ready, never the figures, because every admin sees the bell and gets the digest. Built, not applied
+  (`sql/zella_weekly_platform_report.sql`); runs once `zella_jobs_weekly` is on. Found while building it:
+  `zella_check_business_moments` is in the hourly list but not in `zella_run_scheduled_job`'s allowed list, so the
+  hourly job would return not_allowed for it. Fixed by `sql/zella_business_moments_job.sql` (built, not applied;
+  apply it after the weekly report file).
 - **Member support from the Business page (lane E review, 19 Nov 2026, defaults the owner can change):** a two step
   reset is refused for someone who also belongs to another business, because an authenticator protects the person's
   sign in everywhere, not one membership. Deactivate, Reactivate and Cancel invitation run in one database step each
