@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 353 |
 | Columns | 2421 |
 | Views | 1 |
-| Functions | 1163 (1081 security definer, 29 callable by `anon`) |
+| Functions | 1165 (1083 security definer, 29 callable by `anon`) |
 
 Rules every table follows:
 
@@ -5067,7 +5067,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_add_lead_note(p_customer_id uuid, p_note text)` | boolean | yes | signed in |
 | `zella_add_record_note(p_id uuid, p_note text)` | boolean | yes | signed in |
 
-### `zella_admin_*` (75)
+### `zella_admin_*` (76)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5114,6 +5114,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_admin_onboarding_overview()` | jsonb | yes | signed in |
 | `zella_admin_onboarding_progress(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_pack_grant(p_business_id uuid, p_pack_code text, p_reason text, p_idempotency_key text)` | jsonb | yes | signed in |
+| `zella_admin_plan_change_cancel(p_change_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_plan_change_start(p_business_id uuid, p_plan_id uuid, p_reason text)` | jsonb | yes | signed in |
 | `zella_admin_plan_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_admin_plan_save(p_business_id uuid, p_values jsonb, p_acknowledgements jsonb, p_idempotency_key text)` | jsonb | yes | signed in |
@@ -6324,7 +6325,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean)` | void | yes | server only |
 | `zella_store_lookup_log(p_business_id uuid, p_provider_call_id text, p_integration_id uuid, p_result text, p_verified boolean, p_order_ref text)` | void | yes | server only |
 
-### `zella_stripe_*` (67)
+### `zella_stripe_*` (68)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -6340,6 +6341,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_stripe_after_product(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_refund(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_after_schedule(r billing_outbox)` | void | yes | server only |
+| `zella_stripe_after_schedule_release(r billing_outbox)` | void | yes | server only |
 | `zella_stripe_apply_event(p_event_id uuid, p_object jsonb, p_key_livemode boolean)` | text | yes | server only |
 | `zella_stripe_bind_invoice(p_inv jsonb, p_require_paid boolean)` | jsonb | yes | server only |
 | `zella_stripe_bind_lines(o jsonb, p_business_id uuid)` | jsonb | yes | server only |
