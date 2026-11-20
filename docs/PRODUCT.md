@@ -218,7 +218,7 @@ Zella Voice staff can change them from the admin.
 | Calls sampled for quality review | Built |
 | Evaluation cases per industry (`ai_eval_cases`) | Built |
 | Configuration versions: what each call actually received | Built |
-| Call recording | **Off** until legal review (D-13). Built, not deployed: a recording on or off policy per business (Settings, Legal, policy and documents > Policy configuration), refused on until a Zella Voice owner records legal approval and the caller disclosure line (both empty: pending legal review); withdrawing approval switches every business off; audited. The phone assistant doesn't read the policy yet (a separate call path change that needs its own approval) |
+| Call recording | **Off** until legal review (D-13). Built, not deployed: a recording on or off policy per business (Settings, Legal, policy and documents > Policy configuration). The policy is off by default and refused on until a Zella Voice owner records legal approval and the caller disclosure line (both empty: pending legal review); withdrawing approval turns the policy off for every business; audited. The policy doesn't change live calls yet: the phone assistant doesn't read it, so Vapi's own settings still decide whether a call is recorded until a separately approved call path change |
 | AI call intelligence (topics, sentiment) | Built, off (`call_intel_live`) |
 
 ### 7.4 Outbound calls

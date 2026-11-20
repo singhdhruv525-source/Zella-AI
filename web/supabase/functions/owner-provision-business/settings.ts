@@ -508,6 +508,8 @@ export function settingsHandlers(admin: SupabaseClient, fields: Json, ctx: { use
         const m = String((res.error as { message?: string }).message ?? "");
         if (m.includes("PHONE_NUMBER_LIMIT_REACHED")) throw new k.InputError("That business's plan doesn't include another phone number", 409);
         if (m.includes("duplicate")) throw new k.InputError("This number is already assigned", 409);
+        // sql/zella_number_orders.sql: a number with an open release order can't be given to a business
+        if (m.includes("NUMBER_RELEASE_OPEN")) throw new k.InputError("This number has an open release order, so it can't be given to a business.", 409);
         throw res.error;
       }
       return { id: res.data.id, before, after: row, reason: k.text(fields.reason, 300) || null };

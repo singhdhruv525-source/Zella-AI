@@ -272,6 +272,7 @@
     "telephony.number_order_placing": "Placed a phone number order",
     "telephony.number_order_rejected": "Rejected a phone number order",
     "telephony.number_order_requested": "Asked for a phone number order",
+    "telephony.number_order_resolved": "Phone number order outcome recorded after a check",
     "telephony.number_released": "Released phone number",
     "telephony.number_status": "Changed phone number status",
     "telephony.routing_updated": "Updated call routing",

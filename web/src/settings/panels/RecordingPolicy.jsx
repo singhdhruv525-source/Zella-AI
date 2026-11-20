@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, when } from "../SettingsKit";
+import BusinessPicker from "./BusinessPicker";
 
 // Settings > Legal, policy and documents > Policy configuration: recording on or off per business
 // (owner-provision-business retention.ts, sql/zella_recording_policy.sql). Off for every business until a Zella Voice
@@ -9,12 +10,12 @@ import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, 
 const call = (action, payload) => callOwnerFunction(action, payload);
 
 export default function RecordingPolicy({ me }) {
-  const state = useAsync(() => Promise.all([call("recording_policy_get"), call("tenants_search", {})]), []);
+  const state = useAsync(() => call("recording_policy_get"), []);
   const [dialog, setDialog] = useState(null);
   const owner = me?.role === "zella_owner";
   const manage = Boolean(me?.permissions?.includes("businesses.manage"));
   return (
-    <LoadState state={state}>{([p, t]) => (
+    <LoadState state={state}>{(p) => (
       <>
         <Card title="Call recording" sub="Off for every business until legal review of recording consent and the caller disclosure (D-27)."
           actions={owner && (p.legal_approved
@@ -59,8 +60,7 @@ export default function RecordingPolicy({ me }) {
               state.reload();
             }}>
             <div className="zs-grid">
-              <Field label="Business"><select value={dialog.business} onChange={(e) => setDialog({ ...dialog, business: e.target.value })}>
-                <option value="">Choose…</option>{t.rows.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
+              <BusinessPicker value={dialog.business} onChange={(business) => setDialog((d) => ({ ...d, business }))} />
               <Field label="Recording"><select value={dialog.on ? "on" : "off"} onChange={(e) => setDialog({ ...dialog, on: e.target.value === "on" })}>
                 <option value="off">Off</option><option value="on" disabled={!p.legal_approved}>On{p.legal_approved ? "" : " (after legal review)"}</option></select></Field>
             </div>

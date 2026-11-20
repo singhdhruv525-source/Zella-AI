@@ -130,7 +130,7 @@ Deno.test("purge runs: the typed confirmation is checked before the database, an
   assertEquals(d.removed, []);
 });
 
-Deno.test("purge runs: document files are removed from the documents bucket and exactly the removed ones are recorded", async () => {
+Deno.test("purge runs: document files are removed from the documents bucket and recorded; a file storage no longer has counts as removed", async () => {
   const RUN = "c3000000-0000-0000-0000-000000000002";
   const answer = (fn: string) => ({ data: fn === "zella_retention_run_execute" ? { id: RUN, status: "files_pending", file_paths: ["b/a.pdf", "b/b.pdf", "b/c.pdf"] } : { id: RUN, status: "done" } });
   const all = db(answer);
@@ -139,8 +139,8 @@ Deno.test("purge runs: document files are removed from the documents bucket and 
   assertEquals(all.calls[1], ["zella_retention_run_files_done", { p_actor: "admin-user", p_run: RUN, p_removed: ["b/a.pdf", "b/b.pdf", "b/c.pdf"], p_error: null }]);
   const some = db(answer, (_b, paths) => ({ data: paths.filter((p) => p !== "b/b.pdf").map((name) => ({ name })), error: null }));
   await run(some, "retention_run_execute", { id: RUN, confirm: "PURGE 3" }, "zella_owner");
-  assertEquals(some.calls[1][1].p_removed, ["b/a.pdf", "b/c.pdf"]);
-  assertEquals(some.calls[1][1].p_error, "1 files were not found in storage");
+  assertEquals(some.calls[1][1].p_removed, ["b/a.pdf", "b/b.pdf", "b/c.pdf"]);
+  assertEquals(some.calls[1][1].p_error, null);
   const broken = db(answer, () => ({ data: null, error: { message: "storage unavailable" } }));
   await run(broken, "retention_run_execute", { id: RUN, confirm: "PURGE 3" }, "zella_owner");
   assertEquals(broken.calls[1][1].p_removed, []);
@@ -169,7 +169,42 @@ Deno.test("business purge: the name is required before the database; files are r
   assertEquals(d.calls[0], ["zella_business_purge_execute", { p_actor: "admin-user", p_run: RUN, p_confirm_name: "Closed Test Salon" }]);
   assertEquals(d.removed, [["business-documents", ["b/id.png"]], ["brand-assets", ["b/logo.png"]]]);
   assertEquals(d.calls[1][1].p_removed, ["business-documents/b/id.png", "brand-assets/b/logo.png"]);
-  assertEquals(d.calls[1][1].p_error, "1 files were not found in storage");
+  assertEquals(d.calls[1][1].p_error, "1 files are in no bucket a purge may use");
+});
+
+Deno.test("purge runs: a stopped file removal is retried from the files still listed, and the purge never runs again", async () => {
+  const RUN = "c3000000-0000-0000-0000-000000000004";
+  const d = db((fn) => ({ data: fn === "zella_retention_run_files_resume" ? ["b/b.pdf"] : { id: RUN, status: "done" } }));
+  assertEquals(await run(d, "retention_run_files_retry", { id: RUN }, "security_admin"), { id: RUN, status: "done" });
+  assertEquals(d.calls.map((c) => c[0]), ["zella_retention_run_files_resume", "zella_retention_run_files_done"]);
+  assertEquals(d.removed, [["business-documents", ["b/b.pdf"]]]);
+  assertEquals(d.calls[1][1], { p_actor: "admin-user", p_run: RUN, p_removed: ["b/b.pdf"], p_error: null });
+  const broken = db((fn) => ({ data: fn === "zella_retention_run_files_resume" ? ["b/b.pdf"] : { id: RUN, status: "failed" } }), () => ({ data: null, error: { message: "storage unavailable" } }));
+  await run(broken, "retention_run_files_retry", { id: RUN }, "security_admin");
+  assertEquals(broken.calls[1][1].p_removed, []);
+  assertEquals(String(broken.calls[1][1].p_error).startsWith("Storage refused"), true);
+  const refused = db(() => ({ error: "APPROVER_REQUIRED" }));
+  const err = await assertRejects(() => run(refused, "retention_run_files_retry", { id: RUN }, "security_admin"), InputError);
+  assertEquals((err as InputError).status, 403);
+  assertEquals(refused.removed, []);
+  assertEquals([RETENTION_PERMISSIONS.retention_run_files_retry, RETENTION_PERMISSIONS.business_purge_files_retry], ["security.manage", "security.manage"]);
+});
+
+Deno.test("business purge: a stopped file removal is retried per bucket and recorded by the business purge", async () => {
+  const RUN = "c3000000-0000-0000-0000-000000000010";
+  const d = db((fn) => ({ data: fn === "zella_retention_run_files_resume" ? ["brand-assets/b/logo.png"] : { id: RUN, status: "done" } }));
+  await run(d, "business_purge_files_retry", { id: RUN }, "zella_owner");
+  assertEquals(d.calls.map((c) => c[0]), ["zella_retention_run_files_resume", "zella_business_purge_files_done"]);
+  assertEquals(d.removed, [["brand-assets", ["b/logo.png"]]]);
+  assertEquals(d.calls[1][1].p_removed, ["brand-assets/b/logo.png"]);
+});
+
+Deno.test("a legal hold placed while a purge removes that business's files is refused with its meaning", async () => {
+  for (const [action, fields, code] of [["legal_hold_place", { businessId: BIZ, reason: "Counsel" }, "PURGE_IN_PROGRESS"]] as const) {
+    const d = db(() => ({ error: `${code}` }));
+    const err = await assertRejects(() => run(d, action, fields, "security_admin"), InputError, "purge run");
+    assertEquals((err as InputError).status, 409);
+  }
 });
 
 Deno.test("business purge: each refusal keeps its meaning, and nothing is removed from storage", async () => {

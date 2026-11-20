@@ -26,8 +26,8 @@ declare
     "public.zella_recording_policy_guard()": "8fd784b180e1bbffa4095521ba2b4bb5",
     "public.zella_recording_effective(uuid)": "104511e50db0dc4c549ce555d2578b74",
     "public.zella_recording_policies(uuid)": "24008889cb73a40039aff433a86b53b8",
-    "public.zella_recording_policy_set(uuid,uuid,boolean,text)": "3cb4ba4d22b5fd87b6f02bc49df41266",
-    "public.zella_recording_legal_set(uuid,boolean,text,text)": "25ddee21113eae69b5ae3b12c8598b0a"
+    "public.zella_recording_policy_set(uuid,uuid,boolean,text)": "0ff2ec7daff9eccf80673afb75d62fa4",
+    "public.zella_recording_legal_set(uuid,boolean,text,text)": "83bfdee3e86d2829ba3f68de02a7e7f0"
   }';
 begin
   if to_regprocedure('public.zella_actor_can(uuid,text)') is null or to_regprocedure('public.zella_actor_audit(uuid,text,text,uuid,uuid,jsonb,jsonb)') is null
@@ -120,6 +120,9 @@ begin
   if length(v_reason) < 3 then raise exception 'REASON_REQUIRED'; end if;
   if p_on is null then raise exception 'DECISION_REQUIRED'; end if;
   if not exists (select 1 from public.businesses where id = p_business) then raise exception 'BUSINESS_NOT_FOUND'; end if;
+  -- one lock for every policy change and for legal approval, so a withdrawal can never miss a policy saved at the same
+  -- time (including a business that had no row yet)
+  perform pg_advisory_xact_lock(hashtextextended('zella_recording_policy', 0));
   select recording_on into v_before from public.business_recording_policies where business_id = p_business for update;
   insert into public.business_recording_policies (business_id, recording_on, reason, updated_by, updated_at)
   values (p_business, p_on, v_reason, p_actor, now())
@@ -140,6 +143,7 @@ begin
   if length(v_reason) < 3 then raise exception 'REASON_REQUIRED'; end if;
   if p_approved is null then raise exception 'DECISION_REQUIRED'; end if;
   if p_approved and length(v_text) = 0 then raise exception 'DISCLOSURE_REQUIRED'; end if;
+  perform pg_advisory_xact_lock(hashtextextended('zella_recording_policy', 0));
   select coalesce((select value = 'true'::jsonb from public.platform_settings where key = 'recording_legal_approved'), false),
          coalesce((select value #>> '{}' from public.platform_settings where key = 'recording_disclosure_text'), '') into v_was, v_old_text;
   if not p_approved then

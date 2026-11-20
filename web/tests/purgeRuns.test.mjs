@@ -21,6 +21,16 @@ test("only an approver may run it, only once approved and only while purges are 
   assert.equal(runActions({ ...ok, status: "done" }, { you: "o", owner: true, manage: true }).cancel, false);
 });
 
+test("a stopped file removal is offered again to the person who ran it or an approver, while purges are on", () => {
+  const stopped = run({ status: "failed", executed_at: "2026-11-20T10:00:00Z", executed_by: "e", owner_approved_by: "o", second_approved_by: "s", files_left: 2 });
+  for (const you of ["e", "o", "s"]) assert.equal(runActions(stopped, { you, owner: false, manage: true, purgeEnabled: true }).retry, true);
+  assert.equal(runActions({ ...stopped, status: "files_pending" }, { you: "e", owner: false, manage: true, purgeEnabled: true }).retry, true);
+  assert.equal(runActions(stopped, { you: "x", owner: true, manage: true, purgeEnabled: true }).retry, false);
+  assert.equal(runActions(stopped, { you: "e", owner: false, manage: true, purgeEnabled: false }).retry, false);
+  assert.equal(runActions({ ...stopped, files_left: 0 }, { you: "e", owner: false, manage: true, purgeEnabled: true }).retry, false);
+  assert.equal(runActions({ ...stopped, executed_at: null }, { you: "e", owner: false, manage: true, purgeEnabled: true }).retry, false);
+});
+
 test("every state has words without dashes", () => {
   for (const [k, [w]] of Object.entries(RUN_STATUS)) assert.doesNotMatch(w, /[-–—]/, k);
 });

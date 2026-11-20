@@ -16,5 +16,8 @@ export function runActions(run, { you, owner, manage, purgeEnabled }) {
     approve: Boolean(manage) && open && !mine && slot,
     run: Boolean(manage) && run?.status === "approved" && mine && Boolean(purgeEnabled),
     cancel: Boolean(manage) && (open || run?.status === "approved"),
+    // a file removal that stopped part way: the person who ran it or an approver removes the files still listed
+    retry: Boolean(manage) && ["files_pending", "failed"].includes(run?.status) && Boolean(run?.executed_at) && Number(run?.files_left) > 0
+      && (mine || (Boolean(you) && run?.executed_by === you)) && Boolean(purgeEnabled),
   };
 }

@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 195 |
 | Tables with row security on | 195 of 195 |
 | Row security policies | 353 |
-| Columns | 2262 |
+| Columns | 2263 |
 | Views | 1 |
-| Functions | 1043 (965 security definer, 26 callable by `anon`) |
+| Functions | 1046 (967 security definer, 26 callable by `anon`) |
 
 Rules every table follows:
 
@@ -712,7 +712,7 @@ Phone numbers assigned to a business (and their Vapi number id).
 - Unique: `(vapi_phone_number_id)`.
 - `business_id` → `public.businesses` (on delete cascade).
 - Row security: on; policies: business_phone_numbers_member_read (select), zella_mfa_required (all).
-- Triggers: `zella_phone_capacity_trg`.
+- Triggers: `zella_number_assign_guard`, `zella_phone_capacity_trg`.
 
 ### `business_verification_documents`
 
@@ -4626,7 +4626,7 @@ Verification files removed under retention: the document row and its outcome sta
 
 ### `retention_purge_runs`
 
-Purge runs of data past its retention period: the exact rows, two approvals (one a Zella Voice owner), who ran it and what was removed (server only).
+Purge runs of data past its retention period: the rows asked for, two approvals (one a Zella Voice owner), who ran it, the file paths it listed and the ones recorded as removed, and the counts (server only).
 
 | Column | Type | Required | Default |
 |---|---|---|---|
@@ -4653,6 +4653,7 @@ Purge runs of data past its retention period: the exact rows, two approvals (one
 | `error` | text |  |  |
 | `created_at` | timestamp with time zone | yes | now() |
 | `updated_at` | timestamp with time zone | yes | now() |
+| `removed_paths` | text[] | yes | '{}'[] |
 
 - Primary key: `id`.
 - `data_class` → `public.data_retention_policies` (on delete no action).
@@ -5405,15 +5406,17 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_my_sessions()` | jsonb | yes | signed in |
 | `zella_my_workspaces()` | jsonb | yes | signed in |
 
-### `zella_number_*` (6)
+### `zella_number_*` (8)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
+| `zella_number_assign_guard()` | trigger |  | server only |
 | `zella_number_order_cancel(p_actor uuid, p_id uuid, p_reason text)` | jsonb | yes | server only |
 | `zella_number_order_claim(p_actor uuid, p_id uuid)` | jsonb | yes | server only |
 | `zella_number_order_decide(p_actor uuid, p_id uuid, p_approve boolean, p_reason text)` | jsonb | yes | server only |
 | `zella_number_order_finish(p_actor uuid, p_id uuid, p_outcome text, p_order_id text, p_number_id text, p_vapi_id text, p_error text)` | jsonb | yes | server only |
 | `zella_number_order_request(p_actor uuid, p_kind text, p_e164 text, p_business uuid, p_vapi_id text, p_reason text, p_key uuid)` | jsonb | yes | server only |
+| `zella_number_order_resolve(p_actor uuid, p_id uuid, p_outcome text, p_reason text, p_number_id text, p_vapi_id text)` | jsonb | yes | server only |
 | `zella_number_orders_list(p_actor uuid, p_limit integer)` | jsonb | yes | server only |
 
 ### `zella_offer_*` (37)
@@ -5758,7 +5761,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_resource_usage(p_capacity integer, p_party integer)` | integer |  | signed in |
 | `zella_resource_used(p_resource uuid, p_start timestamp with time zone, p_end timestamp with time zone, p_ignore uuid)` | integer | yes | server only |
 
-### `zella_retention_*` (16)
+### `zella_retention_*` (17)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5772,6 +5775,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_retention_run_cancel(p_actor uuid, p_run uuid, p_reason text)` | jsonb | yes | server only |
 | `zella_retention_run_execute(p_actor uuid, p_run uuid, p_confirm text)` | jsonb | yes | server only |
 | `zella_retention_run_files_done(p_actor uuid, p_run uuid, p_removed text[], p_error text)` | jsonb | yes | server only |
+| `zella_retention_run_files_resume(p_actor uuid, p_run uuid)` | text[] | yes | server only |
 | `zella_retention_run_request(p_actor uuid, p_class text, p_reason text)` | jsonb | yes | server only |
 | `zella_retention_runs(p_actor uuid, p_limit integer)` | jsonb | yes | server only |
 | `zella_retention_scan(p_limit integer)` | integer | yes | server only |

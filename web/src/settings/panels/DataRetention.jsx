@@ -4,6 +4,7 @@ import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, 
 import { CLASS_LABELS, SOURCE_LABELS, classLabel, periodWords } from "./retentionLabels";
 import PurgeRuns from "./PurgeRuns";
 import BusinessPurge from "./BusinessPurge";
+import BusinessPicker from "./BusinessPicker";
 
 // Settings > Security and privacy > Data retention: a period per kind of data, legal holds, and a dry run of what a
 // purge would remove (owner-provision-business retention.ts, sql/zella_data_retention.sql). Every period is the
@@ -12,7 +13,8 @@ import BusinessPurge from "./BusinessPurge";
 const call = (action, payload) => callOwnerFunction(action, payload);
 
 export default function DataRetention({ me }) {
-  const state = useAsync(() => Promise.all([call("retention_overview"), call("tenants_search", {})]), []);
+  // the overview loads on its own; the business search is asked only inside the hold dialog
+  const state = useAsync(() => call("retention_overview"), []);
   const [dialog, setDialog] = useState(null);
   const [preview, setPreview] = useState(null);
   const [runsKey, setRunsKey] = useState(0);
@@ -23,7 +25,7 @@ export default function DataRetention({ me }) {
     try { setPreview({ dataClass, data: await call("retention_preview", { dataClass }) }); } catch (e) { setPreview({ dataClass, error: e.message }); }
   }
   return (
-    <LoadState state={state}>{([o, t]) => (
+    <LoadState state={state}>{(o) => (
       <>
         <Card title="Retention periods" sub="Proposed from the architecture and pending legal review. Nothing is deleted automatically.">
           <Table rows={o.policies} rowKey={(p) => p.data_class} columns={[
@@ -89,8 +91,7 @@ export default function DataRetention({ me }) {
         {dialog && "hold" in dialog && (
           <Confirm title="Place a legal hold" reason confirmLabel="Place hold" onClose={() => setDialog(null)}
             onConfirm={async (reason) => { if (!dialog.hold) throw new Error("Choose a business."); await call("legal_hold_place", { businessId: dialog.hold, reason }); state.reload(); }}>
-            <Field label="Business"><select value={dialog.hold} onChange={(e) => setDialog({ ...dialog, hold: e.target.value })}>
-              <option value="">Choose…</option>{t.rows.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
+            <BusinessPicker value={dialog.hold} onChange={(hold) => setDialog((d) => ({ ...d, hold }))} />
             <p className="zs-muted">Only a Zella Voice owner can release it.</p>
           </Confirm>
         )}

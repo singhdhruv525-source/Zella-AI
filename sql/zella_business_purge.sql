@@ -33,8 +33,8 @@ declare
   f record;
   mine constant jsonb := '{
     "public.zella_business_purge_request(uuid,uuid,timestamp with time zone,text,text)": "605fbfcb53d71fe8f9bdd0aa8df8d58a",
-    "public.zella_business_purge_execute(uuid,uuid,text)": "a3b29b5adcb84dadb12b2ebbe3a87ceb",
-    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "61fb59cee8b0ff4f2c20e068ca7e1428"
+    "public.zella_business_purge_execute(uuid,uuid,text)": "e224a1fefa197dc7c3b2e7290cc7fb95",
+    "public.zella_business_purge_files_done(uuid,uuid,text[],text)": "124074d759f4db993693a7328b95b284"
   }';
 begin
   if to_regprocedure('public.zella_retention_run_approve(uuid,uuid,text)') is null or to_regclass('public.retention_purge_runs') is null then
@@ -98,7 +98,8 @@ begin
     raise exception 'AUDIT_HISTORY_AT_RISK: needs sql/zella_draft_delete.sql and audit_logs.business_id not CASCADE (ACC-10)';
   end if;
   if exists (select 1 from public.payments where business_id = b.id) or exists (select 1 from public.billing_events where business_id = b.id)
-     or exists (select 1 from public.customer_charge_payments where business_id = b.id) or exists (select 1 from public.usage_charges where business_id = b.id) then
+     or exists (select 1 from public.customer_charge_payments where business_id = b.id) or exists (select 1 from public.usage_charges where business_id = b.id)
+     or (to_regclass('public.billing_periods') is not null and exists (select 1 from public.billing_periods where business_id = b.id)) then
     raise exception 'BILLING_RECORDS_KEPT';
   end if;
   if exists (select 1 from public.offer_redemptions where business_id = b.id) then raise exception 'OFFER_HISTORY_KEPT'; end if;
@@ -125,17 +126,27 @@ end $$;
 
 create or replace function public.zella_business_purge_files_done(p_actor uuid, p_run uuid, p_removed text[], p_error text)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare r public.retention_purge_runs; v_n int;
+declare r public.retention_purge_runs; v_total int; v_listed int;
 begin
   select * into r from public.retention_purge_runs where id = p_run for update;
   if r.id is null or r.data_class <> 'cancelled_business' then raise exception 'NOT_FOUND'; end if;
-  if r.status <> 'files_pending' then raise exception 'NOT_RUNNING'; end if;
-  if p_actor is distinct from r.executed_by then raise exception 'APPROVER_REQUIRED'; end if;
-  select count(*) into v_n from unnest(r.file_paths) f where f = any (coalesce(p_removed, '{}'));
-  update public.retention_purge_runs set status = case when p_error is null and v_n = coalesce(array_length(r.file_paths, 1), 0) then 'done' else 'failed' end,
-         files_removed = v_n, error = left(p_error, 500), updated_at = now() where id = r.id returning * into r;
+  -- files_pending after the purge, or failed with files still listed: a stopped removal is finished by an approver
+  if r.status not in ('files_pending', 'failed') or r.executed_at is null then raise exception 'NOT_RUNNING'; end if;
+  if p_actor is null or not coalesce(p_actor = any (array_remove(array[r.executed_by, r.owner_approved_by, r.second_approved_by], null)), false) then
+    raise exception 'APPROVER_REQUIRED';
+  end if;
+  if not public.zella_actor_can(p_actor, 'security.manage') then raise exception 'NOT_ALLOWED'; end if;
+  update public.retention_purge_runs
+     set removed_paths = (select coalesce(array_agg(distinct x order by x), '{}') from unnest(removed_paths || array(
+                            select f from unnest(r.file_paths) f where f = any (coalesce(p_removed, '{}')))) x),
+         updated_at = now()
+   where id = r.id returning * into r;
+  v_total := coalesce(array_length(r.removed_paths, 1), 0);
+  v_listed := coalesce(array_length(r.file_paths, 1), 0);
+  update public.retention_purge_runs set status = case when p_error is null and v_total = v_listed then 'done' else 'failed' end,
+         files_removed = v_total, error = left(p_error, 500), updated_at = now() where id = r.id returning * into r;
   perform public.zella_actor_audit(p_actor, 'business.purge_files_removed', 'retention_purge_run', r.id, null, null,
-    jsonb_build_object('business_id', r.business_id, 'files_removed', v_n, 'files_listed', coalesce(array_length(r.file_paths, 1), 0), 'error', r.error));
+    jsonb_build_object('business_id', r.business_id, 'files_removed', v_total, 'files_listed', v_listed, 'error', r.error));
   return to_jsonb(r) - 'items';
 end $$;
 

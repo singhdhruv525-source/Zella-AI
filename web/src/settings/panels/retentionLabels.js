@@ -17,7 +17,7 @@ export const classLabel = (c) => CLASS_LABELS[c]?.[0] ?? c;
 export function periodWords(days) {
   const d = Number(days);
   if (!Number.isFinite(d) || d <= 0) return "Not set";
-  if (d >= 365 && Math.abs(d / 365 - Math.round(d / 365)) < 0.01) { const y = Math.round(d / 365); return `${y} year${y === 1 ? "" : "s"}`; }
+  if (Number.isInteger(d) && d % 365 === 0) { const y = d / 365; return `${y} year${y === 1 ? "" : "s"}`; }
   return `${d} day${d === 1 ? "" : "s"}`;
 }
 

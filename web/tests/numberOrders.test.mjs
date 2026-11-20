@@ -12,11 +12,18 @@ test("ordering is off until both keys are added, then until the owner switches i
 
 test("only an owner who didn't ask is offered Approve, and only while ordering is on", () => {
   const row = { status: "requested", requested_by: "a" };
-  assert.deepEqual(orderActions(row, { you: "a", owner: true, manage: true, blocked: "" }), { approve: false, reject: false, cancel: true });
-  assert.deepEqual(orderActions(row, { you: "b", owner: true, manage: true, blocked: "" }), { approve: true, reject: true, cancel: true });
-  assert.deepEqual(orderActions(row, { you: "b", owner: true, manage: true, blocked: "off" }), { approve: false, reject: true, cancel: true });
-  assert.deepEqual(orderActions(row, { you: "b", owner: false, manage: true, blocked: "" }), { approve: false, reject: false, cancel: false });
-  assert.deepEqual(orderActions({ ...row, status: "approved" }, { you: "b", owner: true, manage: true, blocked: "" }), { approve: false, reject: false, cancel: false });
+  assert.deepEqual(orderActions(row, { you: "a", owner: true, manage: true, blocked: "" }), { approve: false, reject: false, cancel: true, resolve: false });
+  assert.deepEqual(orderActions(row, { you: "b", owner: true, manage: true, blocked: "" }), { approve: true, reject: true, cancel: true, resolve: false });
+  assert.deepEqual(orderActions(row, { you: "b", owner: true, manage: true, blocked: "off" }), { approve: false, reject: true, cancel: true, resolve: false });
+  assert.deepEqual(orderActions(row, { you: "b", owner: false, manage: true, blocked: "" }), { approve: false, reject: false, cancel: false, resolve: false });
+  assert.deepEqual(orderActions({ ...row, status: "approved" }, { you: "b", owner: true, manage: true, blocked: "" }), { approve: false, reject: false, cancel: false, resolve: false });
+});
+
+test("only an owner is offered recording what the provider shows for an order that needs a check", () => {
+  const row = { status: "needs_check", requested_by: "a" };
+  assert.equal(orderActions(row, { you: "a", owner: true, manage: true, blocked: "off" }).resolve, true);
+  assert.equal(orderActions(row, { you: "b", owner: false, manage: true, blocked: "" }).resolve, false);
+  assert.equal(orderActions({ ...row, status: "failed" }, { you: "a", owner: true, manage: true, blocked: "" }).resolve, false);
 });
 
 test("every state has words without dashes", () => {

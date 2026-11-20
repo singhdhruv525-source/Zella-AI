@@ -28,14 +28,14 @@ do $$
 declare
   f record;
   mine constant jsonb := '{
-    "public.zella_retention_setting_guard()": "79071c573d6ac9bfa6eef1876b530f24",
+    "public.zella_retention_setting_guard()": "bb4c21aaa0137af97dd3d22e6edc9b96",
     "public.zella_retention_on_hold(uuid)": "aa38f978a7484df0cd06decf0e7b13d6",
     "public.zella_retention_candidates(text,timestamp with time zone)": "80d1a34ab624d8d4acbc882818a829c2",
     "public.zella_retention_preview(uuid,text,integer)": "1fd49ad9a112ebd390d36d13b89b80ea",
     "public.zella_retention_overview(uuid)": "c7b1717cdeaf2e725a70ec15b23fc18b",
-    "public.zella_retention_policy_set(uuid,text,integer,text,text)": "eead83dd9bc944af10bb208f550e39a5",
+    "public.zella_retention_policy_set(uuid,text,integer,text,text)": "dd3f7ba07966beb77b57e0354a3ad345",
     "public.zella_retention_switch_set(uuid,boolean,text)": "fce745114b992f3977beae3a74876f46",
-    "public.zella_legal_hold_place(uuid,uuid,text)": "a1e8ef591f2ef3d5176f395c5f8ffbf0",
+    "public.zella_legal_hold_place(uuid,uuid,text)": "36b7984955df89696bdd811d92048c21",
     "public.zella_legal_hold_release(uuid,uuid,text)": "906697b3714e1fcebe61a7ae74cc49b0"
   }';
 begin
@@ -115,7 +115,8 @@ grant all on table public.legal_holds to service_role;
 create or replace function public.zella_retention_setting_guard()
 returns trigger language plpgsql set search_path = public as $$
 begin
-  if coalesce(new.key, old.key) = 'retention_purge_enabled' and coalesce(current_setting('zella.retention_switch', true), '') <> 'on' then
+  -- the old and the new key both count, so an update can't rename the switch away
+  if 'retention_purge_enabled' in (new.key, old.key) and coalesce(current_setting('zella.retention_switch', true), '') <> 'on' then
     raise exception 'RETENTION_SWITCH_OWNER_ONLY: only a Zella Voice owner changes this, from Data retention';
   end if;
   return coalesce(new, old);
@@ -220,7 +221,7 @@ declare v_reason text := left(btrim(coalesce(p_reason, '')), 300); o public.data
 begin
   if public.zella_actor_role(p_actor) is distinct from 'zella_owner' then raise exception 'OWNER_REQUIRED'; end if;
   if length(v_reason) < 3 then raise exception 'REASON_REQUIRED'; end if;
-  if p_status not in ('pending_legal_review', 'approved') then raise exception 'INVALID_STATUS'; end if;
+  if p_status is null or p_status not in ('pending_legal_review', 'approved') then raise exception 'INVALID_STATUS'; end if;
   if p_days is null or p_days < 1 or p_days > 36500 then raise exception 'INVALID_DAYS'; end if;
   select * into o from public.data_retention_policies where data_class = p_class for update;
   if o.data_class is null then raise exception 'UNKNOWN_CLASS'; end if;
@@ -256,7 +257,17 @@ begin
   if not public.zella_actor_can(p_actor, 'security.manage') then raise exception 'NOT_ALLOWED'; end if;
   if length(v_reason) < 3 then raise exception 'REASON_REQUIRED'; end if;
   if not exists (select 1 from public.businesses where id = p_business) then raise exception 'BUSINESS_NOT_FOUND'; end if;
+  -- the same lock as a purge's removal, so a hold never lands in the middle of one
+  perform pg_advisory_xact_lock(hashtextextended('zella_legal_holds', 0));
   if public.zella_retention_on_hold(p_business) then raise exception 'ALREADY_ON_HOLD'; end if;
+  -- refused while a purge run is removing this business's files (sql/zella_retention_purge.sql); once it stops, the
+  -- remaining files of a business on hold are never removed
+  if to_regclass('public.retention_purge_runs') is not null then
+    if (select exists (select 1 from public.retention_purge_runs r join public.business_verification_documents d on d.file_path = any (r.file_paths)
+                        where r.status in ('running', 'files_pending') and d.business_id = p_business)) then
+      raise exception 'PURGE_IN_PROGRESS';
+    end if;
+  end if;
   insert into public.legal_holds (business_id, reason, placed_by) values (p_business, v_reason, p_actor) returning * into h;
   perform public.zella_actor_audit(p_actor, 'business.legal_hold_placed', 'legal_hold', h.id, p_business, null, jsonb_build_object('reason', v_reason));
   return to_jsonb(h);
