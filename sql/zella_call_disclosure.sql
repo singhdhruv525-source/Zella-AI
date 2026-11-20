@@ -40,7 +40,7 @@ language sql immutable set search_path = '' as $$
     when 'ja' then '{"sentence": "私はAI受付です。", "marker": "AI(受付|アシスタント)", "recording": "録音", "call": "通話"}'
     when 'ko' then '{"sentence": "저는 AI 상담원입니다.", "marker": "AI ?(상담원|비서|안내원)", "recording": "녹음", "call": "통화"}'
     when 'zh' then '{"sentence": "我是AI接待员。", "marker": "AI(接待员|助手|客服)", "recording": "录音", "call": "通话|电话"}'
-    else '{"sentence": "I''m the AI receptionist.", "marker": "\\m(an?|the|your) (AI|artificial intelligence|virtual) (receptionist|assistant|agent)\\M|\\mI''m an? AI\\M"}' end::jsonb
+    else '{"sentence": "I''m the AI receptionist.", "marker": "\\m(an?|the|your) (AI|artificial intelligence|virtual) (receptionist|assistant|agent)\\M|\\mI''m an? AI\\M", "recording": "\\mrecord(ed|ing)\\M", "call": "\\m(call|conversation)\\M"}' end::jsonb
 $$;
 
 -- the greeting the caller hears: the business's (or the standard one), always with the AI disclosure, and the
@@ -67,6 +67,9 @@ begin
     v_rec := '((' || (v_d ->> 'call') || ')[^.!?。！？,，、]*(' || (v_d ->> 'recording') || ')|(' || (v_d ->> 'recording') || ')[^.!?。！？,，、]*(' || (v_d ->> 'call') || '))';
     v_g := regexp_replace(v_g, '[,，、]\s*[^.!?。！？,，、]*' || v_rec || '[^.!?。！？,，、]*', '', 'gi');
     v_g := btrim(regexp_replace(v_g, '\s*[^.!?。！？,，、]*' || v_rec || '[^.!?。！？,，、]*[.!?。！？,，、]?', '', 'gi'));
+    -- then any sentence still holding both, across commas ("Cet appel, qui est enregistré, peut durer"): the whole sentence
+    v_rec := '((' || (v_d ->> 'call') || ')[^.!?。！？]*(' || (v_d ->> 'recording') || ')|(' || (v_d ->> 'recording') || ')[^.!?。！？]*(' || (v_d ->> 'call') || '))';
+    v_g := btrim(regexp_replace(v_g, '\s*[^.!?。！？]*' || v_rec || '[^.!?。！？]*[.!?。！？]?', '', 'gi'));
     v_rec := null;
   end if;
   if v_g !~* (v_d ->> 'marker') then v_g := v_g || ' ' || (v_d ->> 'sentence'); end if;

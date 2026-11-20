@@ -29,7 +29,7 @@ export default function AccountDeletions({ me }) {
         {confirming && (
           <Confirm danger reason title={`Confirm deleting ${confirming.business_name}?`} confirmLabel="Confirm and freeze" onClose={() => setConfirming(null)}
             onConfirm={async (reason) => { await rpc("zella_admin_business_deletion_confirm", { p_business_id: confirming.business_id, p_reason: reason }); state.reload(); }}>
-            <p>The owner asked: “{confirming.reason}”. Check it with the owner. The account is frozen now and deleted in 30 days.</p>
+            <p>The owner asked: “{confirming.reason}”. Check it with the owner. The account is frozen now. After 30 days it can be deleted, once purges are switched on, the period is legally approved and no legal hold applies.</p>
           </Confirm>
         )}
       </Card>

@@ -41,6 +41,8 @@ q "update public.business_languages set greeting = 'Hello from {name}. This call
 [ "$(first)" = "Hello from Sunny Salon. I'm the AI receptionist." ] && ok "a stored greeting that claims recording loses that sentence while recording is off" || bad "strip: $(first)"
 q "update public.business_languages set greeting = 'I''m the AI receptionist at {name}, this call is recorded, how can I help?' where business_id = '$BIZ'" > /dev/null
 [ "$(first)" = "I'm the AI receptionist at Sunny Salon, how can I help?" ] && ok "a recording clause between commas goes, the rest of the greeting stays" || bad "comma strip: $(first)"
+q "update public.business_languages set greeting = 'Hi from {name}. This call, like every call, is being recorded. I''m the AI receptionist, how can I help?' where business_id = '$BIZ'" > /dev/null
+[ "$(first)" = "Hi from Sunny Salon. I'm the AI receptionist, how can I help?" ] && ok "an English recording statement split by commas goes with its sentence" || bad "english split: $(first)"
 r=$(save es "Gracias por llamar a {name}."); [ "$r" = saved ] || bad "spanish save: $r"
 [[ "$(first)" == *"inteligencia artificial"* ]] && ok "a Spanish greeting gets the Spanish disclosure: $(first)" || bad "spanish: $(first)"
 r=$(save es "Gracias por llamar a {name}. Esta llamada puede ser grabada. ¿En qué puedo ayudarle?"); [ "$r" = saved ] || bad "spanish rec save: $r"
@@ -48,6 +50,7 @@ r=$(save es "Gracias por llamar a {name}. Esta llamada puede ser grabada. ¿En q
 r=$(save es "Gracias por llamar a {name}, esta llamada será grabada, ¿en qué puedo ayudarle?"); [ "$(first)" = "Gracias por llamar a Sunny Salon, ¿en qué puedo ayudarle? Soy la recepcionista virtual con inteligencia artificial." ] && ok "and a Spanish recording clause between commas" || bad "spanish comma: $(first)"
 r=$(save es "Gracias por llamar a {name}."); [ "$r" = saved ] || bad "spanish save back: $r"
 r=$(save fr "Merci d'avoir appelé {name}. Cet appel est enregistré. Je peux enregistrer votre rendez-vous."); [ "$(first)" = "Merci d'avoir appelé Sunny Salon. Je peux enregistrer votre rendez-vous. Je suis la réceptionniste virtuelle, une intelligence artificielle." ] && ok "French: the recording sentence goes, booking an appointment (enregistrer) stays" || bad "french strip: $(first)"
+r=$(save fr "Merci d'avoir appelé {name}. Cet appel, qui est enregistré, peut durer quelques minutes. Comment puis-je vous aider ?"); [ "$(first)" = "Merci d'avoir appelé Sunny Salon. Comment puis-je vous aider ? Je suis la réceptionniste virtuelle, une intelligence artificielle." ] && ok "French: a recording statement split by commas goes with its sentence" || bad "french split: $(first)"
 r=$(save fr ""); [[ "$(first)" == *"intelligence artificielle"* ]] && ok "the standard French greeting gets it too" || bad "french: $(first)"
 r=$(save en-US ""); 
 q "create or replace function public.zella_recording_effective(p_business uuid) returns boolean language sql stable as \$f\$ select true \$f\$" > /dev/null
