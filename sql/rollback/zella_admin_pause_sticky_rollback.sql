@@ -8,7 +8,7 @@ do $$
 declare a record;
   mine constant jsonb := jsonb_build_object(
     'public.zella_admin_business_automations_pause(uuid,text)', '80fc3ae370fda10aab743a23aef4624d',
-    'public.zella_admin_automation_set_status(uuid,text,text)',  'e9790abcd9bd30a51ef180caa0444739',
+    'public.zella_admin_automation_set_status(uuid,text,text)',  'e50b454d658b0c7a3e863f2cb98acca1',
     'public.zella_admin_business_automations_resume(uuid,text)', 'f54e8b67f946cd489599224baa3364b9');
 begin
   if to_regclass('public.zella_function_archive') is not null

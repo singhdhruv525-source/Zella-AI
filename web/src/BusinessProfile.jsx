@@ -189,7 +189,9 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
       person: row, calls: orThrow(calls), appts: orThrow(appts), convos: orThrow(convos), follows: followRes.error ? [] : (followRes.data ?? []),
       cbs: cbRes.error ? [] : cbRes.data ?? [], tasks: taskRes.error ? [] : taskRes.data ?? [], staff: staffRes.error ? [] : staffRes.data ?? [],
       records: recRes.error ? [] : recRes.data ?? [], recordTypes: typeRes.error ? [] : typeRes.data ?? [], recordsFailed: Boolean(recRes.error),
-      failures: { followups: Boolean(followRes.error), callbacks: Boolean(cbRes.error), tasks: Boolean(taskRes.error), staff: Boolean(staffRes.error), timeline: Boolean(tlRes.error) },
+      failures: { followups: Boolean(followRes.error), callbacks: Boolean(cbRes.error), tasks: Boolean(taskRes.error), staff: Boolean(staffRes.error), timeline: Boolean(tlRes.error),
+        // a missing table (before the update is applied) isn't a failure: there is nothing to review yet
+        "contact changes waiting for review": Boolean(pendRes.error) && pendRes.error.code !== "42P01" && pendRes.error.code !== "PGRST205" },
       server: tlRes.error ? [] : (tlRes.data ?? []).filter((e) => ["text", "email", "change"].includes(e.type)),
     };
   }, [personId, workspace.id]);

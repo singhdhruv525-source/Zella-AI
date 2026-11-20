@@ -42,6 +42,13 @@ Deno.test("an unresolvable name and a connection that lands elsewhere are refuse
   assertEquals((await (await call({ url: "http://shop.com/", host: "shop.com" }, net({}).n)).json()).error, "dns_failed");
   assertEquals((await (await call({ url: "http://shop.com/", host: "shop.com" }, net({ "shop.com": ["93.184.216.34"] }, "10.0.0.1").n)).json()).error, "private_address");
 });
+Deno.test("a DNS answer that never comes stops at the deadline", async () => {
+  const n: Net = { resolve: (_h, signal) => new Promise((_r, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")))), exchange: async () => { throw new Error("no"); } };
+  const t0 = Date.now();
+  const r = await (await call({ url: "http://shop.com/", host: "shop.com" }, n)).json();
+  if (Date.now() - t0 > 16_000) throw new Error("waited past the deadline");
+  assert(r.statusCode === 0 && r.error === "timeout");
+});
 Deno.test("network failures answer statusCode 0, never throw", async () => {
   const n: Net = { resolve: async () => ["93.184.216.34"], exchange: async () => { throw new Error("reset"); } };
   const r = await (await call({ url: "http://shop.com/", host: "shop.com" }, n)).json();

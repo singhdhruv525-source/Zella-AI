@@ -25,7 +25,7 @@ r=$(admin "public.zella_admin_business_automations_pause('$BIZ', 'abuse check')"
 
 out=$(apply "$REPO/sql/zella_admin_pause_sticky.sql") && ok "applies" || { bad "applies: $out"; finish; }
 out=$(apply "$REPO/sql/zella_admin_pause_sticky.sql") && ok "applies again" || bad "second apply: $out"
-[ "$(fp)" = "80fc3ae370fda10aab743a23aef4624de9790abcd9bd30a51ef180caa0444739f54e8b67f946cd489599224baa3364b9" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
+[ "$(fp)" = "80fc3ae370fda10aab743a23aef4624de50b454d658b0c7a3e863f2cb98acca1f54e8b67f946cd489599224baa3364b9" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints $(fp)"
 
 B=$(mk staffpaused active); C=$(mk ownerpaused paused)
 r=$(admin "public.zella_admin_business_automations_pause('$BIZ', 'abuse check')")
@@ -51,6 +51,8 @@ r=$(admin "public.zella_admin_business_automations_resume('$BIZ', 'checked, all 
 r=$(admin "public.zella_admin_automation_set_status('$B', 'paused', 'pause again')")
 r=$(admin "public.zella_admin_automation_set_status('$B', 'active', 'checked')")
 [ "$(st $B)" = active ] && [ "$(q "select paused_by_admin from public.automations where id = '$B'")" = f ] && ok "an admin resume turns it on and clears the mark" || bad "resume: $r $(st $B)"
+Z=$(mk ownerpaused2 paused); r=$(admin "public.zella_admin_automation_set_status('$Z', 'paused', 'abuse check, mark it')")
+[ "$(q "select paused_by_admin from public.automations where id = '$Z'")" = t ] && ok "staff can mark an automation the business had already paused" || bad "mark paused: $r"
 r=$(admin "public.zella_admin_automation_set_status('$B', 'disabled', 'archive')"); q "update public.automations set status = 'active' where id = '$B'" > /dev/null
 [ "$(st $B)" = disabled ] && ok "an automation staff archived stays off" || bad "archive: $(st $B)"
 r=$(admin "public.zella_admin_automation_set_status('$B', 'paused', 'abuse check again')"); q "update public.automations set status = 'active' where id = '$B'" > /dev/null

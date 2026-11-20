@@ -14,3 +14,8 @@ Deno.test("junk is ignored", () => {
   assertEquals(clientIp(h({})), null);
   assertEquals(clientIp(h({ "cf-connecting-ip": "2606:4700::1" })), "2606:4700::1");
 });
+Deno.test("only complete addresses count; a bad Cloudflare value falls back to the platform hop", () => {
+  for (const bad of ["dead", ":::", "999.999.999.999", "1.2.3", "1.2.3.4.5"]) assertEquals(clientIp(h({ "cf-connecting-ip": bad, "x-forwarded-for": "203.0.113.9" })), "203.0.113.9", bad);
+  assertEquals(clientIp(h({ "x-forwarded-for": "1.1.1.1, 300.1.1.1" })), null);
+  assertEquals(clientIp(h({ "cf-connecting-ip": "::1" })), "::1");
+});

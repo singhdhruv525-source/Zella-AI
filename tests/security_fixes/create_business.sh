@@ -26,6 +26,7 @@ apply "$REPO/sql/rollback/zella_create_business_revoke_rollback.sql" > /dev/null
 
 q "create or replace function public.create_business(p_name text, p_industry_id uuid, p_business_type text DEFAULT NULL, p_email text DEFAULT NULL, p_phone text DEFAULT NULL, p_website text DEFAULT NULL, p_timezone text DEFAULT 'America/New_York', p_portal_id text DEFAULT NULL) returns uuid language sql as \$f\$ select null::uuid \$f\$" > /dev/null
 out=$(apply "$REPO/sql/zella_create_business_revoke.sql"); [[ "$out" == *VERSION_MISMATCH* ]] && ok "an unknown version stops the file" || bad "drift not caught: $out"
+out=$(apply "$REPO/sql/rollback/zella_create_business_revoke_rollback.sql"); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "and the rollback doesn't grant a changed function" || bad "rollback drift: $out"
 q "drop function $S" > /dev/null
 out=$(apply "$REPO/sql/zella_create_business_revoke.sql") && ok "a missing function is a no op" || bad "missing: $out"
 finish

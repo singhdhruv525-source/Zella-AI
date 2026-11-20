@@ -1,14 +1,21 @@
 -- Undoes sql/zella_call_limits.sql: zella_call_gate and zella_assistant_for_call come back from zella_function_archive
 -- (each must be exactly this file's version first, otherwise ROLLBACK_DRIFT and nothing changes), the outcome check on
 -- assistant_deliveries is put back as it was (as NOT VALID when rows with the two new outcomes exist, so that call
--- history is kept), businesses.voice_max_concurrent_calls is dropped, and the two settings are removed if they still
--- hold the values this file added. Grants are kept (same signatures). Safe to run twice.
+-- history is kept), businesses.voice_max_concurrent_calls is dropped, and the setting this file inserted (recorded in
+-- zella_migration_settings) is removed. If any business has its own limit saved, nothing changes (OVERRIDES_SET): clear
+-- them first, so no value is lost without someone deciding it. Grants are kept (same signatures). Safe to run twice.
 begin;
 do $$
-declare a record;
-  mine constant jsonb := jsonb_build_object('public.zella_call_gate(uuid)', '09a18d90f1138a04e5b284048f4210d1',
-                                            'public.zella_assistant_for_call(text,text,text)', '6d554bec9fbc05b8c97e53f565100c04');
+declare a record; v_over boolean := false;
+  mine constant jsonb := jsonb_build_object('public.zella_call_gate(uuid)', 'b5848a1d936f79f6a864a8f5c2c7cc8f',
+                                            'public.zella_assistant_for_call(text,text,text)', '03ee44c36607ca56782820a30bffee82');
 begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'businesses' and column_name = 'voice_max_concurrent_calls') then
+    execute 'select exists (select 1 from public.businesses where voice_max_concurrent_calls is not null)' into v_over;
+  end if;
+  if v_over then
+    raise exception 'OVERRIDES_SET: some businesses have their own limit on calls at the same time; clear them first';
+  end if;
   if to_regclass('public.zella_function_archive') is null
      or not exists (select 1 from public.zella_function_archive where migration = 'zella_call_limits') then
     return;
@@ -31,6 +38,10 @@ begin
       check (outcome in ('served', 'not_ready', 'unknown_number', 'forwarded_usage'));
   end if;
   alter table public.businesses drop column if exists voice_max_concurrent_calls;
-  delete from public.platform_settings where (key = 'voice_max_concurrent_calls' and value = '10'::jsonb) or (key = 'auto_reload_live' and value = 'false'::jsonb);
+  if to_regclass('public.zella_migration_settings') is not null then
+    delete from public.platform_settings where key in (select key from public.zella_migration_settings where migration = 'zella_call_limits');
+    delete from public.zella_migration_settings where migration = 'zella_call_limits';
+    if not exists (select 1 from public.zella_migration_settings) then drop table public.zella_migration_settings; end if;
+  end if;
 end $$;
 commit;

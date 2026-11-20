@@ -16,6 +16,10 @@ c() { q "select public.zella_oauth_state_consume('$1', '$2', '$BIZ', '$3')"; }
 [ "$(q "select public.zella_oauth_state_consume('$H', '$U', gen_random_uuid(), 'google')")" = f ] && ok "another business can't use it" || bad "other business"
 [ "$(c $H $U google)" = t ] && ok "the person who started it uses it once" || bad "first use"
 [ "$(c $H $U google)" = f ] && ok "and never again" || bad "second use"
+# two finishes at the same moment: exactly one uses it
+H4=$(printf 'd%.0s' {1..64}); q "select public.zella_oauth_state_issue('$H4', '$U', '$BIZ', 'google', 300)" > /dev/null
+race=$(for n in 1 2 3 4; do c $H4 $U google & done; wait)
+[ "$(grep -c '^t$' <<< "$race")" = 1 ] && ok "four finishes at the same moment: exactly one uses it" || bad "race: $race"
 q "select public.zella_oauth_state_issue('$H2', '$U', '$BIZ', 'google', 300)" > /dev/null
 q "update public.oauth_states set expires_at = now() - interval '1 second' where nonce_hash = '$H2'" > /dev/null
 [ "$(c $H2 $U google)" = f ] && ok "an expired one can't be used" || bad "expired"

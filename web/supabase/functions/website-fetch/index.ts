@@ -19,7 +19,7 @@ const refused = (error: string) => json({ statusCode: 0, error, headers: {}, bod
 function same(a: string, b: string) { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
 
 export type Net = {
-  resolve: (host: string) => Promise<string[]>;
+  resolve: (host: string, signal: AbortSignal) => Promise<string[]>;
   // connect to exactly this address; for https the certificate is checked for `host`
   exchange: (address: string, t: Target, req: string, signal: AbortSignal) => Promise<{ bytes: Uint8Array; remote: string }>;
 };
@@ -35,19 +35,31 @@ async function readAll(conn: Deno.Conn, signal: AbortSignal): Promise<Uint8Array
   const out = new Uint8Array(n); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
   return out;
 }
+// the overall deadline for steps that don't take a signal (connecting): whichever ends first
+function deadline<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new Error("timeout"));
+  return new Promise<T>((resolve, reject) => {
+    const stop = () => reject(new Error("timeout"));
+    signal.addEventListener("abort", stop, { once: true });
+    p.then((v) => { signal.removeEventListener("abort", stop); resolve(v); }, (e) => { signal.removeEventListener("abort", stop); reject(e); });
+  });
+}
+
 export const realNet: Net = {
-  resolve: async (host) => {
-    const [a, aaaa] = await Promise.all([Deno.resolveDns(host, "A").catch(() => [] as string[]), Deno.resolveDns(host, "AAAA").catch(() => [] as string[])]);
+  resolve: async (host, signal) => {
+    const [a, aaaa] = await Promise.all([Deno.resolveDns(host, "A", { signal }).catch(() => [] as string[]), Deno.resolveDns(host, "AAAA", { signal }).catch(() => [] as string[])]);
     return [...a, ...aaaa];
   },
   exchange: async (address, t, req, signal) => {
-    let conn: Deno.Conn = await Deno.connect({ hostname: address, port: t.port });
+    let conn: Deno.Conn = await deadline(Deno.connect({ hostname: address, port: t.port }), signal);
     const remote = (conn.remoteAddr as Deno.NetAddr).hostname;
     const close = () => { try { conn.close(); } catch { /* closed */ } };
     signal.addEventListener("abort", close, { once: true });
     try {
       if (t.https) conn = await Deno.startTls(conn as Deno.TcpConn, { hostname: t.host });
-      await conn.write(new TextEncoder().encode(req));
+      // a write may send only part of the buffer: keep writing until the whole request is out
+      const bytes = new TextEncoder().encode(req);
+      for (let off = 0; off < bytes.length;) off += await conn.write(bytes.subarray(off));
       return { bytes: await readAll(conn, signal), remote };
     } finally { close(); }
   },
@@ -67,7 +79,7 @@ export async function handle(req: Request, net: Net = realNet): Promise<Response
   if ("error" in t) return refused(t.error);
   const signal = AbortSignal.timeout(15_000);
   let addresses: string[];
-  try { addresses = await net.resolve(t.host); } catch { return refused("dns_failed"); }
+  try { addresses = await deadline(net.resolve(t.host, signal), signal); } catch { return refused(signal.aborted ? "timeout" : "dns_failed"); }
   const address = pickAddress(addresses);
   if (!address) return refused(addresses.length ? "private_address" : "dns_failed");
   try {

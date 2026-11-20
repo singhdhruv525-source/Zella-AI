@@ -38,4 +38,6 @@ Deno.test("answers: plain, chunked, redirects and only safe headers", () => {
   const r = parseAnswer(enc("HTTP/1.1 301 Moved\r\nLocation: https://shop.com/new\r\n\r\n"))!;
   assertEquals([r.statusCode, r.headers.location], [301, "https://shop.com/new"]);
   assertEquals(parseAnswer(enc("garbage")), null);
+  const hints = parseAnswer(enc("HTTP/1.1 103 Early Hints\r\nLink: </a.css>; rel=preload\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 2\r\n\r\nok"))!;
+  assertEquals([hints.statusCode, hints.body], [200, "ok"]);
 });

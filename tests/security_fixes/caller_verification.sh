@@ -27,7 +27,7 @@ q "update public.customers set email = 'dana@verify.test' where id = '$CUST'" > 
 
 out=$(apply "$REPO/sql/zella_caller_verification.sql") && ok "applies" || { bad "applies: $out"; finish; }
 out=$(apply "$REPO/sql/zella_caller_verification.sql") && ok "applies again" || bad "second apply: $out"
-[ "$(fp)" = "$(q "select string_agg(m, ',' order by s) from (values ('public.zella_ai_tool(text,uuid,text,jsonb,text)','292cb59edd14074f69b90a74572ac16b'),('public.zella_ai_manage_booking(text,uuid,text,jsonb)','a3458dc5c928b64995d154d7435a8f43'),('public.zella_brain_tool_defs()','858008c205ec3271a00bf375852ac646'),('public.zella_brain_prompt_base(uuid)','7ab9163c4df52183697bd8108aa94d15'),('public.zella_claim_reminders(integer,text)','0025c2100523b5f21ec3ee7ba979208e'),('public.zella_prepare_sms(uuid,uuid,text,jsonb,text)','038dad2c92525376fbeaf5e4964766a0'),('public.zella_prepare_email(uuid,uuid,text,jsonb,text)','d0d67a384b0e6a3e270e613ca4af923c')) v(s, m)")" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints"
+[ "$(fp)" = "$(q "select string_agg(m, ',' order by s) from (values ('public.zella_ai_tool(text,uuid,text,jsonb,text)','292cb59edd14074f69b90a74572ac16b'),('public.zella_ai_manage_booking(text,uuid,text,jsonb)','4e44bde81572948e1df7dc516f1c8e14'),('public.zella_brain_tool_defs()','858008c205ec3271a00bf375852ac646'),('public.zella_brain_prompt_base(uuid)','7ab9163c4df52183697bd8108aa94d15'),('public.zella_claim_reminders(integer,text)','0025c2100523b5f21ec3ee7ba979208e'),('public.zella_prepare_sms(uuid,uuid,text,jsonb,text)','038dad2c92525376fbeaf5e4964766a0'),('public.zella_prepare_email(uuid,uuid,text,jsonb,text)','d0d67a384b0e6a3e270e613ca4af923c')) v(s, m)")" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints"
 
 # codes
 [ "$(q "select count(*) from public.appointment_confirmation_codes where appointment_id = '$A0'")" = 1 ] && ok "an existing booking got a code" || bad "backfill"
@@ -48,6 +48,7 @@ r=$(tool c1 find_my_appointments "{\"name\":\"dana reyes\",\"date\":\"$DAY\"}")
 mkcall c1b +15559990000
 r=$(tool c1b find_my_appointments "{\"name\":\"Dana\",\"date\":\"$DAY\"}"); [ "$(js status "$r")" = not_found ] && ok "the right name and date from another number find nothing" || bad "other number: $r"
 r=$(tool c1 find_my_appointments "{\"name\":\"Sam\",\"date\":\"$DAY\"}"); [ "$(js status "$r")" = not_found ] && ok "a wrong name finds nothing" || bad "wrong name: $r"
+mkcall c1c; r=$(tool c1c find_my_appointments "{\"name\":\"Dana\",\"date\":\"$DAY\"}"); [ "$(js status "$r")" = not_found ] && ok "the first name alone isn't enough when the booking has a full name" || bad "first name only: $r"
 
 # cancel and move need the code
 mkcall c2
@@ -58,7 +59,13 @@ r=$(tool c2 cancel_appointment "{\"appointment_id\":\"$A1\",\"confirmation_code\
 SPOKEN=$(echo "$CODE" | sed 's/./& /g; s/ $//' | tr 'A-Z' 'a-z')
 r=$(tool c2 cancel_appointment "{\"confirmation_code\":\"QQQQQQ\",\"confirmed\":\"true\"}"); [ "$(js status "$r")" = locked ] && ok "the third failed check locks the call" || bad "lock: $r"
 r=$(tool c2 cancel_appointment "{\"confirmation_code\":\"$SPOKEN\",\"confirmed\":\"true\"}"); [ "$(js status "$r")" = locked ] && [ "$(st $A1)" = scheduled ] && ok "after that even the right code does nothing on this call" || bad "after lock: $r"
-[ "$(q "select count(*) from public.callbacks where business_id = '$BIZ'" 2>/dev/null || echo 1)" -ge 1 ] && ok "the team gets a callback request" || bad "no callback"
+[ "$(q "select count(*) from public.callbacks where business_id = '$BIZ'")" -ge 1 ] && ok "the team gets a callback request" || bad "no callback"
+# a callback that can't be created never undoes the lock
+q "alter function public.zella_create_callback(uuid,text,text,text,text,timestamptz,uuid,uuid,uuid,text,text) rename to zz_create_callback_real" > /dev/null
+q "create function public.zella_create_callback(p1 uuid, p2 text, p3 text, p4 text, p5 text, p6 timestamptz, p7 uuid, p8 uuid, p9 uuid, p10 text, p11 text default null) returns uuid language plpgsql as \$f\$ begin raise exception 'callback down'; end \$f\$" > /dev/null
+mkcall c2b; for x in 1 2; do tool c2b cancel_appointment '{"confirmation_code":"QQQQQQ","confirmed":"true"}' > /dev/null; done
+r=$(tool c2b cancel_appointment '{"confirmation_code":"QQQQQQ","confirmed":"true"}'); [ "$(js status "$r")" = locked ] && [ "$(q "select failures from public.ai_call_verification_failures where call_key = 'c2b'")" = 3 ] && ok "the third failure locks the call even when the callback can't be created" || bad "callback down: $r"
+q "drop function public.zella_create_callback(uuid,text,text,text,text,timestamptz,uuid,uuid,uuid,text,text); alter function public.zz_create_callback_real(uuid,text,text,text,text,timestamptz,uuid,uuid,uuid,text,text) rename to zella_create_callback" > /dev/null
 mkcall c3 +15557770000
 r=$(tool c3 cancel_appointment "{\"confirmation_code\":\"$SPOKEN\",\"confirmed\":\"true\"}"); [ "$(js status "$r")" = cancelled ] && [ "$(st $A1)" = cancelled ] && ok "on a new call the code, read out with spaces in lower case, cancels (any number)" || bad "cancel by code: $r"
 NEWSTART=$(q "select to_char(((('$DAY'::date + 1) + time '15:00') at time zone 'America/New_York') at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')")
@@ -79,6 +86,7 @@ mkcall c5 +15556660000; tool c5 update_caller '{"first_name":"Lee","email":"lee@
 U=f5000000-0000-0000-0000-000000000001; V=f5000000-0000-0000-0000-000000000002
 q "insert into auth.users (id, email, email_confirmed_at) values ('$U', 'own@verify.test', now()), ('$V', 'view@verify.test', now())" > /dev/null
 q "insert into public.business_members (business_id, user_id, role, status) values ('$BIZ', '$U', 'owner', 'active'), ('$BIZ', '$V', 'viewer', 'active')" > /dev/null
+r=$(as_user $V aal1 "raise notice 'R=%', (select count(*) from public.customer_pending_changes) + (select count(*) from public.appointment_confirmation_codes);"); [ "$r" = 0 ] && ok "a viewer can't read pending changes or confirmation codes" || bad "viewer reads: $r"
 PID=$(q "select id from public.customer_pending_changes where customer_id = '$CUST' and field = 'email' and status = 'pending'")
 r=$(as_user $V aal1 "perform public.zella_customer_pending_change_decide('$PID', true); raise notice 'R=ran';"); [[ "$r" == *NOT_ALLOWED* ]] && ok "a viewer can't approve" || bad "viewer: $r"
 r=$(as_user $U aal1 "raise notice 'R=%', public.zella_customer_pending_changes('$BIZ'::uuid, null::uuid);"); [[ "$r" == *attacker@evil.test* ]] && ok "the owner sees the request" || bad "list: $r"
@@ -96,7 +104,7 @@ grep -q "confirmation_code" <<< "$(q "select public.zella_brain_tool_defs()::tex
 
 apply "$REPO/sql/rollback/zella_caller_verification_rollback.sql" > /dev/null && apply "$REPO/sql/rollback/zella_caller_verification_rollback.sql" > /dev/null && ok "rollback runs twice" || bad "rollback"
 [ "$(fp)" = "$before" ] && ok "rollback restores all seven functions exactly" || bad "fingerprints after rollback"
-[ -z "$(q "select to_regclass('public.appointment_confirmation_codes')")" ] && ok "and drops the new tables" || bad "tables left"
+[ "$(q "select count(*) from public.appointment_confirmation_codes")" -ge 303 ] && [ "$(q "select count(*) from public.customer_pending_changes")" -ge 2 ] && ok "and keeps the codes and the contact change requests (no customer data deleted)" || bad "data lost"
 apply "$REPO/sql/zella_caller_verification.sql" > /dev/null && ok "applies again after the rollback" || bad "reapply"
 q "create or replace function public.zella_brain_tool_defs() returns jsonb language sql immutable as \$f\$ select '[]'::jsonb \$f\$" > /dev/null
 out=$(apply "$REPO/sql/rollback/zella_caller_verification_rollback.sql"); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "the rollback refuses a changed function" || bad "rollback drift: $out"

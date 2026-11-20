@@ -597,6 +597,21 @@ function Cancellation({ w }) {
 
 /* ---------- 6. Calendar ---------- */
 
+// Back from the provider: the code and state arrive in the address fragment (calendar-connect). The sign in is finished
+// here, once, with this person's own sign in; calendar-connect checks they started it.
+let finishing;
+function startCalendarFinish() {
+  const frag = new URLSearchParams(typeof window === "undefined" ? "" : window.location.hash.slice(1));
+  const code = frag.get("calendar_code"), signed = frag.get("calendar_state");
+  if (!code || !signed) return null;
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);   // the code is used once; keep it out of history
+  return (async () => {
+    const { data, error } = await supabase.functions.invoke("calendar-connect", { body: { action: "finish", code, state: signed } });
+    if (!error) return data;
+    try { return await error.context?.json?.(); } catch { return null; }
+  })();
+}
+
 function CalendarConnections({ w }) {
   const [version, setVersion] = useState(0);
   const [busy, setBusy] = useState("");
@@ -609,19 +624,17 @@ function CalendarConnections({ w }) {
   // the sign in is finished here, with this person's own sign in: calendar-connect checks they started it
   const [finished, setFinished] = useState(null);
   useEffect(() => {
-    const frag = new URLSearchParams(typeof window === "undefined" ? "" : window.location.hash.slice(1));
-    const code = frag.get("calendar_code"), signed = frag.get("calendar_state");
-    if (!code || !signed) return;
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);   // the code is used once; keep it out of history
+    // started once per page load (React may run this effect twice in development); every run waits for the same answer
+    finishing ??= startCalendarFinish();
+    if (!finishing) return;
     let live = true;
-    (async () => {
-      const { data, error } = await supabase.functions.invoke("calendar-connect", { body: { action: "finish", code, state: signed } });
-      let answer = data;
-      if (error) { try { answer = await error.context?.json?.(); } catch { answer = null; } }
+    setBusy("finish");
+    finishing.then((answer) => {
       if (!live) return;
+      setBusy("");
       setFinished(answer?.ok ? { outcome: "connected" } : { outcome: "error", reason: answer?.error ?? "try_again" });
       if (answer?.ok) setVersion((v) => v + 1);
-    })();
+    });
     return () => { live = false; };
   }, []);
   const outcome = finished?.outcome ?? back.get("calendar"), reason = finished?.reason ?? back.get("reason");
@@ -656,9 +669,9 @@ function CalendarConnections({ w }) {
         <Card title="Connected calendar" sub="One calendar per business: Google Calendar or Outlook (Microsoft 365). Only the status and account are shown; access keys stay on the server."
           actions={canManage && (
             <>
-              <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("google")}>{busy === "google" ? "Opening Google…" : rows.some((c) => c.provider === "google") ? "Reconnect Google" : "Connect Google Calendar"}</button>
+              <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("google")}>{busy === "finish" ? "Connecting…" : busy === "google" ? "Opening Google…" : rows.some((c) => c.provider === "google") ? "Reconnect Google" : "Connect Google Calendar"}</button>
               <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("outlook")}>{busy === "outlook" ? "Opening Microsoft…" : rows.some((c) => c.provider === "outlook") ? "Reconnect Outlook" : "Connect Outlook"}</button>
-              {rows.length > 0 && <button type="button" className="zs-btn sm danger" onClick={() => setAsking(true)}>Disconnect</button>}
+              {rows.length > 0 && <button type="button" className="zs-btn sm danger" disabled={!!busy} onClick={() => setAsking(true)}>Disconnect</button>}
             </>
           )}>
           <Table rows={rows} empty={canManage ? "No calendar connected." : "No calendar connected. An owner or admin can connect one."} columns={[["Calendar", (c) => (c.provider === "outlook" ? "Outlook" : "Google Calendar")], ["Account", (c) => c.account_email ?? "None"],

@@ -121,7 +121,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
   useEffect(() => {
     let live = true;
     supabase.from("appointment_confirmation_codes").select("code").eq("appointment_id", appt.id).limit(1)
-      .then(({ data }) => { if (live) setCode(data?.[0]?.code ?? null); });
+      .then(({ data, error: e }) => { if (live) setCode(e ? false : data?.[0]?.code ?? null); });
     return () => { live = false; };
   }, [appt.id]);
 
@@ -195,7 +195,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
       <aside className="bp-panel" role="dialog" aria-modal="true" aria-label={`${oneWord} details`} tabIndex={-1} ref={panel}>
         <header className="bp-head">
           <div>
-            <small>{oneWord} #{ref(appt.id)}{code && <> · Confirmation code <strong className="bp-code">{code}</strong></>}</small>
+            <small>{oneWord} #{ref(appt.id)}{code && <> · Confirmation code <strong className="bp-code">{code}</strong></>}{code === false && <> · Confirmation code couldn't be loaded</>}</small>
             <h2>{name ?? appt.title}</h2>
             <p>{formatLongDate(appt.start_time, tz)} · {formatTime(appt.start_time, tz)}{appt.end_time ? ` to ${formatTime(appt.end_time, tz)}` : ""}</p>
           </div>

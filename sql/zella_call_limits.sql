@@ -4,21 +4,27 @@
 -- when the allowance was not set up or could not be read. Now, once usage enforcement for calls is switched on
 -- (platform setting usage_enforcement.calls, off today, unchanged by this file):
 --   * minutes left: answer, as before;
---   * used up, and the business has auto reload on for minutes: keep answering while reloads can run
---     (platform setting auto_reload_live, added here as false: reloads need payments, which aren't built yet, so
---     until then this counts as a failed reload);
---   * used up with pay as you go (an overage price on the plan): keep answering, as before;
+--   * used up, and the business has auto reload on for minutes (or chose auto top up): keep answering only while a
+--     reload can still happen: payments live (zella_payments_live, lane F's switch), an active subscription, the
+--     reload pack still sold, and the month's reload spend plus one more pack within the owner's cap, or a reload
+--     already in flight. Anything else counts as a failed reload;
+--   * used up with pay as you go (an overage price on the plan in force now, zella_billing_plan_at): keep answering;
 --   * otherwise, and also when the allowance is unknown (not set up, unreadable, or the subscription isn't active):
 --     forward to the business's own number if it has a valid one, else play "Sorry, we can't take your call right
 --     now. Please try again later." and end the call (action closed);
 --   * while it is stopped, the owners get an in app reminder (and an email, when email is live) to buy minutes or turn
---     on auto reload, at most once every 6 hours; an unknown allowance raises a platform alert for Zella Voice instead.
+--     on auto reload, at most once every 6 hours; an unknown allowance or a subscription that isn't active raises a
+--     platform alert for Zella Voice instead (buying minutes wouldn't help).
 -- While the switch is off nothing changes for callers (the documented design: calls continue until admission is
 -- deliberately connected, docs/MINUTE_USAGE_DESIGN.md); the gate reports what it would do (would_close).
--- Calls at the same time: zella_assistant_for_call counts the business's calls in progress (served and not ended in
--- the last 2 hours) under a per business lock; at the limit (businesses.voice_max_concurrent_calls, else platform
--- setting voice_max_concurrent_calls, 10) the caller hears the same closed message. This applies whatever the switch.
--- Both functions are archived first and must match production (18 Nov 2026), otherwise VERSION_MISMATCH.
+-- Calls at the same time: zella_assistant_for_call counts the business's calls in progress under a per business lock:
+-- a served call with a call record counts until it ends (at most 2 hours); a served call whose record never arrived
+-- counts only for its first 10 minutes, so a lost report frees its place. At the limit (businesses.
+-- voice_max_concurrent_calls, else platform setting voice_max_concurrent_calls, 10) the call is forwarded when the
+-- minutes check would forward it, otherwise the caller hears the same closed message. This applies whatever the
+-- switch, from the moment this file is applied.
+-- Both functions are archived first and must match production (18 Nov 2026), otherwise VERSION_MISMATCH. Needs lane F's
+-- zella_payments_live and zella_billing_plan_at (sql/zella_stripe_pipeline.sql, sql/zella_billing_allowances.sql).
 -- Rollback: sql/rollback/zella_call_limits_rollback.sql
 begin;
 
@@ -26,11 +32,12 @@ do $$
 declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
-    'public.zella_call_gate(uuid)',                     jsonb_build_array('03d62be229c6407bbd33dd83be32e397', '09a18d90f1138a04e5b284048f4210d1'),
-    'public.zella_assistant_for_call(text,text,text)',  jsonb_build_array('4463128ecde8dbb1edfa132d048796c6', '6d554bec9fbc05b8c97e53f565100c04'));
+    'public.zella_call_gate(uuid)',                     jsonb_build_array('03d62be229c6407bbd33dd83be32e397', 'b5848a1d936f79f6a864a8f5c2c7cc8f'),
+    'public.zella_assistant_for_call(text,text,text)',  jsonb_build_array('4463128ecde8dbb1edfa132d048796c6', '03ee44c36607ca56782820a30bffee82'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regclass('public.auto_reload_settings') is null
-     or to_regclass('public.assistant_deliveries') is null or to_regprocedure('public.zella_call_entitlement_check(uuid)') is null then
+     or to_regclass('public.assistant_deliveries') is null or to_regprocedure('public.zella_call_entitlement_check(uuid)') is null
+     or to_regprocedure('public.zella_payments_live()') is null or to_regprocedure('public.zella_billing_plan_at(uuid,timestamptz)') is null then
     raise exception 'VERSION_MISMATCH: something this file needs is missing';
   end if;
   for s in select jsonb_object_keys(known) loop
@@ -49,8 +56,12 @@ alter table public.businesses add column if not exists voice_max_concurrent_call
   check (voice_max_concurrent_calls is null or voice_max_concurrent_calls between 1 and 100);
 comment on column public.businesses.voice_max_concurrent_calls is
   'Calls the AI receptionist answers at the same time for this business (null: platform setting voice_max_concurrent_calls)';
-insert into public.platform_settings (key, value) values ('voice_max_concurrent_calls', '10'::jsonb), ('auto_reload_live', 'false'::jsonb)
-on conflict (key) do nothing;
+-- the settings this file adds, recorded so the rollback removes only those (never a value someone set before)
+create table if not exists public.zella_migration_settings (migration text not null, key text not null, primary key (migration, key));
+alter table public.zella_migration_settings enable row level security;
+revoke all on public.zella_migration_settings from public, anon, authenticated;
+with i as (insert into public.platform_settings (key, value) values ('voice_max_concurrent_calls', '10'::jsonb) on conflict (key) do nothing returning key)
+insert into public.zella_migration_settings (migration, key) select 'zella_call_limits', key from i on conflict do nothing;
 
 alter table public.assistant_deliveries drop constraint if exists assistant_deliveries_outcome_check;
 alter table public.assistant_deliveries add constraint assistant_deliveries_outcome_check
@@ -62,7 +73,8 @@ CREATE OR REPLACE FUNCTION public.zella_call_gate(p_business_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-declare e jsonb; v_payg boolean; v_reload boolean; v_raw text; v_number text; v_stop boolean; v_reason text; v_status text;
+declare e jsonb; v_payg boolean; v_reload boolean; v_can_reload boolean := false; v_mode text; v_raw text; v_number text; v_stop boolean; v_reason text; v_status text;
+        a public.auto_reload_settings; c public.billing_pack_catalog; v_spent bigint;
         v_on boolean := public.zella_usage_enforced('calls');
 begin
   e := public.zella_call_entitlement_check(p_business_id);
@@ -71,10 +83,24 @@ begin
   elsif v_status = 'inactive' then v_stop := true; v_reason := coalesce(e ->> 'reason', 'subscription_inactive');
   elsif v_status = 'exhausted' then
     /* zella_call_limits: auto reload first (owner, 18 Nov 2026); reloads run only once payments can charge */
-    select coalesce(bool_or(a.enabled), false) into v_reload from public.auto_reload_settings a where a.business_id = p_business_id and a.resource = 'minutes';
-    select coalesce(u.overage_mode, 'stop') in ('pay_as_you_go', 'auto_top_up') into v_payg from public.business_usage_preferences u where u.business_id = p_business_id;
-    v_payg := coalesce(v_payg, false) and coalesce((public.zella_billing_plan_current(p_business_id)).overage_cents_per_minute, 0) > 0;
-    if v_reload and coalesce(public.zella_setting('auto_reload_live', 'false'::jsonb) = 'true'::jsonb, false) then v_stop := false; v_reason := 'auto_reload';
+    select coalesce(u.overage_mode, 'stop') into v_mode from public.business_usage_preferences u where u.business_id = p_business_id;
+    select * into a from public.auto_reload_settings x where x.business_id = p_business_id and x.resource = 'minutes' and x.enabled;
+    v_reload := a.business_id is not null or v_mode = 'auto_top_up';
+    -- a reload can still happen: the same conditions lane F's zella_billing_maybe_reload checks before buying a pack
+    if a.business_id is not null and public.zella_payments_live()
+       and (select s.status from public.subscriptions s where s.business_id = p_business_id) = 'active' then
+      if exists (select 1 from public.pack_purchases p where p.business_id = p_business_id and p.resource = 'minutes' and p.source = 'auto_reload' and p.status = 'pending') then
+        v_can_reload := true;
+      else
+        select * into c from public.billing_pack_catalog k where k.code = a.pack_code and k.active and k.resource = 'minutes';
+        select coalesce(sum(p.price_cents), 0) into v_spent from public.pack_purchases p
+         where p.business_id = p_business_id and p.source = 'auto_reload' and p.status in ('pending', 'granted') and p.purchased_at >= date_trunc('month', now());
+        v_can_reload := c.code is not null and v_spent + c.price_cents <= a.monthly_cap_cents;
+      end if;
+    end if;
+    -- pay as you go is its own choice (auto top up is a reload), priced by the plan in force now, not a later version
+    v_payg := v_mode = 'pay_as_you_go' and coalesce((public.zella_billing_plan_at(p_business_id, now())).overage_cents_per_minute, 0) > 0;
+    if v_can_reload then v_stop := false; v_reason := 'auto_reload';
     elsif v_payg then v_stop := false; v_reason := 'pay_as_you_go';
     else v_stop := true; v_reason := case when v_reload then 'auto_reload_unavailable' else 'allowance_used' end;
     end if;
@@ -125,25 +151,29 @@ begin
            case when (public.zella_setting('voice_max_concurrent_calls', '10'::jsonb) #>> '{}') ~ '^[0-9]{1,3}$'
                 then greatest(1, (public.zella_setting('voice_max_concurrent_calls', '10'::jsonb) #>> '{}')::integer) else 10 end)
     into v_cap from businesses b where b.id = v_biz;
+  -- a call with a record counts until it ends; one whose record never arrived (a lost report) only for 10 minutes
   select count(distinct d.provider_call_id) into v_live from assistant_deliveries d
+   left join calls c on c.external_call_id = d.provider_call_id
    where d.business_id = v_biz and d.outcome = 'served' and d.created_at > now() - interval '2 hours' and d.provider_call_id is not null
      and d.provider_call_id <> coalesce(left(p_provider_call_id, 120), '')
-     and not exists (select 1 from calls c where c.external_call_id = d.provider_call_id
-                      and (c.ended_at is not null or c.status in ('completed', 'missed', 'failed')));
-  if v_live >= coalesce(v_cap, 10) then
+     and case when c.id is null then d.created_at > now() - interval '10 minutes'
+              else c.ended_at is null and c.status not in ('completed', 'missed', 'failed') end;
+  v_gate := public.zella_call_gate(v_biz);   /* zella_usage_enforcement */
+  if v_live >= coalesce(v_cap, 10) and v_gate ->> 'action' <> 'forward' then
     insert into assistant_deliveries (business_id, provider_call_id, outcome) values (v_biz, left(p_provider_call_id, 120), 'over_call_limit');
     return jsonb_build_object('ok', false, 'outcome', 'closed', 'reason', 'over_call_limit');
   end if;
-  v_gate := public.zella_call_gate(v_biz);   /* zella_usage_enforcement */
   if v_gate ->> 'action' in ('forward', 'closed') then
     insert into assistant_deliveries (business_id, provider_call_id, outcome)
     values (v_biz, left(p_provider_call_id, 120), case when v_gate ->> 'action' = 'forward' then 'forwarded_usage' else 'closed_usage' end);
     -- reminders, at most once every 6 hours: the owners (in app, and email once email is live), or Zella Voice when
     -- the allowance can't be read
     begin
-      if v_gate ->> 'usage_reason' = 'allowance_unknown' then
-        perform public.zella_platform_alert('usage_allowance_unknown', 'Calls stopped: minutes allowance unknown',
-          'A call to this business was not answered by the AI receptionist because its minutes allowance is not set up or could not be read.',
+      if v_gate ->> 'usage_status' <> 'exhausted' then   -- unknown allowance or a subscription that isn't active
+        perform public.zella_platform_alert('usage_allowance_unknown', case when v_gate ->> 'usage_status' = 'inactive'
+            then 'Calls stopped: subscription not active' else 'Calls stopped: minutes allowance unknown' end,
+          case when v_gate ->> 'usage_status' = 'inactive' then 'A call to this business was not answered by the AI receptionist because its subscription is not active.'
+               else 'A call to this business was not answered by the AI receptionist because its minutes allowance is not set up or could not be read.' end,
           'warning', v_biz, to_char(now(), 'YYYYMMDD'), jsonb_build_object('status', v_gate ->> 'usage_status'));
       elsif not exists (select 1 from staff_notifications n where n.business_id = v_biz and n.kind = 'minutes_used_up' and n.created_at > now() - interval '6 hours') then
         perform public.zella_notify_owners(v_biz, 'minutes_used_up', 'Your receptionist minutes are used up',

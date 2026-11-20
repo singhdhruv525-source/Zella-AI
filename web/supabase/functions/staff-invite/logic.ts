@@ -64,7 +64,11 @@ export async function sendInvitation(deps: Deps, callerId: string, invitationId:
     const key = `invite-email:${scope}:${scope === "invitation" ? invitation.id : invitation.business_id}:${seconds}`;
     let allowed = false;
     try { allowed = await deps.rateLimit(key, max, seconds); } catch { allowed = false; }
-    if (!allowed) return err(429, scope === "invitation" && seconds === 60 ? "This invitation was just sent. Wait a minute before sending it again." : "Too many invitation emails were sent from this workspace. Try again later.", "TOO_MANY_INVITES");
+    if (!allowed) {
+      // nothing was sent: mark it failed (a failed invitation can be sent again at once, within the limits)
+      await deps.fail(invitation.id, "rate_limited").catch(() => "");
+      return err(429, scope === "invitation" && seconds === 60 ? "This invitation was just sent. Wait a minute before sending it again." : "Too many invitation emails were sent from this workspace. Try again later.", "TOO_MANY_INVITES");
+    }
   }
 
   const email = String(invitation.email).trim().toLowerCase();

@@ -87,11 +87,18 @@ export function request(t: Target): string {
 // a whole HTTP/1.1 answer (the connection was closed after it) -> what the crawler's parser reads
 export type Answer = { statusCode: number; headers: Record<string, string>; body: string; truncated: boolean };
 export function parseAnswer(bytes: Uint8Array): Answer | null {
-  let end = -1;
-  for (let i = 0; i + 3 < bytes.length && i < 65536; i++) if (bytes[i] === 13 && bytes[i + 1] === 10 && bytes[i + 2] === 13 && bytes[i + 3] === 10) { end = i; break; }
-  if (end < 0) return null;
-  const head = new TextDecoder("latin1").decode(bytes.subarray(0, end)).split("\r\n");
-  const m = /^HTTP\/1\.[01] (\d{3})/.exec(head[0] ?? "");
+  // informational answers (100 Continue, 103 Early Hints) come first: skip them to the final answer
+  let start = 0, end = -1, head: string[] = [], m: RegExpExecArray | null = null;
+  for (let tries = 0; tries < 5; tries++) {
+    end = -1;
+    for (let i = start; i + 3 < bytes.length && i < start + 65536; i++) if (bytes[i] === 13 && bytes[i + 1] === 10 && bytes[i + 2] === 13 && bytes[i + 3] === 10) { end = i; break; }
+    if (end < 0) return null;
+    head = new TextDecoder("latin1").decode(bytes.subarray(start, end)).split("\r\n");
+    m = /^HTTP\/1\.[01] (\d{3})/.exec(head[0] ?? "");
+    if (!m) return null;
+    if (!m[1].startsWith("1")) break;
+    start = end + 4; m = null;
+  }
   if (!m) return null;
   const headers: Record<string, string> = {};
   for (const line of head.slice(1)) {

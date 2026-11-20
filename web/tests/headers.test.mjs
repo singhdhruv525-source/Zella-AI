@@ -27,9 +27,11 @@ test("every outside address in the built app is allowed by the CSP", () => {
   if (!existsSync(dist)) return;   // run after `npx vite build`
   const files = ["index.html", ...readdirSync(new URL("assets/", dist)).map((f) => "assets/" + f)].filter((f) => /\.(html|js|css)$/.test(f));
   const text = files.map((f) => readFileSync(new URL(f, dist), "utf8")).join("\n");
-  const allowed = new Set(Object.values(csp).flat());
-  // only real loads: stylesheet and font links, and fetch/URL literals; documentation links in bundled code are not loads
-  for (const origin of ["https://fonts.googleapis.com", "https://fonts.gstatic.com"]) if (text.includes(origin)) assert.ok(allowed.has(origin), origin);
-  assert.ok(allowed.has("https://pffqxlumqhjdbzvvoszm.supabase.co") && allowed.has("wss://pffqxlumqhjdbzvvoszm.supabase.co"));
+  // each origin is checked in the directive that governs its kind of load (CSP evaluates them separately); only real
+  // loads count: the stylesheet and font links, and the Supabase API and realtime
+  if (text.includes("https://fonts.googleapis.com")) assert.ok(csp["style-src"].includes("https://fonts.googleapis.com"), "stylesheet in style-src");
+  if (text.includes("https://fonts.gstatic.com")) assert.ok(csp["font-src"].includes("https://fonts.gstatic.com"), "fonts in font-src");
+  for (const o of ["https://pffqxlumqhjdbzvvoszm.supabase.co", "wss://pffqxlumqhjdbzvvoszm.supabase.co"]) assert.ok(csp["connect-src"].includes(o), `${o} in connect-src`);
+  assert.ok(csp["img-src"].includes("https://pffqxlumqhjdbzvvoszm.supabase.co"), "stored images in img-src");
   assert.ok(!/<script>(?!\s*<\/script>)/.test(readFileSync(new URL("index.html", dist), "utf8")), "no inline script");
 });

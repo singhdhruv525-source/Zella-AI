@@ -3,7 +3,7 @@
 -- cancel or move them, and replace their email address.
 --   1. Every booking gets a confirmation code: 6 characters, upper case letters and digits without lookalikes (no 0/O,
 --      1/I/L), e.g. K7Q2MP, unique per business (appointment_confirmation_codes; existing bookings get one when this
---      file runs, new ones when they are made). Members of the business can read it (the CRM booking view); nobody
+--      file runs, new ones when they are made). Owners, admins, managers and staff (not viewers) read it in the CRM booking view; nobody
 --      writes it directly. A spoken code is looked up by a hash, so the lookup takes the same time whatever it is.
 --   2. The code is in every booking confirmation and reminder text and email (zella_claim_reminders puts it in front
 --      of the reschedule line, and zella_prepare_sms / zella_prepare_email add it when a business's own template has
@@ -29,7 +29,7 @@ declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
     'public.zella_ai_tool(text,uuid,text,jsonb,text)',             jsonb_build_array('edf05de39666862c0949c239c8fed259', '292cb59edd14074f69b90a74572ac16b'),
-    'public.zella_ai_manage_booking(text,uuid,text,jsonb)',       jsonb_build_array('3145780974be8963244a0168d5286a92', 'a3458dc5c928b64995d154d7435a8f43'),
+    'public.zella_ai_manage_booking(text,uuid,text,jsonb)',       jsonb_build_array('3145780974be8963244a0168d5286a92', '4e44bde81572948e1df7dc516f1c8e14'),
     'public.zella_brain_tool_defs()',                             jsonb_build_array('8b2dba88a34ab200de2f59c1b0893603', '858008c205ec3271a00bf375852ac646'),
     'public.zella_brain_prompt_base(uuid)',                       jsonb_build_array('3bfb9c06c935ade77a6e2d8102f1511e', '7ab9163c4df52183697bd8108aa94d15'),
     'public.zella_claim_reminders(integer,text)',                 jsonb_build_array('fa34d88946ef4b2760d9068f05a3163d', '0025c2100523b5f21ec3ee7ba979208e'),
@@ -74,7 +74,7 @@ grant select on public.appointment_confirmation_codes to authenticated;
 grant all on public.appointment_confirmation_codes to service_role;
 drop policy if exists "business members can view confirmation codes" on public.appointment_confirmation_codes;
 create policy "business members can view confirmation codes" on public.appointment_confirmation_codes
-  for select to authenticated using (public.is_business_member(business_id));
+  for select to authenticated using (public.zella_has_role(business_id, array['owner', 'admin', 'manager', 'staff']));   -- not viewers: a code changes a booking
 drop policy if exists zella_mfa_required on public.appointment_confirmation_codes;
 create policy zella_mfa_required on public.appointment_confirmation_codes as restrictive
   for all to authenticated using ((select public.zella_mfa_satisfied())) with check ((select public.zella_mfa_satisfied()));
@@ -191,13 +191,14 @@ create table if not exists public.customer_pending_changes (
 comment on table public.customer_pending_changes is
   'A new email or phone number a caller gave by phone for a customer already on file, waiting for the team to approve';
 create index if not exists customer_pending_changes_open_idx on public.customer_pending_changes (business_id, customer_id) where status = 'pending';
+create unique index if not exists customer_pending_changes_one_open on public.customer_pending_changes (customer_id, field) where status = 'pending';
 alter table public.customer_pending_changes enable row level security;
 revoke all on public.customer_pending_changes from public, anon, authenticated;
 grant select on public.customer_pending_changes to authenticated;
 grant all on public.customer_pending_changes to service_role;
 drop policy if exists "business members can view pending changes" on public.customer_pending_changes;
 create policy "business members can view pending changes" on public.customer_pending_changes
-  for select to authenticated using (public.is_business_member(business_id));
+  for select to authenticated using (public.zella_has_role(business_id, array['owner', 'admin', 'manager', 'staff']));   -- the same people as the RPCs
 drop policy if exists zella_mfa_required on public.customer_pending_changes;
 create policy zella_mfa_required on public.customer_pending_changes as restrictive
   for all to authenticated using ((select public.zella_mfa_satisfied())) with check ((select public.zella_mfa_satisfied()));
@@ -208,7 +209,8 @@ create or replace function public.zella_caller_pending_change(p_business_id uuid
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare c public.customers; v_n integer := 0; f text; v text; v_cur text;
 begin
-  select * into c from public.customers where id = p_customer_id and business_id = p_business_id;
+  -- one request at a time per customer: two calls can't both leave a pending change for the same field
+  select * into c from public.customers where id = p_customer_id and business_id = p_business_id for update;
   if c.id is null then return jsonb_build_object('pending', 0); end if;
   foreach f in array array['email', 'phone'] loop
     v := case f when 'email' then nullif(lower(trim(coalesce(p_email, ''))), '') else nullif(trim(coalesce(p_phone, '')), '') end;
@@ -293,6 +295,8 @@ begin
      name on the booking and its date, from the number it was made with; cancelling or moving needs the booking's
      confirmation code. Three failed checks in one call and the receptionist only offers a message. */
   v_key := coalesce(nullif(left(p_provider_call_id, 200), ''), 'number:' || coalesce(public.zella_digits(v_caller), 'unknown') || ':' || to_char(now(), 'YYYYMMDD'));
+  -- one check at a time per call, so two requests can't both pass on the same count
+  perform pg_advisory_xact_lock(hashtextextended('zella_call_verification:' || v_biz::text || ':' || v_key, 0));
   select f.failures into v_fails from public.ai_call_verification_failures f where f.business_id = v_biz and f.call_key = v_key;
   if coalesce(v_fails, 0) >= c_max then
     return jsonb_build_object('ok', false, 'status', 'locked', 'say', 'The booking details could not be checked on this call. Do not try again and do not read out any booking details. Offer to take a message for the team with take_message.');
@@ -310,7 +314,10 @@ begin
       return jsonb_build_object('ok', false, 'status', 'need_info', 'say', 'Ask for the name on the booking and the date of the appointment, then call this again with both.');
     end if;
     if v_cust is not null and exists (select 1 from public.customers c where c.id = v_cust
-         and v_name in (lower(trim(coalesce(c.first_name, ''))), lower(regexp_replace(trim(coalesce(c.first_name, '') || ' ' || coalesce(c.last_name, '')), '\s+', ' ', 'g')))
+         -- the complete name when both names are on file; the first name alone only when there is no last name
+         and v_name = case when length(trim(coalesce(c.last_name, ''))) > 0
+                           then lower(regexp_replace(trim(coalesce(c.first_name, '') || ' ' || c.last_name), '\s+', ' ', 'g'))
+                           else lower(trim(coalesce(c.first_name, ''))) end
          and length(trim(coalesce(c.first_name, ''))) > 0) then
       select coalesce(jsonb_agg(jsonb_build_object('appointment_id', x.id, 'title', x.title,
                'say', public.zella_slot_say(x.start_time, v_tz, public.zella_arrival_window(v_biz)), 'start', x.start_time) order by x.start_time), '[]'::jsonb)
@@ -323,8 +330,14 @@ begin
       insert into public.ai_call_verification_failures as f (business_id, call_key, failures) values (v_biz, v_key, 1)
       on conflict (business_id, call_key) do update set failures = f.failures + 1, updated_at = now() returning failures into v_fails;
       if v_fails >= c_max then
-        perform public.zella_create_callback(v_biz, v_caller, 'appointment_request', 'normal',
+        -- the lock stands even if the callback can't be created (Zella Voice is alerted instead)
+        begin
+          perform public.zella_create_callback(v_biz, v_caller, 'appointment_request', 'normal',
           'The caller asked about an appointment, but the name and date they gave did not match a booking from their number.', null, null, v_call_id, null, 'ai');
+        exception when others then
+          begin perform public.zella_platform_alert('verification_callback_failed', 'A caller was locked out but no callback was created', left(sqlerrm, 200), 'warning', v_biz, v_key);
+          exception when others then null; end;
+        end;
         return jsonb_build_object('ok', false, 'status', 'locked', 'say', 'No booking matches those details. Do not try again and do not read out any booking details. Offer to take a message for the team with take_message.');
       end if;
       return jsonb_build_object('ok', false, 'status', 'not_found', 'say', 'No upcoming booking matches that name and date from this number. Ask the caller to check the name on the booking and the date. Do not guess and do not read out any other details.');
@@ -352,9 +365,15 @@ begin
     insert into public.ai_call_verification_failures as f (business_id, call_key, failures) values (v_biz, v_key, 1)
     on conflict (business_id, call_key) do update set failures = f.failures + 1, updated_at = now() returning failures into v_fails;
     if v_fails >= c_max then
-      perform public.zella_create_callback(v_biz, v_caller, 'appointment_request', 'normal',
+      -- the lock stands even if the callback can't be created (Zella Voice is alerted instead)
+      begin
+        perform public.zella_create_callback(v_biz, v_caller, 'appointment_request', 'normal',
         'The caller asked to ' || case p_action when 'cancel' then 'cancel' else 'move' end || ' an appointment, but the confirmation code they gave did not match an upcoming booking.',
         null, null, v_call_id, null, 'ai');
+      exception when others then
+        begin perform public.zella_platform_alert('verification_callback_failed', 'A caller was locked out but no callback was created', left(sqlerrm, 200), 'warning', v_biz, v_key);
+        exception when others then null; end;
+      end;
       return jsonb_build_object('ok', false, 'status', 'locked', 'say', 'That code does not match an upcoming booking. Do not try again. Offer to take a message for the team with take_message.');
     end if;
     return jsonb_build_object('ok', false, 'status', 'code_mismatch', 'say', 'That code does not match an upcoming booking. Ask the caller to read the code again, letter by letter. Do not read out any booking details.');

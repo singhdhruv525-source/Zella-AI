@@ -13,7 +13,11 @@ P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)
 fails=0; ok() { echo "PASS $*"; }; bad() { echo "FAIL $*"; fails=$((fails + 1)); }
 ensure_template() {
   zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$TEMPLATE" || exit 1
-  [ "$("${P[@]}" -d postgres -c "select count(*) from pg_database where datname = '$TEMPLATE'")" = 1 ] && return 0
+  # rebuilt whenever its inputs change: the base, and every file it applies (their content), kept as the database comment
+  local want; want=$(cd "$REPO" && { echo "$BASE"; cat sql/zella_writing_cleanup.sql tests/industry_data/production_zella_sensitive_industry.sql tests/alert_rules_email/prod_claim_admin_alert_email.sql docs/SCHEMA_STATUS.md;
+    for m in $(grep "built, not applied" docs/SCHEMA_STATUS.md | sed -n 's/^| `\([^`]*\)\.sql`.*/\1/p'); do case " $MINE " in *" $m "*) ;; *) cat "sql/$m.sql";; esac; done; } | md5sum | cut -c1-32)
+  if [ "$("${P[@]}" -d postgres -c "select shobj_description(oid, 'pg_database') from pg_database where datname = '$TEMPLATE'")" = "$want" ]; then return 0; fi
+  "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists $TEMPLATE" > /dev/null || exit 1
   "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists ${TEMPLATE}_build" -c "create database ${TEMPLATE}_build template $BASE" > /dev/null || exit 1
   local m f
   for f in sql/zella_writing_cleanup.sql tests/industry_data/production_zella_sensitive_industry.sql tests/alert_rules_email/prod_claim_admin_alert_email.sql; do
@@ -23,7 +27,7 @@ ensure_template() {
     case " $MINE " in *" $m "*) continue;; esac
     "${P[@]}" -d "${TEMPLATE}_build" -f "$REPO/sql/$m.sql" > /dev/null 2>&1 || { echo "template build failed at $m"; exit 1; }
   done
-  "${P[@]}" -d postgres -c "alter database ${TEMPLATE}_build rename to $TEMPLATE" > /dev/null || exit 1
+  "${P[@]}" -d postgres -c "alter database ${TEMPLATE}_build rename to $TEMPLATE" -c "comment on database $TEMPLATE is '$want'" > /dev/null || exit 1
 }
 fresh_db() {   # fresh_db <name>: sets DB=zsec_fix_<name> and creates it from the template
   DB="zsec_fix_$1"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1; ensure_template

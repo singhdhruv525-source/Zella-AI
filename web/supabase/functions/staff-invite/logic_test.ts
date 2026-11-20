@@ -134,11 +134,11 @@ Deno.test("invitation emails are capped: a minute between sends, and a counter t
   const seen: string[] = [];
   const { deps, calls } = fake({ rateLimit: async (key) => { seen.push(key); return !key.includes(":invitation:i1:60"); } });
   const r = await sendInvitation(deps, OWNER, "i1");
-  assertEquals([r.status, r.body.code, calls.length], [429, "TOO_MANY_INVITES", 0]);
+  assertEquals([r.status, r.body.code, calls], [429, "TOO_MANY_INVITES", ["fail:rate_limited"]]);   // retryable, nothing sent
   assertEquals(seen, ["invite-email:invitation:i1:60"]);
   const busy = fake({ rateLimit: async (key) => !key.includes(":business:") });
   assertEquals((await sendInvitation(busy.deps, OWNER, "i1")).status, 429);
   const down = fake({ rateLimit: async () => { throw new Error("db down"); } });
   const d = await sendInvitation(down.deps, OWNER, "i1");
-  assertEquals([d.status, down.calls.length], [429, 0]);
+  assertEquals([d.status, down.calls], [429, ["fail:rate_limited"]]);
 });

@@ -1,6 +1,7 @@
--- Undoes sql/zella_caller_verification.sql exactly: the seven functions come back from zella_function_archive, and
--- the code trigger, the new functions and the three new tables are dropped (confirmation codes, failed checks and
--- contact changes waiting for the team are lost; customers and appointments are not touched). Each function must be
+-- Undoes sql/zella_caller_verification.sql: the seven functions come back from zella_function_archive, and the code
+-- trigger, the new functions and the failed check counters are dropped. Customer data is never deleted (DB-4): the
+-- confirmation codes and the contact changes waiting for the team stay in their tables (server only once the
+-- functions are gone, still readable by the business's staff), and applying the file again uses them as they are. Each function must be
 -- exactly this file's version first, otherwise ROLLBACK_DRIFT and nothing changes. Grants are kept (same signatures).
 -- Safe to run twice.
 begin;
@@ -8,7 +9,7 @@ do $$
 declare a record;
   mine constant jsonb := jsonb_build_object(
     'public.zella_ai_tool(text,uuid,text,jsonb,text)',        '292cb59edd14074f69b90a74572ac16b',
-    'public.zella_ai_manage_booking(text,uuid,text,jsonb)',  'a3458dc5c928b64995d154d7435a8f43',
+    'public.zella_ai_manage_booking(text,uuid,text,jsonb)',  '4e44bde81572948e1df7dc516f1c8e14',
     'public.zella_brain_tool_defs()',                        '858008c205ec3271a00bf375852ac646',
     'public.zella_brain_prompt_base(uuid)',                  '7ab9163c4df52183697bd8108aa94d15',
     'public.zella_claim_reminders(integer,text)',            '0025c2100523b5f21ec3ee7ba979208e',
@@ -38,7 +39,5 @@ drop function if exists public.zella_confirmation_code_line(uuid);
 drop function if exists public.zella_confirmation_code_issue(uuid, uuid);
 drop function if exists public.zella_confirmation_code_clean(text);
 drop function if exists public.zella_confirmation_code_hash(uuid, text);
-drop table if exists public.customer_pending_changes;
 drop table if exists public.ai_call_verification_failures;
-drop table if exists public.appointment_confirmation_codes;
 commit;

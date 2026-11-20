@@ -57,6 +57,8 @@ const link = (to, index = 0) => ({ node: to, type: 'main', index });
 // no error workflow (see below).
 // the id is derived from the workflow's first name and stays fixed, so links to it never change
 const FAILURE_WORKFLOW_ID = id('Zella - Failure Alert');
+// workflows whose runs carry secrets or call content: no execution data is saved, failed or manual runs included
+const NO_SAVED_RUNS = { errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
 const wf = (name, nodes, connections, extraSettings = {}) => ({
   name, nodes, connections, active: false,
   settings: { executionOrder: 'v1', executionTimeout: 300, errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', ...extraSettings }, pinData: {},
@@ -430,7 +432,7 @@ const aiBooking = secureVapi(wf('Zella Voice - Appointment Booking', [
   'Run booking': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-}), 'Vapi booking tool', true);
+}, NO_SAVED_RUNS), 'Vapi booking tool', true);   // runs carry the spoken confirmation code: never saved
 
 // Voice rules: the phone assistant asks "call_rules" during a call (open or closed, take a message, emergency, reach a person).
 // Every decision is made by the database (zella_ai_voice); this workflow only passes the question on and the answer back.
@@ -534,7 +536,6 @@ secureResend(emailEvents, 'Resend event', 'events');
 // Calendar Sync never keeps its runs in n8n's execution history: the claim RPCs hand it each calendar's refresh token
 // (the token exchange happens in this workflow), and a saved execution would store that token in n8n's database.
 // Failures are still recorded in Zella Voice (Finish sync / Mark error write them to calendar_sync_queue and calendar_connections).
-const NO_SAVED_RUNS = { errorWorkflow: FAILURE_WORKFLOW_ID, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, saveExecutionProgress: false };
 // Calendar Sync: copies bookings to the business's Google Calendar or Outlook calendar and reads its busy times back into Zella Voice.
 // Started by the dispatcher only when a booking change or a refresh is waiting (and calendar_sync_live is true).
 // Select the provider Custom Auth credential on both token boxes; client credentials stay in n8n credentials.
@@ -848,7 +849,7 @@ const brainTools = secureVapi(wf('Zella Voice - Receptionist Brain Tools', [
   'Run tool': { main: [[link('Build reply')]] },
   'Build reply': { main: [[link('Collect replies')]] },
   'Collect replies': { main: [[link('Reply')]] },
-}), 'Vapi brain tool', true);
+}, NO_SAVED_RUNS), 'Vapi brain tool', true);   // runs carry the spoken confirmation code: never saved
 writeFileSync(join(out, 'zella-brain-tools.json'), JSON.stringify(brainTools, null, 2) + '\n');
 
 // Call Reconciliation: for calls whose end-of-call report never arrived, ask the provider for its record of the call and

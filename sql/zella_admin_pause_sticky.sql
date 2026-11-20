@@ -13,6 +13,9 @@
 --   * "Resume all" (zella_admin_business_automations_resume, sql/zella_automations_resume_all.sql) is a staff action
 --     too: it clears the mark on what it resumes. The guard keeps the "Pause all" mark (bulk_paused_at) when it keeps an
 --     automation off, so a refused attempt doesn't stop "Resume all" from finding it later.
+-- Automations paused before this file is applied carry no mark (nothing recorded which pauses were staff's), so a
+-- manager can still turn those back on, as before, until staff pause them again; a business wide "Pause all" marks
+-- every paused automation of the business at once.
 -- zella_request_activation is not changed, so this file works with production's version and with
 -- sql/zella_owner_onboarding.sql's, in either order. Needs sql/zella_automations_resume_all.sql applied first.
 -- The three admin functions are archived first and must be the versions on main (production's set_status, and the
@@ -25,7 +28,7 @@ declare
   s text; d text;
   known constant jsonb := jsonb_build_object(
     'public.zella_admin_business_automations_pause(uuid,text)', jsonb_build_array('ff8907607f62387511208ac1ae03ce70', '80fc3ae370fda10aab743a23aef4624d'),
-    'public.zella_admin_automation_set_status(uuid,text,text)',  jsonb_build_array('9c9b73eaee0135de5b9599723b698e4b', 'e9790abcd9bd30a51ef180caa0444739'),
+    'public.zella_admin_automation_set_status(uuid,text,text)',  jsonb_build_array('9c9b73eaee0135de5b9599723b698e4b', 'e50b454d658b0c7a3e863f2cb98acca1'),
     'public.zella_admin_business_automations_resume(uuid,text)', jsonb_build_array('42531e1b1249ea39adae2374a45671cf', 'f54e8b67f946cd489599224baa3364b9'));
 begin
   if to_regclass('public.zella_function_archive') is null or to_regclass('public.automations') is null then
@@ -104,7 +107,8 @@ begin
   if p_status not in ('active', 'paused', 'disabled') then raise exception 'INVALID_STATUS'; end if;
   select * into a from public.automations where id = p_id for update;
   if a.id is null then raise exception 'NOT_FOUND'; end if;
-  if a.status = p_status then raise exception 'NO_CHANGE'; end if;
+  -- staff can mark an automation that is already off (paused or archived by the business) as staff paused
+  if a.status = p_status and (p_status = 'active' or a.paused_by_admin) then raise exception 'NO_CHANGE'; end if;
   select * into b from public.businesses where id = a.business_id;
   if p_status = 'active' and (b.suspended_at is not null or b.cancelled_at is not null) then raise exception 'BUSINESS_NOT_AVAILABLE'; end if;
   if p_status = 'active' and not coalesce(b.is_active, false) then raise exception 'BUSINESS_NOT_LIVE'; end if;

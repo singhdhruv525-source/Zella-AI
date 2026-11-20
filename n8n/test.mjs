@@ -2131,6 +2131,13 @@ test('every workflow reports failures to Failure Alert and keeps no successful-r
   }
 });
 
+test('runs that carry a spoken confirmation code are never saved (booking and brain tools)', () => {
+  for (const f of ['zella-appointment-booking.json', 'zella-brain-tools.json']) {
+    const st = wfJson(f).settings;
+    assert.deepEqual([st.saveDataSuccessExecution, st.saveDataErrorExecution, st.saveManualExecutions, st.saveExecutionProgress], ['none', 'none', false, false], f);
+  }
+});
+
 console.log(`${passed} passed, ${failures.length} failed`);
 for (const f of failures) console.log('  FAIL ' + f);
 process.exit(failures.length ? 1 : 0);
