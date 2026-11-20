@@ -43,6 +43,10 @@ q "update public.business_languages set greeting = 'I''m the AI receptionist at 
 [ "$(first)" = "I'm the AI receptionist at Sunny Salon, how can I help?" ] && ok "a recording clause between commas goes, the rest of the greeting stays" || bad "comma strip: $(first)"
 r=$(save es "Gracias por llamar a {name}."); [ "$r" = saved ] || bad "spanish save: $r"
 [[ "$(first)" == *"inteligencia artificial"* ]] && ok "a Spanish greeting gets the Spanish disclosure: $(first)" || bad "spanish: $(first)"
+r=$(save es "Gracias por llamar a {name}. Esta llamada puede ser grabada. ¿En qué puedo ayudarle?"); [ "$r" = saved ] || bad "spanish rec save: $r"
+[ "$(first)" = "Gracias por llamar a Sunny Salon. ¿En qué puedo ayudarle? Soy la recepcionista virtual con inteligencia artificial." ] && ok "a Spanish recording sentence goes while recording is off" || bad "spanish strip: $(first)"
+r=$(save es "Gracias por llamar a {name}, esta llamada será grabada, ¿en qué puedo ayudarle?"); [ "$(first)" = "Gracias por llamar a Sunny Salon, ¿en qué puedo ayudarle? Soy la recepcionista virtual con inteligencia artificial." ] && ok "and a Spanish recording clause between commas" || bad "spanish comma: $(first)"
+r=$(save es "Gracias por llamar a {name}."); [ "$r" = saved ] || bad "spanish save back: $r"
 r=$(save fr ""); [[ "$(first)" == *"intelligence artificielle"* ]] && ok "the standard French greeting gets it too" || bad "french: $(first)"
 r=$(save en-US ""); 
 q "create or replace function public.zella_recording_effective(p_business uuid) returns boolean language sql stable as \$f\$ select true \$f\$" > /dev/null
