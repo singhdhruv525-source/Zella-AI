@@ -15,8 +15,9 @@ declare s text; v_has boolean;
     "public.zella_stripe_failed_upgrade(billing_outbox)": "e813e7451754e058e7bc263c2c323eba",
     "public.zella_stripe_grant_subscription_update(jsonb,jsonb)": "84cc70fdbb9213ebb797c61042ebb9e2",
     "public.zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)": "8827b643e7c370b4ca010a0615481cf2",
-    "public.zella_admin_plan_change_cancel(uuid,text)": "a1cb7f996914716bbec43c3857bec3f5",
-    "public.zella_stripe_after_schedule_release(billing_outbox)": "326b8dbf19d29fdd543d12ac11a6d5ff"
+    "public.zella_admin_plan_change_cancel(uuid,text)": "cea6980e7a8a5996633fe5a877b5ab37",
+    "public.zella_stripe_after_schedule_release(billing_outbox)": "326b8dbf19d29fdd543d12ac11a6d5ff",
+    "public.zella_stripe_failed_schedule_release(billing_outbox)": "b2a06b9b50eac41d194923ec162cd9bb"
   }';
 begin
   for s in select jsonb_object_keys(owned) loop

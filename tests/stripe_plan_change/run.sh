@@ -67,5 +67,16 @@ q "insert into public.billing_plan_changes (business_id, subscription_id, from_p
    select '$b', id, '$v2', '$plan', 'down', 'scheduled', 'Fewer minutes again' from public.subscriptions where business_id = '$b'" > /dev/null
 [ "$(zf_apply evt_dn1 customer.subscription.updated '{"id":"sub_PC","object":"subscription","status":"active","livemode":false,"items":{"data":[{"id":"si_PC","price":{"id":"price_PC"}}]}}')" = "applied" ] \
   && [ "$(q "select count(*) from public.billing_plan_changes where status = 'scheduled'")" = "0" ] && ok "the downgrade taking effect ends its block" || bad "downgrade done: $(q "select string_agg(status, ',') from public.billing_plan_changes")"
+# Stripe refuses a release: the refusal is recorded, the downgrade stays scheduled, and a new cancel is refused until a person resolves it
+dn2=$(q "insert into public.billing_plan_changes (business_id, subscription_id, from_plan_id, to_plan_id, direction, status, reason, stripe_schedule_id)
+         select '$b', id, '$v2', '$plan', 'down', 'scheduled', 'Fewer minutes, third time', 'sub_sched_PC2' from public.subscriptions where business_id = '$b' returning id" | head -1)
+as_user "$admin" aal2 "select public.zella_admin_plan_change_cancel('$dn2', 'Owner asked to keep the plan')" > /dev/null
+[ "$(as_user "$admin" aal2 "select public.zella_admin_plan_change_cancel('$dn2', 'Owner asked to keep the plan') ->> 'changed'")" = "false" ] \
+  && [ "$(q "select count(*) from public.audit_logs where action = 'billing.plan_downgrade_cancelled' and entity_id = '$dn2'")" = "1" ] && ok "asking again while the release is pending sends nothing new and audits once" || bad "cancel twice"
+rel2=$(q "select id from public.billing_outbox where idempotency_key = 'release:$dn2'"); q "select id from public.zella_billing_outbox_claim(1, '$rel2')" > /dev/null
+q "select public.zella_billing_outbox_result('$rel2', false, null, '{\"type\":\"invalid_request_error\"}', 'schedule already released', false, false, 1)" > /dev/null
+[ "$(q "select status || ',' || (release_error is not null) from public.billing_plan_changes where id = '$dn2'")" = "scheduled,true" ] \
+  && [ "$(as_user_e "$admin" aal2 "select public.zella_admin_plan_change_cancel('$dn2', 'Owner asked to keep the plan')")" = "RELEASE_REFUSED" ] \
+  && ok "a release Stripe refuses is recorded on the change, and cancelling again says so (never a release that won't run)" || bad "release refused"
 out=$("${P[@]}" -d "$DB" -f "$ZF_REPO/sql/rollback/zella_stripe_plan_change_rollback.sql" 2>&1); [[ "$out" == *ROLLBACK_HAS_DATA* ]] && ok "the rollback refuses while changes exist" || bad "rollback data"
 echo "$fails failed"; [ "$fails" = 0 ]

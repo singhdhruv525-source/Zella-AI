@@ -32,8 +32,9 @@ declare s text; d text;
     "public.zella_stripe_failed_upgrade(billing_outbox)": "e813e7451754e058e7bc263c2c323eba",
     "public.zella_stripe_grant_subscription_update(jsonb,jsonb)": "84cc70fdbb9213ebb797c61042ebb9e2",
     "public.zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)": "8827b643e7c370b4ca010a0615481cf2",
-    "public.zella_admin_plan_change_cancel(uuid,text)": "a1cb7f996914716bbec43c3857bec3f5",
-    "public.zella_stripe_after_schedule_release(billing_outbox)": "326b8dbf19d29fdd543d12ac11a6d5ff"
+    "public.zella_admin_plan_change_cancel(uuid,text)": "cea6980e7a8a5996633fe5a877b5ab37",
+    "public.zella_stripe_after_schedule_release(billing_outbox)": "326b8dbf19d29fdd543d12ac11a6d5ff",
+    "public.zella_stripe_failed_schedule_release(billing_outbox)": "b2a06b9b50eac41d194923ec162cd9bb"
   }';
 begin
   if to_regprocedure('public.zella_billing_ledger_check()') is null then raise exception 'VERSION_MISMATCH: needs zella_stripe_reconcile.sql'; end if;
@@ -64,12 +65,14 @@ create table if not exists public.billing_plan_changes (
   preview_expires_at timestamptz,
   stripe_invoice_id text,
   stripe_schedule_id text,
+  release_error text,   -- a person asked to cancel a scheduled downgrade and Stripe refused to release the schedule
   reason text not null,
   created_by uuid,
   confirmed_by uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.billing_plan_changes add column if not exists release_error text;
 create unique index if not exists billing_plan_changes_one_open_uidx on public.billing_plan_changes (subscription_id) where status in ('preparing', 'previewed', 'confirmed');
 alter table public.billing_plan_changes enable row level security;
 revoke all on public.billing_plan_changes from anon, authenticated;
@@ -109,7 +112,7 @@ end $$;
 -- first (key release:<change id>); the change is cancelled only once Stripe confirms (zella_stripe_after_schedule_release).
 create or replace function public.zella_admin_plan_change_cancel(p_change_id uuid, p_reason text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare c public.billing_plan_changes;
+declare c public.billing_plan_changes; r public.billing_outbox;
 begin
   if auth.uid() is null or not public.zella_admin_can('billing.manage') then raise exception 'NOT_ALLOWED'; end if;
   if p_reason is null or length(trim(p_reason)) < 5 then raise exception 'REASON_REQUIRED'; end if;
@@ -117,12 +120,23 @@ begin
   select * into c from public.billing_plan_changes where id = p_change_id for update;
   if c.id is null then raise exception 'NOT_FOUND'; end if;
   if c.status <> 'scheduled' or c.stripe_schedule_id is null then raise exception 'INVALID_INPUT'; end if;
-  perform public.zella_billing_outbox_add(c.business_id, 'schedule_release', 'release:' || c.id, 'POST',
+  -- Stripe refused this release before: the downgrade stays scheduled, and a person resolves the held command first
+  if c.release_error is not null then raise exception 'RELEASE_REFUSED'; end if;
+  r := public.zella_billing_outbox_add(c.business_id, 'schedule_release', 'release:' || c.id, 'POST',
     '/v1/subscription_schedules/' || c.stripe_schedule_id || '/release', '{}'::jsonb, 'plan_change', c.id);
+  if r.status in ('held', 'cancelled') then raise exception 'RELEASE_REFUSED'; end if;
+  if r.created_at < now() then return jsonb_build_object('change_id', c.id, 'status', 'releasing', 'changed', false); end if;   -- already asked: no second audit
   insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
   values (c.business_id, auth.uid(), 'billing.plan_downgrade_cancelled', 'billing_plan_change', c.id, jsonb_build_object('reason', left(trim(p_reason), 500)));
-  return jsonb_build_object('change_id', c.id, 'status', 'releasing');
+  return jsonb_build_object('change_id', c.id, 'status', 'releasing', 'changed', true);
 end $$;
+
+-- Stripe refused to release the schedule: the downgrade stays scheduled (it still happens at the period end), the
+-- refusal is recorded on the change, and the held command's alert asks a person to decide.
+create or replace function public.zella_stripe_failed_schedule_release(r public.billing_outbox) returns void
+language sql security definer set search_path = public as $$
+  update public.billing_plan_changes set release_error = left(coalesce(r.error, 'refused'), 300), updated_at = now() where id = r.local_id and status = 'scheduled';
+$$;
 
 create or replace function public.zella_stripe_after_schedule_release(r public.billing_outbox) returns void
 language sql security definer set search_path = public as $$
@@ -342,7 +356,8 @@ end $$;
 do $$ declare f text; begin
   foreach f in array array['zella_plan_change_next(uuid)', 'zella_stripe_after_change_price(billing_outbox)', 'zella_stripe_after_preview(billing_outbox)', 'zella_stripe_after_schedule(billing_outbox)',
     'zella_stripe_failed_upgrade(billing_outbox)', 'zella_stripe_grant_subscription_update(jsonb,jsonb)',
-    'zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)', 'zella_stripe_after_schedule_release(billing_outbox)'] loop
+    'zella_stripe_on_customer_subscription_pending_update_expired(billing_events,jsonb)', 'zella_stripe_after_schedule_release(billing_outbox)',
+    'zella_stripe_failed_schedule_release(billing_outbox)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
