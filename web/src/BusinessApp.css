@@ -2286,3 +2286,5 @@ html:not([data-zella-icons="ready"]) .ba-header-actions { flex-wrap: wrap; flex-
 .ul-banner-actions { display: flex; gap: 6px; align-items: center; }
 @media (max-width: 600px) { .ul-banner { grid-template-columns: auto 1fr; } .ul-banner-actions { grid-column: 1 / -1; } .ul-updated { margin-left: 0; } }
 @media (prefers-reduced-motion: reduce) { .ul-ring-fill { transition: none; } }
+.ba-auth-legal { margin: 18px 0 0; text-align: center; font-size: 12.5px; color: var(--ba-muted); }
+.ba-auth-legal a { color: inherit; }

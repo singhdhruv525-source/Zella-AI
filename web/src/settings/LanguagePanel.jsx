@@ -11,6 +11,7 @@ const CODES = {
   PLAN_LANGUAGES: "Your plan includes fewer languages than this. Remove one, or ask the Zella Voice team about your plan.",
   GREETING_LENGTH: "The greeting needs 5 to 200 characters.",
   GREETING_TEXT: "The greeting can't contain links, brackets or placeholders other than {name}.",
+  GREETING_AI_DISCLOSURE: "The greeting must tell callers they are speaking with an AI, for example \"I'm the AI receptionist.\"",
 };
 const say = (error) => {
   const message = error?.message?.trim() ?? String(error);
@@ -62,7 +63,7 @@ function Editor({ w, data }) {
           })}
         </div>
       </Card>
-      <Card title="Greeting" sub="The first thing callers hear. Leave it empty to use the standard greeting for the main language.">
+      <Card title="Greeting" sub="The first thing callers hear. Leave it empty to use the standard greeting for the main language. Callers are always told they are speaking with an AI receptionist, and that the call is recorded when recording is on.">
         <Field label="Greeting (optional)" full hint={`Standard: “${defaultGreeting}” Write {name} for your business name.`}>
           <input value={v.greeting} maxLength={200} disabled={!data.can_edit} onChange={form.set("greeting")} placeholder={defaultGreeting} />
         </Field>

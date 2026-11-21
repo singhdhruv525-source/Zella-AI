@@ -4,6 +4,7 @@ import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, 
 import { CLASS_LABELS, SOURCE_LABELS, classLabel, periodWords } from "./retentionLabels";
 import PurgeRuns from "./PurgeRuns";
 import BusinessPurge from "./BusinessPurge";
+import AccountDeletions from "./AccountDeletions";
 import BusinessPicker from "./BusinessPicker";
 
 // Settings > Security and privacy > Data retention: a period per kind of data, legal holds, and a dry run of what a
@@ -27,7 +28,7 @@ export default function DataRetention({ me }) {
   return (
     <LoadState state={state}>{(o) => (
       <>
-        <Card title="Retention periods" sub="Proposed from the architecture and pending legal review. Nothing is deleted automatically.">
+        <Card title="Retention periods" sub="Proposed from the architecture and pending legal review. While purges are switched on, the daily job removes recordings and transcripts past their period, for kinds that are legally approved.">
           <Table rows={o.policies} rowKey={(p) => p.data_class} columns={[
             ["Data", (p) => <span title={CLASS_LABELS[p.data_class]?.[1]}>{classLabel(p.data_class)}</span>],
             ["Kept for", (p) => periodWords(p.days)], ["Proposed", (p) => periodWords(p.architecture_days)],
@@ -55,11 +56,12 @@ export default function DataRetention({ me }) {
             )}
           </Card>
         )}
-        <Card title="Purges" sub="Each purge needs a Zella Voice owner and a second person to approve it, and is never scheduled."
+        <Card title="Purges" sub="Each manual purge run needs a Zella Voice owner and a second person to approve it. Account deletions an admin confirmed run on the daily job once this switch is on and their period is legally approved."
           actions={owner && <button type="button" className={`zs-btn sm${o.purge_enabled ? " danger-outline" : ""}`} onClick={() => setDialog({ switchOn: !o.purge_enabled })}>{o.purge_enabled ? "Switch purges off" : "Switch purges on"}</button>}>
-          <Facts rows={[["Purges", o.purge_enabled ? "On" : "Off"], ["Schedule", "None. A purge runs only when people approve it."], ["Setting", "retention_purge_enabled"]]} />
+          <Facts rows={[["Purges", o.purge_enabled ? "On" : "Off"], ["Schedule", "Manual runs: only when people approve them. Confirmed account deletions and the 90 day removal of recordings and transcripts: the daily job, once on"], ["Setting", "retention_purge_enabled"]]} />
         </Card>
         <BusinessPurge me={me} legalApproved={o.policies.some((p) => p.data_class === "cancelled_business" && p.legal_status === "approved")} onAsked={() => setRunsKey((k) => k + 1)} />
+        <AccountDeletions me={me} />
         <PurgeRuns key={runsKey} me={me} policies={o.policies} purgeEnabled={o.purge_enabled} you={o.you} />
         <Card title="Legal holds" sub="Nothing of a business on hold is ever listed for removal, and the business can't be deleted."
           actions={manage && <button type="button" className="zs-btn sm" onClick={() => setDialog({ hold: "" })}>Place a hold</button>}>
@@ -78,14 +80,14 @@ export default function DataRetention({ me }) {
               <Field label="Legal review"><select value={dialog.legalStatus} onChange={(e) => setDialog({ ...dialog, legalStatus: e.target.value })}>
                 <option value="pending_legal_review">Pending legal review</option><option value="approved">Approved by legal</option></select></Field>
             </div>
-            {dialog.legalStatus === "approved" && <Banner tone="warn">Only after counsel has approved this period. Approved kinds can be purged once two people approve each run.</Banner>}
+            {dialog.legalStatus === "approved" && <Banner tone="warn">Only after counsel has approved this period. A manual purge run of an approved kind still needs two people to approve it; while purges are switched on, the daily job also removes approved recordings and transcripts past their period, and approving the cancelled business period lets it purge confirmed account deletions that are due.</Banner>}
           </Confirm>
         )}
         {dialog && "switchOn" in dialog && (
           <Confirm title={dialog.switchOn ? "Switch purges on?" : "Switch purges off?"} reason danger={dialog.switchOn} word={dialog.switchOn ? "ENABLE PURGES" : undefined}
             confirmLabel={dialog.switchOn ? "Switch on" : "Switch off"} onClose={() => setDialog(null)}
             onConfirm={async (reason) => { await call("retention_switch_set", { on: dialog.switchOn, reason, confirm: "ENABLE PURGES" }); state.reload(); }}>
-            <p>{dialog.switchOn ? "Purges still need legal approval of the period and two people to approve each run. Nothing runs on a schedule." : "No purge can run until it is switched on again."}</p>
+            <p>{dialog.switchOn ? "Manual purge runs still need legal approval of the period and two people to approve each run. The daily job will also remove recordings and transcripts past 90 days and purge confirmed account deletions past their 30 days, for kinds that are legally approved." : "No purge can run until it is switched on again."}</p>
           </Confirm>
         )}
         {dialog && "hold" in dialog && (

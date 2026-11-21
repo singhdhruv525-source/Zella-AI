@@ -10,6 +10,7 @@ import { DATA_RIGHTS_ROLES, DataRightsList } from "./BusinessDataRights";
 import { HoursSection } from "./BusinessHours";
 import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
 import { TeamPage } from "./BusinessTeam";
+import DeleteAccount from "./settings/DeleteAccount";
 import { KnowledgePage } from "./BusinessKnowledge";
 import { RecordSettingsPage } from "./BusinessRecords";
 import { IntegrationsPage, LeadSourcesPage, ReportsPage } from "./BusinessMore";
@@ -910,10 +911,13 @@ function Privacy({ w, onOpenPerson, onNotice }) {
     <>
       <Card title="Your data">
         <Facts rows={[["Recordings and transcripts", "Managers and above"], ["Customer data requests", "Logged and handled below, within 30 days"], ["Erasing a customer", "Needs a second owner or admin when you have two"],
-          ["If you cancel", "Records kept 90 days, then the Zella Voice team removes them"]]} />
+          ["Call recordings and transcripts", "Kept 90 days after the call, then deleted automatically once Zella Voice switches automatic deletion on (after legal review)"],
+          ["If you cancel", "Records kept 90 days, then the Zella Voice team removes them"],
+          ["If you delete your account", "Frozen at once, then deleted 30 days after Zella Voice confirms, unless you cancel"]]} />
       </Card>
       {roleIn(w, DATA_RIGHTS_ROLES) ? <DataRightsList workspace={w} onOpenPerson={onOpenPerson} onNotice={onNotice} /> : <p className="zs-muted">Managers and above handle customer data requests.</p>}
       <LegalDocs w={w} />
+      <DeleteAccount w={w} />
     </>
   );
 }

@@ -482,6 +482,12 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/website-fetch/deno.json"
 entrypoint = "./functions/website-fetch/index.ts"
+# Deletes queued calls at Vapi (sql/zella_privacy_retention.sql): accepts only the server key, which is not a JWT.
+[functions.provider-deletions]
+enabled = true
+verify_jwt = false
+import_map = "./functions/provider-deletions/deno.json"
+entrypoint = "./functions/provider-deletions/index.ts"
 [functions.record-files]
 enabled = true
 verify_jwt = false

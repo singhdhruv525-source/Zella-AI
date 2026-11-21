@@ -159,6 +159,9 @@ most often needed:
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed
   checks per call; a known caller's new email or phone waits for staff. Built in `sql/zella_caller_verification.sql`
   (branch `claude/security-fixes`), not applied.
+- **Privacy decisions (owner, 18 Nov 2026, security audit):** recordings and transcripts 90 days, deleted automatically;
+  AI disclosure always in the greeting, recording line only while recording is on (off); account deletion: owner asks,
+  admin confirms, frozen, purged after 30 days. Built on `claude/security-fixes-g` (on lane G), not applied.
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
   emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
@@ -440,6 +443,13 @@ most often needed:
   for the offer. Refused while it has payment or billing records: how long those are kept after deletion is an owner
   and legal decision not taken. Provider copies: numbers must be released first; deleting Vapi assistants or call
   recordings at Vapi isn't built.
+- **CodeRabbit review routine (owner, 17 Nov 2026):** CodeRabbit reviews a PR in full once, when it opens. Later
+  pushes (merges of main, fixes) are reviewed only when someone comments `@coderabbitai review`, and the author must
+  request that review on the final head before merging: no PR merges without a CodeRabbit success on its final changes.
+  `docs/BACKEND_SCHEMA.md` is not reviewed, because it is generated; every schema change must still regenerate it with
+  `docs/generators/backend_schema.py` from an isolated copy. Reason: the review allowance per hour is shared by every PR
+  from the one account. Draft PRs get no review when they open (`drafts: false`): when a draft is marked ready for review, comment
+  `@coderabbitai review` to start the first review.
 
 Waiting on the owner:
 

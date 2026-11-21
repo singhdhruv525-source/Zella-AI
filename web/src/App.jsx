@@ -7,6 +7,7 @@ import ContinuePlan from "./ContinuePlan";
 import Reschedule from "./Reschedule";
 import Unsubscribe from "./Unsubscribe";
 import StatusPage from "./StatusPage";
+import LegalPage from "./LegalPage";
 import WaitlistOffer from "./WaitlistOffer";
 import BusinessApp from "./BusinessApp";
 import { checkEmail, passwordProblems } from "./formValidation";
@@ -47,6 +48,10 @@ export default function App() {
   // Public status page: is Zella Voice working right now (anyone, not signed in).
   if (/^\/status\/?$/.test(window.location.pathname)) {
     return <StatusPage />;
+  }
+  // Privacy policy and terms (anyone, not signed in).
+  if (/^\/(privacy|terms)\/?$/.test(window.location.pathname)) {
+    return <LegalPage kind={window.location.pathname.includes("privacy") ? "privacy" : "terms"} />;
   }
   // Unsubscribe link at the bottom of marketing emails (customers, not signed in).
   if (/^\/u\/[0-9a-fA-F]{32}\/?$/.test(window.location.pathname)) {
@@ -626,7 +631,7 @@ function AdminApp() {
 
           <div className="form-footer">
             <span>Secure platform access</span>
-            <span>Privacy · Security</span>
+            <span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/status">Status</a></span>
           </div>
         </div>
       </section>
