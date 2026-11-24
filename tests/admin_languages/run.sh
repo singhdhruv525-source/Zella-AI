@@ -152,4 +152,32 @@ out=$(apply "$RB") && [ "$(fp)" = "$BEFORE" ] && ok "the rollback runs twice saf
   && [ "$(q "select count(*) from public.audit_logs where action = 'receptionist.languages_changed'")" = "$AUD" ] && ok "saved languages, voices and audit rows are kept" || bad "rows"
 r=$(save $O $B1 en-US "'{}'"); [ "$r" = ok ] && ok "after the rollback owners can save again (the rule before the file)" || bad "after rb: $r"
 out=$(apply "$MIG") && [ "$(fp)" = "$AFTER" ] && ok "applies again after the rollback" || bad "reapply: $out"
+# with sql/zella_silence_timeout.sql, which also changes zella_assistant_config: both orders give the same function,
+# and each rollback takes out only its own change, whichever was applied first
+SIL="$REPO/sql/zella_silence_timeout.sql"; SILRB="$REPO/sql/rollback/zella_silence_timeout_rollback.sql"
+if [ -f "$SIL" ] && [ -f "$SILRB" ]; then
+  MAIN_DB=$DB
+  cfg() { q "select md5(pg_get_functiondef('public.zella_assistant_config(uuid)'::regprocedure))"; }
+  for order in languages_first silence_first; do
+    DB="zal_order_$order"; zella_require_isolated "$ZPG_HOST" "$ZPG_PORT" "$DB" || exit 1
+    "${P[@]}" -d postgres -c "set client_min_messages = warning" -c "drop database if exists $DB" -c "create database $DB template $TEMPLATE" > /dev/null || exit 1
+    if [ $order = languages_first ]; then o1=$(apply "$MIG") && c1=$(cfg) && o2=$(apply "$SIL"); else o1=$(apply "$SIL") && c1=$(cfg) && o2=$(apply "$MIG"); fi
+    [ $? -eq 0 ] && [ "$c1" = "$([ $order = languages_first ] && echo 89e090f31515920ac198874946e15780 || echo 7cb1c1ad81a872b2118d66db2eeba959)" ] \
+      && [ "$(cfg)" = 36ba71051bc6382c08e782d0a9754e20 ] && ok "$order: both apply and zella_assistant_config is 36ba7105" || bad "$order apply: $o1 $o2 $(cfg)"
+    out=$(apply "$MIG") && [ "$(cfg)" = 36ba71051bc6382c08e782d0a9754e20 ] && ok "$order: this file again changes nothing" || bad "$order again: $out"
+    q "create table public.zal_keep as select pg_get_functiondef('public.zella_assistant_config(uuid)'::regprocedure) d" > /dev/null
+    q "do \$\$ begin execute replace((select d from public.zal_keep), 'Choose another voice.', 'Choose another voice!'); end \$\$" > /dev/null
+    out=$(apply "$RB"); [[ "$out" == *ROLLBACK_DRIFT*zella_assistant_config* ]] && [ "$(q "select count(*) from public.zella_function_archive where migration = 'zella_admin_languages'")" = 8 ] && ok "$order: the rollback refuses a changed zella_assistant_config" || bad "$order rb drift: $out"
+    q "do \$\$ begin execute (select d from public.zal_keep); end \$\$; drop table public.zal_keep" > /dev/null
+    out=$(apply "$RB") && [ "$(cfg)" = 7cb1c1ad81a872b2118d66db2eeba959 ] && [ "$(q "select count(*) from pg_proc where proname = 'zella_voice_fits'")" = 0 ] \
+      && ok "$order: this file's rollback keeps the silence timeout (7cb1c1ad)" || bad "$order rb: $out $(cfg)"
+    out=$(apply "$RB") && [ "$(cfg)" = 7cb1c1ad81a872b2118d66db2eeba959 ] && ok "$order: and runs twice safely" || bad "$order rb twice: $out"
+    out=$(apply "$MIG") && out=$(apply "$SILRB") && [ "$(cfg)" = 89e090f31515920ac198874946e15780 ] && out=$(apply "$RB") && [ "$(cfg)" = e2ae7cfcd60ebf32a7d6bd2247e39ab3 ] \
+      && ok "$order: rolled back the other way round, production's version comes back" || bad "$order other way: $out $(cfg)"
+    [ -n "${KEEP:-}" ] || "${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null
+  done
+  DB=$MAIN_DB
+else
+  echo "SKIP the order checks with sql/zella_silence_timeout.sql (not in this checkout)"
+fi
 finish

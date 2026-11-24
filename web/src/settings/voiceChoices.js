@@ -10,6 +10,8 @@ const CODES = {
   NOT_ALLOWED: "You can't change the voice here. In the business app, owners, admins and managers can; Zella Voice admins need permission to set up AI.",
   UNKNOWN_VOICE: "Pick a voice from the list.",
   NOT_FOUND: "This business no longer exists.",
+  // sql/zella_admin_languages.sql: only voices that speak the business's languages are accepted
+  VOICE_LANGUAGE: "That voice doesn't match this business's languages. Choose another voice.",
 };
 
 export function voiceError(error) {

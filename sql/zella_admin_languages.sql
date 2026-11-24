@@ -21,7 +21,8 @@
 --      example after Spanish was removed), so zella_assistant_config uses the platform default voice instead and says so
 --      in its notes. It is not a problem: problems stop calls from being served, and the default voice keeps them going.
 -- The eight changed functions are archived first and must be the versions this file was written for (production's,
--- with sql/zella_cartesia_voices.sql applied), otherwise VERSION_MISMATCH and nothing changes. Safe to run twice.
+-- with sql/zella_cartesia_voices.sql applied; zella_assistant_config may also be that version with
+-- sql/zella_silence_timeout.sql applied, in either order), otherwise VERSION_MISMATCH and nothing changes. Safe to run twice.
 -- Needs sql/zella_cartesia_voices.sql and sql/zella_billing_allowances.sql. Rollback: sql/rollback/zella_admin_languages_rollback.sql
 begin;
 
@@ -138,9 +139,9 @@ grant execute on function public.zella_business_voice_unfit(uuid) to service_rol
 -- file's; 'def' replaces the whole function, 'edits' replace exact pieces of it
 do $$
 declare
-  f record; e record; d text; v_new text; n integer;
+  f record; e record; d text; v_new text; n integer; v_mine text;
   plan constant jsonb := jsonb_build_array(
-    jsonb_build_object('sig', 'public.zella_business_language_save(uuid,text,text[],text)', 'prod', 'cf6fd925e723c0f3cd1df07e4974a562', 'mine', '14a58fa33813daa316c70688a36c88a2',
+    jsonb_build_object('sig', 'public.zella_business_language_save(uuid,text,text[],text)', 'bases', jsonb_build_object('cf6fd925e723c0f3cd1df07e4974a562', '14a58fa33813daa316c70688a36c88a2'),
       'def', $d$CREATE OR REPLACE FUNCTION public.zella_business_language_save(p_business_id uuid, p_primary text, p_extras text[], p_greeting text)
  RETURNS boolean
  LANGUAGE plpgsql
@@ -185,7 +186,7 @@ begin
   return true;
 end $function$
 $d$),
-    jsonb_build_object('sig', 'public.zella_business_language_get(uuid)', 'prod', 'a8b05515020b557f2ea53422b41714dc', 'mine', 'd48d06c07deb0a2c9b2c67e454a63c9f',
+    jsonb_build_object('sig', 'public.zella_business_language_get(uuid)', 'bases', jsonb_build_object('a8b05515020b557f2ea53422b41714dc', 'd48d06c07deb0a2c9b2c67e454a63c9f'),
       'def', $d$CREATE OR REPLACE FUNCTION public.zella_business_language_get(p_business_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -206,7 +207,7 @@ begin
     'catalog', public.zella_language_catalog());
 end $function$
 $d$),
-    jsonb_build_object('sig', 'public.zella_setup_language_apply(uuid,text,text)', 'prod', 'b7ae3fffd860a57f32966a7e26b499ab', 'mine', '3ff63339ea34147dcbe4eb1ba775f8ac',
+    jsonb_build_object('sig', 'public.zella_setup_language_apply(uuid,text,text)', 'bases', jsonb_build_object('b7ae3fffd860a57f32966a7e26b499ab', '3ff63339ea34147dcbe4eb1ba775f8ac'),
       'def', $d$CREATE OR REPLACE FUNCTION public.zella_setup_language_apply(p_business_id uuid, p_language text, p_greeting text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -247,7 +248,7 @@ begin
   return jsonb_build_object('ok', true, 'primary', v_primary, 'extras', to_jsonb(v_extras), 'changed', true);
 end $function$
 $d$),
-    jsonb_build_object('sig', 'public.zella_business_voice_get(uuid)', 'prod', 'f5de0c950ceb8d7df4be90cbca724b27', 'mine', '63955f816a465e4042f6a3849044bc56',
+    jsonb_build_object('sig', 'public.zella_business_voice_get(uuid)', 'bases', jsonb_build_object('f5de0c950ceb8d7df4be90cbca724b27', '63955f816a465e4042f6a3849044bc56'),
       'def', $d$CREATE OR REPLACE FUNCTION public.zella_business_voice_get(p_business_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -274,7 +275,7 @@ begin
     'can_edit', public.zella_can_manage(p_business_id) or public.zella_admin_can('ai.configure'));
 end $function$
 $d$),
-    jsonb_build_object('sig', 'public.zella_business_voice_save(uuid,text)', 'prod', '59eb19efa4867a2b37abb13cc312cbb5', 'mine', 'cd7cd28898995846a156fa1c5c31dab9',
+    jsonb_build_object('sig', 'public.zella_business_voice_save(uuid,text)', 'bases', jsonb_build_object('59eb19efa4867a2b37abb13cc312cbb5', 'cd7cd28898995846a156fa1c5c31dab9'),
       'edits', jsonb_build_array(jsonb_build_object('count', 1,
         'anchor', $a$    raise exception 'UNKNOWN_VOICE';
   end if;
@@ -286,7 +287,7 @@ $a$,
     raise exception 'VOICE_LANGUAGE';
   end if;
 $w$))),
-    jsonb_build_object('sig', 'public.zella_setup_voice_apply(uuid,text,uuid)', 'prod', '778585e11ecce397967bf0a9ab251380', 'mine', 'b2b29c7f4aa337003b0854235e73ce6b',
+    jsonb_build_object('sig', 'public.zella_setup_voice_apply(uuid,text,uuid)', 'bases', jsonb_build_object('778585e11ecce397967bf0a9ab251380', 'b2b29c7f4aa337003b0854235e73ce6b'),
       'edits', jsonb_build_array(jsonb_build_object('count', 1,
         'anchor', $a$    if v_choice is null then return jsonb_build_object('ok', false, 'reason', 'UNKNOWN_VOICE'); end if;
 $a$,
@@ -294,11 +295,13 @@ $a$,
     -- zella_admin_languages: only a voice that speaks the business's languages
     if not public.zella_voice_fits(p_business_id, v_choice) then return jsonb_build_object('ok', false, 'reason', 'VOICE_LANGUAGE'); end if;
 $w$))),
-    jsonb_build_object('sig', 'public.zella_business_voice_choice(uuid)', 'prod', '43d2361fe15ef605648317d67a5a1215', 'mine', '580de72ac835968c0ed83b2ef2c3aca5',
+    jsonb_build_object('sig', 'public.zella_business_voice_choice(uuid)', 'bases', jsonb_build_object('43d2361fe15ef605648317d67a5a1215', '580de72ac835968c0ed83b2ef2c3aca5'),
       'edits', jsonb_build_array(jsonb_build_object('count', 1,
         'anchor', $a$  where bv.business_id = p_business_id limit 1;$a$,
         'with', $w$  where bv.business_id = p_business_id and public.zella_voice_fits(p_business_id, ch) limit 1;   /* zella_admin_languages */$w$))),
-    jsonb_build_object('sig', 'public.zella_assistant_config(uuid)', 'prod', 'e2ae7cfcd60ebf32a7d6bd2247e39ab3', 'mine', '89e090f31515920ac198874946e15780',
+    jsonb_build_object('sig', 'public.zella_assistant_config(uuid)', 'bases', jsonb_build_object(
+      'e2ae7cfcd60ebf32a7d6bd2247e39ab3', '89e090f31515920ac198874946e15780',    -- production (zella_cartesia_voices applied)
+      '7cb1c1ad81a872b2118d66db2eeba959', '36ba71051bc6382c08e782d0a9754e20'),   -- production with zella_silence_timeout applied
       'edits', jsonb_build_array(jsonb_build_object('count', 1,
         'anchor', $a$  if v_voice ->> 'provider' = 'cartesia' and not (v_voice ? 'model') then
 $a$,
@@ -311,15 +314,18 @@ $a$,
   if v_voice ->> 'provider' = 'cartesia' and not (v_voice ? 'model') then
 $w$))));
 begin
+  -- 'bases' maps each version this file was written for to the version it makes of it; a function already at one of
+  -- those results is left alone (applied before)
   for f in select x from jsonb_array_elements(plan) x loop
     if to_regprocedure(f.x ->> 'sig') is null then raise exception 'VERSION_MISMATCH: % is missing', f.x ->> 'sig'; end if;
     d := pg_get_functiondef((f.x ->> 'sig')::regprocedure);
-    if md5(d) = f.x ->> 'mine' then continue; end if;   -- already applied
-    if md5(d) <> f.x ->> 'prod' then raise exception 'VERSION_MISMATCH: % is not a version this file was written for', f.x ->> 'sig'; end if;
+    if exists (select 1 from jsonb_each_text(f.x -> 'bases') b where b.value = md5(d)) then continue; end if;   -- already applied
+    if not (f.x -> 'bases' ? md5(d)) then raise exception 'VERSION_MISMATCH: % is not a version this file was written for', f.x ->> 'sig'; end if;
   end loop;
   for f in select x from jsonb_array_elements(plan) x loop
     d := pg_get_functiondef((f.x ->> 'sig')::regprocedure);
-    continue when md5(d) = f.x ->> 'mine';
+    continue when exists (select 1 from jsonb_each_text(f.x -> 'bases') b where b.value = md5(d));
+    v_mine := f.x -> 'bases' ->> md5(d);
     if f.x ? 'def' then
       v_new := f.x ->> 'def';
     else
@@ -333,7 +339,7 @@ begin
     insert into public.zella_function_archive (migration, signature, definition, definition_md5)
     values ('zella_admin_languages', f.x ->> 'sig', d, md5(d)) on conflict (migration, signature) do nothing;
     execute v_new;
-    if md5(pg_get_functiondef((f.x ->> 'sig')::regprocedure)) <> f.x ->> 'mine' then
+    if md5(pg_get_functiondef((f.x ->> 'sig')::regprocedure)) <> v_mine then
       raise exception 'VERSION_MISMATCH: % did not come out as this file''s version', f.x ->> 'sig';
     end if;
   end loop;
