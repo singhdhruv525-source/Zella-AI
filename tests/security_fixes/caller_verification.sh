@@ -27,7 +27,7 @@ q "update public.customers set email = 'dana@verify.test' where id = '$CUST'" > 
 
 out=$(apply "$REPO/sql/zella_caller_verification.sql") && ok "applies" || { bad "applies: $out"; finish; }
 out=$(apply "$REPO/sql/zella_caller_verification.sql") && ok "applies again" || bad "second apply: $out"
-[ "$(fp)" = "$(q "select string_agg(m, ',' order by s) from (values ('public.zella_ai_tool(text,uuid,text,jsonb,text)','292cb59edd14074f69b90a74572ac16b'),('public.zella_ai_manage_booking(text,uuid,text,jsonb)','4e44bde81572948e1df7dc516f1c8e14'),('public.zella_brain_tool_defs()','858008c205ec3271a00bf375852ac646'),('public.zella_brain_prompt_base(uuid)','7ab9163c4df52183697bd8108aa94d15'),('public.zella_claim_reminders(integer,text)','0025c2100523b5f21ec3ee7ba979208e'),('public.zella_prepare_sms(uuid,uuid,text,jsonb,text)','038dad2c92525376fbeaf5e4964766a0'),('public.zella_prepare_email(uuid,uuid,text,jsonb,text)','d0d67a384b0e6a3e270e613ca4af923c')) v(s, m)")" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints"
+[ "$(fp)" = "$(q "select string_agg(m, ',' order by s) from (values ('public.zella_ai_tool(text,uuid,text,jsonb,text)','292cb59edd14074f69b90a74572ac16b'),('public.zella_ai_manage_booking(text,uuid,text,jsonb)','4e44bde81572948e1df7dc516f1c8e14'),('public.zella_brain_tool_defs()','858008c205ec3271a00bf375852ac646'),('public.zella_brain_prompt_base(uuid)','7ab9163c4df52183697bd8108aa94d15'),('public.zella_claim_reminders(integer,text)','dc0b1d2db6e560936555f28172dabab7'),('public.zella_prepare_sms(uuid,uuid,text,jsonb,text)','038dad2c92525376fbeaf5e4964766a0'),('public.zella_prepare_email(uuid,uuid,text,jsonb,text)','d0d67a384b0e6a3e270e613ca4af923c')) v(s, m)")" ] && ok "new fingerprints are the recorded ones" || bad "fingerprints"
 
 # codes
 [ "$(q "select count(*) from public.appointment_confirmation_codes where appointment_id = '$A0'")" = 1 ] && ok "an existing booking got a code" || bad "backfill"
@@ -110,4 +110,17 @@ q "create or replace function public.zella_brain_tool_defs() returns jsonb langu
 out=$(apply "$REPO/sql/rollback/zella_caller_verification_rollback.sql"); [[ "$out" == *ROLLBACK_DRIFT* ]] && ok "the rollback refuses a changed function" || bad "rollback drift: $out"
 q "delete from public.zella_function_archive where migration = 'zella_caller_verification'" > /dev/null
 out=$(apply "$REPO/sql/zella_caller_verification.sql"); [[ "$out" == *VERSION_MISMATCH* ]] && ok "an unknown version stops the file" || bad "drift not caught: $out"
+# production's later zella_claim_reminders (with sql/zella_review_sql_fixes.sql's cannot_contact check, 24 Nov 2026):
+# the file accepts it, keeps the check in its own version, and the rollback restores it exactly
+[ -n "${KEEP:-}" ] || "${P[@]}" -d postgres -c "drop database if exists $DB" > /dev/null
+fresh_db caller_verification_prod
+apply "$REPO/tests/security_fixes/prod_claim_reminders.sql" > /dev/null
+cr=$(q "select md5(pg_get_functiondef('public.zella_claim_reminders(integer,text)'::regprocedure))")
+[ "$cr" = 50d4d7b4d66a4653bbbbc3a094a15e3a ] && ok "the fixture is production's reminder function" || bad "fixture md5 $cr"
+out=$(apply "$REPO/sql/zella_caller_verification.sql") && ok "applies over production's later reminder function" || bad "prod reminders: $out"
+grep -qF "if (v_channel = 'sms' and not v_phone_ok) or (v_channel = 'email' and not v_email_ok) then" <<< "$(q "select pg_get_functiondef('public.zella_claim_reminders(integer,text)'::regprocedure)")" \
+  && ok "and keeps the cannot_contact check" || bad "cannot_contact check lost"
+[ "$(q "select md5(pg_get_functiondef('public.zella_claim_reminders(integer,text)'::regprocedure))")" = dc0b1d2db6e560936555f28172dabab7 ] && ok "its reminder function is this file's version" || bad "reminder md5"
+apply "$REPO/sql/rollback/zella_caller_verification_rollback.sql" > /dev/null
+[ "$(q "select md5(pg_get_functiondef('public.zella_claim_reminders(integer,text)'::regprocedure))")" = "$cr" ] && ok "the rollback restores production's reminder function exactly" || bad "rollback of prod reminders"
 finish

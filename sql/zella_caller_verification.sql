@@ -21,6 +21,8 @@
 --      Live assistants pick up the new tool definitions when their configuration is next published.
 -- Seven functions are archived first and must match production (18 Nov 2026), except zella_brain_prompt_base, which must
 -- be sql/zella_brain_safety_rules.sql's version (apply that first); otherwise VERSION_MISMATCH.
+-- zella_claim_reminders: production (24 Nov 2026) has a later version than the isolated copy, with the cannot_contact
+-- check from sql/zella_review_sql_fixes.sql (md5 50d4d7b4...). Both are accepted, and this file's version keeps the check.
 -- Rollback: sql/rollback/zella_caller_verification_rollback.sql
 begin;
 
@@ -32,7 +34,7 @@ declare
     'public.zella_ai_manage_booking(text,uuid,text,jsonb)',       jsonb_build_array('3145780974be8963244a0168d5286a92', '4e44bde81572948e1df7dc516f1c8e14'),
     'public.zella_brain_tool_defs()',                             jsonb_build_array('8b2dba88a34ab200de2f59c1b0893603', '858008c205ec3271a00bf375852ac646'),
     'public.zella_brain_prompt_base(uuid)',                       jsonb_build_array('3bfb9c06c935ade77a6e2d8102f1511e', '7ab9163c4df52183697bd8108aa94d15'),
-    'public.zella_claim_reminders(integer,text)',                 jsonb_build_array('fa34d88946ef4b2760d9068f05a3163d', '0025c2100523b5f21ec3ee7ba979208e'),
+    'public.zella_claim_reminders(integer,text)',                 jsonb_build_array('fa34d88946ef4b2760d9068f05a3163d', 'dc0b1d2db6e560936555f28172dabab7', '50d4d7b4d66a4653bbbbc3a094a15e3a'),
     'public.zella_prepare_sms(uuid,uuid,text,jsonb,text)',        jsonb_build_array('ba0f9a27a32d67a077ae551cfe80aec6', '038dad2c92525376fbeaf5e4964766a0'),
     'public.zella_prepare_email(uuid,uuid,text,jsonb,text)',      jsonb_build_array('169dc4af51e2bff9f527bcb3fd9e7d84', 'd0d67a384b0e6a3e270e613ca4af923c'));
 begin
@@ -44,7 +46,8 @@ begin
   for s in select jsonb_object_keys(known) loop
     if to_regprocedure(s) is null then raise exception 'VERSION_MISMATCH: % is missing', s; end if;
     d := pg_get_functiondef(s::regprocedure);
-    if md5(d) = known -> s ->> 0 then          -- production's version: archive it for the rollback
+    -- production's version (a third md5, where given, is production's later version of the same function): archive it
+    if md5(d) = known -> s ->> 0 or md5(d) is not distinct from known -> s ->> 2 then
       insert into public.zella_function_archive (migration, signature, definition, definition_md5)
       values ('zella_caller_verification', s, d, md5(d)) on conflict (migration, signature) do nothing;
     elsif md5(d) <> known -> s ->> 1 then      -- nor this file's version (already applied)
@@ -799,6 +802,9 @@ begin
       update public.appointment_reminders set channel = 'email' where id = r.id; continue;
     elsif v_channel = 'email' and not v_email_ok and v_phone_ok then
       update public.appointment_reminders set channel = 'sms' where id = r.id; continue;
+    end if;
+    if (v_channel = 'sms' and not v_phone_ok) or (v_channel = 'email' and not v_email_ok) then
+      update public.appointment_reminders set status = 'skipped', error = 'cannot_contact' where id = r.id; continue;
     end if;
     select s.name into v_staff from public.staff_members s where s.id = a.staff_id;
     update public.appointment_reminders set status = 'sending', attempts = attempts + 1 where id = r.id;
