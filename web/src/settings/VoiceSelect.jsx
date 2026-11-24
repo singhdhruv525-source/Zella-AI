@@ -82,6 +82,7 @@ export function VoiceSelect({ value, onChange, choices, languages, defaultName, 
   const track = useRef(null);
   const slides = useRef([]);
   const target = useRef(null);      // the card a scroll we started is heading to
+  const touched = useRef(false);    // the person is swiping, dragging or wheeling the track (only that selects on rest)
   const frame = useRef(0);
   const token = useRef(0);
   const owner = useRef({ stopped: () => dispatch({ type: "stop" }) });
@@ -159,17 +160,24 @@ export function VoiceSelect({ value, onChange, choices, languages, defaultName, 
       clearTimeout(idle);
       const els = slides.current.slice(0, items.length);
       const near = nearestIndex(els.map((el) => (el ? el.offsetLeft + el.offsetWidth / 2 : Infinity)), t.scrollLeft + t.clientWidth / 2);
-      const ours = target.current;
+      const ours = target.current, theirs = touched.current;
       target.current = null;
-      if (near >= 0 && near !== ours) select(near);
+      touched.current = false;
+      // only a swipe, drag or wheel selects; a scroll from focus moving (Tab) or from us never does
+      if (theirs && near >= 0 && near !== ours) select(near);
     };
     const onScroll = () => { schedule(); clearTimeout(idle); idle = setTimeout(settle, 160); };
     const hasEnd = "onscrollend" in window;
+    const onTouch = () => { touched.current = true; };
+    const onKeyAnywhere = (e) => { if (e.key === "Tab") touched.current = false; };   // focus moving is never a swipe
+    document.addEventListener("keydown", onKeyAnywhere, true);
+    const inputs = ["pointerdown", "touchstart", "wheel"];
+    for (const ev of inputs) t.addEventListener(ev, onTouch, { passive: true });
     t.addEventListener("scroll", onScroll, { passive: true });
     if (hasEnd) t.addEventListener("scrollend", settle);
     const onResize = () => { scrollToIndex(centreRef.current, false); };
     window.addEventListener("resize", onResize);
-    return () => { t.removeEventListener("scroll", onScroll); if (hasEnd) t.removeEventListener("scrollend", settle); window.removeEventListener("resize", onResize); clearTimeout(idle); };
+    return () => { document.removeEventListener("keydown", onKeyAnywhere, true); for (const ev of inputs) t.removeEventListener(ev, onTouch); t.removeEventListener("scroll", onScroll); if (hasEnd) t.removeEventListener("scrollend", settle); window.removeEventListener("resize", onResize); clearTimeout(idle); };
   }, [disabled, items.length, select, schedule, scrollToIndex]);
 
   useEffect(() => () => { cancelAnimationFrame(frame.current); releaseAudio(owner.current); }, []);
@@ -201,14 +209,15 @@ export function VoiceSelect({ value, onChange, choices, languages, defaultName, 
     if (e.key in moves) { e.preventDefault(); goTo(centre + moves[e.key], true); }
     else if (e.key === "Home") { e.preventDefault(); goTo(0, true); }
     else if (e.key === "End") { e.preventDefault(); goTo(items.length - 1, true); }
+    else if (e.key === " ") { e.preventDefault(); const i = Number(e.currentTarget.dataset.index); goTo(Number.isInteger(i) ? i : centre, true); }
   }
 
-  const playButton = (item) => {
+  const playButton = (item, i) => {
     const choice = sampleOf(item);
     if (!canSample(choice)) return null;
     const b = buttonFor(playback, item.id, item.isDefault ? `the Zella Voice default, ${choice.name ?? choice.id}` : choice.name ?? choice.id);
     return (
-      <button type="button" className={`zs-vc-play ${b.mode}`} aria-label={b.label} aria-pressed={b.mode !== "play"} title={b.label}
+      <button type="button" className={`zs-vc-play ${b.mode}`} aria-label={b.label} tabIndex={i === undefined || i === centre ? 0 : -1} aria-pressed={b.mode !== "play"} title={b.label}
         onClick={(e) => { e.stopPropagation(); play(item); }} onKeyDown={(e) => e.stopPropagation()}>
         <PlayIcon mode={b.mode} />
       </button>
@@ -253,12 +262,12 @@ export function VoiceSelect({ value, onChange, choices, languages, defaultName, 
             const checked = item.id === current;
             return (
               <div key={item.id || "default"} className={`zs-vc-slide ${i === centre ? "is-centre" : ""}`} ref={(el) => { slides.current[i] = el; }}>
-                <div role="radio" aria-checked={checked} tabIndex={i === centre ? 0 : -1} className="zs-vc-card" onKeyDown={onKey}
+                <div role="radio" aria-checked={checked} tabIndex={i === centre ? 0 : -1} className="zs-vc-card" onKeyDown={onKey} data-index={i}
                   onClick={() => goTo(i, i !== centre)}>
                   <span className="zs-vc-glow" aria-hidden="true" />
                   <CardBody item={item} defaultName={defaultName} checked={checked} note={noteFor(item)} />
                 </div>
-                {playButton(item)}
+                {playButton(item, i)}
               </div>
             );
           })}

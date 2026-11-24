@@ -30,6 +30,13 @@ export const SUPPORTED = ["cartesia", "11labs"] as const;
 export type Provider = typeof SUPPORTED[number];
 export const isSupported = (provider: unknown): provider is Provider => SUPPORTED.includes(provider as Provider);
 
+// The id the provider's own text to speech takes. Cartesia's are UUIDs. ElevenLabs takes its own 20 character voice
+// ids; the approved list also holds Vapi's preset ElevenLabs names (burt, marissa, ...), which ElevenLabs' API doesn't
+// know, so those get no sample (CodeRabbit, PR #115). Keep in step with canSample in web/src/settings/voiceChoices.js.
+export function hasNativeId(provider: Provider, voiceId: string): boolean {
+  return provider === "cartesia" ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(voiceId) : /^[A-Za-z0-9]{20}$/.test(voiceId);
+}
+
 export async function hash8(text: string): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
   return [...digest.slice(0, 4)].map((b) => b.toString(16).padStart(2, "0")).join("");

@@ -103,8 +103,13 @@ export function selectedAnnouncement(choice, defaultName) {
   return `${voiceLabel(choice)}, selected`;
 }
 
-// Samples exist for Cartesia and ElevenLabs voices (the voice-sample function); Vapi voices have none
-export const canSample = (choice) => Boolean(choice) && ["cartesia", "11labs"].includes(providerOf(choice));
+// Samples exist for Cartesia voices and ElevenLabs voices with ElevenLabs' own 20 character id (the voice-sample
+// function, hasNativeId); Vapi voices and Vapi's preset ElevenLabs names (burt, marissa, ...) have none
+export function canSample(choice) {
+  if (!choice?.id) return false;
+  if (providerOf(choice) === "cartesia") return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(choice.id);
+  return providerOf(choice) === "11labs" && /^[A-Za-z0-9]{20}$/.test(choice.id);
+}
 
 // The dots under the carousel: one per card up to `max`; beyond that a window of `max` dots that follows the centred
 // card, and a "4 of 21" counter beside it.

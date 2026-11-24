@@ -1,7 +1,7 @@
 // The voice sample's pure parts: the owner's one line per language, cache names, the provider requests.
 //   cd web/supabase/functions/voice-sample && deno test --no-lock
 import { assert, assertEquals, assertMatch, assertNotEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
-import { CARTESIA_VERSION, hash8, isSupported, looksLikeMp3, providerRequest, SAMPLE_LINES, sampleLanguage, samplePath, sampleText } from "./logic.ts";
+import { CARTESIA_VERSION, hash8, hasNativeId, isSupported, looksLikeMp3, providerRequest, SAMPLE_LINES, sampleLanguage, samplePath, sampleText } from "./logic.ts";
 
 const EN = "Hi, thanks for calling. I'm your Zella Voice receptionist. How can I help you today?";
 const ES = "Hola, gracias por llamar. Soy su recepcionista de Zella Voice. ¿En qué puedo ayudarle hoy?";
@@ -38,6 +38,13 @@ Deno.test("the cache name is provider, voice and a short hash of the line; a new
   assertNotEquals(await hash8(EN), await hash8(ES));
   await assertRejects(() => samplePath("11labs", "../other", EN));
   await assertRejects(() => samplePath("11labs", "a/b", EN));
+});
+
+Deno.test("only ids the provider's own API knows: Cartesia UUIDs, ElevenLabs 20 character ids, never Vapi's preset names", () => {
+  assert(hasNativeId("cartesia", VOICES[0].id));
+  assert(!hasNativeId("cartesia", "katie"));
+  assert(hasNativeId("11labs", "cgSgspJ2msm6clMCkdW9"));
+  assert(!hasNativeId("11labs", "burt")); assert(!hasNativeId("11labs", "marissa"));
 });
 
 Deno.test("only Cartesia and ElevenLabs make samples", () => {

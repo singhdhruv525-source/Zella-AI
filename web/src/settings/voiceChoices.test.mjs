@@ -92,7 +92,8 @@ test("card words: traits, announcement, which voices have samples", () => {
   assert.equal(voiceTraits(CHOICES[0]), "");
   assert.equal(selectedAnnouncement(CHOICES[2]), "Katie, Cartesia, English, female, selected");
   assert.equal(selectedAnnouncement(null, "Burt"), "Zella Voice default, Burt, selected");
-  assert.equal(canSample(CHOICES[2]), true); assert.equal(canSample(CHOICES[0]), true);
+  assert.equal(canSample(CHOICES[2]), true); assert.equal(canSample(CHOICES[0]), false);   // Vapi's preset ElevenLabs name
+  assert.equal(canSample({ id: "cgSgspJ2msm6clMCkdW9", provider: "11labs" }), true);
   assert.equal(canSample(CHOICES[5]), false); assert.equal(canSample(null), false);
   for (const w of [voiceTraits(CHOICES[4]), selectedAnnouncement(CHOICES[3]), selectedAnnouncement(null)]) assert.doesNotMatch(w, /[-‐-―]/, w);
 });

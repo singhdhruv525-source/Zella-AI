@@ -13,11 +13,12 @@ const CHOICES = [
   { id: KATIE, name: "Katie", provider: "cartesia", language: "en", gender: "female" },
   { id: DANIELA, name: "Daniela", provider: "cartesia", language: "es", gender: "female" },
   { id: "burt", name: "Burt", provider: "11labs" },
+  { id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", provider: "11labs" },
   { id: "Elliot", name: "Elliot", provider: "vapi" },
 ];
 const MP3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0]);
 type Call = { url: string; method: string; headers: Record<string, string>; body: string };
-type World = { admin?: string | null; spaces?: unknown[]; stored?: Set<string>; limit?: boolean | null; settings?: Record<string, string | null>;
+type World = { signDown?: boolean; admin?: string | null; spaces?: unknown[]; stored?: Set<string>; limit?: boolean | null; settings?: Record<string, string | null>;
   provider?: (c: Call) => Response; userStatus?: number };
 const j = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
 
@@ -36,6 +37,7 @@ function mock(w: World, fn: (calls: Call[]) => Promise<void>) {
       if (url.endsWith("/rpc/zella_voice_choices")) return j(CHOICES);
       if (url.endsWith("/rpc/zella_setting")) { const k = JSON.parse(c.body).p_key; return j((w.settings ?? { voice_cartesia_model: "cm" })[k] ?? null); }
       const sign = url.match(/^http:\/\/db\.test\/storage\/v1\/object\/sign\/voice-samples\/(.+)$/);
+      if (sign && w.signDown) return j({ error: "unavailable" }, 503);
       if (sign) return stored.has(sign[1]) ? j({ signedURL: `/object/sign/voice-samples/${sign[1]}?token=t` }) : j({ error: "not_found" }, 400);
       const put = url.match(/^http:\/\/db\.test\/storage\/v1\/object\/voice-samples\/(.+)$/);
       if (put && c.method === "POST") { stored.add(put[1]); return j({ Key: put[1] }); }
@@ -83,10 +85,10 @@ Deno.test("cached: only a signed link, no provider call", mock({ ...MEMBER, stor
 
 Deno.test("an active Zella Voice admin with no business may listen; ElevenLabs uses its own endpoint and header", mock({ admin: "support_admin", settings: { voice_tts_provider: "vapi" } }, async (calls) => {
   Deno.env.set("ELEVENLABS_API_KEY", "ek");
-  const r = await call({ voice_id: "burt" });
+  const r = await call({ voice_id: "cgSgspJ2msm6clMCkdW9" });
   assertEquals((await r.json()).ok, true);
   const sent = toProvider(calls)[0];
-  assertEquals(sent.url, "https://api.elevenlabs.io/v1/text-to-speech/burt?output_format=mp3_44100_128");
+  assertEquals(sent.url, "https://api.elevenlabs.io/v1/text-to-speech/cgSgspJ2msm6clMCkdW9?output_format=mp3_44100_128");
   assertEquals(sent.headers["xi-api-key"], "ek");
   assertEquals(JSON.parse(sent.body), { text: SAMPLE_LINES.en });   // no model unless ElevenLabs is the platform provider
   assertEquals(calls.some((c) => c.url.endsWith("zella_my_workspaces")), false);
@@ -122,6 +124,18 @@ Deno.test("a Vapi voice: not available, quietly", mock({ ...MEMBER }, async (cal
   const r = await call({ voice_id: "Elliot" });
   assertEquals([r.status, await r.json()], [200, { ok: false, state: "not_available" }]);
   assertEquals(calls.some((c) => c.url.includes("/storage/")), false);
+}));
+
+Deno.test("a Vapi preset ElevenLabs name (burt): not available, ElevenLabs never asked", mock({ ...MEMBER }, async (calls) => {
+  Deno.env.set("ELEVENLABS_API_KEY", "ek");
+  assertEquals(await (await call({ voice_id: "burt" })).json(), { ok: false, state: "not_available" });
+  assertEquals(toProvider(calls).length, 0);
+}));
+
+Deno.test("storage can't sign right now: try again, and no new paid request for a sample that may exist", mock({ ...MEMBER, signDown: true }, async (calls) => {
+  Deno.env.set("CARTESIA_API_KEY", "ck");
+  assertEquals((await call({ voice_id: KATIE })).status, 503);
+  assertEquals(toProvider(calls).length, 0);
 }));
 
 Deno.test("no provider key yet: not available, nothing stored", mock({ ...MEMBER }, async (calls) => {

@@ -11,7 +11,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withCors } from "../_shared/cors.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { checkLimits, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
-import { isSupported, looksLikeMp3, providerRequest, sampleLanguage, samplePath, sampleText, VOICE_ID } from "./logic.ts";
+import { hasNativeId, isSupported, looksLikeMp3, providerRequest, sampleLanguage, samplePath, sampleText, VOICE_ID } from "./logic.ts";
 
 // Per person (any voice) and per person and voice: a person trying voices never reaches these; they stop a loop.
 export const USER_LIMIT = { max: 40, seconds: 600 }, VOICE_LIMIT = { max: 6, seconds: 60 };
@@ -70,19 +70,25 @@ async function route(req: Request): Promise<Response> {
   const choice = Array.isArray(choices) ? choices.find((c) => c && typeof c === "object" && c.id === voiceId) : null;
   if (!choice) return json({ ok: false, error: "unknown_voice" }, 400);
   const provider = choice.provider ?? "11labs";
-  if (!isSupported(provider)) return notAvailable();
+  if (!isSupported(provider) || !hasNativeId(provider, voiceId)) return notAvailable();
   const language = sampleLanguage(choice.language);
   const path = await samplePath(provider, voiceId, sampleText(language));
 
-  const sign = async () => {
+  // a signed link, "missing" only when storage says the sample isn't there, or null for any other failure: a storage
+  // outage must never send another paid request for a sample that already exists
+  const sign = async (): Promise<string | "missing" | null> => {
     const r = await fetch(`${base}/storage/v1/object/sign/${BUCKET}/${path}`, { method: "POST", headers: { "Content-Type": "application/json", ...asServer },
       body: JSON.stringify({ expiresIn: LINK_SECONDS }), signal: AbortSignal.timeout(TIMEOUT_MS) });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      const text = r.status === 400 || r.status === 404 ? await r.text().catch(() => "") : "";
+      return r.status === 404 || /not.?found/i.test(text) ? "missing" : null;
+    }
     const signed = (await r.json().catch(() => null))?.signedURL;
     return typeof signed === "string" && signed.startsWith("/object/sign/") ? `${base}/storage/v1${signed}` : null;
   };
   const cached = await sign();
-  if (cached) return json({ ok: true, url: cached, expires_in: LINK_SECONDS }, 200);
+  if (cached === null) return tryAgain();
+  if (cached !== "missing") return json({ ok: true, url: cached, expires_in: LINK_SECONDS }, 200);
 
   // not made yet: once, with the provider's key and model; nothing is said about the business
   const key = Deno.env.get(KEY_ENV[provider]);
@@ -114,7 +120,7 @@ async function route(req: Request): Promise<Response> {
   // another press may have stored the same sample a moment earlier: that copy is used
   if (!put.ok && put.status !== 409 && put.status !== 400) return tryAgain();
   const url = await sign();
-  return url ? json({ ok: true, url, expires_in: LINK_SECONDS }, 200) : tryAgain();
+  return url && url !== "missing" ? json({ ok: true, url, expires_in: LINK_SECONDS }, 200) : tryAgain();
 }
 
 if (import.meta.main) Deno.serve(withCors(handle));
