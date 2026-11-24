@@ -473,7 +473,7 @@ flowchart TD
 - `AI-21` **Voicemail (§11).** A caller may leave a voicemail instead of talking to the AI. The caller is told it is recorded. Voicemails are private to the business, transcribed, kept 30 days, and create one callback task. Call recording is separate and stays off until legal review.
 - `AI-22` **Languages (§11).** The receptionist speaks the languages the business's plan includes (English, Spanish or both). Templates, scripts and knowledge exist per language, with a fallback to the business's primary language. Only the Zella Voice team (platform admins with businesses.manage) sets or changes a business's languages, within its plan. Business owners and staff can see them but cannot change them; the server refuses the change.
 - `AI-23` **Knowledge drafts (§16).** When the receptionist can't answer, the AI may draft an answer from the business's own information only. A person reviews, edits and publishes it; drafts are never used until approved. AI drafting has a per-business budget with alerts; reaching it never affects the core receptionist.
-- `AI-24` **Silent callers (owner, 25 Nov 2026).** If the caller says nothing for 1 minute, the receptionist says a short, polite goodbye and ends the call (REQ-VOX-13). The assistant config must set the provider's silence timeout to 60 seconds (not set yet, see `docs/OWNER_DECISIONS_AUDIT.md`).
+- `AI-24` **Silent callers (owner, 25 Nov 2026).** If the caller says nothing for 1 minute, the receptionist says a short, polite goodbye and ends the call (REQ-VOX-13). The assistant config ends the call after 60 seconds of silence, with the goodbye spoken first (`sql/zella_silence_timeout.sql`, built, not applied yet; see `docs/VOICE_RELIABILITY.md`).
 
 ---
 

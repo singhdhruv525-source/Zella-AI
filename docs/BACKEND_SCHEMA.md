@@ -18,7 +18,7 @@ It reads the catalog only, never rows.
 | Row security policies | 357 |
 | Columns | 2485 |
 | Views | 1 |
-| Functions | 1202 (1113 security definer, 30 callable by `anon`) |
+| Functions | 1204 (1115 security definer, 30 callable by `anon`) |
 
 Rules every table follows:
 
@@ -6764,7 +6764,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (196)
+### Smaller groups and older helpers (198)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -6933,6 +6933,8 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_send_gap_reports()` | integer | yes | server only |
 | `zella_sensitive_industry(p_business_id uuid)` | boolean | yes | signed in |
 | `zella_session_proved_email()` | boolean | yes | signed in |
+| `zella_silence_hooks(p_business_id uuid)` | jsonb | yes | server only |
+| `zella_silence_timeout_seconds()` | integer | yes | server only |
 | `zella_skip_followup_task(p_task_id uuid, p_reason text)` | text | yes | server only |
 | `zella_skip_reminder(p_reminder_id uuid, p_reason text)` | text | yes | server only |
 | `zella_slot_say(p_start timestamp with time zone, p_tz text, p_window integer)` | text |  | anon, signed in |
