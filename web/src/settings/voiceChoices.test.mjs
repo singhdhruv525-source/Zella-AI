@@ -3,7 +3,7 @@
 //   cd web && node --test src/settings/voiceChoices.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultVoiceName, groupChoices, languagesOf, unusedVoiceNote, voiceError, voiceLabel, voiceSummary, voiceUsable } from "./voiceChoices.js";
+import { canSample, cardLook, carouselItems, defaultVoiceName, dotsModel, groupChoices, languagesOf, nearestIndex, providersPresent, selectedAnnouncement, unusedVoiceNote, voiceError, voiceLabel, voiceSummary, voiceTraits, voiceUsable } from "./voiceChoices.js";
 
 const CHOICES = [
   { id: "burt", name: "Burt", provider: "11labs" },
@@ -70,4 +70,46 @@ test("errors in words; no dashes anywhere people read", () => {
   assert.match(voiceError({ message: "Could not find the function" }), /latest Zella Voice update/);
   const words = [...CHOICES.map(voiceLabel), unusedVoiceNote(CHOICES[0], "vapi"), voiceSummary("", {}), voiceError({ message: "NOT_ALLOWED" })];
   for (const w of words) assert.doesNotMatch(w, /[-‐-―]/, w);
+});
+
+test("carousel: the default first, then Cartesia, ElevenLabs, Vapi, the business's languages first in each", () => {
+  const ids = (items) => items.map((c) => c.name ?? "default");
+  assert.deepEqual(ids(carouselItems(CHOICES, ["es"])), ["default", "Daniela", "Pedro", "Katie", "Burt", "Marissa", "Elliot"]);
+  assert.deepEqual(ids(carouselItems(CHOICES, ["en"], "cartesia")), ["default", "Katie", "Daniela", "Pedro"]);
+  assert.deepEqual(ids(carouselItems(CHOICES, [], "all")), ["default", "Katie", "Daniela", "Pedro", "Burt", "Marissa", "Elliot"]);
+  assert.deepEqual(ids(carouselItems([], [])), ["default"]);
+  assert.equal(carouselItems(CHOICES)[0].id, "");
+});
+
+test("filter chips: only providers that have voices, in order", () => {
+  assert.deepEqual(providersPresent(CHOICES).map((p) => p.name), ["Cartesia", "ElevenLabs", "Vapi"]);
+  assert.deepEqual(providersPresent(CHOICES.filter((c) => c.provider !== "cartesia")).map((p) => p.provider), ["11labs", "vapi"]);
+  assert.deepEqual(providersPresent([]), []);
+});
+
+test("card words: traits, announcement, which voices have samples", () => {
+  assert.equal(voiceTraits(CHOICES[2]), "English · Female");
+  assert.equal(voiceTraits(CHOICES[0]), "");
+  assert.equal(selectedAnnouncement(CHOICES[2]), "Katie, Cartesia, English, female, selected");
+  assert.equal(selectedAnnouncement(null, "Burt"), "Zella Voice default, Burt, selected");
+  assert.equal(canSample(CHOICES[2]), true); assert.equal(canSample(CHOICES[0]), true);
+  assert.equal(canSample(CHOICES[5]), false); assert.equal(canSample(null), false);
+  for (const w of [voiceTraits(CHOICES[4]), selectedAnnouncement(CHOICES[3]), selectedAnnouncement(null)]) assert.doesNotMatch(w, /[-‐-―]/, w);
+});
+
+test("dots: one per card up to nine, then a window that follows and a counter", () => {
+  assert.deepEqual(dotsModel(5, 2), { dots: [0, 1, 2, 3, 4], counter: null });
+  assert.deepEqual(dotsModel(21, 3), { dots: [0, 1, 2, 3, 4, 5, 6, 7, 8], counter: "4 of 21" });
+  assert.deepEqual(dotsModel(21, 12).dots, [8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  assert.deepEqual(dotsModel(21, 20), { dots: [12, 13, 14, 15, 16, 17, 18, 19, 20], counter: "21 of 21" });
+  assert.deepEqual(dotsModel(0, 0), { dots: [], counter: null });
+});
+
+test("the centred card and how its neighbours look", () => {
+  assert.equal(nearestIndex([100, 340, 580], 350), 1);
+  assert.equal(nearestIndex([], 10), -1);
+  assert.deepEqual(cardLook(0), { scale: 1, opacity: 1, glow: 1 });
+  assert.deepEqual(cardLook(1), { scale: 0.84, opacity: 0.5, glow: 0 });
+  assert.deepEqual(cardLook(-3), cardLook(1));
+  assert.deepEqual(cardLook(0.5), { scale: 0.92, opacity: 0.75, glow: 0.5 });
 });

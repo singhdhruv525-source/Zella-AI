@@ -73,3 +73,58 @@ export function voiceSummary(voiceId, data) {
   const c = find(voiceId);
   return c ? voiceLabel(c) : "a voice no longer on the approved list";
 }
+
+// ---- The voice carousel (VoiceSelect): which providers to offer as filters, the order of the cards, the dots ----
+
+// Providers that have voices, in the picker's order: the filter chips after "All"
+export function providersPresent(choices) {
+  const have = new Set((choices ?? []).map(providerOf));
+  return PROVIDERS.filter(([p]) => have.has(p)).map(([provider, name]) => ({ provider, name }));
+}
+
+// The cards, in order: Zella Voice's default first (id ""), then each provider's voices (Cartesia, ElevenLabs, Vapi),
+// voices in the business's languages first within each, as groupChoices orders them. provider "" or "all" keeps all.
+export function carouselItems(choices, languages = [], provider = "") {
+  const kept = !provider || provider === "all" ? (choices ?? []) : (choices ?? []).filter((c) => providerOf(c) === provider);
+  return [{ id: "", isDefault: true }, ...groupChoices(kept, languages).flatMap((g) => g.choices)];
+}
+
+// "English" / "Spanish" for a code, "" when unknown; and the card's small line, "English · Female"
+export const languageName = (code) => (code ? LANGUAGE_NAME[code] ?? code : "");
+export function voiceTraits(choice) {
+  if (!choice) return "";
+  const g = choice.gender ? choice.gender.charAt(0).toUpperCase() + choice.gender.slice(1) : "";
+  return [languageName(choice.language), g].filter(Boolean).join(" · ");
+}
+
+// What a screen reader hears when the centred card changes
+export function selectedAnnouncement(choice, defaultName) {
+  if (!choice) return `${defaultName ? `Zella Voice default, ${defaultName}` : "Zella Voice default"}, selected`;
+  return `${voiceLabel(choice)}, selected`;
+}
+
+// Samples exist for Cartesia and ElevenLabs voices (the voice-sample function); Vapi voices have none
+export const canSample = (choice) => Boolean(choice) && ["cartesia", "11labs"].includes(providerOf(choice));
+
+// The dots under the carousel: one per card up to `max`; beyond that a window of `max` dots that follows the centred
+// card, and a "4 of 21" counter beside it.
+export function dotsModel(count, index, max = 9) {
+  const n = Math.max(0, count | 0);
+  const at = Math.min(Math.max(0, index | 0), Math.max(0, n - 1));
+  if (n <= max) return { dots: Array.from({ length: n }, (_, i) => i), counter: null };
+  const start = Math.min(Math.max(0, at - Math.floor(max / 2)), n - max);
+  return { dots: Array.from({ length: max }, (_, i) => start + i), counter: `${at + 1} of ${n}` };
+}
+
+// The card nearest the middle of the track: offsets are each card's centre, centre is the track's middle
+export function nearestIndex(offsets, centre) {
+  let best = -1, gap = Infinity;
+  (offsets ?? []).forEach((o, i) => { const d = Math.abs(o - centre); if (d < gap) { gap = d; best = i; } });
+  return best;
+}
+
+// How far a card is from the middle (0 centred, 1 one card away or more) as its scale, opacity and glow
+export function cardLook(distance) {
+  const d = Math.min(1, Math.abs(Number(distance) || 0));
+  return { scale: +(1 - 0.16 * d).toFixed(4), opacity: +(1 - 0.5 * d).toFixed(4), glow: +(1 - d).toFixed(4) };
+}
