@@ -200,9 +200,14 @@ end $$;
 
 insert into public.platform_settings (key, value) values ('payments_live', 'false'::jsonb), ('billing_worker_url', '""'::jsonb)
 on conflict (key) do nothing;
-insert into vault.secrets (name, secret, description)
-select 'zella_billing_worker_secret', encode(extensions.gen_random_bytes(32), 'hex'), 'Zella Voice billing worker: the cron job sends it, the worker checks it'
- where not exists (select 1 from vault.secrets where name = 'zella_billing_worker_secret');
+-- the worker secret is made through vault.create_secret: Supabase doesn't let the migration role insert into
+-- vault.secrets directly (permission denied for Vault's encryption function)
+do $$ begin
+  if not exists (select 1 from vault.secrets where name = 'zella_billing_worker_secret') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'zella_billing_worker_secret',
+                                'Zella Voice billing worker: the cron job sends it, the worker checks it');
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------------------------------------------
 -- The switch and the worker's schedule

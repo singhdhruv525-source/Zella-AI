@@ -511,6 +511,9 @@ Waiting on the owner:
   and keep the "Zella Voice" wording, never to bypass the guard.
 - **Order matters.** `zella_seating_handoff.sql` must run after `zella_review_sql_fixes.sql`. A combined file can be
   run only once: on the second run the guard rightly rejects the newer function.
+- **Vault secrets are made with `vault.create_secret`, never `insert into vault.secrets`.** On production the migration
+  role can read and delete Vault rows but not insert them (permission denied for Vault's encryption function); the
+  isolated test database's stub allows the insert, so only production shows it (`zella_stripe_pipeline.sql`, 24 Nov 2026).
 - **The MCP `apply_migration` tool can hang** waiting for a confirmation on statements it thinks are destructive, and
   can't take files of about 200 KB. For large files, give the owner a single SQL file to run in the SQL editor.
 - **GitHub GraphQL is blocked here.** Use the REST API through `gh api` (create PRs with `gh api repos/.../pulls`,
