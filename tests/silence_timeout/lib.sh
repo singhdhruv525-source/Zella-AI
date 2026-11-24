@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The isolated copy for sql/zella_silence_timeout.sql (never production). Template zsil_main: zcar_main (the copy of
 # production's schema that tests/cartesia_voices/lib.sh builds) with sql/zella_cartesia_voices.sql applied, which gives
-# production's zella_assistant_config (md5 e2ae7cfc..., 25 Nov 2026). zsil_main is rebuilt whenever zcar_main or the
+# production's zella_assistant_config (md5 e2ae7cfc..., 24 Nov 2026). zsil_main is rebuilt whenever zcar_main or the
 # Cartesia file changes. Databases are named zsil_*. Test people only.
 set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

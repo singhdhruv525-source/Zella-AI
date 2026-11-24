@@ -88,7 +88,20 @@ H=$(hooks "$BE")
 [ "$(q "select string_agg((c ->> 'language') || '=' || (c ->> 'text'), ' / ' order by n) from jsonb_array_elements(jsonb_path_query_first(public.zella_assistant_config('$BB') -> 'assistant' -> 'hooks', '\$[1].do[0].tool.messages[0].contents')) with ordinality x(c, n)")" \
   = "en=It seems we've been disconnected. Thanks for calling Smith Jones Dental, goodbye. / es=Parece que se cortó la llamada. Gracias por llamar a Smith Jones Dental, adiós." ] \
   && ok "an English business that also speaks Spanish gets both goodbyes, English first (Vapi picks the call's language)" || bad "bilingual: $(hooks "$BB")"
+[ "$(hv "$BB" '$[0].do[0].type')|$(hv "$BB" '$[0].do[0].exact')" = "say|" ] \
+  && [ "$(hv "$BB" '$[0].do[0].prompt')" = 'The caller has been silent for a while. Ask only whether they are still there, in the language the caller is using now (English unless the caller has been speaking Spanish): "Are you still there?", or in Spanish "¿Sigue ahí?". Say nothing else.' ] \
+  && ok "its check is a prompt said in the call's language (say has no per language variants), English first" || bad "bilingual check: $(hooks "$BB")"
+lang "$BS" es-US '{en-US}'
+[ "$(hv "$BS" '$[0].do[0].prompt')" = 'The caller has been silent for a while. Ask only whether they are still there, in the language the caller is using now (Spanish unless the caller has been speaking English): "¿Sigue ahí?", or in English "Are you still there?". Say nothing else.' ] \
+  && [ "$(hv "$BS" '$[1].do[0].tool.messages[0].contents[0].language')$(hv "$BS" '$[1].do[0].tool.messages[0].contents[1].language')" = esen ] && ok "a Spanish business that also speaks English: Spanish first in the check and the goodbye" || bad "es+en: $(hooks "$BS")"
+lang "$BS" es-US '{}'
+[ "$(hv "$BE" '$[0].do[0].prompt')$(hv "$BS" '$[0].do[0].prompt')" = "" ] && ok "one language businesses keep the exact line" || bad "single language prompt"
 [ "$(hv "$BN" '$[1].do[0].tool.messages[0].content')" = "It seems we've been disconnected. Thanks for calling, goodbye." ] && ok "no name: \"Thanks for calling, goodbye.\"" || bad "no name: $(hooks "$BN")"
+q "update public.businesses set name = '' where id = '$BN'" > /dev/null
+[ "$(hv "$BN" '$[1].do[0].tool.messages[0].content')" = "It seems we've been disconnected. Thanks for calling, goodbye." ] && ok "an empty name: \"Thanks for calling, goodbye.\" (never \"calling ,\")" || bad "empty name: $(hooks "$BN")"
+q "update public.businesses set name = E'\\t\\n ' where id = '$BN'" > /dev/null
+[ "$(q "select count(*) from jsonb_path_query(public.zella_assistant_config('$BN') -> 'assistant' -> 'hooks', '\$[1].do[0].tool.messages[0].contents[*].text') t where t #>> '{}' ~ 'calling ,|calling \\.|llamar a ,|llamar a \\.|  '")$(hv "$BN" '$[1].do[0].tool.messages[0].content')" = "0It seems we've been disconnected. Thanks for calling, goodbye." ] && ok "a name of only spaces, tabs or new lines: the name is left out" || bad "blank name: $(hooks "$BN")"
+q "update public.businesses set name = '   ' where id = '$BN'" > /dev/null
 lang "$BN" es-MX '{}'
 [ "$(hv "$BN" '$[1].do[0].tool.messages[0].content')" = "Parece que se cortó la llamada. Gracias por llamar, adiós." ] && ok "no name, in Spanish: \"Gracias por llamar, adiós.\"" || bad "no name es: $(hooks "$BN")"
 q "update public.businesses set name = '——' where id = '$BN'" > /dev/null
@@ -96,7 +109,7 @@ q "update public.businesses set name = '——' where id = '$BN'" > /dev/null
 q "delete from public.business_languages where business_id = '$BN'; update public.businesses set name = 'Plain Co' where id = '$BN'" > /dev/null
 [ "$(hv "$BN" '$[0].do[0].exact')|$(hv "$BN" '$[1].do[0].tool.messages[0].content')" = "Are you still there?|It seems we've been disconnected. Thanks for calling Plain Co, goodbye." ] && ok "no language row: English" || bad "no lang row"
 q "update public.businesses set name = '   ' where id = '$BN'" > /dev/null   # as it was (no language row)
-[ "$(q "select count(*) from public.businesses b, jsonb_path_query(public.zella_assistant_config(b.id) -> 'assistant' -> 'hooks', '\$[*].do[*].exact') t where b.id in ('$BE','$BS','$BB','$BN') and t #>> '{}' ~ '[‐‑‒–—―−-]'")$(q "select count(*) from public.businesses b, jsonb_path_query(public.zella_assistant_config(b.id) -> 'assistant' -> 'hooks', '\$[*].do[*].tool.messages[*].**.text') t where b.id in ('$BE','$BS','$BB','$BN') and t #>> '{}' ~ '[‐‑‒–—―−-]'")$(q "select count(*) from public.businesses b, jsonb_path_query(public.zella_assistant_config(b.id) -> 'assistant' -> 'hooks', '\$[*].do[*].tool.messages[*].content') t where b.id in ('$BE','$BS','$BB','$BN') and t #>> '{}' ~ '[‐‑‒–—―−-]'")" = 000 ] && ok "no dash in any spoken text" || bad "dash spoken"
+[ "$(q "select count(*) from public.businesses b, jsonb_path_query(public.zella_assistant_config(b.id) -> 'assistant' -> 'hooks', '\$[*].do[*].exact') t where b.id in ('$BE','$BS','$BB','$BN') and t #>> '{}' ~ '[‐‑‒–—―−-]'")$(q "select count(*) from public.businesses b, jsonb_path_query(public.zella_assistant_config(b.id) -> 'assistant' -> 'hooks', '\$[*].do[*].prompt') t where b.id in ('$BE','$BS','$BB','$BN') and t #>> '{}' ~ '[‐‑‒–—―−-]'")$(q "select count(*) from public.businesses b, jsonb_path_query(public.zella_assistant_config(b.id) -> 'assistant' -> 'hooks', '\$[*].do[*].tool.messages[*].**.text') t where b.id in ('$BE','$BS','$BB','$BN') and t #>> '{}' ~ '[‐‑‒–—―−-]'")$(q "select count(*) from public.businesses b, jsonb_path_query(public.zella_assistant_config(b.id) -> 'assistant' -> 'hooks', '\$[*].do[*].tool.messages[*].content') t where b.id in ('$BE','$BS','$BB','$BN') and t #>> '{}' ~ '[‐‑‒–—―−-]'")" = 0000 ] && ok "no dash in any spoken text" || bad "dash spoken"
 
 # the setting changes without code, clamped to 60..1000
 t() { setting voice_silence_timeout_seconds "$1"; echo "$(hv "$BE" '$[0].options.timeoutSeconds')/$(hv "$BE" '$[1].options.timeoutSeconds')"; }
@@ -167,7 +180,9 @@ LA=$(fp); out=$(apply "$MIG") && [ "$(fp)" = "$LA" ] && ok "and again, changing 
 [ "$(snapshot)" = "$LCFG" ] && [ "$(hv "$BE" '$[1].options.timeoutSeconds')|$(hv "$BS" '$[1].do[0].tool.messages[0].content')" = "60|Parece que se cortó la llamada. Gracias por llamar a Clínica Dental Sonrisa, adiós." ] \
   && ok "the hooks are added and nothing else changes on the languages version" || bad "langs config"
 q "select pg_get_functiondef($SIG)" > "$WORK/order1.sql"
-D=$(fp); out=$(apply "$LANGS"); [[ "$out" == *VERSION_MISMATCH* ]] && [ "$(fp)" = "$D" ] && ok "zella_admin_languages run again afterwards stops safely (it doesn't know this file's version) and changes nothing" || bad "langs rerun: $out"
+# a zella_admin_languages that knows this file's version sees its work done; an older one stops: either way nothing changes
+D=$(fp); out=$(apply "$LANGS"); rc=$?
+{ [ $rc -eq 0 ] || [[ "$out" == *VERSION_MISMATCH* ]]; } && [ "$(fp)" = "$D" ] && ok "zella_admin_languages run again afterwards changes nothing" || bad "langs rerun: $out"
 out=$(apply "$RB") && [ "$(fp)" = "$LB" ] && [ "$(md5f)" = "$LANG_BASE" ] && [ "$(snapshot)" = "$LCFG" ] && ok "the rollback gives back exactly the languages version" || bad "rb on langs: $out $(md5f)"
 out=$(apply "$RB") && [ "$(fp)" = "$LB" ] && ok "and runs twice safely" || bad "rb twice on langs"
 

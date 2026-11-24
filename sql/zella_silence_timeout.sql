@@ -15,14 +15,15 @@
 --   1. New setting voice_silence_timeout_seconds = 60 (recorded in zella_migration_settings, so the rollback removes it
 --      only if this file added it). It changes without code. It is clamped to 60..1000: never below the owner's one
 --      minute, never above Vapi's maximum; anything that is not a number counts as 60.
---   2. zella_silence_hooks(business) builds two hooks: after half the timeout (30 s) one "Are you still there?";
+--   2. zella_silence_hooks(business) builds two hooks: after half the timeout (30 s) one "Are you still there?"
+--      ("¿Sigue ahí?"; a business that speaks both languages gets it as a prompt, said in the call's language);
 --      at the timeout (60 s) the goodbye with the business's name, then the call ends. Both reset when the caller
 --      speaks, so each silence gets one check and one goodbye. Spanish speaking businesses (primary language es)
 --      hear Spanish; a business that also speaks the other language gets both goodbye variants (Vapi picks the
 --      call's active language). The name is the business's name as the greeting uses it, with dashes and control
 --      characters turned into spaces; without a name: "Thanks for calling, goodbye."
 --   3. zella_assistant_config adds "hooks" next to maxDurationSeconds. Nothing else in the config changes.
--- zella_assistant_config is changed in place (archived first) and must be production's version (e2ae7cfc..., 25 Nov 2026)
+-- zella_assistant_config is changed in place (archived first) and must be production's version (e2ae7cfc..., 24 Nov 2026)
 -- or that version with sql/zella_admin_languages.sql applied (89e090f3...), otherwise VERSION_MISMATCH and nothing
 -- changes. The edit does not overlap zella_admin_languages' edit. Safe to run twice.
 -- Needs sql/zella_cartesia_voices.sql. Rollback: sql/rollback/zella_silence_timeout_rollback.sql
@@ -83,7 +84,15 @@ language sql stable security definer set search_path = '' as $$
   select jsonb_build_array(
     jsonb_build_object('name', 'zella_silence_check', 'on', 'customer.speech.timeout',
       'options', jsonb_build_object('timeoutSeconds', v.t / 2, 'triggerMaxCount', 1, 'triggerResetMode', 'onUserSpeech'),
-      'do', jsonb_build_array(jsonb_build_object('type', 'say', 'exact', case when v.main = 'es' then '¿Sigue ahí?' else 'Are you still there?' end))),
+      -- SayHookAction has no per language variants (exact is one text, or a list Vapi picks from at random): a business
+      -- that speaks one language gets the exact line; one that speaks English and Spanish gets a prompt, so the check
+      -- is said in the language the call is in, with the main language first
+      'do', jsonb_build_array(case when jsonb_array_length(v.contents) > 1 then
+          jsonb_build_object('type', 'say', 'prompt', 'The caller has been silent for a while. Ask only whether they are still there, in the language the caller is using now'
+            || case when v.main = 'es' then ' (Spanish unless the caller has been speaking English): "¿Sigue ahí?", or in English "Are you still there?".'
+                    else ' (English unless the caller has been speaking Spanish): "Are you still there?", or in Spanish "¿Sigue ahí?".' end
+            || ' Say nothing else.')
+        else jsonb_build_object('type', 'say', 'exact', case when v.main = 'es' then '¿Sigue ahí?' else 'Are you still there?' end) end)),
     jsonb_build_object('name', 'zella_silence_goodbye', 'on', 'customer.speech.timeout',
       'options', jsonb_build_object('timeoutSeconds', v.t, 'triggerMaxCount', 1, 'triggerResetMode', 'onUserSpeech'),
       'do', jsonb_build_array(jsonb_build_object('type', 'tool', 'tool', jsonb_build_object('type', 'endCall',

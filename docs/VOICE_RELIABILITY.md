@@ -416,7 +416,7 @@ call. The timing is not yet confirmed on a real call (see "Not confirmed" below)
 `sql/zella_silence_timeout.sql` (built, not applied), `zella_assistant_config` set no silence behaviour, so Vapi's
 default applied.
 
-**What Vapi supports** (checked 25 Nov 2026 in `@vapi-ai/server-sdk` 3.0.0, `dist/cjs/api/types`, the same source as
+**What Vapi supports** (checked 24 Nov 2026 in `@vapi-ai/server-sdk` 3.0.0, `dist/cjs/api/types`, the same source as
 phase 2):
 
 | Field | File | What it says | Used |
@@ -433,8 +433,11 @@ phase 2):
 
 **What the assistant gets** (`zella_silence_hooks`, added to the config as `hooks`; nothing else in the config changes):
 
-1. `zella_silence_check`: after half the timeout (30 s) of silence, "Are you still there?" once (reset when the
-   caller speaks).
+1. `zella_silence_check`: after half the timeout (30 s) of silence, "Are you still there?" ("¿Sigue ahí?" for a
+   Spanish speaking business) once (reset when the caller speaks). `SayHookAction` has no per language variants
+   (`exact` is one text, or a list Vapi picks from at random), so a business that speaks English and Spanish gets
+   a `prompt` instead: ask only whether the caller is still there, in the language the call is in, with both lines
+   given and its main language first.
 2. `zella_silence_goodbye`: after the timeout (60 s), the endCall tool with its goodbye spoken first:
    "It seems we've been disconnected. Thanks for calling {business name}, goodbye." For a business whose primary
    language is Spanish: "¿Sigue ahí?" and "Parece que se cortó la llamada. Gracias por llamar a {business name},
