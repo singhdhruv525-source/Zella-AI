@@ -13,7 +13,7 @@ import { withCors } from "../_shared/cors.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { createClient } from "@supabase/supabase-js";
 import { clientIp } from "../_shared/client_ip.ts";
-import { checkLimits, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
+import { checkLimits, idKey, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
 
 // Rate limits (SEC-12, conformance G-6), counted by the shared database counter before the business is read or
 // changed: per visitor address before the link is checked, then per business once the signed link names it. The link
@@ -103,7 +103,7 @@ export async function handler(req: Request): Promise<Response> {
   const claims = token ? await verify(linkSecret, token) : null;
 
   if (!claims) return respond({ status: "invalid" });
-  const busy = await limit(supabaseUrl, serverSecretKey, [`continue-plan:business:${claims.businessId.toLowerCase()}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+  const busy = await limit(supabaseUrl, serverSecretKey, [`continue-plan:business:${idKey(claims.businessId)}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
   if (busy) return busy;
 
   const admin = createClient(supabaseUrl, serverSecretKey, {

@@ -14,7 +14,7 @@
 // is stored. Tokens are never logged or returned.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
-import { checkLimits, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
+import { checkLimits, idKey, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
 import { accountEmail, authorizeUrl, newNonce, nonceHash, PROVIDER, PROVIDERS, problem, type Provider, signState, STATE_SECONDS, tokenForm, verifyState } from "./logic.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info", "Access-Control-Allow-Methods": "POST, OPTIONS" };
@@ -39,7 +39,7 @@ async function limit(base: string, server: string, l: Limit): Promise<Response |
   return null;
 }
 const userLimit = (base: string, server: string, id: string) => limit(base, server, [`calendar-connect:user:${id}`, USER_LIMIT.max, USER_LIMIT.seconds]);
-const businessLimit = (base: string, server: string, biz: string) => limit(base, server, [`calendar-connect:business:${biz.toLowerCase()}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+const businessLimit = (base: string, server: string, biz: string) => limit(base, server, [`calendar-connect:business:${idKey(biz)}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
 
 type Signed = { ok: true; id: string } | { ok: false; res: Response };
 // the person behind the request's own sign in (never the server key)

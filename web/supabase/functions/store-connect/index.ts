@@ -7,7 +7,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withCors } from "../_shared/cors.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
-import { checkLimits, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
+import { checkLimits, idKey, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
 
 export const SHOPIFY_API_VERSION = "2026-07";
 export const NEEDED_SCOPES = ["read_orders", "read_customers"];
@@ -55,7 +55,7 @@ export async function handle(req: Request): Promise<Response> {
   const can = await fetch(`${base}/rest/v1/rpc/zella_store_can_manage`, { method: "POST", headers: { "Content-Type": "application/json", apikey: anon, Authorization: auth }, body: JSON.stringify({ p_business_id: biz }), signal: AbortSignal.timeout(10_000) }).catch(() => null);
   if (!can) return json({ ok: false, error: "try_again" }, 503);
   if (!can.ok || (await can.json().catch(() => null)) !== true) return json({ ok: false, error: "not_allowed" }, 403);
-  const busy = await limit(base, server, [`store-connect:business:${biz.toLowerCase()}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+  const busy = await limit(base, server, [`store-connect:business:${idKey(biz)}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
   if (busy) return busy;
 
   // the store answers with this token, and has granted what order lookup needs

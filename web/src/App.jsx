@@ -59,18 +59,27 @@ export default function App() {
 }
 
 // Someone signed in keeps what they had before (the admin dashboard, which shows its own "Page not found"); anyone
-// else sees the public "Page not found". Nothing shows until the saved session has been read.
+// else sees the public "Page not found". Nothing shows until the saved session has been read; a check that fails is
+// said plainly with Try again (never shown as signed out), and signing out here shows "Page not found", not the admin
+// sign in.
 function UnknownAddress() {
-  const [signedIn, setSignedIn] = useState(null);
+  const [signedIn, setSignedIn] = useState(null);   // null while checking, true, false, or "unavailable"
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
     supabase.auth.getSession().then(
-      ({ data }) => { if (live) setSignedIn(Boolean(data?.session)); },
-      () => { if (live) setSignedIn(false); },
+      ({ data, error }) => { if (live) setSignedIn(error ? "unavailable" : Boolean(data?.session)); },
+      () => { if (live) setSignedIn("unavailable"); },
     );
-    return () => { live = false; };
-  }, []);
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT" && live) setSignedIn(false);
+    });
+    return () => { live = false; listener?.subscription?.unsubscribe(); };
+  }, [attempt]);
   if (signedIn === null) return null;
+  if (signedIn === "unavailable") {
+    return <NotFound unavailable onRetry={() => { setSignedIn(null); setAttempt((n) => n + 1); }} />;
+  }
   return signedIn ? <AdminApp /> : <NotFound />;
 }
 

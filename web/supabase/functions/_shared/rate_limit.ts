@@ -4,6 +4,13 @@
 // answers "unavailable", and the caller refuses (fails closed, like reschedule-appointment, security audit M10).
 export const TOO_MANY_ATTEMPTS = "Too many attempts. Wait a minute and try again.";
 
+// One counter per business however its id is spelled: Postgres accepts a UUID with its hyphens anywhere and in any
+// letter case, so the key uses the canonical form (lowercase, 8-4-4-4-12). Anything else is only lowercased.
+export function idKey(id: string): string {
+  const hex = String(id).toLowerCase().replace(/-/g, "");
+  return /^[0-9a-f]{32}$/.test(hex) ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : String(id).toLowerCase();
+}
+
 export type Limit = readonly [key: string, max: number, windowSeconds: number];
 export type LimitAnswer = "ok" | "limited" | "unavailable";
 

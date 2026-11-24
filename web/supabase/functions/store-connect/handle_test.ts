@@ -100,3 +100,7 @@ Deno.test("rate limits: someone who can't manage the business doesn't use up its
   assertEquals((await connect()).status, 403);
   assertEquals(limitKeys(calls).map((k) => k.p_key), [`store-connect:user:${U}`]);
 }));
+Deno.test("rate limits: another spelling of the same business id counts against the same business", mock(shopify(["read_orders", "read_customers"]), async (calls) => {
+  assertEquals((await connect({ business_id: "C000-00000000-0000-0000-000000000006" })).status, 200);
+  assertEquals(limitKeys(calls)[1].p_key, `store-connect:business:${B}`);
+}));

@@ -32,3 +32,9 @@ Deno.test("a counter that can't be checked is unavailable, never ok", async () =
     assertEquals((await run(answer)).answer, "unavailable");
   }
 });
+Deno.test("idKey: every spelling of one business id shares one counter key", async () => {
+  const { idKey } = await import("./rate_limit.ts");
+  const id = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+  for (const spelling of [id, id.toUpperCase(), "a0ee-bc99-9c0b-4ef8-bb6d6bb9bd380a11", "a0eebc999c0b4ef8bb6d6bb9bd380a11"]) assertEquals(idKey(spelling), id);
+  assertEquals(idKey("Not-A-Uuid"), "not-a-uuid");
+});

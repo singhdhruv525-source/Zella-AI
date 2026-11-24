@@ -200,3 +200,7 @@ Deno.test("rate limits, finish: someone else's sign in doesn't use up that busin
   assertEquals((await finish("abc", await signState(SECRET, { b: B, p: "google", u: U, n: N }), "Bearer other-jwt")).status, 403);
   assertEquals(keys(limits), [`calendar-connect:user:${OTHER}`]);
 }));
+Deno.test("rate limits: another spelling of the same business id counts against the same business", mock(route(), async (_calls, limits) => {
+  assertEquals((await start({ ...startBody, business_id: "C000-00000000-0000-0000-000000000004" })).status, 200);
+  assertEquals(keys(limits)[1], `calendar-connect:business:${B}`);
+}));
