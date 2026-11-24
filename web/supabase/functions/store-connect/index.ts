@@ -7,12 +7,26 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withCors } from "../_shared/cors.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
+import { checkLimits, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
 
 export const SHOPIFY_API_VERSION = "2026-07";
 export const NEEDED_SCOPES = ["read_orders", "read_customers"];
 // Which websites may read the answer comes from the shared origin policy (withCors, below), like the other
 // browser-facing functions; this function still checks the sign-in token and zella_store_can_manage itself.
+// Rate limits (SEC-12, conformance G-6), counted by the shared database counter before Shopify is asked or anything
+// is stored: per signed-in person, then per business once the person is known to manage it (so nobody else can use
+// up a business's allowance). These are defaults a normal owner never reaches (a store is connected once, with a
+// few retries); the owner can change them here.
+export const USER_LIMIT = { max: 10, seconds: 60 }, BUSINESS_LIMIT = { max: 20, seconds: 60 };
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+// null when the request may go on; otherwise the answer: 429 over the limit, 503 when the counter can't be checked
+async function limit(base: string, server: string, l: Limit): Promise<Response | null> {
+  const answer = await checkLimits(base, server, [l]);
+  if (answer === "limited") return json({ ok: false, error: "rate_limited", message: TOO_MANY_ATTEMPTS }, 429);
+  if (answer === "unavailable") return json({ ok: false, error: "try_again" }, 503);
+  return null;
+}
 
 export async function handle(req: Request): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -36,9 +50,13 @@ export async function handle(req: Request): Promise<Response> {
   if (!who.ok) return json({ ok: false, error: "sign_in_required" }, 401);
   const user = await who.json().catch(() => null);
   if (!user || typeof user.id !== "string" || !user.id) return json({ ok: false, error: "sign_in_required" }, 401);
+  const limited = await limit(base, server, [`store-connect:user:${user.id}`, USER_LIMIT.max, USER_LIMIT.seconds]);
+  if (limited) return limited;
   const can = await fetch(`${base}/rest/v1/rpc/zella_store_can_manage`, { method: "POST", headers: { "Content-Type": "application/json", apikey: anon, Authorization: auth }, body: JSON.stringify({ p_business_id: biz }), signal: AbortSignal.timeout(10_000) }).catch(() => null);
   if (!can) return json({ ok: false, error: "try_again" }, 503);
   if (!can.ok || (await can.json().catch(() => null)) !== true) return json({ ok: false, error: "not_allowed" }, 403);
+  const busy = await limit(base, server, [`store-connect:business:${biz.toLowerCase()}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+  if (busy) return busy;
 
   // the store answers with this token, and has granted what order lookup needs
   const ask = (path: string) => fetch(`https://${shop}${path}`, { headers: { "X-Shopify-Access-Token": token, Accept: "application/json" }, signal: AbortSignal.timeout(8000) }).catch(() => null);

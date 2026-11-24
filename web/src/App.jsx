@@ -1,5 +1,7 @@
 
 import BrokenLink from "./BrokenLink";
+import NotFound from "./NotFound";
+import { publicRoute } from "./publicRoute";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import OwnerDashboard from "./OwnerDashboard";
@@ -28,44 +30,48 @@ export default function App() {
     window.location.replace(`/welcome${window.location.search}`);
     return null;
   }
+  // Which page the address opens: publicRoute.js (tested in publicRoute.test.mjs).
+  const route = publicRoute(window.location.pathname, window.location.hostname);
   // app.<domain> is the business CRM: its front page opens the CRM, so customers never land on the admin sign-in.
   // admin.<domain> (or any other address) keeps the admin dashboard at "/". Every other path works on both.
-  if (/^app\./i.test(window.location.hostname) && window.location.pathname === "/") {
+  if (route === "app-home") {
     window.location.replace(`/app${window.location.search}${window.location.hash}`);
     return null;
   }
-  if (window.location.pathname.startsWith("/continue-plan")) {
-    return <ContinuePlan />;
-  }
-  // Reschedule button from appointment texts and emails (customers, not signed in).
+  if (route === "continue") return <ContinuePlan />;
   // A customer link that was cut short or mistyped (/r/, /u/, /w/) is a customer's page, never the admin sign-in.
-  if (/^\/(r|u|w)(\/|$)/.test(window.location.pathname) && !/^\/(r|w)\/[0-9a-fA-F]{64}\/?$|^\/u\/[0-9a-fA-F]{32}\/?$/.test(window.location.pathname)) {
-    return <BrokenLink />;
-  }
-  if (/^\/r\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
-    return <Reschedule />;
-  }
+  if (route === "broken-link") return <BrokenLink />;
+  // Reschedule button from appointment texts and emails (customers, not signed in).
+  if (route === "reschedule") return <Reschedule />;
   // Public status page: is Zella Voice working right now (anyone, not signed in).
-  if (/^\/status\/?$/.test(window.location.pathname)) {
-    return <StatusPage />;
-  }
+  if (route === "status") return <StatusPage />;
   // Privacy policy and terms (anyone, not signed in).
-  if (/^\/(privacy|terms)\/?$/.test(window.location.pathname)) {
-    return <LegalPage kind={window.location.pathname.includes("privacy") ? "privacy" : "terms"} />;
-  }
+  if (route === "privacy" || route === "terms") return <LegalPage kind={route} />;
   // Unsubscribe link at the bottom of marketing emails (customers, not signed in).
-  if (/^\/u\/[0-9a-fA-F]{32}\/?$/.test(window.location.pathname)) {
-    return <Unsubscribe />;
-  }
+  if (route === "unsubscribe") return <Unsubscribe />;
   // Waitlist offer button from a text (customers, not signed in).
-  if (/^\/w\/[0-9a-fA-F]{64}\/?$/.test(window.location.pathname)) {
-    return <WaitlistOffer />;
-  }
+  if (route === "waitlist") return <WaitlistOffer />;
   // The client businesses' own CRM.
-  if (/^\/(app|welcome)(\/|$)/.test(window.location.pathname)) {
-    return <BusinessApp />;
-  }
+  if (route === "business") return <BusinessApp />;
+  // An address that matches no page: "Page not found" for someone signed out, never the admin sign in.
+  if (route === "unknown") return <UnknownAddress />;
   return <AdminApp />;
+}
+
+// Someone signed in keeps what they had before (the admin dashboard, which shows its own "Page not found"); anyone
+// else sees the public "Page not found". Nothing shows until the saved session has been read.
+function UnknownAddress() {
+  const [signedIn, setSignedIn] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.auth.getSession().then(
+      ({ data }) => { if (live) setSignedIn(Boolean(data?.session)); },
+      () => { if (live) setSignedIn(false); },
+    );
+    return () => { live = false; };
+  }, []);
+  if (signedIn === null) return null;
+  return signedIn ? <AdminApp /> : <NotFound />;
 }
 
 // What the email link brought us here with (read before the sign-in library

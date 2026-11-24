@@ -426,6 +426,7 @@ const STORE_ERRORS = { bad_shop_domain: "Enter the store's address ending in .my
   token_refused: "Shopify didn't accept that token. Copy it again from the custom app.", store_not_found: "No store answers at that address.",
   missing_scopes: "The custom app needs read access to orders and customers (read_orders, read_customers).", not_allowed: "Only owners and admins can connect the store.",
   store_unreachable: "Shopify couldn't be reached. Try again in a minute.",
+  rate_limited: "Too many attempts. Wait a minute and try again.",
   not_configured: "Store connections aren't switched on for Zella Voice yet. Contact Zella Voice support." };
 function StoreCard({ workspace, onNotice }) {
   const canManage = ["owner", "admin"].includes(workspace.role);

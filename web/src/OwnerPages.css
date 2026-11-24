@@ -888,6 +888,7 @@
 
 .cp-card .owner-form-error { margin-bottom: 14px; }
 .cp-button { width: 100%; }
+.cp-card a.cp-button { box-sizing: border-box; text-decoration: none; }   /* a link that looks like the page's one button (NotFound.jsx) */
 .cp-small { margin-top: 14px !important; color: var(--text-muted) !important; font-size: 12px !important; }
 
 .cp-icon {

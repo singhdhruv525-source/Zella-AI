@@ -643,6 +643,7 @@ function CalendarConnections({ w }) {
   const OUTCOME = { connected: ["success", "Calendar connected. Bookings will be copied to it and its busy times kept free once calendar sync is switched on."],
     cancelled: ["warning", "The calendar wasn't connected: the sign in was canceled."],
     error: ["error", reason === "not_your_sign_in" ? "The calendar wasn't connected: the sign in was started by someone else. Start it again from this page."
+      : reason === "rate_limited" ? "The calendar wasn't connected: too many attempts. Wait a minute and start it again from this page."
       : `The calendar couldn't be connected (${(reason ?? "error").replace(/_/g, " ")}). Try again, or contact Zella Voice support.`] };
   async function connect(provider) {
     setProblem(""); setBusy(provider);
@@ -654,7 +655,8 @@ function CalendarConnections({ w }) {
       // connection service itself isn't set up. Either way trying again won't help, so it says so.
       const notSetUp = answer?.error === "provider_not_configured" || answer?.error === "not_configured";
       return setProblem(notSetUp ? `${provider === "google" ? "Google" : "Outlook"} calendars can't be connected yet: Zella Voice's connection with ${provider === "google" ? "Google" : "Microsoft"} isn't set up. Contact Zella Voice support.`
-        : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar." : "The calendar sign in couldn't be started. Try again.");
+        : answer?.error === "not_allowed" ? "Only owners and admins can connect a calendar."
+        : answer?.error === "rate_limited" ? "Too many attempts. Wait a minute and try again." : "The calendar sign in couldn't be started. Try again.");
     }
     window.location.assign(data.url); // the provider's own sign-in page; Zella Voice never sees the password
   }

@@ -8,3 +8,4 @@ dist/
 *.log
 __pycache__/
 tests/staging/out/
+.vite/

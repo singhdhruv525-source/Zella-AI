@@ -9,11 +9,18 @@ for (const [k, v] of Object.entries({ SUPABASE_URL: "http://db.test", ZELLA_SERV
 const B = "c0000000-0000-0000-0000-000000000004", U = "a0000000-0000-0000-0000-000000000002";
 type Call = { url: string; method: string; headers: Record<string, string>; body: string };
 const realFetch = globalThis.fetch;
-function mock(route: (c: Call) => Response, fn: (calls: Call[]) => Promise<void>) {
+// The shared rate limit counter (zella_rate_limit) allows every request unless a test passes its own answer. Its
+// calls are kept apart (limits), so `calls` holds only the work the function does; `all` holds both, in order.
+function mock(route: (c: Call) => Response, fn: (calls: Call[], limits: Call[], all: Call[]) => Promise<void>, limiter: (c: Call) => Response = () => j(true)) {
   return async () => {
-    const calls: Call[] = [];
-    globalThis.fetch = (async (url: string, init: RequestInit = {}) => { const c = { url: String(url), method: init.method ?? "GET", headers: (init.headers ?? {}) as Record<string, string>, body: String(init.body ?? "") }; calls.push(c); return route(c); }) as typeof fetch;
-    try { await fn(calls); } finally { globalThis.fetch = realFetch; }
+    const calls: Call[] = [], limits: Call[] = [], all: Call[] = [];
+    globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
+      const c = { url: String(url), method: init.method ?? "GET", headers: (init.headers ?? {}) as Record<string, string>, body: String(init.body ?? "") };
+      all.push(c);
+      if (c.url.endsWith("/rpc/zella_rate_limit")) { limits.push(c); return limiter(c); }
+      calls.push(c); return route(c);
+    }) as typeof fetch;
+    try { await fn(calls, limits, all); } finally { globalThis.fetch = realFetch; }
   };
 }
 const j = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s });
@@ -148,3 +155,48 @@ Deno.test("start: network and malformed upstream responses fail closed", async (
     }
   }
 });
+
+// Rate limits (SEC-12, conformance G-6): per person, then per business, before anything is stored or the provider asked
+const keys = (limits: Call[]) => limits.map((c) => JSON.parse(c.body).p_key);
+const startBody = { action: "start", business_id: B, provider: "google" };
+Deno.test("rate limits, start: per person and per business with the server key, before the sign in is recorded", mock(route(), async (calls, limits, all) => {
+  assertEquals((await start(startBody)).status, 200);
+  assertEquals(limits.map((c) => JSON.parse(c.body)), [{ p_key: `calendar-connect:user:${U}`, p_max: 10, p_window_seconds: 60 }, { p_key: `calendar-connect:business:${B}`, p_max: 20, p_window_seconds: 60 }]);
+  assert(limits.every((c) => c.headers.Authorization === "Bearer server-key"));
+  assert(all.indexOf(limits[1]) < all.findIndex((c) => c.url.endsWith("zella_oauth_state_issue")));
+}));
+Deno.test("rate limits, start: a person over the limit gets 429 with the app's wording; nothing else runs", mock(route(), async (calls) => {
+  const r = await start(startBody);
+  assertEquals([r.status, await r.json()], [429, { ok: false, error: "rate_limited", message: "Too many attempts. Wait a minute and try again." }]);
+  assertEquals(calls.map((c) => c.url), ["http://db.test/auth/v1/user"]);
+}, () => j(false)));
+Deno.test("rate limits, start: a business over the limit gets 429; no sign in is recorded", mock(route(), async (calls) => {
+  assertEquals((await start(startBody)).status, 429);
+  assert(!calls.some((c) => c.url.endsWith("zella_oauth_state_issue")));
+}, (c) => j(!JSON.parse(c.body).p_key.includes(":business:"))));
+Deno.test("rate limits, start: someone who can't manage the business doesn't use up its allowance", mock((c) => c.url.endsWith("/auth/v1/user") ? j({ id: U }) : j(false), async (_calls, limits) => {
+  assertEquals((await start(startBody)).status, 403);
+  assertEquals(keys(limits), [`calendar-connect:user:${U}`]);
+}));
+Deno.test("rate limits: a counter that can't be checked refuses (fails closed)", mock(route(), async (calls) => {
+  const r = await start(startBody);
+  assertEquals([r.status, (await r.json()).error], [502, "try_again"]);
+  const f = await finish("abc", await signState(SECRET, { b: B, p: "google", u: U, n: N }));
+  assertEquals([f.status, (await f.json()).error], [502, "try_again"]);
+  assert(!calls.some((c) => c.url.includes("oauth2") || c.url.endsWith("zella_oauth_state_issue") || c.url.endsWith("zella_oauth_state_consume")));
+}, () => { throw new TypeError("network"); }));
+Deno.test("rate limits, finish: per person and per business before the value is used up", mock(route((c) =>
+  c.url.startsWith("https://oauth2.googleapis.com/token") ? j({ refresh_token: "rt" }) : c.url.endsWith("zella_calendar_connect_provider") ? j("conn-id") : null), async (_calls, limits, all) => {
+  assertEquals((await finish("abc", await signState(SECRET, { b: B, p: "google", u: U, n: N }))).status, 200);
+  assertEquals(keys(limits), [`calendar-connect:user:${U}`, `calendar-connect:business:${B}`]);
+  assert(all.indexOf(limits[1]) < all.findIndex((c) => c.url.endsWith("zella_oauth_state_consume")));
+}));
+Deno.test("rate limits, finish: over the limit gets 429; the value isn't used up and the provider isn't asked", mock(route(), async (calls) => {
+  const r = await finish("abc", await signState(SECRET, { b: B, p: "google", u: U, n: N }));
+  assertEquals([r.status, (await r.json()).message], [429, "Too many attempts. Wait a minute and try again."]);
+  assert(!calls.some((c) => c.url.includes("oauth2") || c.url.endsWith("zella_oauth_state_consume")));
+}, () => j(false)));
+Deno.test("rate limits, finish: someone else's sign in doesn't use up that business's allowance", mock(route(), async (_calls, limits) => {
+  assertEquals((await finish("abc", await signState(SECRET, { b: B, p: "google", u: U, n: N }), "Bearer other-jwt")).status, 403);
+  assertEquals(keys(limits), [`calendar-connect:user:${OTHER}`]);
+}));

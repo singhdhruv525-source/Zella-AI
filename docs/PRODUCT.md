@@ -76,7 +76,13 @@ The public link pages:
 | `/welcome` | Accepting an invitation and finishing sign-in from an email link. A business owner invited by the Zella Voice team goes on to the onboarding journey (below) when the server has one waiting; everyone else keeps the plain password page. |
 | `/welcome/setup` | The owner onboarding journey (§8.8). Needs the owner's own sign in. |
 
-A malformed private link shows a "this link isn't valid" page, never the admin sign-in.
+A malformed private link shows a "this link isn't valid" page, never the admin sign-in. Any other address that matches no
+page (for example `/pricing`) shows a plain "Page not found" page with a link to the home page to someone who isn't
+signed in (`NotFound.jsx`, decided in `publicRoute.js`); a signed in person keeps the admin dashboard, which has its own
+"Page not found", and the admin dashboard's own addresses (`/businesses`, `/settings`, ...) still open its sign in.
+
+`/continue-plan` and the calendar and store connections are rate limited per person (or visitor address) and per
+business; past the limit the page says "Too many attempts. Wait a minute and try again." (`SEC-12`, conformance G-6).
 
 **Owner onboarding journey** (from the `/welcome` link; contract `docs/OWNER_ONBOARDING_CONTRACT.md`). The server side
 is **built, not applied** (`sql/zella_owner_onboarding.sql`, the `owner-onboarding` and `identity-webhook` edge
