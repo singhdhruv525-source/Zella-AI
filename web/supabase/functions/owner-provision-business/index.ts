@@ -1,6 +1,6 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
 import { APP_URL_MISSING, FinishError, appUrlUsable, finishSetupWith } from "./owner_invite.ts";
-import { VOICE_REASONS, fallbackPatch, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
+import { VOICE_REASONS, fallbackPatch, planLanguagesMessage, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { clientIp } from "../_shared/client_ip.ts";
@@ -828,6 +828,17 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json, actorId: st
   // approved list by the database; only when it changed, so an owner's later choice in Settings stays
   const voice = wizardVoice(obj(config?.voice_config).voice_id, input);
   if ("error" in voice) throw new InputError(voice.error);
+  // the languages first (sql/zella_admin_languages.sql): the business's plan decides, and a voice is accepted only in
+  // the languages the receptionist speaks, so a Spanish voice can be chosen in the same save as Spanish. Other refusals
+  // (greeting) stay warnings from syncSetupToLive, as before.
+  if (typeof input.language === "string") {
+    const { data, error } = await admin.rpc("zella_setup_language_apply", {
+      p_business_id: businessId, p_language: oneOf(input.language, LANGUAGES, "en-US"), p_greeting: text(input.greeting, 500) || null,
+    });
+    if (!error && (data as Json | null)?.ok === false && (data as Json).reason === "PLAN_LANGUAGES") {
+      throw new InputError(planLanguagesMessage((data as Json).plan as Parameters<typeof planLanguagesMessage>[0]));
+    }
+  }
   if (voice.changed) {
     const { data, error } = await admin.rpc("zella_setup_voice_apply", { p_business_id: businessId, p_voice_id: voice.voiceId || null, p_actor: actorId });
     if (error) {

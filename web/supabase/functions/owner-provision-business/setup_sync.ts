@@ -77,4 +77,19 @@ export const VOICE_REASONS: Record<string, string> = {
   NOT_FOUND: "This business no longer exists.",
   UNKNOWN_VOICE: "Pick a voice from the list.",
   MISSING: "Choosing the voice here needs the latest Zella Voice update. Leave it on the default for now.",
+  VOICE_LANGUAGE: "That voice doesn't speak the languages chosen for this receptionist. Pick a voice in one of them, or keep the default.",
 };
+
+// sql/zella_admin_languages.sql: the plan decides the receptionist's languages. zella_language_plan_info's answer (no
+// prices) in words for the admin, when a choice is outside it. Kept in step with web/src/business/languagePlan.js.
+export type LanguagePlan = { source?: string; plan?: string | null; allowance?: number | null; plan_languages?: string[] | null; spanish_allowed?: boolean };
+const LANGUAGE_NAMES: Record<string, string> = { en: "English", es: "Spanish" };
+export function planLanguagesMessage(plan: LanguagePlan | null | undefined): string {
+  const n = typeof plan?.allowance === "number" ? plan.allowance : null;
+  const named = Array.isArray(plan?.plan_languages) ? plan!.plan_languages!.map((l) => LANGUAGE_NAMES[l] ?? l) : null;
+  if (n === 1 && named && named[0] === "Spanish") return "This plan includes Spanish only. Move the business to a plan with English first.";
+  if (n === 1) return "This plan includes 1 language. Move the business to a plan with Spanish first.";
+  if (n !== null && plan?.spanish_allowed === false) return `This plan includes ${n} languages, without Spanish. Move the business to a plan with Spanish first.`;
+  if (n !== null) return `This plan includes ${n} languages${named ? ` (${named.join(" and ")})` : ""}. Choose languages within it, or move the business to a bigger plan first.`;
+  return "These languages aren't in the business's plan. Change the plan first.";
+}

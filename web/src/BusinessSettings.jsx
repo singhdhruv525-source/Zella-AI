@@ -974,7 +974,7 @@ function registry(w) {
     { key: "receptionist", label: "AI receptionist", icon: "record_voice_over", items: [
       page("overview", "Receptionist overview", () => <ReceptionistOverview w={w} />, "status phone version"),
       page("voice", "Voice and personality", (c) => only(lead, <ReceptionistEdit w={w} onNotice={c.onNotice} />), "greeting tone personality instructions voice language"),
-      page("languages", "Languages", () => <LanguagePanel w={w} />, "language spanish hindi french multilingual greeting"),
+      page("languages", "Languages", (c) => <LanguagePanel w={w} onGo={c.onGo} />, "language spanish hindi french multilingual greeting support"),
       page("services", "Services", () => <ServicesPanel w={w} />, "services prices duration length menu treatments book"),
       page("knowledge", "Business knowledge", (c) => <KnowledgePage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "faq policies questions answers"),
       page("website", "Website knowledge sources", () => <WebsiteSources w={w} />, "website crawl sitemap pages read approve"),

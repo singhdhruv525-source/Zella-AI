@@ -1,72 +1,34 @@
 import { supabase } from "../supabase";
-import { Banner, Card, Field, LoadState, SaveBar, useAsync, useForm } from "./SettingsKit";
+import { Banner, Card, Facts, LinkRows, LoadState, useAsync } from "./SettingsKit";
+import { languageError, languageNames } from "../business/languagePlan";
 
-// AI receptionist languages: the one it greets in and up to three more it switches to when a caller speaks them.
-// Saved with zella_business_language_save (sql/zella_languages.sql); the Vapi assistant is built from it.
+// AI receptionist languages, read only. Only the Zella Voice team changes them, within the business's plan, from the
+// admin business page (sql/zella_admin_languages.sql: zella_business_language_save refuses owners and staff with
+// LANGUAGES_ADMIN_ONLY). Owners, admins, managers and staff read them here with zella_business_language_get.
 
-const CODES = {
-  NOT_ALLOWED: "Only owners, admins and managers can change languages.",
-  UNKNOWN_LANGUAGE: "Pick languages from the list.",
-  TOO_MANY_LANGUAGES: "Up to three extra languages.",
-  PLAN_LANGUAGES: "Your plan includes fewer languages than this. Remove one, or ask the Zella Voice team about your plan.",
-  GREETING_LENGTH: "The greeting needs 5 to 200 characters.",
-  GREETING_TEXT: "The greeting can't contain links, brackets or placeholders other than {name}.",
-  GREETING_AI_DISCLOSURE: "The greeting must tell callers they are speaking with an AI, for example \"I'm the AI receptionist.\"",
-};
-const say = (error) => {
-  const message = error?.message?.trim() ?? String(error);
-  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Languages need the latest Zella Voice update. Please ask the Zella Voice team.";
-  return CODES[message] ?? message;
-};
+export const LANGUAGES_NOTE = "Your receptionist's languages are set by Zella Voice and come with your plan. To add Spanish, contact Zella Voice support.";
 
-function Editor({ w, data }) {
-  const form = useForm({ primary: data.primary, extras: data.extras ?? [], greeting: data.greeting ?? "" });
-  const v = form.values;
+function View({ w, data, onGo }) {
   const catalog = data.catalog ?? [];
   const byCode = Object.fromEntries(catalog.map((l) => [l.code, l]));
-  const main = byCode[v.primary];
-  const other = !main?.english || v.extras.some((c) => !byCode[c]?.english);
-  const defaultGreeting = (main?.greeting ?? "").replace("{name}", w.name);
-  const toggle = (code) => form.setValues((f) => ({
-    ...f, extras: f.extras.includes(code) ? f.extras.filter((c) => c !== code) : f.extras.length >= 3 ? f.extras : [...f.extras, code],
-  }));
-
-  async function save() {
-    await form.save(async (values) => {
-      const { error } = await supabase.rpc("zella_business_language_save", {
-        p_business_id: w.id, p_primary: values.primary, p_extras: values.extras.filter((c) => c !== values.primary), p_greeting: values.greeting.trim() || null,
-      });
-      if (error) throw new Error(say(error));
-      return { extras: values.extras.filter((c) => c !== values.primary), greeting: values.greeting.trim() };
-    }, "Saved. The Zella Voice team updates your phone assistant with it.");
-  }
+  const main = byCode[data.primary];
+  const extras = (data.extras ?? []).filter((c) => c !== data.primary);
+  const other = !main?.english || extras.some((c) => !byCode[c]?.english);
+  const standard = (main?.greeting ?? "").replace("{name}", w.name);
+  const plan = data.plan ?? {};
+  const included = typeof plan.allowance === "number" ? `${plan.allowance} ${plan.allowance === 1 ? "language" : "languages"}` : null;
 
   return (
     <>
-      <Card title="Main language" sub="Your receptionist answers every call in this language.">
-        <div className="zs-grid">
-          <Field label="Language">
-            <select value={v.primary} disabled={!data.can_edit} onChange={(e) => { const primary = e.target.value; form.setValues((f) => ({ ...f, primary, extras: f.extras.filter((c) => c !== primary) })); }}>
-              {catalog.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
-            </select>
-          </Field>
-        </div>
-      </Card>
-      <Card title="Other languages it can switch to" sub="When a caller speaks one of these, the receptionist answers in it for the rest of the call. Up to three.">
-        <div className="zs-lang-picks" role="group" aria-label="Other languages">
-          {catalog.filter((l) => l.code !== v.primary).map((l) => {
-            const on = v.extras.includes(l.code);
-            return (
-              <button type="button" key={l.code} className={`zs-chip ${on ? "on" : ""}`} aria-pressed={on}
-                disabled={!data.can_edit || (!on && v.extras.length >= 3)} onClick={() => toggle(l.code)}>{l.label}</button>
-            );
-          })}
-        </div>
-      </Card>
-      <Card title="Greeting" sub="The first thing callers hear. Leave it empty to use the standard greeting for the main language. Callers are always told they are speaking with an AI receptionist, and that the call is recorded when recording is on.">
-        <Field label="Greeting (optional)" full hint={`Standard: “${defaultGreeting}” Write {name} for your business name.`}>
-          <input value={v.greeting} maxLength={200} disabled={!data.can_edit} onChange={form.set("greeting")} placeholder={defaultGreeting} />
-        </Field>
+      <Card title="Languages" sub="The language your receptionist answers every call in, and the ones it switches to when a caller speaks them.">
+        <Facts rows={[
+          ["Main language", main?.label ?? data.primary],
+          ["Other languages", extras.length ? languageNames(extras, catalog).join(", ") : "None"],
+          ["Greeting", data.greeting ? data.greeting.replace("{name}", w.name) : `Standard: “${standard}”`],
+          included && ["Your plan includes", included],
+        ]} />
+        <Banner>{LANGUAGES_NOTE}</Banner>
+        {onGo && <LinkRows rows={[{ title: "Contact Zella Voice support", detail: "Help and support: send a request", label: "Open", onClick: () => onGo("settings/help/tickets") }]} />}
       </Card>
       {other && (
         <Banner tone="warn">
@@ -74,16 +36,15 @@ function Editor({ w, data }) {
           Booking times, names and texts you send stay as they are; texts and emails are still sent in English.
         </Banner>
       )}
-      {data.can_edit ? <SaveBar form={form} onSave={save} /> : <Banner>Only owners, admins and managers can change languages.</Banner>}
     </>
   );
 }
 
-export function LanguagePanel({ w }) {
+export function LanguagePanel({ w, onGo }) {
   const state = useAsync(async () => {
     const { data, error } = await supabase.rpc("zella_business_language_get", { p_business_id: w.id });
-    if (error) throw new Error(say(error));
+    if (error) throw new Error(languageError(error));
     return data;
   }, [w.id]);
-  return <LoadState state={state}>{(data) => <Editor w={w} data={data} />}</LoadState>;
+  return <LoadState state={state}>{(data) => <View w={w} data={data} onGo={onGo} />}</LoadState>;
 }

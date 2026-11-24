@@ -245,6 +245,7 @@
     "privileged_insert": "Added a protected record",
     "privileged_update": "Changed a protected record",
     "provisioning.step_retried": "Retried a setup step",
+    "receptionist.languages_changed": "Changed receptionist languages",
     "receptionist.services_changed": "Changed receptionist services",
     "receptionist.voice_changed": "Changed receptionist voice",
     "record_files_purged": "Purged record files",

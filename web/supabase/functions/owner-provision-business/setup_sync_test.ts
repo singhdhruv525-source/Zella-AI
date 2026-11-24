@@ -1,6 +1,6 @@
 // deno test --no-lock web/supabase/functions/owner-provision-business/setup_sync_test.ts   (no network)
 import { assertEquals } from "jsr:@std/assert@1";
-import { VOICE_REASONS, fallbackPatch, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
+import { VOICE_REASONS, fallbackPatch, planLanguagesMessage, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
 
 const base = { transferType: "owner", transferPhone: null, integrationsNumber: null, ownerPhone: null, currentNumber: null, currentSource: null };
 
@@ -51,4 +51,18 @@ Deno.test("wizard voice: kept when the request has none, changed only when it di
   assertEquals(wizardVoice(null, { voiceId: "bad voice!" }), { error: "Pick a voice from the list." });
   assertEquals(wizardVoice(null, { voiceId: 42 }), { error: "Pick a voice from the list." });
   assertEquals(VOICE_REASONS.UNKNOWN_VOICE, "Pick a voice from the list.");
+});
+
+Deno.test("languages outside the plan: the admin is told why, with no dashes (sql/zella_admin_languages.sql)", () => {
+  assertEquals(planLanguagesMessage({ source: "business_plan", allowance: 1, plan_languages: ["en"], spanish_allowed: false }),
+    "This plan includes 1 language. Move the business to a plan with Spanish first.");
+  assertEquals(planLanguagesMessage({ source: "subscription_plan", allowance: 1, plan_languages: null, spanish_allowed: false }),
+    "This plan includes 1 language. Move the business to a plan with Spanish first.");
+  assertEquals(planLanguagesMessage({ allowance: 1, plan_languages: ["es"], spanish_allowed: true }),
+    "This plan includes Spanish only. Move the business to a plan with English first.");
+  assertEquals(planLanguagesMessage({ allowance: 2, plan_languages: ["en", "es"], spanish_allowed: true }),
+    "This plan includes 2 languages (English and Spanish). Choose languages within it, or move the business to a bigger plan first.");
+  assertEquals(planLanguagesMessage(null), "These languages aren't in the business's plan. Change the plan first.");
+  assertEquals(VOICE_REASONS.VOICE_LANGUAGE.includes("languages chosen"), true);
+  for (const m of [planLanguagesMessage({ allowance: 3, spanish_allowed: false }), VOICE_REASONS.VOICE_LANGUAGE]) assertEquals(/[-–—]/.test(m), false);
 });

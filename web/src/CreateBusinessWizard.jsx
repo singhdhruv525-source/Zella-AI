@@ -774,7 +774,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
       <Section title="Identity & voice" description="How the receptionist introduces itself and speaks.">
         <div className="owner-form-grid">
           <Field label="Receptionist name"><input value={value.name} onChange={set("name")} /></Field>
-          <Field label="Language">
+          <Field label="Language" hint="Within the business's plan. Voices in a newly chosen language appear once this step is saved.">
             <select value={value.language} onChange={set("language")}>
               {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </select>
@@ -1936,17 +1936,20 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, planStepKey]);
 
-  // the approved voices and the default, for the receptionist and review steps (same call as Settings > Voice)
+  // the approved voices and the default, for the receptionist and review steps (same call as Settings > Voice). The
+  // server lists only voices in the saved languages (sql/zella_admin_languages.sql), so they load again once a new
+  // language is saved.
   const [voiceInfo, setVoiceInfo] = useState(null);   // { state: "loading" | "ok" | "error", data, error }
+  const savedLanguage = saved?.receptionist?.language;
   useEffect(() => {
-    if (!businessId || (planStepKey !== "receptionist" && planStepKey !== "review") || (voiceInfo?.state === "ok" && voiceInfo.businessId === businessId)) return;
+    if (!businessId || (planStepKey !== "receptionist" && planStepKey !== "review") || (voiceInfo?.state === "ok" && voiceInfo.businessId === businessId && voiceInfo.language === savedLanguage)) return;
     let live = true;
     setVoiceInfo({ state: "loading" });
-    loadVoice(businessId).then((data) => { if (live) setVoiceInfo({ state: "ok", data, businessId }); },
+    loadVoice(businessId).then((data) => { if (live) setVoiceInfo({ state: "ok", data, businessId, language: savedLanguage }); },
       (err) => { if (live) setVoiceInfo({ state: "error", error: err.message }); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessId, planStepKey]);
+  }, [businessId, planStepKey, savedLanguage]);
 
   // Each step opens at its top, not where the previous step's Save button was.
   useEffect(() => {
