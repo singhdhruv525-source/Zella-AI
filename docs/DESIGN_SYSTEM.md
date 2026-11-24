@@ -9,7 +9,10 @@ three looks, chosen in Settings, Appearance (`appearance.js`), and all three re-
 | Classic | `web/src/styles/tokens.css` | Warm and light: ivory pages, a cream sidebar, white cards, and mocha for the things you act on. 8px buttons. |
 | Glass | `web/src/styles/glass.css` | Dark frosted surfaces over a wallpaper; the sidebar and top bar float as rounded cards. |
 
-Sign in and the public pages always use Classic. Token values change only in `tokens.css` (and the theme files'
+Each person can also choose a background: a built in picture (the default) or their own upload. With a picture, the look
+takes its colours from it, everywhere, and the Zella Voice logo keeps its own colours (owner, 28 Oct 2026). Today the
+code does this in the Glass look only, with the switch "Match colours to the picture", on by default
+(`web/src/appearance.js`). Sign in and the public pages always use Classic. Token values change only in `tokens.css` (and the theme files'
 re-pointing blocks); app stylesheets use the tokens.
 
 ## Where it lives
@@ -176,7 +179,10 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 - Status badges always carry a word (Active, Pending, Failed). Colour backs the word up, never replaces it:
   green done or active, blue scheduled or informational, amber pending or warning, red failed, cancelled or urgent.
 - Icons are Material Symbols Outlined (`<Icon name="..." />` from `BusinessUI.jsx`) in both apps.
-- Motion is quiet: pages fade in once; nothing moves on hover. All motion stops for people who prefer reduced motion.
+- Motion is lively but short (owner, 6 Nov 2026: buttons and pages should not feel flat, in the CRM and the admin
+  dashboard): buttons lift on hover and press in on click with a ripple, main buttons get a sheen, cards and panels
+  respond to the pointer, tabs glide, popups open with a pop and pages ease in (`web/src/styles/motion.css`,
+  `web/src/CrmMotion.css`). All motion stops for people who prefer reduced motion.
 - On phones (CRM under 760px, admin under 600px) the sidebar opens as a drawer from the menu button in the top bar;
   it closes on Escape, on the backdrop, or when a page is chosen. Wide tables and tab rows scroll inside themselves,
   never the whole page, and fade at the right edge while there is more.

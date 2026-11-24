@@ -993,6 +993,7 @@ sequenceDiagram
 | REQ-VOX-08 | Every call is finalised exactly once from the final report: duration, end reason, classification, summary, transcript and recording references (per privacy settings). Calls without a final report are reconciled with the provider within 15 minutes [D-26]. |
 | REQ-VOX-09 | Call recording is **off** until recording consent and caller disclosures are legally reviewed [D-27]. When enabled, it follows the business's notice and consent settings. Retention: recordings and transcripts 90 days (owner, 18 Nov 2026, §23.1c; §20). |
 | REQ-VOX-10 | AI changes (prompt, tools, model, voice) pass the per-industry evaluation set before release. |
+| REQ-VOX-13 | **Silent callers (owner, 25 Nov 2026).** If the caller says nothing for **1 minute**, the receptionist ends the call politely (a short goodbye, then hang up). The assistant config must set the provider's silence timeout to 60 seconds (not set today, so the provider's default applies); a silent call is classified from the provider's end reason, never counted as answered. |
 | REQ-VOX-11 | **Inbound voicemail.** A caller can leave a voicemail instead of talking to the assistant: on request ("I'd like to leave a message"), when a transfer fails, or through the standby assistant. The caller hears that they are leaving a recorded message. The voicemail is stored privately for that business, transcribed, shown on the customer timeline and in Callbacks, and creates one callback task. It is kept 30 days (as recordings, §20). A voicemail is the caller's own recorded message; it is separate from call recording, which stays off until legal review. |
 | REQ-VOX-12 | **Languages.** The receptionist speaks the languages the business's plan includes: English, Spanish, or both. With both, it answers in the business's primary language and switches when the caller speaks the other. Templates, knowledge and scripts exist per language; a missing translation falls back to the primary language. Until plans exist, English is the default and Spanish can be enabled per business by the Zella Voice team. |
 
@@ -1093,7 +1094,8 @@ flowchart TD
 
 Sources:
 - REQ-LEAD-01: Google Ads lead forms (per-business key).
-- REQ-LEAD-02: website forms (form key, bot check).
+- REQ-LEAD-02: website forms (form key, bot check). The bot check (for example a CAPTCHA) is added when the Zella Voice
+  website is built, and must be on before automatic texts or calls to website form leads go live (owner, 18 Nov 2026).
 - REQ-LEAD-03: incoming calls (caller saved as a lead).
 - REQ-LEAD-04: inbound SMS and email from unknown senders.
 - REQ-LEAD-05: Meta lead ads (signed webhook, then a fetch).
@@ -1342,6 +1344,11 @@ Everything Zella Voice itself sends to a business (owner, billing contacts, team
 `web/supabase/functions/_shared/businessEmails.js` (listed in `docs/BUSINESS_EMAILS.md`; billing rules in
 `docs/BILLING_EMAILS.md`), used by the admin preview and by the sender, so both show exactly the same email.
 
+**Senders (owner, 30 Oct 2026).** `support@zellavoice.com` is a real shared mailbox: replies people write to a
+business or a customer go out from support@ (billing@ and info@ are aliases of it). Automatic emails come from a
+no reply address, `Zella Voice <no-reply@zellavoice.com>` (billing ones as set in `docs/BILLING_EMAILS.md`), always
+with Reply-To support@, so a reply is never lost. The sender name customers see is always Zella Voice.
+
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
 until Stripe is live (billing step 4) and `email_live` is on, each switched on with the owner's approval.
@@ -1354,8 +1361,8 @@ Delivery (`sql/zella_email_delivery.sql`, the `platform-emails` edge function):
    due) and only once `platform_emails_url` is set. The call carries a secret created inside Vault; the database checks
    it, so no secret lives in the function.
 2. Notifications that go by email (`zella_claim_notification_emails`: daily summary, weekly review, every warning or
-   urgent alert; each person's choice per kind; one person's notification to that person, the rest to owners and
-   admins) are written as email N1 in strict mode (a missing fact stops the email, never a sample value) and queued in
+   urgent alert, all on by default; a stored per person choice is honoured, but no screen writes one, since there is
+   no notification preferences page (§28); one person's notification to that person, the rest to owners and admins) are written as email N1 in strict mode (a missing fact stops the email, never a sample value) and queued in
    the platform outbox (`platform_emails`) under `email:N1:<notification>:<person>`, unique per business.
 3. Due outbox emails are sent through Resend with `<business_id>:<key>` as the idempotency key and finished with the
    claim token they came with; after 5 failed tries an email is held for a person with an admin alert.
@@ -1472,15 +1479,15 @@ flowchart LR
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier label (**Base** or **Pro**), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Minutes, texts, emails, seats, phone numbers and locations must each have a value; contact limits left blank use the defaults in §9.3 item 5. **Every plan is customised per business; there are no preset plan prices or values.** On the plan page of Create Business (step 11) the Zella Voice team chooses the tier label (Base or Pro) and enters every value for that business: price, interval, setup fee, each cap, languages, and whether the 5-day trial (REQ-BIL-11) is on. The tier is a label only; it fills in nothing. **This is the launch approach. Standard published plans with fixed values come later** (owner, 12 Nov 2026), based on the plans actually sold; the data model (`business_plans` versions and the §17.1a checks, `sql/zella_billing_allowances.sql`, applied to production on 14 Nov 2026) lets a plan start from a standard plan's values without redesign. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
+| REQ-BIL-01 | **Plans are set per business** by the Zella Voice team during Create Business, within this policy (D-41): a tier label (**Base** or **Pro**), the monthly or yearly price, an optional one-time setup fee, and the allowances and caps of §17.1. Minutes, texts, emails, seats, phone numbers and locations must each have a value; contact limits left blank use the defaults in §9.3 item 5. **Every plan is customised per business; there are no preset plan prices or values.** On the plan page of Create Business (step 11) the Zella Voice team chooses the tier label (Base or Pro) and enters every value for that business: price, interval, setup fee, each cap, languages, and whether the 5-day trial (REQ-BIL-11) is on. **Limits and caps (owner, 25 Nov 2026):** Zella Voice admins set every plan limit and cap at Create Business, including the highest monthly spending limit, and can change them later (each change a new audited plan version). The business owner may choose a lower monthly spending limit and what happens at the limit (REQ-BIL-23, REQ-BIL-32), but can never go above the plan's limits. **Required, not built yet:** the database must refuse a limit above the plan's; today `business_plans` has no highest monthly spending limit and `zella_auto_reload_save` accepts any cap up to its own maximum, whatever the plan (see `docs/OWNER_DECISIONS_AUDIT.md`). The tier is a label only; it fills in nothing. **This is the launch approach. Standard published plans with fixed values come later** (owner, 12 Nov 2026), based on the plans actually sold; the data model (`business_plans` versions and the §17.1a checks, `sql/zella_billing_allowances.sql`, applied to production on 14 Nov 2026) lets a plan start from a standard plan's values without redesign. Price depends on how much automation the business takes and on languages (English, Spanish, or both). Amounts in examples (such as $299/month + $599 setup) are illustrations, not list prices. |
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
 | REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. The core receptionist is never cut mid-call. |
 | REQ-BIL-04 | The payment provider (**Stripe**, D-34) handles cards, saved payment methods, subscriptions and invoices; Zella Voice stores no card data (`NN-9`). Webhooks are signed and idempotent. No real charge, refund or new payment integration goes live without the owner's explicit approval. |
-| REQ-BIL-05 | **Billing & Subscription page** for business owners (owner role only, enforced by the database, `TEN-9`): plan and price, usage against every allowance, packs and their expiry, auto-reload settings and spend cap, invoices and receipts, payment method (provider-hosted), cancel, request a refund. |
+| REQ-BIL-05 | **Billing & Subscription page** for business owners (owner role only, enforced by the database, `TEN-9`): plan and price, usage against every allowance, packs and their expiry, auto-reload settings and spend cap, invoices and receipts, payment method (provider-hosted), cancel, request a refund. **Usage is live (owner, 14 Nov 2026, required, not built yet):** when a call ends or a text or email is sent, the usage the owner sees in the CRM (Today and Billing) must update within seconds, without a refresh. Today the usage card refreshes every minute, on focus and when a usage notice arrives. |
 | REQ-BIL-06 | Failed payment follows §17.8; no data is deleted within the grace and export window. |
 | REQ-BIL-07 | **AI usage and cost tracking:** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
 | REQ-BIL-08 | **Plan-defined limits.** Each plan sets the business's quantities (§17.1). They are enforced at the entitlement check points (REQ-BIL-03). Plans choose values **within** the platform contact ceiling (REQ-MSG-08); they never raise it. |
-| REQ-BIL-09 | **Every charge has an invoice or receipt** from the payment provider, showing Zella Voice's business details and any tax (§17.8). |
+| REQ-BIL-09 | **Every charge has an invoice or receipt** from the payment provider, showing Zella Voice's business details and any tax (§17.8). **Zella Voice emails it automatically (owner, 14 Nov 2026):** every payment (the first one, each renewal, a payment by link or in the app) sends the owner the invoice and a Paid email; the provider's own invoice emails are off, so nothing arrives twice (`docs/BILLING_EMAILS.md`). |
 | REQ-BIL-10 | **Admin adjustments** (free minutes, waived fee, extended trial, service credit, discount) are made only through audited platform-admin functions with the `billing.manage` permission, with a reason; each is a separate ledger entry. |
 
 ### 17.1 What a plan controls
@@ -1572,7 +1579,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 |---|---|
 | REQ-BIL-21 | **Alerts at 80% and 100%** of minutes, texts and emails, in the app and by email to the business owner. |
 | REQ-BIL-22 | **At 100% of minutes** (and no auto-reload): a call in progress is never cut (`BIL-5`); new calls go to the business's **fallback number** (REQ-BIL-34). **Texts and emails at 100%** (D-43): marketing and routine messages (follow-ups, missed-call recovery, offers, win-backs) stop; **appointment confirmations and reminders** continue within a **buffer of 5%** of the plan's texts or emails (e.g. 50 texts on a 1,000-text plan). The buffer is not billed to the business (Zella Voice absorbs it), does not roll over and resets each month. At 105% every text or email stops until a pack is bought or the next month starts. |
-| REQ-BIL-23 | **Auto-reload** (optional, off by default): the business owner sets the **threshold** (e.g. 10 minutes left) and the **pack** bought when it is reached, plus a **monthly spend cap**. A reload never exceeds the cap; each reload is charged when made, receipted and shown on the billing page. |
+| REQ-BIL-23 | **Auto-reload** (optional, off by default): the business owner sets the **threshold** (e.g. 10 minutes left) and the **pack** bought when it is reached, plus a **monthly spend cap** at or below the plan's monthly spending limit (REQ-BIL-01; owner, 25 Nov 2026). A reload never exceeds the cap; each reload is charged when made, receipted and shown on the billing page. |
 
 ### 17.7 Fair use and plan suggestions
 
@@ -1587,11 +1594,11 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-28 | Paid **in advance**, monthly or yearly, in USD, by card or any method the provider supports, on the billing date. |
+| REQ-BIL-28 | Paid **in advance**, monthly or yearly, in USD, by card or any method the provider supports, on the billing date. **Auto debit (owner, 14 Nov 2026):** on by default, so the saved card is charged on the billing date; the owner can switch it off and then pays each invoice with the **Pay now** link in the email or in the app (Settings, Billing). Either way the owner gets a renewal notice **3 days before every renewal** (yearly plans also 7 days before), even with auto debit on, and the urgent billing emails (payment failed, final notice, service paused) also go by text. The full list is `docs/BILLING_EMAILS.md`. |
 | REQ-BIL-29 | **Signup to payment:** the Zella Voice team creates the business (setup fee, plan, allowances and caps chosen in step 11) → invite link → the owner creates a password → sees what they are getting → pays (or starts the trial, REQ-BIL-12). **Pay before go live (owner, 16 Nov 2026)** applies only once Stripe is live; until then the go live gate (REQ-LC-14) doesn't wait for payment. |
 | REQ-BIL-30 | **Upgrades** take effect immediately: the owner pays the prorated difference and gets the extra allowance for the rest of the cycle; full new allowances start next cycle. *Until payments are built (step 4), every plan change, upgrade or downgrade, applies from the next billing date, so no extra allowance is given without the prorated charge.* **Downgrades** take effect on the next billing date; features and add-ons above the lower plan end then. |
 | REQ-BIL-31 | **No pause.** A business that stops using Zella Voice cancels and can return later (D-25). |
-| REQ-BIL-32 | **Packs** are charged at purchase. **At 100% of minutes the owner chooses one** (D-44): **stop** (new calls go to the fallback number), **auto-reload** a pack (REQ-BIL-23), or **pay as you go** (the AI keeps answering and each extra minute is billed at the business's own per-minute rate, set on the plan page in Create Business; offered only when that rate is set). One monthly spending limit applies to whichever is chosen. Pay-as-you-go minutes are billed at the end of the cycle. Minutes from a call already in progress when calls stop are not charged. |
+| REQ-BIL-32 | **Packs** are charged at purchase. **At 100% of minutes the owner chooses one** (D-44): **stop** (new calls go to the fallback number), **auto-reload** a pack (REQ-BIL-23), or **pay as you go** (the AI keeps answering and each extra minute is billed at the business's own per-minute rate, set on the plan page in Create Business; offered only when that rate is set). One monthly spending limit applies to whichever is chosen: the owner sets it at or below the plan's limit, which Zella Voice admins set at Create Business (REQ-BIL-01; owner, 25 Nov 2026). Pay-as-you-go minutes are billed at the end of the cycle. Minutes from a call already in progress when calls stop are not charged. |
 | REQ-BIL-33 | **Failed payment:** retried on days 2, 3 and 4 after the due date (by Stripe itself, with our retry schedule, `docs/PAYMENTS_ARCHITECTURE.md` §6.3), with an email and an in-app notice each time. After **5 days overdue** the AI receptionist pauses and calls go to the business's fallback number. Data is kept for 30 days. Paying the balance restores service. |
 | REQ-BIL-34 | **Fallback number:** every business sets one at Create Business; calls go there whenever the AI is paused or unavailable. |
 | REQ-BIL-35 | **Price changes:** 30 days' written notice, at most once in 12 months. **Founding customers** keep their price for 12 months (who counts as founding: **open**, D-47). |
@@ -1697,7 +1704,7 @@ record type definitions (REQ-IND-07).
 | REQ-CRM-20 | **Outreach settings** | Lead calls and missed-call follow-up | §13.3 and REQ-MC-09 settings | edit (owner/admin) | owner/admin | — |
 | REQ-CRM-21 | **Lead sources** | Connect sources | forms, Google keys, Meta pages, imports | create keys, connect, test | owner/admin | A4 |
 | REQ-CRM-22 | **Integrations** | Calendars, store, reviews | connection health | connect, reconnect, disconnect | owner/admin | A21 |
-| REQ-CRM-23 | **Team** | People and access | members, invites, roles, on-call, notification preferences | invite, change role, remove | owner/admin | — |
+| REQ-CRM-23 | **Team** | People and access | members, invites, roles, on-call; who receives urgent texts (the owner decides, a member can't opt out; there is no notification preferences page, §28) | invite, change role, remove | owner/admin | — |
 | REQ-CRM-24 | **Settings** | Business profile, hours, services, policies, templates, appearance | — | edit | owner/admin | — |
 | REQ-CRM-25 | **Billing** | Plan and usage | plan, usage vs limits, invoices | change plan, payment portal, cancel | owner | §17 |
 | REQ-CRM-26 | **Support** | Get help | tickets | open, reply | owner/admin | — |
@@ -2125,7 +2132,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-41 | **Commercial policy (12 Nov 2026):** custom per-business plans with no preset prices or values (every value entered per business in Create Business; Base and Pro are labels only), an optional trial, monthly or yearly in advance in USD; 5-day trial with 20 minutes, 5 texts, 5 emails, card at start; fixed add-on pack prices; usage counting, rollover, alerts, auto-reload, fair use, billing, refund, cancellation, service-credit, support and data rules as written in §17. | §17 |
 | D-42 | **Monthly refresh and pack rollover (13 Nov 2026):** allowances refresh every billing month; up to 20% of plan minutes roll over for one period; packs follow the same rule (up to 20% of each minutes pack rolls over for one period; pack texts and emails expire at the refresh, like plan texts and emails). | §17.5 |
 | D-43 | **Texts and emails at 100% (13 Nov 2026):** marketing and routine messages stop; appointment confirmations and reminders continue within an unbilled 5% buffer that resets monthly; everything stops at 105%. | §17.6 |
-| D-44 | **Overage (13 Nov 2026):** at 100% of minutes the owner chooses stop (fallback number), auto-reload, or pay as you go at a per-minute rate set per business in Create Business; one monthly spending limit; minutes from a call already in progress when calls stop are free. | §17.8 |
+| D-44 | **Overage (13 Nov 2026):** at 100% of minutes the owner chooses stop (fallback number), auto-reload, or pay as you go at a per-minute rate set per business in Create Business; one monthly spending limit, which the owner may set lower than the plan's but never higher (refined 25 Nov 2026: admins set every limit and cap, REQ-BIL-01); minutes from a call already in progress when calls stop are free. | §17.8 |
 | D-46 (part) | **Yearly plans reset allowances monthly (13 Nov 2026):** charged once a year; minutes, texts and emails reset on the same day each month, with the same rollover and buffer. Annual discount and downgrade rollover stay open. | §17.4 |
 | D-25 | **No pause.** A business that stops using Zella Voice cancels and can return later. (A business is paused by Zella Voice only for non-payment, REQ-BIL-33.) | §17.8, REQ-LC-20 |
 | D-10 | Leave a **short, professional voicemail** where permitted; no sensitive details; then one contextual message. | §13.7 |
@@ -2200,6 +2207,16 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
 | D-39 | WhatsApp, Instagram and Messenger as messaging channels: in launch scope or later (the current code has Meta workers; not yet a decision) | owner + counsel |
 | D-40 | Push notification service for the installed web app (Web Push directly, or a push provider) | owner |
+
+### 23.1d Decided by the owner (24 and 25 Nov 2026)
+
+| Topic | Decision | Applied in |
+|---|---|---|
+| Decisions given in chat (24 Nov) | Written into this document (and the rulebook when it is a rule) in the same pull request as the work that implements them; a decision with no code change goes in its own docs pull request straight away; always logged in `docs/MEMORY.md` with its date (`AGT-9`). Audit of the chat: `docs/OWNER_DECISIONS_AUDIT.md` | `AGT-9` |
+| CodeRabbit findings (25 Nov) | Claude fixes every finding itself, requests a new review, and merges only when every merge condition holds | `docs/MEMORY.md` §1, `NN-5` |
+| Limits and caps (25 Nov) | Zella Voice admins set every plan limit and cap at Create Business and can change them later; the owner may choose a lower monthly spending limit and what happens at the limit, never above the plan | REQ-BIL-01, REQ-BIL-23, REQ-BIL-32, D-44 |
+| Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
+| Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
 
 ### 23.3 Rulebook alignment
 
@@ -2333,12 +2350,16 @@ The database enforces every cell; the UI only reflects it.
 | Security log, data-rights requests | ✓ | ✓ | — | — | — |
 | Billing, plan, cancellation | ✓ | — | — | — | — |
 | Ownership transfer, business deletion, full export | ✓ | — | — | — | — |
-| Own profile and notification preferences | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Own profile (there is no notification preferences page, §28) | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## 28. Notification matrix
 
-Channels: **App** (in-app, always), **Push** (installed web app), **Email**, **SMS**. Each person can turn Email
-and SMS off per type, except those marked "always". Urgent items repeat until acknowledged, then escalate.
+Channels: **App** (in-app, always), **Push** (installed web app), **Email**, **SMS**. **There is no notification
+preferences page (owner, 28 Oct 2026):** alerts are built and on by default for the people listed, including pop ups,
+desktop notifications and urgent texts; the only personal switch is **Notification sound** in Settings, Appearance
+(on by default). **Urgent texts are always on for team members (owner, 25 Nov 2026):** a team member can't switch
+them off for themselves; only the business owner changes who receives them. Urgent items repeat until acknowledged; an
+item still unacknowledged escalates on the timing in the table below.
 
 | Event | Who is told | Channels | Urgency / escalation |
 |---|---|---|---|
@@ -2360,7 +2381,7 @@ and SMS off per type, except those marked "always". Urgent items repeat until ac
 | Integration disconnected | owner, admins | App, Email | warning; daily reminder |
 | Usage threshold reached (75%, 90%, 100%) | owner | App, Email | warning |
 | Payment failed | owner | App, Email (always) | urgent |
-| Daily summary / weekly review | owner, admins, managers (opt-in) | Email | scheduled |
+| Daily summary / weekly review | owner, admins (on by default) | Email | scheduled |
 | Sign-in from a new device, role change, export | the person; owner for role changes and exports | Email (always) | security |
 | Platform: Sev1 incident, queue stuck, provider down, isolation self-check failure | Zella Voice on-call | Pager, Email | per §21 |
 
