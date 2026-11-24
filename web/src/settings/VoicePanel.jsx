@@ -2,7 +2,7 @@ import { supabase } from "../supabase";
 import { Banner, Card, Field, LoadState, SaveBar, useAsync, useForm } from "./SettingsKit";
 import { VoiceSelect } from "./VoiceSelect";
 import { loadVoice } from "./voiceApi";
-import { unusedVoiceNote, voiceError, voiceLabel } from "./voiceChoices";
+import { defaultVoiceName, unusedVoiceNote, voiceError, voiceLabel } from "./voiceChoices";
 
 // The receptionist's voice for one business: Zella Voice's default, or one of the voices the platform approved
 // (Cartesia, ElevenLabs or Vapi). Read and saved with zella_business_voice_get / _save (sql/zella_business_voice.sql,
@@ -13,7 +13,7 @@ function Editor({ businessId, data }) {
   const form = useForm({ voice: data.voice_id ?? "" });
   const choices = data.choices ?? [];
   const find = (id) => choices.find((c) => c.id === id);
-  const defaultName = data.default_voice_id ? find(data.default_voice_id)?.name ?? data.default_voice_id : null;
+  const defaultName = defaultVoiceName(data);
   const chosen = find(form.values.voice);
   const note = unusedVoiceNote(chosen, data.provider);
 

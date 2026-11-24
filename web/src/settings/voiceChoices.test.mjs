@@ -3,7 +3,7 @@
 //   cd web && node --test src/settings/voiceChoices.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupChoices, languagesOf, unusedVoiceNote, voiceError, voiceLabel, voiceSummary, voiceUsable } from "./voiceChoices.js";
+import { defaultVoiceName, groupChoices, languagesOf, unusedVoiceNote, voiceError, voiceLabel, voiceSummary, voiceUsable } from "./voiceChoices.js";
 
 const CHOICES = [
   { id: "burt", name: "Burt", provider: "11labs" },
@@ -54,7 +54,15 @@ test("the review summary names the voice or the default", () => {
   assert.equal(voiceSummary("", data), "Zella Voice default (Burt)");
   assert.equal(voiceSummary("", undefined), "Zella Voice default");
   assert.equal(voiceSummary(CHOICES[3].id, data), "Daniela, Cartesia, Spanish, female");
-  assert.equal(voiceSummary("gone", data), "gone");
+  assert.equal(voiceSummary("gone", data), "a voice no longer on the approved list");   // never a raw id
+});
+
+test("the default voice by name, never a raw id with dashes", () => {
+  assert.equal(defaultVoiceName({ choices: CHOICES, default_voice_id: "burt" }), "Burt");
+  assert.equal(defaultVoiceName({ choices: CHOICES, default_voice_id: CHOICES[2].id }), "Katie");
+  assert.equal(defaultVoiceName({ choices: [], default_voice_id: "Elliot" }), "Elliot");
+  assert.equal(defaultVoiceName({ choices: [], default_voice_id: "0b5a1b6c-0000-4000-8000-000000000000" }), "set by Zella Voice");
+  assert.equal(defaultVoiceName({}), null);
 });
 
 test("errors in words; no dashes anywhere people read", () => {

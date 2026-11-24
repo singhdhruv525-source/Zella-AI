@@ -18,7 +18,7 @@ import "./settings/settings.css";
 import PlanStep, { loadPlanInfo } from "./PlanStep";
 import { VoiceSelect } from "./settings/VoiceSelect";
 import { loadVoice } from "./settings/voiceApi";
-import { languagesOf, unusedVoiceNote, voiceLabel, voiceSummary } from "./settings/voiceChoices";
+import { defaultVoiceName, languagesOf, unusedVoiceNote, voiceLabel, voiceSummary } from "./settings/voiceChoices";
 
 // ---------------------------------------------------------------------------
 // Server calls
@@ -744,12 +744,17 @@ function VoiceField({ value, onChange, voice }) {
     return <Field label="Voice" hint="Loading the approved voices…"><select disabled><option>Zella Voice default</option></select></Field>;
   }
   if (voice.state === "error") {
-    return <Field label="Voice" hint={`Couldn't load the voices (${voice.error}). The Zella Voice default is used; the owner can choose later in Settings.`}><select disabled><option>Zella Voice default</option></select></Field>;
+    // unavailable, not the default: a saved voice stays as it is and isn't sent again while the list can't be read
+    return (
+      <Field label="Voice" hint={`Couldn't load the voices (${voice.error}). ${value.voiceId ? "The saved voice is kept" : "Nothing is changed"}; open this step again to choose.`}>
+        <select disabled><option>{value.voiceId ? "Saved voice, list unavailable" : "Voice list unavailable"}</option></select>
+      </Field>
+    );
   }
   const data = voice.data ?? {};
   const choices = data.choices ?? [];
   const chosen = choices.find((c) => c.id === value.voiceId);
-  const defaultName = data.default_voice_id ? choices.find((c) => c.id === data.default_voice_id)?.name ?? data.default_voice_id : null;
+  const defaultName = defaultVoiceName(data);
   const note = unusedVoiceNote(chosen, data.provider);
   return (
     <Field label="Voice" hint={note ?? (chosen ? `${voiceLabel(chosen)}. The owner can change it later in Settings.` : "Voices in the chosen language are listed first. The owner can change it later in Settings.")}>
@@ -1745,7 +1750,7 @@ function reviewRows(setup, industries, config, docsReady, voice) {
     { key: "team", title: termFor(setup.terminology, "staff_plural"), ok: setup.team.length > 0,
       detail: setup.team.length ? setup.team.map((m) => m.name).join(", ") : config.team === "recommended" ? "None yet (recommended)" : "None (optional)" },
     { key: "receptionist", title: "AI receptionist", ok: r.faqs.length > 0 || o.services.length > 0,
-      detail: `${r.name} · voice ${voiceSummary(r.voiceId, voice?.data)} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
+      detail: `${r.name} · voice ${voice?.state === "error" ? (r.voiceId ? "saved, list unavailable" : "not checked, list unavailable") : voiceSummary(r.voiceId, voice?.data)} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
     { key: "integrations", title: "Phone & integrations", ok: true,
       detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella Voice number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
     { key: "integrations", title: "Spam protection", ok: true,
@@ -2116,11 +2121,15 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (key === "receptionist") {
       const r = setup.receptionist;
       // Hours, services and business facts are saved on the Hours & services step, not here.
-      const { hours: _h, services: _s, about: _a, serviceArea: _sa, ...rest } = r;
+      const { hours: _h, services: _s, about: _a, serviceArea: _sa, voiceId, ...rest } = r;
+      // the voice goes only when it differs from what this screen last saved, so a stale screen never puts back an
+      // older voice over one chosen since (an explicit change, back to the default too, is always sent)
+      const voiceChanged = voiceId !== (saved?.receptionist?.voiceId ?? "");
       await callOwnerFunction("setup_save_receptionist", {
         businessId,
         receptionist: {
           ...rest,
+          ...(voiceChanged ? { voiceId } : {}),
           faqs: r.faqs.filter((f) => f.question.trim() && f.answer.trim()),
           restrictions: r.restrictions.split("\n").map((line) => line.trim()).filter(Boolean),
         },

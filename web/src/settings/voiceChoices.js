@@ -54,13 +54,22 @@ export function unusedVoiceNote(choice, platformProvider) {
   return `${providerName(providerOf(choice))} voices are used only while ${providerName(providerOf(choice))} is Zella Voice's voice provider. Calls use the Zella Voice default until then.`;
 }
 
+// The default voice's name: from the list, else an ElevenLabs or Vapi voice name as it is; never a raw id with dashes
+export function defaultVoiceName(data) {
+  const id = data?.default_voice_id;
+  if (!id) return null;
+  const c = (data.choices ?? []).find((x) => x.id === id);
+  if (c) return c.name ?? id;
+  return /^[A-Za-z0-9_ ]+$/.test(id) ? id : "set by Zella Voice";
+}
+
 // One line for a summary (the wizard's Review step): the chosen voice, or Zella Voice's default
 export function voiceSummary(voiceId, data) {
   const find = (id) => (data?.choices ?? []).find((c) => c.id === id);
   if (!voiceId) {
-    const d = data?.default_voice_id ? find(data.default_voice_id)?.name ?? data.default_voice_id : null;
+    const d = defaultVoiceName(data);
     return d ? `Zella Voice default (${d})` : "Zella Voice default";
   }
   const c = find(voiceId);
-  return c ? voiceLabel(c) : voiceId;
+  return c ? voiceLabel(c) : "a voice no longer on the approved list";
 }
