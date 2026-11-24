@@ -865,12 +865,17 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json, actorId: st
         console.error("setup language undo", businessId, error.message);
         throw new InputError("The voice was refused and the earlier languages couldn't be put back. Check the business's languages on its page.", 500);
       }
-      await admin.from("audit_logs").insert({
+      const { error: auditError } = await admin.from("audit_logs").insert({
         business_id: businessId, user_id: actorId, action: "receptionist.languages_changed", entity_type: "business", entity_id: businessId,
         old_data: null,
         new_data: { primary: languagesBefore?.primary_language ?? null, extras: languagesBefore?.extra_languages ?? [], greeting: languagesBefore?.greeting ?? null,
           by_platform_admin: true, source: "setup_wizard", restored_after_voice_refused: true },
       });
+      // reported on its own: the languages are back, but the audit log doesn't show it
+      if (auditError) {
+        console.error("setup language undo audit", businessId, auditError.message);
+        throw new InputError("The voice was refused and the earlier languages are back, but putting them back couldn't be recorded in the audit log. Report this to the Zella Voice owner so it can be noted.", 503);
+      }
     };
     const { data, error } = await admin.rpc("zella_setup_voice_apply", { p_business_id: businessId, p_voice_id: voice.voiceId || null, p_actor: actorId });
     if (error) {
