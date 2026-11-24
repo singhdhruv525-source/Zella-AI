@@ -16,9 +16,9 @@ It reads the catalog only, never rows.
 | Tables (schema `public`) | 215 |
 | Tables with row security on | 215 of 215 |
 | Row security policies | 357 |
-| Columns | 2484 |
+| Columns | 2485 |
 | Views | 1 |
-| Functions | 1193 (1105 security definer, 30 callable by `anon`) |
+| Functions | 1196 (1108 security definer, 30 callable by `anon`) |
 
 Rules every table follows:
 
@@ -733,6 +733,7 @@ The voice a business chose for its receptionist.
 | `voice_id` | text | yes |  |
 | `updated_by` | uuid |  |  |
 | `updated_at` | timestamp with time zone | yes | now() |
+| `provider` | text | yes | '11labs' |
 
 - Primary key: `business_id`.
 - `business_id` → `public.businesses` (on delete cascade).
@@ -5463,7 +5464,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_brain_search(p_business_id uuid, p_query text, p_limit integer)` | jsonb | yes | server only |
 | `zella_brain_tool_defs()` | jsonb |  | anon, signed in |
 
-### `zella_business_*` (32)
+### `zella_business_*` (33)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -5496,6 +5497,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_business_settings(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_status_trigger()` | trigger | yes | server only |
 | `zella_business_ticket_reply(p_ticket uuid, p_body text, p_ref uuid)` | jsonb | yes | signed in |
+| `zella_business_voice_choice(p_business_id uuid)` | jsonb | yes | server only |
 | `zella_business_voice_get(p_business_id uuid)` | jsonb | yes | signed in |
 | `zella_business_voice_save(p_business_id uuid, p_voice_id text)` | jsonb | yes | signed in |
 | `zella_business_welcome()` | trigger | yes | server only |
@@ -6463,7 +6465,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_set_report_schedule(p_business_id uuid, p_kind text, p_patch jsonb)` | jsonb | yes | signed in |
 | `zella_set_review_link(p_business_id uuid, p_url text)` | void | yes | signed in |
 
-### `zella_setup_*` (6)
+### `zella_setup_*` (7)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -6473,6 +6475,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setup_language_apply(p_business_id uuid, p_language text, p_greeting text)` | jsonb | yes | server only |
 | `zella_setup_language_check(p_language text, p_greeting text)` | jsonb |  | server only |
 | `zella_setup_plan_saved(p_business_id uuid)` | jsonb | yes | signed in |
+| `zella_setup_voice_apply(p_business_id uuid, p_voice_id text, p_actor uuid)` | jsonb | yes | server only |
 
 ### `zella_spam_*` (30)
 
@@ -6747,7 +6750,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_setting(p_key text, p_default jsonb)` | jsonb | yes | server only |
 | `zella_tables(p_business_id uuid)` | jsonb | yes | signed in |
 
-### Smaller groups and older helpers (197)
+### Smaller groups and older helpers (198)
 
 | Function | Returns | SD | Who may call |
 |---|---|---|---|
@@ -6776,6 +6779,7 @@ Functions callable by neither are for the server key, triggers and jobs only.
 | `zella_book_appointment(p_business_id uuid, p_customer_id uuid, p_title text, p_start timestamp with time zone, p_duration_minutes integer, p_staff_id uuid, p_party_size integer, p_notes text, p_metadata jsonb)` | uuid | yes | server only |
 | `zella_brand_name_pairs()` | TABLE(fn text, md5_before text, old_text text, new_text text) |  | server only |
 | `zella_campaign_report(p_business_id uuid, p_from timestamp with time zone, p_to timestamp with time zone)` | jsonb | yes | signed in |
+| `zella_cartesia_voice(p_business_id uuid, p_voice_id text, p_voice_language text)` | jsonb | yes | server only |
 | `zella_change_business_industry(p_business_id uuid, p_industry_id uuid)` | void | yes | server only |
 | `zella_child_business_id_trg()` | trigger | yes | server only |
 | `zella_classify_email(p_subject text, p_body text, p_auto boolean)` | text |  | server only |

@@ -56,3 +56,25 @@ export function sameLine(a: unknown, b: unknown): boolean {
   const x = toE164(a), y = toE164(b);
   return !!x && x === y;
 }
+
+// The receptionist's voice chosen in the create business wizard (sql/zella_cartesia_voices.sql). Kept in
+// voice_config.voice_id; it becomes the business_voice row through zella_setup_voice_apply only when the wizard's choice
+// changes, so saving the step again never undoes a voice the owner picked later in Settings. "" = the platform default.
+export const VOICE_ID_RE = /^[A-Za-z0-9_-]{2,64}$/;
+export function wizardVoice(saved: unknown, input: Record<string, unknown>): { voiceId: string; changed: boolean } | { error: string } {
+  const before = typeof saved === "string" ? saved.trim() : "";
+  if (!("voiceId" in input)) return { voiceId: before, changed: false };
+  const raw = input.voiceId;
+  if (raw !== null && raw !== undefined && typeof raw !== "string") return { error: "Pick a voice from the list." };
+  const voiceId = typeof raw === "string" ? raw.trim() : "";
+  if (voiceId && !VOICE_ID_RE.test(voiceId)) return { error: "Pick a voice from the list." };
+  return { voiceId, changed: voiceId !== before };
+}
+
+// zella_setup_voice_apply's refusals, in words for the admin
+export const VOICE_REASONS: Record<string, string> = {
+  NOT_ALLOWED: "You need permission to manage businesses to choose the voice.",
+  NOT_FOUND: "This business no longer exists.",
+  UNKNOWN_VOICE: "Pick a voice from the list.",
+  MISSING: "Choosing the voice here needs the latest Zella Voice update. Leave it on the default for now.",
+};

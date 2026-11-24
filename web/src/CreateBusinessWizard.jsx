@@ -16,6 +16,9 @@ import { duplicateCheck, duplicateState, matchedWords, newCreationKey } from "./
 import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
 import PlanStep, { loadPlanInfo } from "./PlanStep";
+import { VoiceSelect } from "./settings/VoiceSelect";
+import { loadVoice } from "./settings/voiceApi";
+import { defaultVoiceName, languagesOf, unusedVoiceNote, voiceLabel, voiceSummary } from "./settings/voiceChoices";
 
 // ---------------------------------------------------------------------------
 // Server calls
@@ -175,6 +178,7 @@ function emptySetup() {
       name: "AI Receptionist",
       greeting: "",
       language: "en-US",
+      voiceId: "",   // "" = Zella Voice's default voice (sql/zella_cartesia_voices.sql)
       personality: "professional",
       instructions: "",
       about: "",
@@ -249,6 +253,7 @@ function fromServer(data, industries = []) {
     name: data.receptionist.name || "AI Receptionist",
     greeting: voice.greeting || data.terminology.industry?.voice?.greeting || "",
     language: voice.language || "en-US",
+    voiceId: typeof voice.voice_id === "string" ? voice.voice_id : "",
     personality: data.receptionist.personality || "professional",
     instructions: data.receptionist.tone || "",
     about: kb.about || "",
@@ -732,7 +737,34 @@ function ListEditor({ items, onChange, fields, addLabel, emptyText }) {
   );
 }
 
-function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts = [] }) {
+// The receptionist's voice in the wizard: the same approved list and picker as Settings > Voice (VoiceSelect), voices
+// in the chosen language first. Saved with the step; it becomes the business's voice (zella_setup_voice_apply).
+function VoiceField({ value, onChange, voice }) {
+  if (!voice || voice.state === "loading") {
+    return <Field label="Voice" hint="Loading the approved voices…"><select disabled><option>Zella Voice default</option></select></Field>;
+  }
+  if (voice.state === "error") {
+    // unavailable, not the default: a saved voice stays as it is and isn't sent again while the list can't be read
+    return (
+      <Field label="Voice" hint={`Couldn't load the voices (${voice.error}). ${value.voiceId ? "The saved voice is kept" : "Nothing is changed"}; open this step again to choose.`}>
+        <select disabled><option>{value.voiceId ? "Saved voice, list unavailable" : "Voice list unavailable"}</option></select>
+      </Field>
+    );
+  }
+  const data = voice.data ?? {};
+  const choices = data.choices ?? [];
+  const chosen = choices.find((c) => c.id === value.voiceId);
+  const defaultName = defaultVoiceName(data);
+  const note = unusedVoiceNote(chosen, data.provider);
+  return (
+    <Field label="Voice" hint={note ?? (chosen ? `${voiceLabel(chosen)}. The owner can change it later in Settings.` : "Voices in the chosen language are listed first. The owner can change it later in Settings.")}>
+      <VoiceSelect value={value.voiceId} onChange={(e) => onChange({ ...value, voiceId: e.target.value })} choices={choices}
+        languages={languagesOf(value.language)} defaultName={defaultName} />
+    </Field>
+  );
+}
+
+function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts = [], voice }) {
   const set = (key) => (event) => onChange({ ...value, [key]: event.target.value });
   const asked = new Set(value.faqs.map((f) => f.question.trim().toLowerCase()));
   const prompts = faqPrompts.filter((q) => !asked.has(q.toLowerCase()));
@@ -747,6 +779,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
               {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </select>
           </Field>
+          <VoiceField value={value} onChange={onChange} voice={voice} />
           <Field label="Greeting" full hint="The first thing callers hear.">
             <textarea value={value.greeting} onChange={set("greeting")} />
           </Field>
@@ -1692,7 +1725,7 @@ function SpamSection({ value, onChange, modules, config, available }) {
 }
 
 // One row per thing to set up, from the given (saved) setup. Used by the Review step and the step checkmarks.
-function reviewRows(setup, industries, config, docsReady) {
+function reviewRows(setup, industries, config, docsReady, voice) {
   const r = setup.receptionist;
   const o = setup.operations;
   const enabledModules = setup.modules.filter((m) => m.enabled);
@@ -1717,7 +1750,7 @@ function reviewRows(setup, industries, config, docsReady) {
     { key: "team", title: termFor(setup.terminology, "staff_plural"), ok: setup.team.length > 0,
       detail: setup.team.length ? setup.team.map((m) => m.name).join(", ") : config.team === "recommended" ? "None yet (recommended)" : "None (optional)" },
     { key: "receptionist", title: "AI receptionist", ok: r.faqs.length > 0 || o.services.length > 0,
-      detail: `${r.name} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
+      detail: `${r.name} · voice ${voice?.state === "error" ? (r.voiceId ? "saved, list unavailable" : "not checked, list unavailable") : voice?.state === "ok" ? voiceSummary(r.voiceId, voice.data) : "checking…"} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
     { key: "integrations", title: "Phone & integrations", ok: true,
       detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella Voice number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
     { key: "integrations", title: "Spam protection", ok: true,
@@ -1772,8 +1805,8 @@ function Readiness({ businessId }) {
   );
 }
 
-function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, onRetryPlan }) {
-  const { rows, verified } = reviewRows(setup, industries, config, docsReady);
+function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, onRetryPlan, voice }) {
+  const { rows, verified } = reviewRows(setup, industries, config, docsReady, voice);
   const blocking = rows.filter((row) => row.required && !row.ok);
 
   return (
@@ -1900,6 +1933,18 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   };
   useEffect(() => {
     if (businessId && (planStepKey === "plan" || planStepKey === "review" || planStatus === null)) reloadPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, planStepKey]);
+
+  // the approved voices and the default, for the receptionist and review steps (same call as Settings > Voice)
+  const [voiceInfo, setVoiceInfo] = useState(null);   // { state: "loading" | "ok" | "error", data, error }
+  useEffect(() => {
+    if (!businessId || (planStepKey !== "receptionist" && planStepKey !== "review") || (voiceInfo?.state === "ok" && voiceInfo.businessId === businessId)) return;
+    let live = true;
+    setVoiceInfo({ state: "loading" });
+    loadVoice(businessId).then((data) => { if (live) setVoiceInfo({ state: "ok", data, businessId }); },
+      (err) => { if (live) setVoiceInfo({ state: "error", error: err.message }); });
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, planStepKey]);
 
@@ -2076,11 +2121,15 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     if (key === "receptionist") {
       const r = setup.receptionist;
       // Hours, services and business facts are saved on the Hours & services step, not here.
-      const { hours: _h, services: _s, about: _a, serviceArea: _sa, ...rest } = r;
+      const { hours: _h, services: _s, about: _a, serviceArea: _sa, voiceId, ...rest } = r;
+      // the voice goes only when it differs from what this screen last saved, so a stale screen never puts back an
+      // older voice over one chosen since (an explicit change, back to the default too, is always sent)
+      const voiceChanged = voiceId !== (saved?.receptionist?.voiceId ?? "");
       await callOwnerFunction("setup_save_receptionist", {
         businessId,
         receptionist: {
           ...rest,
+          ...(voiceChanged ? { voiceId } : {}),
           faqs: r.faqs.filter((f) => f.question.trim() && f.answer.trim()),
           restrictions: r.restrictions.split("\n").map((line) => line.trim()).filter(Boolean),
         },
@@ -2290,7 +2339,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         )}
         {STEPS[step].key === "operations" && <OperationsStep value={setup.operations} onChange={update("operations")} config={config} terminology={terminology} industryName={industry?.name} />}
         {STEPS[step].key === "team" && <TeamStep value={setup.team} onChange={update("team")} config={config} terminology={terminology} showErrors={showErrors} />}
-        {STEPS[step].key === "receptionist" && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} faqPrompts={config.faqPrompts} />}
+        {STEPS[step].key === "receptionist" && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} faqPrompts={config.faqPrompts} voice={voiceInfo} />}
         {STEPS[step].key === "integrations" && (
           <>
             <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />
@@ -2307,7 +2356,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {STEPS[step].key === "plan" && (planError
           ? <div className="owner-form-error" role="alert">The plan couldn't be loaded: {planError} <button type="button" className="owner-secondary-button" onClick={reloadPlan}>Retry</button></div>
           : <PlanStep key={planInfo?.plan?.version ?? "new"} businessId={businessId} info={planInfo} onSaved={reloadPlan} onDirty={setPlanDirty} Section={Section} Badge={Badge} Toggle={Toggle} />)}
-        {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} onRetryPlan={reloadPlan} />}
+        {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} onRetryPlan={reloadPlan} voice={voiceInfo} />}
       </div>
 
       {duplicates && STEPS[step].key === "business" && !businessId && (

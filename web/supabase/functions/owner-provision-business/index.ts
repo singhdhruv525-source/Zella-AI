@@ -1,6 +1,6 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
 import { APP_URL_MISSING, FinishError, appUrlUsable, finishSetupWith } from "./owner_invite.ts";
-import { fallbackPatch, sameLine, toE164, transferPatch } from "./setup_sync.ts";
+import { VOICE_REASONS, fallbackPatch, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { clientIp } from "../_shared/client_ip.ts";
@@ -751,7 +751,7 @@ async function saveModules(admin: SupabaseClient, fields: Json) {
   return withBefore({ businessId, enabledModules: count }, { enabled_module_ids: priorIds });
 }
 
-async function saveReceptionist(admin: SupabaseClient, fields: Json) {
+async function saveReceptionist(admin: SupabaseClient, fields: Json, actorId: string) {
   const businessId = requireId(fields.businessId);
   const input = obj(fields.receptionist);
   const business = await getBusiness(admin, businessId);
@@ -824,6 +824,20 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
   const personality = oneOf(input.personality, PERSONALITIES, "professional");
   const now = new Date().toISOString();
 
+  // the voice chosen in the wizard becomes the business's voice (sql/zella_cartesia_voices.sql), checked against the
+  // approved list by the database; only when it changed, so an owner's later choice in Settings stays
+  const voice = wizardVoice(obj(config?.voice_config).voice_id, input);
+  if ("error" in voice) throw new InputError(voice.error);
+  if (voice.changed) {
+    const { data, error } = await admin.rpc("zella_setup_voice_apply", { p_business_id: businessId, p_voice_id: voice.voiceId || null, p_actor: actorId });
+    if (error) {
+      if (/zella_setup_voice_apply|PGRST202|schema cache/i.test(`${error.code} ${error.message}`)) throw new InputError(VOICE_REASONS.MISSING);
+      throw error;
+    }
+    const reason = (data as Json | null)?.ok === false ? String((data as Json).reason) : null;
+    if (reason) throw new InputError(VOICE_REASONS[reason] ?? VOICE_REASONS.UNKNOWN_VOICE);
+  }
+
   const { error: agentError } = await admin
     .from("ai_agents")
     .update({ name: agentName, updated_at: now })
@@ -867,6 +881,7 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json) {
       ...obj(config?.voice_config),
       greeting: text(input.greeting, 500),
       language: oneOf(input.language, LANGUAGES, "en-US"),
+      voice_id: voice.voiceId || null,
     },
     business_context: {
       ...obj(config?.business_context),
@@ -3546,7 +3561,7 @@ Deno.serve(withCors(async (req: Request) => {
       setup_save_owner: () => saveOwner(adminClient, fields, user.id),
       setup_save_terminology: () => saveTerminology(adminClient, fields),
       setup_save_modules: () => saveModules(adminClient, fields),
-      setup_save_receptionist: () => saveReceptionist(adminClient, fields),
+      setup_save_receptionist: () => saveReceptionist(adminClient, fields, user.id),
       setup_save_integrations: () => saveIntegrations(adminClient, fields),
       setup_save_automations: () => saveAutomations(adminClient, fields, user.id),
       setup_finish: () => finishSetup(adminClient, fields),

@@ -1,6 +1,6 @@
 // deno test --no-lock web/supabase/functions/owner-provision-business/setup_sync_test.ts   (no network)
 import { assertEquals } from "jsr:@std/assert@1";
-import { fallbackPatch, sameLine, toE164, transferPatch } from "./setup_sync.ts";
+import { VOICE_REASONS, fallbackPatch, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
 
 const base = { transferType: "owner", transferPhone: null, integrationsNumber: null, ownerPhone: null, currentNumber: null, currentSource: null };
 
@@ -39,4 +39,16 @@ Deno.test("fallback number: E.164 from what people type; never replaces an admin
   assertEquals(sameLine("(555) 210-3000", "+15552103000"), true);
   assertEquals(sameLine("(555) 210-3000", "+15552103001"), false);
   assertEquals(sameLine("", ""), false);
+});
+
+Deno.test("wizard voice: kept when the request has none, changed only when it differs, checked", () => {
+  assertEquals(wizardVoice("marissa", {}), { voiceId: "marissa", changed: false });
+  assertEquals(wizardVoice(undefined, {}), { voiceId: "", changed: false });
+  assertEquals(wizardVoice("marissa", { voiceId: "marissa" }), { voiceId: "marissa", changed: false });
+  assertEquals(wizardVoice("marissa", { voiceId: "f786b574-daa5-4673-aa0c-cbe3e8534c02" }), { voiceId: "f786b574-daa5-4673-aa0c-cbe3e8534c02", changed: true });
+  assertEquals(wizardVoice("marissa", { voiceId: "" }), { voiceId: "", changed: true });   // back to the platform default
+  assertEquals(wizardVoice(null, { voiceId: null }), { voiceId: "", changed: false });
+  assertEquals(wizardVoice(null, { voiceId: "bad voice!" }), { error: "Pick a voice from the list." });
+  assertEquals(wizardVoice(null, { voiceId: 42 }), { error: "Pick a voice from the list." });
+  assertEquals(VOICE_REASONS.UNKNOWN_VOICE, "Pick a voice from the list.");
 });
