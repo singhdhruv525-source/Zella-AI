@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hasUnsavedChanges, stepProgress } from "./wizardProgress.js";
+import { hasUnsavedChanges, stepProgress, voicesNeedLoading } from "./wizardProgress.js";
 
 const STEPS = [
   { key: "business" }, { key: "owner" }, { key: "operations" }, { key: "team", optional: true }, { key: "receptionist" },
@@ -39,4 +39,21 @@ test("unsaved changes ignore documents and the invitation, which save on their o
   assert.equal(hasUnsavedChanges({ ...saved, documents: [{ id: 1 }], invitation: { status: "sent" } }, saved), false);
   assert.equal(hasUnsavedChanges({ ...saved, business: { name: "B" } }, saved), true);
   assert.equal(hasUnsavedChanges(saved, null), false);
+});
+
+test("voices load again each time the Receptionist or Review step is entered (the plan may have changed)", () => {
+  const ok = { state: "ok", businessId: "b1", language: "en-US" };
+  const base = { businessId: "b1", step: "receptionist", info: ok, language: "en-US" };
+  // entering the step reloads even with a fresh looking list: a plan change elsewhere can change which voices fit
+  assert.equal(voicesNeedLoading({ ...base, previousStep: "plan" }), true);
+  assert.equal(voicesNeedLoading({ ...base, step: "review", previousStep: "plan" }), true);
+  assert.equal(voicesNeedLoading({ ...base, previousStep: null }), true);
+  // staying on the step: only when the business or the saved language changed, or the last load didn't succeed
+  assert.equal(voicesNeedLoading({ ...base, previousStep: "receptionist" }), false);
+  assert.equal(voicesNeedLoading({ ...base, previousStep: "receptionist", language: "en-US+es-US" }), true);
+  assert.equal(voicesNeedLoading({ ...base, previousStep: "receptionist", businessId: "b2" }), true);
+  assert.equal(voicesNeedLoading({ ...base, previousStep: "receptionist", info: { state: "error" } }), true);
+  // other steps, or no business yet: nothing to load
+  assert.equal(voicesNeedLoading({ ...base, step: "plan", previousStep: "receptionist" }), false);
+  assert.equal(voicesNeedLoading({ ...base, businessId: null, previousStep: "plan" }), false);
 });

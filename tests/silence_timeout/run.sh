@@ -168,8 +168,6 @@ out=$(apply "$RB"); setting voice_silence_timeout_seconds 120; out=$(apply "$MIG
 
 # ---------------------------------------------------------------- both orders with sql/zella_admin_languages.sql
 if [ -z "$LANGS" ]; then skip "sql/zella_admin_languages.sql is neither in this tree nor on origin/claude/admin-only-languages"; finish; fi
-LANGS_ALT="$WORK/langs_on_silence.sql"   # the admin languages file, also accepting this file's version as its base
-sed "s/'prod', '$PROD', 'mine', '$LANG_BASE'/'prod', '$MINE_PROD', 'mine', '$MINE_LANG'/" "$LANGS" > "$LANGS_ALT"
 
 # languages first, then this file
 fresh_db langs_first; setup_businesses
@@ -180,21 +178,17 @@ LA=$(fp); out=$(apply "$MIG") && [ "$(fp)" = "$LA" ] && ok "and again, changing 
 [ "$(snapshot)" = "$LCFG" ] && [ "$(hv "$BE" '$[1].options.timeoutSeconds')|$(hv "$BS" '$[1].do[0].tool.messages[0].content')" = "60|Parece que se cortó la llamada. Gracias por llamar a Clínica Dental Sonrisa, adiós." ] \
   && ok "the hooks are added and nothing else changes on the languages version" || bad "langs config"
 q "select pg_get_functiondef($SIG)" > "$WORK/order1.sql"
-# a zella_admin_languages that knows this file's version sees its work done; an older one stops: either way nothing changes
-D=$(fp); out=$(apply "$LANGS"); rc=$?
-{ [ $rc -eq 0 ] || [[ "$out" == *VERSION_MISMATCH* ]]; } && [ "$(fp)" = "$D" ] && ok "zella_admin_languages run again afterwards changes nothing" || bad "langs rerun: $out"
+# zella_admin_languages lists this file's version as one of its results (7cb1c1ad becomes 36ba7105), so run again
+# afterwards it sees its work done: it succeeds and changes nothing (it no longer stops with VERSION_MISMATCH)
+D=$(fp); out=$(apply "$LANGS") && [ "$(fp)" = "$D" ] && [ "$(md5f)" = "$MINE_LANG" ] && ok "zella_admin_languages run again afterwards succeeds and changes nothing" || bad "langs rerun: $out"
 out=$(apply "$RB") && [ "$(fp)" = "$LB" ] && [ "$(md5f)" = "$LANG_BASE" ] && [ "$(snapshot)" = "$LCFG" ] && ok "the rollback gives back exactly the languages version" || bad "rb on langs: $out $(md5f)"
 out=$(apply "$RB") && [ "$(fp)" = "$LB" ] && ok "and runs twice safely" || bad "rb twice on langs"
 
 # this file first, then languages
 fresh_db silence_first; setup_businesses
 out=$(apply "$MIG") && [ "$(md5f)" = "$MINE_PROD" ] || bad "mine first: $out"
-D=$(fp); out=$(apply "$LANGS")
-if [ $? -eq 0 ] && [ "$(md5f)" = "$MINE_LANG" ]; then ok "this file first: zella_admin_languages applies after it"
-elif [[ "$out" == *VERSION_MISMATCH* ]] && [ "$(fp)" = "$D" ]; then
-  ok "this file first: zella_admin_languages as it is today stops safely (VERSION_MISMATCH, nothing changes); its plan must also accept $MINE_PROD"
-  out=$(apply "$LANGS_ALT") && [ "$(md5f)" = "$MINE_LANG" ] && ok "with $MINE_PROD added as a base it applies and gives the same function as the other order ($MINE_LANG)" || bad "langs alt: $out $(md5f)"
-else bad "langs after mine: $out"; fi
+# zella_admin_languages accepts this file's version as a base too, and makes the same function as the other order
+out=$(apply "$LANGS") && [ "$(md5f)" = "$MINE_LANG" ] && ok "this file first: zella_admin_languages applies after it ($MINE_PROD to $MINE_LANG)" || bad "langs after mine: $out $(md5f)"
 q "select pg_get_functiondef($SIG)" > "$WORK/order2.sql"
 cmp -s "$WORK/order1.sql" "$WORK/order2.sql" && ok "both orders give the same zella_assistant_config, byte for byte" || bad "orders differ"
 out=$(apply "$RB") && [ "$(md5f)" = "$LANG_BASE" ] && [ "$(q "select count(*) from pg_proc where proname = 'zella_silence_hooks'")" = 0 ] && ok "the rollback then gives back the languages version (only this file's line goes)" || bad "rb after langs: $out $(md5f)"

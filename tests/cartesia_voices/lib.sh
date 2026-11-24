@@ -7,7 +7,7 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; BASE=${BASE:-zprod3}
 TEMPLATE=zcar_main
-SKIP="zella_admin_mfa zella_cartesia_voices zella_silence_timeout"   # zella_silence_timeout needs zella_cartesia_voices first
+SKIP="zella_admin_mfa zella_cartesia_voices zella_silence_timeout zella_admin_languages"   # zella_silence_timeout and zella_admin_languages need zella_cartesia_voices first
 FIXTURES="sql/zella_writing_cleanup.sql tests/industry_data/production_zella_sensitive_industry.sql tests/alert_rules_email/prod_claim_admin_alert_email.sql tests/security_fixes/prod_erase_customer.sql tests/security_fixes/prod_claim_reminders.sql"
 . "$REPO/tests/lib/isolated_guard.sh"
 P=(psql -h "$ZPG_HOST" -p "$ZPG_PORT" -U postgres -qtAX -v ON_ERROR_STOP=1)

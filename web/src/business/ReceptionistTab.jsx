@@ -1,10 +1,14 @@
 // One business's page, AI receptionist tab. Moved from BusinessDetails.jsx unchanged (BIZ-30); the page shell passes
-// what it worked out from business_detail.
+// what it worked out from business_detail. Languages are set here by the Zella Voice team (LanguagesCard); the voice
+// list follows them, so it reloads after a language save.
+import { useState } from "react";
 import { VoicePanel } from "../settings/VoicePanel";
+import { LanguagesCard } from "./LanguagesCard";
 import { CallersGetCard, RoutingCard } from "./ReceptionistCards";
 import { Card, Facts, Empty, label, DAYS, POLICY_LABELS } from "./shared";
 
 export default function ReceptionistTab({ data, r, kb, esc, voice, term, businessId }) {
+  const [languagesSaved, setLanguagesSaved] = useState(0);
   return (
     <div className="op-stack">
       <div className="op-grid">
@@ -13,7 +17,7 @@ export default function ReceptionistTab({ data, r, kb, esc, voice, term, busines
             ["Status", r.status === "active" ? "Live" : "Off (not connected)"],
             ["Name", r.name],
             ["Personality", r.personality ? r.personality[0].toUpperCase() + r.personality.slice(1) : ""],
-            ["Language", voice.language ? label(voice.language) : ""],
+            ["Language at setup", voice.language ? label(voice.language) : ""],
             ["Greeting", voice.greeting],
             ["Extra instructions", r.tone],
           ]} />
@@ -35,7 +39,8 @@ export default function ReceptionistTab({ data, r, kb, esc, voice, term, busines
         <CallersGetCard deliveries={data?.deliveries} />
       </div>
 
-      <div className="zs ao-embed"><VoicePanel businessId={businessId} /></div>
+      <div className="zs ao-embed"><LanguagesCard businessId={businessId} onSaved={() => setLanguagesSaved((n) => n + 1)} /></div>
+      <div className="zs ao-embed"><VoicePanel key={languagesSaved} businessId={businessId} /></div>
 
       <Card title={term("services")} description={`${kb.services?.length || 0} added`}>
         {kb.services?.length ? (

@@ -11,7 +11,7 @@ import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
 import { addLeaveGuard } from "./router";
 import { hoursList } from "./automationOptions";
-import { RESUME_AT, WIZARD_STEPS, hasUnsavedChanges, stepProgress } from "./wizardProgress";
+import { RESUME_AT, WIZARD_STEPS, hasUnsavedChanges, stepProgress, voicesNeedLoading } from "./wizardProgress";
 import { duplicateCheck, duplicateState, matchedWords, newCreationKey } from "./businessDuplicates";
 import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
@@ -775,7 +775,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
       <Section title="Identity & voice" description="How the receptionist introduces itself and speaks.">
         <div className="owner-form-grid">
           <Field label="Receptionist name"><input value={value.name} onChange={set("name")} /></Field>
-          <Field label="Language">
+          <Field label="Language" hint="Within the business's plan. Voices in a newly chosen language appear once this step is saved.">
             <select value={value.language} onChange={set("language")}>
               {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </select>
@@ -1938,17 +1938,24 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, planStepKey]);
 
-  // the approved voices and the default, for the receptionist and review steps (same call as Settings > Voice)
+  // the approved voices and the default, for the receptionist and review steps (same call as Settings > Voice). The
+  // server lists only voices in the saved languages within the plan (sql/zella_admin_languages.sql), and the plan can
+  // change meanwhile, so they load again each time one of these steps is entered and once a new language is saved
+  // (voicesNeedLoading). Only the newest load may update the screen.
   const [voiceInfo, setVoiceInfo] = useState(null);   // { state: "loading" | "ok" | "error", data, error }
+  const savedLanguage = saved?.receptionist?.language;
+  const voiceStepRef = useRef(null);
   useEffect(() => {
-    if (!businessId || (planStepKey !== "receptionist" && planStepKey !== "review") || (voiceInfo?.state === "ok" && voiceInfo.businessId === businessId)) return;
+    const previousStep = voiceStepRef.current;
+    voiceStepRef.current = planStepKey;
+    if (!voicesNeedLoading({ businessId, step: planStepKey, previousStep, info: voiceInfo, language: savedLanguage })) return;
     let live = true;
     setVoiceInfo({ state: "loading" });
-    loadVoice(businessId).then((data) => { if (live) setVoiceInfo({ state: "ok", data, businessId }); },
+    loadVoice(businessId).then((data) => { if (live) setVoiceInfo({ state: "ok", data, businessId, language: savedLanguage }); },
       (err) => { if (live) setVoiceInfo({ state: "error", error: err.message }); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessId, planStepKey]);
+  }, [businessId, planStepKey, savedLanguage]);
 
   // Each step opens at its top, not where the previous step's Save button was.
   useEffect(() => {

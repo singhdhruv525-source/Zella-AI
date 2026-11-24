@@ -1,6 +1,6 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
 import { APP_URL_MISSING, FinishError, appUrlUsable, finishSetupWith } from "./owner_invite.ts";
-import { VOICE_REASONS, fallbackPatch, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
+import { VOICE_REASONS, fallbackPatch, planLanguagesMessage, sameLine, toE164, transferPatch, voiceFitsLanguage, wizardVoice } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { clientIp } from "../_shared/client_ip.ts";
@@ -828,14 +828,66 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json, actorId: st
   // approved list by the database; only when it changed, so an owner's later choice in Settings stays
   const voice = wizardVoice(obj(config?.voice_config).voice_id, input);
   if ("error" in voice) throw new InputError(voice.error);
+  // the languages first (sql/zella_admin_languages.sql): the business's plan decides, and a voice is accepted only in
+  // the languages the receptionist speaks, so a Spanish voice can be chosen in the same save as Spanish. Other refusals
+  // (greeting) stay warnings from syncSetupToLive, as before.
+  const wizardLanguage = oneOf(input.language, LANGUAGES, "en-US");
+  if (voice.changed && voice.voiceId) {
+    // a voice in a language this save doesn't choose is refused before anything is saved (the database checks again)
+    const { data: choices, error } = await admin.rpc("zella_voice_choices");
+    const choice = !error && Array.isArray(choices) ? (choices as Json[]).find((c) => c.id === voice.voiceId) : null;
+    if (choice && !voiceFitsLanguage(choice, wizardLanguage)) throw new InputError(VOICE_REASONS.VOICE_LANGUAGE);
+  }
+  // the languages as they were, exactly (the row itself, not the wizard's choice): put back if the voice is refused
+  const { data: languagesBefore, error: languagesReadError } = await admin.from("business_languages")
+    .select("primary_language, extra_languages, greeting, updated_by, updated_at").eq("business_id", businessId).maybeSingle();
+  if (languagesReadError) throw languagesReadError;
+  let languageChanged = false;
+  if (typeof input.language === "string") {
+    const { data, error } = await admin.rpc("zella_setup_language_apply", {
+      p_business_id: businessId, p_language: wizardLanguage, p_greeting: text(input.greeting, 500) || null,
+    });
+    if (!error && (data as Json | null)?.ok === false && (data as Json).reason === "PLAN_LANGUAGES") {
+      throw new InputError(planLanguagesMessage((data as Json).plan as Parameters<typeof planLanguagesMessage>[0]));
+    }
+    languageChanged = !error && (data as Json | null)?.changed === true;
+  }
   if (voice.changed) {
+    // a refused voice puts the saved languages back exactly as they were (whatever the plan now allows), so a failed
+    // save leaves both unchanged; the restore is audited like the change it undoes
+    const undoLanguage = async () => {
+      if (!languageChanged) return;
+      const restore = languagesBefore
+        ? admin.from("business_languages").update(languagesBefore).eq("business_id", businessId)
+        : admin.from("business_languages").delete().eq("business_id", businessId);
+      const { error } = await restore;
+      if (error) {
+        console.error("setup language undo", businessId, error.message);
+        throw new InputError("The voice was refused and the earlier languages couldn't be put back. Check the business's languages on its page.", 500);
+      }
+      const { error: auditError } = await admin.from("audit_logs").insert({
+        business_id: businessId, user_id: actorId, action: "receptionist.languages_changed", entity_type: "business", entity_id: businessId,
+        old_data: null,
+        new_data: { primary: languagesBefore?.primary_language ?? null, extras: languagesBefore?.extra_languages ?? [], greeting: languagesBefore?.greeting ?? null,
+          by_platform_admin: true, source: "setup_wizard", restored_after_voice_refused: true },
+      });
+      // reported on its own: the languages are back, but the audit log doesn't show it
+      if (auditError) {
+        console.error("setup language undo audit", businessId, auditError.message);
+        throw new InputError("The voice was refused and the earlier languages are back, but putting them back couldn't be recorded in the audit log. Report this to the Zella Voice owner so it can be noted.", 503);
+      }
+    };
     const { data, error } = await admin.rpc("zella_setup_voice_apply", { p_business_id: businessId, p_voice_id: voice.voiceId || null, p_actor: actorId });
     if (error) {
+      await undoLanguage();
       if (/zella_setup_voice_apply|PGRST202|schema cache/i.test(`${error.code} ${error.message}`)) throw new InputError(VOICE_REASONS.MISSING);
       throw error;
     }
     const reason = (data as Json | null)?.ok === false ? String((data as Json).reason) : null;
-    if (reason) throw new InputError(VOICE_REASONS[reason] ?? VOICE_REASONS.UNKNOWN_VOICE);
+    if (reason) {
+      await undoLanguage();
+      throw new InputError(VOICE_REASONS[reason] ?? VOICE_REASONS.UNKNOWN_VOICE);
+    }
   }
 
   const { error: agentError } = await admin

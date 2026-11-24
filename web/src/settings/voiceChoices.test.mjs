@@ -68,7 +68,9 @@ test("the default voice by name, never a raw id with dashes", () => {
 test("errors in words; no dashes anywhere people read", () => {
   assert.equal(voiceError({ message: "UNKNOWN_VOICE" }), "Pick a voice from the list.");
   assert.match(voiceError({ message: "Could not find the function" }), /latest Zella Voice update/);
-  const words = [...CHOICES.map(voiceLabel), unusedVoiceNote(CHOICES[0], "vapi"), voiceSummary("", {}), voiceError({ message: "NOT_ALLOWED" })];
+  // a voice outside the business's languages (sql/zella_admin_languages.sql)
+  assert.equal(voiceError({ message: "VOICE_LANGUAGE" }), "That voice doesn't match this business's languages. Choose another voice.");
+  const words = [...CHOICES.map(voiceLabel), unusedVoiceNote(CHOICES[0], "vapi"), voiceSummary("", {}), voiceError({ message: "NOT_ALLOWED" }), voiceError({ message: "VOICE_LANGUAGE" })];
   for (const w of words) assert.doesNotMatch(w, /[-‐-―]/, w);
 });
 
