@@ -103,7 +103,7 @@ t() { setting voice_silence_timeout_seconds "$1"; echo "$(hv "$BE" '$[0].options
 [ "$(t 90)" = 45/90 ] && ok "90 s: check at 45, goodbye at 90" || bad "90: $(t 90)"
 [ "$(t '"75"')" = 37/75 ] && ok "a number as text works (75)" || bad "text 75"
 [ "$(t 30)" = 30/60 ] && ok "below 60 is raised to 60 (never ends sooner)" || bad "30: $(t 30)"
-[ "$(t 5000)" = 500/1000 ] && ok "above Vapi's maximum (1000) is lowered to 1000" || bad "5000: $(t 5000)"
+[ "$(t 5000)" = 500/1000 ] && [ "$(t 1000000000)" = 500/1000 ] && [ "$(t '"99999999999999999999"')" = 500/1000 ] && ok "above Vapi's maximum (1000) is lowered to 1000, however many digits" || bad "5000: $(t 5000) / $(t 1000000000)"
 [ "$(t '"soon"')" = 30/60 ] && [ "$(t 'null')" = 30/60 ] && [ "$(t '-5')" = 30/60 ] && ok "not a number counts as 60" || bad "garbage"
 q "delete from public.platform_settings where key = 'voice_silence_timeout_seconds'" > /dev/null
 [ "$(hv "$BE" '$[1].options.timeoutSeconds')" = 60 ] && ok "no setting: 60" || bad "missing setting"

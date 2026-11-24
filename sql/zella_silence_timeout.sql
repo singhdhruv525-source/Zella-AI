@@ -46,7 +46,7 @@ insert into public.zella_migration_settings (migration, key) select 'zella_silen
 -- the timeout in use: the setting as a whole number, clamped to 60..1000 (Vapi's maximum); 60 when it isn't a number
 create or replace function public.zella_silence_timeout_seconds() returns integer
 language sql stable security definer set search_path = '' as $$
-  select case when v ~ '^\s*[0-9]{1,9}(\.[0-9]+)?\s*$' then least(1000, greatest(60, round(v::numeric)::integer)) else 60 end
+  select case when v ~ '^\s*[0-9]+(\.[0-9]+)?\s*$' then least(1000, greatest(60, round(v::numeric)))::integer else 60 end
   from (select public.zella_setting('voice_silence_timeout_seconds', '60'::jsonb) #>> '{}' as v) s;
 $$;
 revoke all on function public.zella_silence_timeout_seconds() from public, anon, authenticated;

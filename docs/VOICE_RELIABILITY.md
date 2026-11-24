@@ -411,7 +411,8 @@ HTTP 36 and Brain tools 40 on both. n8n 386, voice-rules unit 19, lint, build: p
 
 ## Silent callers (owner, 25 Nov 2026: REQ-VOX-13, `AI-24`)
 
-If the caller says nothing for one minute, the receptionist says a polite goodbye and ends the call. Before
+The target, by default: if the caller says nothing for one minute, the receptionist says a polite goodbye and ends the
+call. The timing is not yet confirmed on a real call (see "Not confirmed" below). Before
 `sql/zella_silence_timeout.sql` (built, not applied), `zella_assistant_config` set no silence behaviour, so Vapi's
 default applied.
 
