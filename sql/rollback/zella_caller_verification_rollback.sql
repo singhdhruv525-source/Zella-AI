@@ -12,7 +12,7 @@ declare a record;
     'public.zella_ai_manage_booking(text,uuid,text,jsonb)',  '4e44bde81572948e1df7dc516f1c8e14',
     'public.zella_brain_tool_defs()',                        '858008c205ec3271a00bf375852ac646',
     'public.zella_brain_prompt_base(uuid)',                  '7ab9163c4df52183697bd8108aa94d15',
-    'public.zella_claim_reminders(integer,text)',            '0025c2100523b5f21ec3ee7ba979208e',
+    'public.zella_claim_reminders(integer,text)',            'dc0b1d2db6e560936555f28172dabab7',
     'public.zella_prepare_sms(uuid,uuid,text,jsonb,text)',   '038dad2c92525376fbeaf5e4964766a0',
     'public.zella_prepare_email(uuid,uuid,text,jsonb,text)', 'd0d67a384b0e6a3e270e613ca4af923c');
 begin
