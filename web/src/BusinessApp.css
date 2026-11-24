@@ -1060,6 +1060,7 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .ba-thread-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--ba-muted); font-size: 12px; }
 
 .ba-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.ba-stack-1 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
 .ba-checks { margin: 0; padding: 0 18px 16px; list-style: none; }
 .ba-checks li { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; color: var(--ba-muted); }
 .ba-checks li.done { color: var(--ba-success); }

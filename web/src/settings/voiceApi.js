@@ -9,3 +9,8 @@ export async function loadVoice(businessId) {
   if (!data || !Array.isArray(data.choices)) throw new Error("The voices couldn't be loaded. Please try again.");
   return data;
 }
+
+// A short sample of an approved voice (the voice-sample edge function): { ok, url } or { ok: false, state: "not_available" }
+export async function loadVoiceSample(voiceId) {
+  return supabase.functions.invoke("voice-sample", { body: { voice_id: voiceId } });
+}

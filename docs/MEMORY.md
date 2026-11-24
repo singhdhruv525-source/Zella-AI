@@ -23,8 +23,15 @@ history.
 - **Say which kind of test proved something:** automated local, staging, or real provider. Never say "everything is
   fixed" or "production-ready" unless the evidence supports it (`NN-11`).
 - **Every change goes through a pull request** that CodeRabbit reviews. The owner has allowed Claude to merge once the
-  review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). CodeRabbit fixes its own findings when
-  the owner ticks "Fix comments".
+  review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). **Claude fixes every CodeRabbit finding
+  itself** (owner, 25 Nov 2026), resolves the fixed threads, requests a new review, and merges only when every merge
+  condition holds: CodeRabbit's check a success on the final head, no new comments, no unresolved threads, a clean merge
+  state. Nobody needs to tick "Fix comments".
+- **Keep the owner posted:** while waiting on reviews or agents, check about every 10 minutes and give the owner an
+  update (owner, 17 Nov 2026).
+- **Write the owner's decisions down** (`AGT-9`, owner, 24 Nov 2026): a rule or decision given in chat goes into
+  `docs/ARCHITECTURE.md` (and the rulebook when it is a rule) and into §5 below, with the date of the message; in the
+  same pull request when that pull request implements it.
 - **Never edit an applied migration.** Write a new one. Every migration is version-guarded (it refuses to run on a
   function body it wasn't written for) and has an exact rollback in `sql/rollback/` that deletes no data.
 - **No model IDs** in commits, PR text, code comments or docs.
@@ -122,6 +129,7 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 | **Call recording is decided by Vapi's default** (16 Nov 2026): Zella Voice's assistant config never sets Vapi's recording option, so whether calls are recorded is left to Vapi's default, although recording must stay off until legal review (D-13, D-27, REQ-VOX-09). | Open, owner | Owner checks the Vapi dashboard now (recording setting on the account and each assistant). A fix on the live call path (setting recording off explicitly in the assistant config) needs its own approval. |
 | **Cartesia voices (24 Nov 2026, the owner subscribed to Cartesia):** `sql/zella_cartesia_voices.sql` adds six Cartesia voices to the approved list (Katie, Kiefer, Jacqueline, Blake in English; Daniela, Pedro in Spanish), `business_voice.provider`, and the assistant config's Vapi `CartesiaVoice` (provider `cartesia`, voiceId, model from the setting `voice_cartesia_model`, language); the admin wizard's voice picker (`zella_setup_voice_apply`, owner-provision-business). Tested on the isolated copy only (`tests/cartesia_voices/run.sh`) | Built, not applied or deployed | 1. The owner adds the Cartesia API key in the Vapi dashboard (Provider keys / credentials, Cartesia). **No Cartesia key goes in Zella Voice's code, settings or Vault:** Vapi calls Cartesia with the key it holds. 2. Prerequisites first: the file needs `sql/zella_business_voice.sql` and `sql/zella_call_disclosure.sql` (which needs `sql/zella_recording_policy.sql`) on production. Its guard expects `zella_assistant_config` as `zella_call_disclosure.sql` leaves it (99666d94…, with `zella_call_greeting`). If either is not yet applied, it is applied first, each with its own approval and its own fingerprint check. Then, with approval, compare the md5 of `zella_voice_choices`, `zella_business_voice_save` and `zella_assistant_config` in production (read only) and in the test copy. The file expects 895f1057…, 9f11f2c6…, 99666d94…. Apply it only when all three match. A VERSION_MISMATCH stops the apply: never bypass the guard. 3. With the owner's separate approval: redeploy `owner-provision-business` (the wizard's voice save). 4. With the owner's separate approval, at the same time as step 3: deploy the web app (Cloudflare Pages). The voice picker in Settings > Voice and in the Create business wizard runs there, so until it is deployed no one can pick a Cartesia voice in the app. 5. With the owner's separate approval: a test call on a demo business with a Cartesia voice, in English and in Spanish, before offering it. Each of steps 2 to 5 is its own approval; none runs without it. |
 | **Only Zella Voice admins change languages (owner's rule, 24 Nov 2026):** `sql/zella_admin_languages.sql`. Owners could change their receptionist's languages in Settings > Languages; now `zella_business_language_save` refuses everyone but a platform admin with `businesses.manage` (or the zella_owner and super_admin roles) with LANGUAGES_ADMIN_ONLY, audits each change (`receptionist.languages_changed`), and checks the plan (1 language: English only; 2: English and Spanish; no plan and no subscription: no limit, shown as such). The wizard's `zella_setup_language_apply` follows the same plan check and is audited. Voices follow the languages: `zella_business_voice_get` lists, and `_save` and `zella_setup_voice_apply` accept (VOICE_LANGUAGE otherwise), only voices that speak them; `zella_assistant_config` falls back to the default voice for a saved voice that no longer fits and says so in its **notes** (not problems: a problem stops calls). Settings > Languages is read only; the admin business page's AI receptionist tab has a Languages card. Tested on the isolated copy only (`tests/admin_languages/run.sh`) | Built, not applied or deployed | 1. Needs `sql/zella_cartesia_voices.sql` on production first (its guard expects the Cartesia versions of the voice functions). 2. With approval, compare the md5 of the eight functions it changes in production (read only) with the test copy; the file lists them. Apply only when all match; a VERSION_MISMATCH stops the apply: never bypass the guard. 3. With separate approval: redeploy `owner-provision-business` (the wizard saves the language before the voice and explains a plan refusal). 4. With separate approval: deploy the web app (Settings > Languages read only, the admin Languages card). Until step 4, owners see the old editor, and the server refuses their saves. |
+| **Voice samples (owner, 24 Nov 2026):** the voice picker is now a carousel of cards with a play button on Cartesia and ElevenLabs voices. The button asks the new edge function `voice-sample` (signed in members of a business and active Zella Voice admins; only voices on the approved list; rate limited per person and per person and voice) for a short sample of the owner's line ("Hi, thanks for calling. I'm your Zella Voice receptionist. How can I help you today?", in Spanish for Spanish voices). It makes each sample once with the provider's text to speech, keeps it in the private bucket `voice-samples` (`sql/zella_voice_samples.sql`) as `<provider>/<voice id>-<hash of the line>.mp3`, and answers a 5 minute signed link. Vapi voices have none, and neither have the preset ElevenLabs names Vapi uses (burt, marissa, ...): ElevenLabs' API takes only its own voice ids, so only entries with one get a sample. Tested with every provider and storage call mocked (`voice-sample/*_test.ts`) and the bucket on the isolated copy (`tests/voice_samples/run.sh`); never called against Cartesia or ElevenLabs | Built, not applied or deployed | 1. The owner adds `CARTESIA_API_KEY` and `ELEVENLABS_API_KEY` as Supabase edge function secrets in the dashboard (Edge Functions, Secrets), never in chat or code. Until then each card says "Sample not available yet". 2. With approval, apply `sql/zella_voice_samples.sql` (rollback `sql/rollback/zella_voice_samples_rollback.sql`); it adds the setting `voice_samples_live`, off. 3. With approval, deploy `voice-sample` and then the web app. 4. Only with the owner's explicit approval for that specific action, switch `voice_samples_live` on (a live switch): from then the first press of each voice makes one small paid request to that provider, and later presses reuse the stored sample. While it is off nothing is ever sent to a provider. Cartesia samples need `sql/zella_cartesia_voices.sql` (the voices and `voice_cartesia_model`). The provider request formats were read from their SDKs (Cartesia `@cartesia/cartesia-js` 5.2.0, ElevenLabs `@elevenlabs/elevenlabs-js` 2.80.0), not tried against the real services: check the first sample of each provider by ear. |
 | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:9123bd8d8797eb6c820594101faae82df3c1e7e1894bae6c11114bfbf409fc5f --> **Owner invitations without the app address** (`docs/ADMIN_AUDIT_2026-11-16.md` BIZ-01). Current invitationResend and the setup-finish send plan reject an unusable ZELLA_APP_URL with 503 before changing state or sending an invitation. <!-- /coderabbit-ai-generated:v1 --> | Open | <!-- coderabbit-ai-generated:v1 --> <!-- coderabbit-ai-generated-section:v1:7c407862abe286bb2872c7e7bf19ce759aff5483cd9bb2bd5a75d6dd5933192c --> Verify production deployment and live ZELLA_APP_URL configuration, then confirm the deployed revision refuses before changing state or sending. These remain unresolved. <!-- /coderabbit-ai-generated:v1 --> |
 | **Admin panel audit** (16 Nov 2026): 210 items across every admin page, 16 of them P1, with a page by page section and a build checklist, in `docs/ADMIN_AUDIT_2026-11-16.md`. Evidence: code review, a local browser crawl and visual pass on the isolated database, and read only production checks. | Open | Owner picks the order; the audit suggests one (permissions first, then sign in, invitations and lifecycle). |
 | **Scheduled cancellations** (BIZ-03, 16 Nov 2026): the daily job only marked a business cancelled and left its AI receptionist on and its subscription active; the full cancellation ran only when an admin opened Overview or Businesses. `sql/zella_cancellations_scheduled.sql` makes the scheduled path do the full cancellation, hourly. | Built, not applied | Apply with the owner's approval; it acts only once `zella_jobs_hourly` or `zella_jobs_daily` is switched on. Then remove the page open fallback from owner-provision-business. |
@@ -156,6 +164,39 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
+
+- **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
+  chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:
+  - **No notification preferences page (28 Oct 2026):** pop ups, desktop notifications and urgent texts are on by
+    default; the only personal switch is Notification sound (Settings, Appearance); urgent texts are always on for
+    team members and only the business owner changes who receives them (owner, 25 Nov 2026). Fixed the docs that said each person picks channels per type (architecture §28, REQ-CRM-23, §27; product
+    §10, §15).
+  - **Background picture (28 Oct 2026):** a built in default or the person's own picture; the owner's rule is that the
+    look takes the picture's colours, the Zella Voice logo keeps its own; built in the Glass look only so far (product
+    §8.6, design system).
+  - **"You might also need" suggestions (28 Oct 2026):** one of the six extras the owner chose; added to product §10.
+  - **Email senders (30 Oct 2026):** support@ is a real mailbox and replies go from it; automatic emails come from
+    no-reply@ with Reply-To support@ (architecture §14.4).
+  - **Receptionist and services (3 Nov 2026):** asks which service before booking, offers only the business's
+    services, quotes a price only when entered (`AI-3`).
+  - **Tables (6 Nov 2026):** restaurants book real tables; the floor plan also shows on Today (product §8.1).
+  - **Lively motion (6 Nov 2026):** buttons lift and press, popups pop; fixed the design system line that said
+    nothing moves on hover.
+  - **Billing (14 Nov 2026):** Zella Voice emails every invoice itself; auto debit on by default and the owner can
+    switch it off and pay by link or in the app; a renewal notice 3 days before every renewal (yearly also 7 days);
+    urgent billing emails also by text (REQ-BIL-09, REQ-BIL-28).
+  - **Live usage (14 Nov 2026):** the CRM's usage must update within seconds of use (REQ-BIL-05); planned, not built:
+    today it refreshes every minute.
+  - **No dashes or hyphens (14 Nov 2026):** now also in the rulebook (`BRD-6`).
+  - **Website form bot check (18 Nov 2026):** added when the Zella Voice website is built, on before texting or
+    calling form leads goes live (REQ-LEAD-02).
+  - **Retention (18 Nov 2026):** fixed this file, which still said recordings 30 days; it is 90 days (§23.1c).
+  - **Decisions are written down (24 Nov 2026):** `AGT-9`, architecture §23.1d.
+  - **The owner's answers of 25 Nov 2026** (architecture §23.1d): Claude fixes CodeRabbit's findings (§1 above);
+    Zella Voice admins set every plan limit and cap, and the owner may only go lower (REQ-BIL-01, REQ-BIL-23,
+    REQ-BIL-32, D-44); a caller silent for 1 minute gets a polite goodbye and the call ends (REQ-VOX-13, `AI-24`; the
+    assistant config doesn't set a silence timeout yet); urgent texts are always on for team members, and only the
+    business owner changes who gets them (§28, REQ-CRM-23).
 
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed
@@ -242,8 +283,9 @@ most often needed:
   approval. Never invent a price that isn't in §17.
 - United States only at launch (D-14). Lower-risk industries first; regulated industries after legal review (D-20).
 - Businesses are created by the Zella Voice team (D-06). No demo data in production.
-- Call recording is off until legal review. Retention: recordings 30 days, transcripts 90 days, message bodies 2
-  years, audit logs 7 years (D-13, D-27).
+- Call recording is off until legal review. Retention: recordings and transcripts 90 days (owner, 18 Nov 2026,
+  architecture §23.1c; the earlier proposal was recordings 30 days), message bodies 2 years, audit logs 7 years
+  (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
 - **AI testing (AI-TESTING, recommended default taken 16 Nov 2026, owner can change):** a failing evaluation is a warning
@@ -539,11 +581,17 @@ Waiting on the owner:
   pointing at the business being deleted, which failed the audit foreign key. Test any delete path on a business
   made the real way (with its receptionist), not a bare row.
 
+- **Rules the owner gave in chat were never written down (24 Nov 2026).** The owner said only Zella Voice admins
+  change a business's languages, the docs said owners could, and the app was built that way, against the owner's rule. An audit of
+  the whole chat found more rules missing (`docs/OWNER_DECISIONS_AUDIT.md`). Write every decision into the docs when it
+  is made (`AGT-9`).
+
 ## 7. Where to look
 
 | Need | Document |
 |---|---|
 | What the product does | `docs/PRODUCT.md` |
+| Every rule the owner gave in chat, and where it is written | `docs/OWNER_DECISIONS_AUDIT.md` |
 | Rules for every change | `ZELLA_VOICE_RULES.md` |
 | How it is designed | `docs/ARCHITECTURE.md` |
 | Payments, idempotency and scale (draft for the owner's review) | `docs/PAYMENTS_ARCHITECTURE.md`, `docs/ARCHITECTURE.md` §17 and §21.1 |

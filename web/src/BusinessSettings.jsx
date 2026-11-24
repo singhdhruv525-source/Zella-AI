@@ -350,7 +350,7 @@ function ReceptionistEdit({ w, onNotice }) {
   const state = useAgent(w);
   return (
     <LoadState state={state}>{(d) => (d.agent
-      ? <><ReceptionistEditor workspace={w} agent={d.agent} onNotice={onNotice} />
+      ? <><ReceptionistEditor workspace={w} agent={d.agent} onNotice={onNotice} stacked />
         <VoicePanel businessId={w.id} /></>
       : <Empty title="No receptionist yet" />)}</LoadState>
   );

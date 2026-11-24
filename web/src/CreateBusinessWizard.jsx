@@ -2,7 +2,7 @@ import { automationDefaultsFor, emptyAutomations } from "./industryAutomations";
 import { CATALOG, NOTIFY_OPTIONS, isPreferred, orderTypes } from "./automationCatalog";
 import { EmailField, PhoneField, TimeZoneSelect, UrlField } from "./formFields";
 import { checkEmail, checkUrl, countryList, validatePhone } from "./formValidation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import "./CreateBusinessWizard.css";
 import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
@@ -372,11 +372,11 @@ function termFor(terminology, key) {
 // Small building blocks
 // ---------------------------------------------------------------------------
 
-function Field({ label, required, hint, children, full, bare }) {
+function Field({ label, required, hint, children, full, bare, labelId }) {
   const Tag = bare ? "div" : "label";
   return (
     <Tag className={`owner-field ${full ? "wiz-field-full" : ""}`}>
-      <span>{label}{required ? " *" : ""}</span>
+      <span id={labelId}>{label}{required ? " *" : ""}</span>
       {children}
       {hint && <small className="wiz-hint">{hint}</small>}
     </Tag>
@@ -737,17 +737,18 @@ function ListEditor({ items, onChange, fields, addLabel, emptyText }) {
   );
 }
 
-// The receptionist's voice in the wizard: the same approved list and picker as Settings > Voice (VoiceSelect), voices
+// The receptionist's voice in the wizard: the same approved list and carousel as Settings > Voice (VoiceSelect), voices
 // in the chosen language first. Saved with the step; it becomes the business's voice (zella_setup_voice_apply).
 function VoiceField({ value, onChange, voice }) {
+  const labelId = useId();
   if (!voice || voice.state === "loading") {
-    return <Field label="Voice" hint="Loading the approved voices…"><select disabled><option>Zella Voice default</option></select></Field>;
+    return <Field label="Voice" full bare labelId={labelId} hint="Loading the approved voices…"><VoiceSelect value="" choices={[]} disabled labelledBy={labelId} /></Field>;
   }
   if (voice.state === "error") {
     // unavailable, not the default: a saved voice stays as it is and isn't sent again while the list can't be read
     return (
-      <Field label="Voice" hint={`Couldn't load the voices (${voice.error}). ${value.voiceId ? "The saved voice is kept" : "Nothing is changed"}; open this step again to choose.`}>
-        <select disabled><option>{value.voiceId ? "Saved voice, list unavailable" : "Voice list unavailable"}</option></select>
+      <Field label="Voice" full bare hint={`Couldn't load the voices (${voice.error}). ${value.voiceId ? "The saved voice is kept" : "Nothing is changed"}; open this step again to choose.`}>
+        <div className="wiz-empty">{value.voiceId ? "Saved voice, list unavailable" : "Voice list unavailable"}</div>
       </Field>
     );
   }
@@ -757,9 +758,9 @@ function VoiceField({ value, onChange, voice }) {
   const defaultName = defaultVoiceName(data);
   const note = unusedVoiceNote(chosen, data.provider);
   return (
-    <Field label="Voice" hint={note ?? (chosen ? `${voiceLabel(chosen)}. The owner can change it later in Settings.` : "Voices in the chosen language are listed first. The owner can change it later in Settings.")}>
+    <Field label="Voice" full bare labelId={labelId} hint={note ?? (chosen ? `${voiceLabel(chosen)}. The owner can change it later in Settings.` : "Voices in the chosen language are listed first. Press play to hear a sample. The owner can change it later in Settings.")}>
       <VoiceSelect value={value.voiceId} onChange={(e) => onChange({ ...value, voiceId: e.target.value })} choices={choices}
-        languages={languagesOf(value.language)} defaultName={defaultName} />
+        languages={languagesOf(value.language)} defaultName={defaultName} defaultId={data.default_voice_id} labelledBy={labelId} />
     </Field>
   );
 }
@@ -1796,7 +1797,7 @@ function Readiness({ businessId }) {
       <div className="wiz-review">
         {data.checks.filter((c) => !c.ok).map((c) => (
           <div key={c.key} className="wiz-review-row">
-            <span className="wiz-review-dot later">None</span>
+            <span className="wiz-review-dot later"><span className="zs-sr-only">Not reached yet</span></span>
             <div><strong>{RUNGS.find(([k]) => k === c.rung)?.[1]}</strong><span>{c.detail}</span></div>
           </div>
         ))}
@@ -1817,7 +1818,8 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, on
           {rows.map((row) => (
             <div key={row.title} className="wiz-review-row">
               <span className={`wiz-review-dot ${row.ok ? "ok" : row.required ? "missing" : "later"}`}>
-                {row.ok ? "✓" : row.required ? "!" : "None"}
+                {(row.ok || row.required) && <span aria-hidden="true">{row.ok ? "✓" : "!"}</span>}
+                <span className="zs-sr-only">{row.ok ? "Done" : row.required ? "To finish" : "Optional, not set yet"}</span>
               </span>
               <div>
                 <strong>{row.title}{row.required ? " *" : ""}</strong>
