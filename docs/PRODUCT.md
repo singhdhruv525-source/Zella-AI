@@ -251,7 +251,7 @@ the same rules; hiding an item is never the protection.
 |---|---|---|
 | **Today** | What needs doing now: calls needing attention, callbacks, today's bookings, follow-ups, alerts, a calls-this-week chart. Cards come from the industry. | Built |
 | **Calendar** | Day, week and staff views of bookings; book, move, cancel, confirm requested bookings; blocked times. | Built |
-| **Tables** (restaurants) | The floor plan: table states (free, seated, needs clearing), blocks, combinations, walk-ins. | Built |
+| **Tables** (restaurants) | The floor plan: table states (free, seated, needs clearing), blocks, combinations, walk-ins. Restaurants book real tables, not just a seat limit, and the same drawn floor plan shows as a Table layout card on Today (owner, 6 Nov 2026). | Built |
 | **Dispatch** (field work) | The board for jobs: assign, en route, on site, finished, checklists, return visits. | Built |
 | **Resources** | Rooms, chairs, bays and equipment bookings need; which services need which. | Built |
 | **Recurring visits** | Repeat work (every two weeks, monthly) that generates future visits. | Built |
@@ -313,7 +313,7 @@ the same rules; hiding an item is never the protection.
 | **Security log** | Who did what in this business. | Built |
 | **Integrations** | Calendar (Google, Outlook), Shopify, Google leads, Meta, website. | Built (each provider stays off until approved) |
 | **Notifications** | History of in-app notifications and live pop-ups. | Built |
-| **Settings** | Business profile, team and access, AI receptionist, phone system, billing and subscription, calendar and appointments, CRM and customers, industry and workflows, automations, integrations, SMS/email/messages, notifications, security and privacy, reports and preferences, help and support, personal profile, appearance (Classic or Glass, picture-based palette). Unsaved changes are guarded. | Built |
+| **Settings** | Business profile, team and access, AI receptionist, phone system, billing and subscription, calendar and appointments, CRM and customers, industry and workflows, automations, integrations, SMS/email/messages, notifications, security and privacy, reports and preferences, help and support, personal profile, appearance (the look; a built in default background or the person's own picture, whose colours the whole look takes on, except the Zella Voice logo, which keeps its own, owner, 28 Oct 2026; and the Notification sound switch). Unsaved changes are guarded. | Built |
 
 ### 8.7 Business roles
 
@@ -519,7 +519,8 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Appointment confirmations and reminders by email (Resend) | Built, off (`email_live`) |
 | Follow-ups: no-show, thank-you, quote follow-up, reactivation (opted-in only), callback fallback, missed-call text, lead acknowledgement | Built, off |
 | Text ↔ email switching when one channel can't reach the person | Built |
-| Owner emails: daily summary, weekly review, warnings and urgent alerts, honouring each person's preferences | Built, off |
+| "You might also need": after a service is completed, suggest a related service some days later (rules per business in Settings; marketing, so only to customers who opted in; one per appointment, the same rule at most once per customer every 90 days; `sql/zella_cross_sell.sql`). Chosen by the owner on 28 Oct 2026 | Built, off |
+| Owner emails: daily summary, weekly review, warnings and urgent alerts, every kind on by default (there is no notification preferences page, owner, 28 Oct 2026) | Built, off |
 | STOP / START / HELP keywords | Built |
 | Opt-out wins, instantly and for that business (`NN-8`) | Built |
 | Contact hours: calls in business hours, replies immediately, reminders 07:00–21:00, other service messages and marketing 09:00–19:00, in the recipient's time zone when known (D-03) | Built |
@@ -573,7 +574,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Usage limits that act (REQ-BIL-22, D-43): at 100% a new call is forwarded to the business's own number (pay as you go with a rate keeps answering; a call in progress is never cut; never dropped without a number) and routine texts and emails stop while appointment messages use the 5% reserve. Two switches, both off until the owner approves | Built and applied 15 Nov 2026 (`sql/zella_usage_enforcement.sql`; voice-rules v8 deployed); both switches off until a staging call on a demo business proves the forward |
 | Minutes run out, owner decisions of 18 Nov 2026 (security audit M12): with the calls switch on, auto reload (or auto top up) keeps answering only while a reload can still happen (payments live, an active subscription, the pack sold, the month's reload spend within the owner's cap); pay as you go keeps answering with an overage price on the plan in force; otherwise, and when the allowance is unknown, the call is forwarded to the business's own number, or the caller hears "Sorry, we can't take your call right now. Please try again later." and the call ends. Owners get a reminder to buy minutes or turn on auto reload at most every 6 hours (in app; email once email is live); an unknown allowance alerts Zella Voice. Each business also has a limit on calls at the same time (10 unless set per business), whatever the switch | Built, not applied (`sql/zella_call_limits.sql`, voice-rules closed message). Turn the calls switch on only once every live business has an allowance set up: an unknown allowance now closes calls |
 | Fallback number at Create Business (REQ-BIL-34): required on Phone & integrations, saved in E.164, copied into the receptionist's rules (`escalation_rules.fallback_number`; an admin's number from call routing is never replaced), and Finish setup is refused without it. Usage limits forward to it, never to the business's own phone, which may be the number that forwards to Zella Voice | Built (needs the owner-provision-business deploy and the usage limits migration) |
-| Live usage on Today for owners: rings for minutes, texts and emails, refreshed every minute, on focus and as soon as an 80% or 100% notice arrives, with banners in the notification style | Built |
+| Live usage on Today for owners: rings for minutes, texts and emails, refreshed every minute, on focus and as soon as an 80% or 100% notice arrives, with banners in the notification style. The owner's rule (14 Nov 2026, REQ-BIL-05) is that usage updates within seconds of a call ending or a message being sent | Built; the within seconds update is not built yet (it refreshes every minute) |
 | Usage counting and alerts | Calls (whole minutes, under 15 seconds and spam not counted), texts (by part) and emails (one each) are subtracted once from the balances, with alerts at **80% and 100%** for minutes, texts and emails: built, not applied. A live call is never cut. **Not switched on** (live changes needing the owner's approval): calls going to the fallback number at 100%, stopping routine texts and emails at 100%, and the 20-minute call cap (the live setting is 10 minutes today) |
 | Voice cost estimates per business | Built |
 | Payment provider webhook: signed, applied once and in order, never moves a subscription backwards | Built, off until the webhook secret is set |
@@ -608,7 +609,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 |---|---|
 | In-app notifications with plain wording and icons | Built |
 | Live pop-ups for urgent events | Built |
-| Per-person preferences (what, and by which channel) | Built |
+| No notification preferences page (owner, 28 Oct 2026): pop ups, desktop notifications and urgent texts are built and on by default; the one personal switch is Notification sound (Settings, Appearance). A switch to stop urgent texts is later | Built |
 | Celebrations for milestones (first call answered, first booking) | Built |
 | On-call and scorecard nudges | Built |
 | Business moments: a record day for bookings, a surge in calls, and gaps in the coming weekend's on call cover | Built and applied 15 Nov 2026 (`sql/zella_business_moments.sql`) |

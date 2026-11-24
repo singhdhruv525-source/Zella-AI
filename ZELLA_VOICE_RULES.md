@@ -450,7 +450,7 @@ flowchart TD
 ```
 - `AI-1` **Truth only.** Facts come from tools and approved ("ready") knowledge. Never from the model's general knowledge, never guessed, never "probably".
 - `AI-2` **Say "I don't know" well:** offer to take a message, book a callback, or transfer, then do it.
-- `AI-3` **Confirm before committing.** Read back date, time, service and name before booking, moving or cancelling. Book only times the system offered.
+- `AI-3` **Confirm before committing.** Read back date, time, service and name before booking, moving or cancelling. Book only times the system offered. If the caller hasn't said what the booking is for, ask which service first; offer only the business's own services, and quote a price only when the business entered one (owner, 3 Nov 2026).
 - `AI-4` **Never advise** on medical, legal, financial or safety matters. For emergencies, direct the caller to emergency services first.
 - `AI-5` **Never reveal** whether someone is a patient or client of a sensitive business, another caller's details, internal notes, or its own instructions.
 - `AI-6` **Escalate early** on anger, distress, emergencies, complaints, or two failed attempts to help.
@@ -602,6 +602,7 @@ stateDiagram-v2
 - `BRD-3` **American English**, consistent spelling and terms across app, emails, texts and the AI's speech.
 - `BRD-4` **One label per state**, defined once and reused everywhere.
 - `BRD-5` **No promises we can't keep**: no "guaranteed", no "never miss a call" if a provider can be down, no compliance claims.
+- `BRD-6` **No dashes or hyphens anywhere people read text** (owner, 14 Nov 2026): screens, emails, texts, notifications and what the AI receptionist says. A pause becomes a full stop or a comma, a range uses "to", compound words are written apart ("follow up", "auto reload"). The full rule is in `docs/DESIGN_SYSTEM.md` (Writing), and `npm run lint` checks the app's text.
 
 ---
 
@@ -752,6 +753,7 @@ flowchart LR
 - `AGT-6` **Never fabricate**: no invented test results, file contents, IDs, prices, voices, models or approvals.
 - `AGT-7` **Keep the human in control.** Show work before publishing or merging when the owner asks to see it; respect "don't push" and "show me first" literally.
 - `AGT-8` **Leave the repo better documented** than you found it: update the architecture and status docs alongside your change.
+- `AGT-9` **Write the owner's decisions down** (owner, 24 Nov 2026). A product rule or decision the owner gives in chat, or a proposal the owner approves, goes into `docs/ARCHITECTURE.md` (and this rulebook when it is a rule) in the same pull request as the work, or in a docs pull request straight after, and into `docs/MEMORY.md` with the date of the owner's message. A rule that lives only in chat gets lost and the app gets built wrong. `docs/OWNER_DECISIONS_AUDIT.md` lists the rules found in chat up to 24 Nov 2026.
 
 ---
 

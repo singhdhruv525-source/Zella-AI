@@ -1093,7 +1093,8 @@ flowchart TD
 
 Sources:
 - REQ-LEAD-01: Google Ads lead forms (per-business key).
-- REQ-LEAD-02: website forms (form key, bot check).
+- REQ-LEAD-02: website forms (form key, bot check). The bot check (for example a CAPTCHA) is added when the Zella Voice
+  website is built, and must be on before automatic texts or calls to website form leads go live (owner, 18 Nov 2026).
 - REQ-LEAD-03: incoming calls (caller saved as a lead).
 - REQ-LEAD-04: inbound SMS and email from unknown senders.
 - REQ-LEAD-05: Meta lead ads (signed webhook, then a fetch).
@@ -1342,6 +1343,11 @@ Everything Zella Voice itself sends to a business (owner, billing contacts, team
 `web/supabase/functions/_shared/businessEmails.js` (listed in `docs/BUSINESS_EMAILS.md`; billing rules in
 `docs/BILLING_EMAILS.md`), used by the admin preview and by the sender, so both show exactly the same email.
 
+**Senders (owner, 30 Oct 2026).** `support@zellavoice.com` is a real shared mailbox: replies people write to a
+business or a customer go out from support@ (billing@ and info@ are aliases of it). Automatic emails come from a
+no reply address, `Zella Voice <no-reply@zellavoice.com>` (billing ones as set in `docs/BILLING_EMAILS.md`), always
+with Reply-To support@, so a reply is never lost. The sender name customers see is always Zella Voice.
+
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
 until Stripe is live (billing step 4) and `email_live` is on, each switched on with the owner's approval.
@@ -1476,11 +1482,11 @@ flowchart LR
 | REQ-BIL-02 | Usage is metered from an append-only ledger (one entry per finalised call; adjustments, never edits). Our failures are never billable. |
 | REQ-BIL-03 | Entitlement **check points** sit at use time: assistant assembly, outbound claims, messaging claims, AI features. The core receptionist is never cut mid-call. |
 | REQ-BIL-04 | The payment provider (**Stripe**, D-34) handles cards, saved payment methods, subscriptions and invoices; Zella Voice stores no card data (`NN-9`). Webhooks are signed and idempotent. No real charge, refund or new payment integration goes live without the owner's explicit approval. |
-| REQ-BIL-05 | **Billing & Subscription page** for business owners (owner role only, enforced by the database, `TEN-9`): plan and price, usage against every allowance, packs and their expiry, auto-reload settings and spend cap, invoices and receipts, payment method (provider-hosted), cancel, request a refund. |
+| REQ-BIL-05 | **Billing & Subscription page** for business owners (owner role only, enforced by the database, `TEN-9`): plan and price, usage against every allowance, packs and their expiry, auto-reload settings and spend cap, invoices and receipts, payment method (provider-hosted), cancel, request a refund. **Usage is live (owner, 14 Nov 2026):** when a call ends or a text or email is sent, the usage the owner sees in the CRM (Today and Billing) updates within seconds, without a refresh. |
 | REQ-BIL-06 | Failed payment follows §17.8; no data is deleted within the grace and export window. |
 | REQ-BIL-07 | **AI usage and cost tracking:** voice minutes, AI drafting, AI messaging and call intelligence are metered per business, with estimated cost, internal budgets, threshold alerts and a platform admin view. Budgets for optional features never stop the core receptionist. |
 | REQ-BIL-08 | **Plan-defined limits.** Each plan sets the business's quantities (§17.1). They are enforced at the entitlement check points (REQ-BIL-03). Plans choose values **within** the platform contact ceiling (REQ-MSG-08); they never raise it. |
-| REQ-BIL-09 | **Every charge has an invoice or receipt** from the payment provider, showing Zella Voice's business details and any tax (§17.8). |
+| REQ-BIL-09 | **Every charge has an invoice or receipt** from the payment provider, showing Zella Voice's business details and any tax (§17.8). **Zella Voice emails it automatically (owner, 14 Nov 2026):** every payment (the first one, each renewal, a payment by link or in the app) sends the owner the invoice and a Paid email; the provider's own invoice emails are off, so nothing arrives twice (`docs/BILLING_EMAILS.md`). |
 | REQ-BIL-10 | **Admin adjustments** (free minutes, waived fee, extended trial, service credit, discount) are made only through audited platform-admin functions with the `billing.manage` permission, with a reason; each is a separate ledger entry. |
 
 ### 17.1 What a plan controls
@@ -1587,7 +1593,7 @@ Pack prices are fixed for every business. Packs are charged when bought. Unused 
 
 | ID | Requirement |
 |---|---|
-| REQ-BIL-28 | Paid **in advance**, monthly or yearly, in USD, by card or any method the provider supports, on the billing date. |
+| REQ-BIL-28 | Paid **in advance**, monthly or yearly, in USD, by card or any method the provider supports, on the billing date. **Auto debit (owner, 14 Nov 2026):** on by default, so the saved card is charged on the billing date; the owner can switch it off and then pays each invoice with the **Pay now** link in the email or in the app (Settings, Billing). Either way the owner gets a renewal notice **3 days before every renewal** (yearly plans also 7 days before), even with auto debit on, and the urgent billing emails (payment failed, final notice, service paused) also go by text. The full list is `docs/BILLING_EMAILS.md`. |
 | REQ-BIL-29 | **Signup to payment:** the Zella Voice team creates the business (setup fee, plan, allowances and caps chosen in step 11) → invite link → the owner creates a password → sees what they are getting → pays (or starts the trial, REQ-BIL-12). **Pay before go live (owner, 16 Nov 2026)** applies only once Stripe is live; until then the go live gate (REQ-LC-14) doesn't wait for payment. |
 | REQ-BIL-30 | **Upgrades** take effect immediately: the owner pays the prorated difference and gets the extra allowance for the rest of the cycle; full new allowances start next cycle. *Until payments are built (step 4), every plan change, upgrade or downgrade, applies from the next billing date, so no extra allowance is given without the prorated charge.* **Downgrades** take effect on the next billing date; features and add-ons above the lower plan end then. |
 | REQ-BIL-31 | **No pause.** A business that stops using Zella Voice cancels and can return later (D-25). |
@@ -1697,7 +1703,7 @@ record type definitions (REQ-IND-07).
 | REQ-CRM-20 | **Outreach settings** | Lead calls and missed-call follow-up | §13.3 and REQ-MC-09 settings | edit (owner/admin) | owner/admin | — |
 | REQ-CRM-21 | **Lead sources** | Connect sources | forms, Google keys, Meta pages, imports | create keys, connect, test | owner/admin | A4 |
 | REQ-CRM-22 | **Integrations** | Calendars, store, reviews | connection health | connect, reconnect, disconnect | owner/admin | A21 |
-| REQ-CRM-23 | **Team** | People and access | members, invites, roles, on-call, notification preferences | invite, change role, remove | owner/admin | — |
+| REQ-CRM-23 | **Team** | People and access | members, invites, roles, on-call (there is no notification preferences page, §28) | invite, change role, remove | owner/admin | — |
 | REQ-CRM-24 | **Settings** | Business profile, hours, services, policies, templates, appearance | — | edit | owner/admin | — |
 | REQ-CRM-25 | **Billing** | Plan and usage | plan, usage vs limits, invoices | change plan, payment portal, cancel | owner | §17 |
 | REQ-CRM-26 | **Support** | Get help | tickets | open, reply | owner/admin | — |
@@ -2333,12 +2339,15 @@ The database enforces every cell; the UI only reflects it.
 | Security log, data-rights requests | ✓ | ✓ | — | — | — |
 | Billing, plan, cancellation | ✓ | — | — | — | — |
 | Ownership transfer, business deletion, full export | ✓ | — | — | — | — |
-| Own profile and notification preferences | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Own profile (there is no notification preferences page, §28) | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ## 28. Notification matrix
 
-Channels: **App** (in-app, always), **Push** (installed web app), **Email**, **SMS**. Each person can turn Email
-and SMS off per type, except those marked "always". Urgent items repeat until acknowledged, then escalate.
+Channels: **App** (in-app, always), **Push** (installed web app), **Email**, **SMS**. **There is no notification
+preferences page (owner, 28 Oct 2026):** alerts are built and on by default for the people listed, including pop ups,
+desktop notifications and urgent texts; the only personal switch is **Notification sound** in Settings, Appearance
+(on by default). A switch for a person to stop urgent texts is later (owner, 28 Oct 2026). Urgent items repeat until
+acknowledged, then escalate.
 
 | Event | Who is told | Channels | Urgency / escalation |
 |---|---|---|---|

@@ -24,7 +24,12 @@ history.
   fixed" or "production-ready" unless the evidence supports it (`NN-11`).
 - **Every change goes through a pull request** that CodeRabbit reviews. The owner has allowed Claude to merge once the
   review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). CodeRabbit fixes its own findings when
-  the owner ticks "Fix comments".
+  the owner ticks "Fix comments", and Claude tells the owner when to tick it (owner, 15 Nov 2026). Who fixes findings
+  is an open question: see `docs/OWNER_DECISIONS_AUDIT.md`, "Needs the owner's answer".
+- **Keep the owner posted:** while waiting on reviews or agents, check about every 10 minutes and give the owner an
+  update (owner, 17 Nov 2026).
+- **Write the owner's decisions down** (`AGT-9`, owner, 24 Nov 2026): a rule or decision given in chat goes into
+  `docs/ARCHITECTURE.md` (and the rulebook when it is a rule) and into §5 below, with the date of the message.
 - **Never edit an applied migration.** Write a new one. Every migration is version-guarded (it refuses to run on a
   function body it wasn't written for) and has an exact rollback in `sql/rollback/` that deletes no data.
 - **No model IDs** in commits, PR text, code comments or docs.
@@ -156,6 +161,32 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
+  chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:
+  - **No notification preferences page (28 Oct 2026):** pop ups, desktop notifications and urgent texts are on by
+    default; the only personal switch is Notification sound (Settings, Appearance); a switch to stop urgent texts is
+    later. Fixed the docs that said each person picks channels per type (architecture §28, REQ-CRM-23, §27; product
+    §10, §15).
+  - **Background picture (28 Oct 2026):** a built in default or the person's own picture; the look takes the
+    picture's colours, the Zella Voice logo keeps its own (product §8.6, design system).
+  - **"You might also need" suggestions (28 Oct 2026):** one of the six extras the owner chose; added to product §10.
+  - **Email senders (30 Oct 2026):** support@ is a real mailbox and replies go from it; automatic emails come from
+    no-reply@ with Reply-To support@ (architecture §14.4).
+  - **Receptionist and services (3 Nov 2026):** asks which service before booking, offers only the business's
+    services, quotes a price only when entered (`AI-3`).
+  - **Tables (6 Nov 2026):** restaurants book real tables; the floor plan also shows on Today (product §8.1).
+  - **Lively motion (6 Nov 2026):** buttons lift and press, popups pop; fixed the design system line that said
+    nothing moves on hover.
+  - **Billing (14 Nov 2026):** Zella Voice emails every invoice itself; auto debit on by default and the owner can
+    switch it off and pay by link or in the app; a renewal notice 3 days before every renewal (yearly also 7 days);
+    urgent billing emails also by text (REQ-BIL-09, REQ-BIL-28).
+  - **Live usage (14 Nov 2026):** the CRM's usage updates within seconds of use (REQ-BIL-05).
+  - **No dashes or hyphens (14 Nov 2026):** now also in the rulebook (`BRD-6`).
+  - **Website form bot check (18 Nov 2026):** added when the Zella Voice website is built, on before texting or
+    calling form leads goes live (REQ-LEAD-02).
+  - **Retention (18 Nov 2026):** fixed this file, which still said recordings 30 days; it is 90 days (§23.1c).
+  - **Decisions are written down (24 Nov 2026):** `AGT-9`.
+
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed
   checks per call; a known caller's new email or phone waits for staff. Built in `sql/zella_caller_verification.sql`
@@ -241,8 +272,9 @@ most often needed:
   approval. Never invent a price that isn't in §17.
 - United States only at launch (D-14). Lower-risk industries first; regulated industries after legal review (D-20).
 - Businesses are created by the Zella Voice team (D-06). No demo data in production.
-- Call recording is off until legal review. Retention: recordings 30 days, transcripts 90 days, message bodies 2
-  years, audit logs 7 years (D-13, D-27).
+- Call recording is off until legal review. Retention: recordings and transcripts 90 days (owner, 18 Nov 2026,
+  architecture §23.1c; the earlier proposal was recordings 30 days), message bodies 2 years, audit logs 7 years
+  (D-13, D-27).
 - Lead and missed-call AI calls: 2 attempts, 2–3 hours apart, one message after each (D-01, D-02, D-12).
 - Call transcripts: managers and above; staff only if the owner allows; never in sensitive industries (M-4).
 - **AI testing (AI-TESTING, recommended default taken 16 Nov 2026, owner can change):** a failing evaluation is a warning
@@ -534,11 +566,17 @@ Waiting on the owner:
   pointing at the business being deleted, which failed the audit foreign key. Test any delete path on a business
   made the real way (with its receptionist), not a bare row.
 
+- **Rules the owner gave in chat were never written down (24 Nov 2026).** The owner said only Zella Voice admins
+  change a business's languages, the docs said owners could, and the app was built that way, against the owner's rule. An audit of
+  the whole chat found more rules missing (`docs/OWNER_DECISIONS_AUDIT.md`). Write every decision into the docs when it
+  is made (`AGT-9`).
+
 ## 7. Where to look
 
 | Need | Document |
 |---|---|
 | What the product does | `docs/PRODUCT.md` |
+| Every rule the owner gave in chat, and where it is written | `docs/OWNER_DECISIONS_AUDIT.md` |
 | Rules for every change | `ZELLA_VOICE_RULES.md` |
 | How it is designed | `docs/ARCHITECTURE.md` |
 | Payments, idempotency and scale (draft for the owner's review) | `docs/PAYMENTS_ARCHITECTURE.md`, `docs/ARCHITECTURE.md` §17 and §21.1 |
