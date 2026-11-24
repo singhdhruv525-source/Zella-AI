@@ -176,7 +176,12 @@ export function VoiceSelect({ value, onChange, choices, languages, defaultName, 
     const onEnd = () => { if (!down) return; down = false; clearTimeout(idle); if (moved) idle = setTimeout(settle, 160); else touched.current = false; };
     const onKeyAnywhere = (e) => { if (e.key === "Tab") touched.current = false; };   // focus moving is never a swipe
     document.addEventListener("keydown", onKeyAnywhere, true);
-    const listen = [["pointerdown", onStart], ["touchstart", onStart], ["wheel", onWheel], ["pointerup", onEnd], ["touchend", onEnd], ["touchcancel", onEnd]];
+    // a press starts on the track; the release is heard on the window, so letting go outside the track still ends it.
+    // A touch's pointercancel fires as soon as the page takes over the scroll, so only the touch's own end counts for touch.
+    const onCancel = (e) => { if (e.pointerType !== "touch") onEnd(); };
+    const listen = [["pointerdown", onStart], ["touchstart", onStart], ["wheel", onWheel]];
+    const ends = [["pointerup", onEnd], ["pointercancel", onCancel], ["touchend", onEnd], ["touchcancel", onEnd]];
+    for (const [ev, fn] of ends) window.addEventListener(ev, fn, { passive: true });
     for (const [ev, fn] of listen) t.addEventListener(ev, fn, { passive: true });
     t.addEventListener("scroll", onScroll, { passive: true });
     if (hasEnd) t.addEventListener("scrollend", settle);
@@ -185,6 +190,7 @@ export function VoiceSelect({ value, onChange, choices, languages, defaultName, 
     return () => {
       document.removeEventListener("keydown", onKeyAnywhere, true);
       for (const [ev, fn] of listen) t.removeEventListener(ev, fn);
+      for (const [ev, fn] of ends) window.removeEventListener(ev, fn);
       t.removeEventListener("scroll", onScroll); if (hasEnd) t.removeEventListener("scrollend", settle);
       window.removeEventListener("resize", onResize); clearTimeout(idle);
     };
