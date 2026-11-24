@@ -514,6 +514,9 @@ Waiting on the owner:
 - **Vault secrets are made with `vault.create_secret`, never `insert into vault.secrets`.** On production the migration
   role can read and delete Vault rows but not insert them (permission denied for Vault's encryption function); the
   isolated test database's stub allows the insert, so only production shows it (`zella_stripe_pipeline.sql`, 24 Nov 2026).
+- **Production can be newer than the isolated copy (zprod3).** On 24 Nov 2026 `zella_caller_verification.sql` stopped
+  with VERSION_MISMATCH: production's `zella_claim_reminders` had `zella_review_sql_fixes.sql`'s cannot_contact check,
+  which zprod3 lacks. Before a deploy, compare the md5 of every function a file guards with production (read only).
 - **The MCP `apply_migration` tool can hang** waiting for a confirmation on statements it thinks are destructive, and
   can't take files of about 200 KB. For large files, give the owner a single SQL file to run in the SQL editor.
 - **GitHub GraphQL is blocked here.** Use the REST API through `gh api` (create PRs with `gh api repos/.../pulls`,
