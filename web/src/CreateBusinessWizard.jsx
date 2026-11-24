@@ -1750,7 +1750,7 @@ function reviewRows(setup, industries, config, docsReady, voice) {
     { key: "team", title: termFor(setup.terminology, "staff_plural"), ok: setup.team.length > 0,
       detail: setup.team.length ? setup.team.map((m) => m.name).join(", ") : config.team === "recommended" ? "None yet (recommended)" : "None (optional)" },
     { key: "receptionist", title: "AI receptionist", ok: r.faqs.length > 0 || o.services.length > 0,
-      detail: `${r.name} · voice ${voice?.state === "error" ? (r.voiceId ? "saved, list unavailable" : "not checked, list unavailable") : voiceSummary(r.voiceId, voice?.data)} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
+      detail: `${r.name} · voice ${voice?.state === "error" ? (r.voiceId ? "saved, list unavailable" : "not checked, list unavailable") : voice?.state === "ok" ? voiceSummary(r.voiceId, voice.data) : "checking…"} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
     { key: "integrations", title: "Phone & integrations", ok: true,
       detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella Voice number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
     { key: "integrations", title: "Spam protection", ok: true,
