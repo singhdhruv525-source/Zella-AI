@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { supabase } from "../supabase";
 import { Banner, Card, Field, LoadState, SaveBar, useAsync, useForm } from "../settings/SettingsKit";
 import { languageError, languageNames, planMessage, planRefusal, planSummary } from "./languagePlan";
@@ -13,6 +14,8 @@ function Editor({ businessId, data, onSaved }) {
   const catalog = data.catalog ?? [];
   const plan = data.plan ?? null;
   const canEdit = data.can_edit === true;
+  // a save the server accepted is within the plan, so the over the plan warning goes with it
+  const [withinPlan, setWithinPlan] = useState(data.within_plan !== false);
   const refusal = planRefusal(plan, v.primary, v.extras, catalog);
   // what a chip would add, checked against the plan before it is offered
   const blocked = (code) => planRefusal(plan, v.primary, [...v.extras, code], catalog);
@@ -27,6 +30,7 @@ function Editor({ businessId, data, onSaved }) {
         p_business_id: businessId, p_primary: values.primary, p_extras: extras, p_greeting: values.greeting.trim() || null,
       });
       if (error) throw new Error(languageError(error, plan));
+      setWithinPlan(true);
       onSaved?.();
       return { extras, greeting: values.greeting.trim() };
     }, "Saved and recorded in the audit log. Calls use it once the phone line's settings are updated. A saved voice that doesn't speak these languages is replaced by the Zella Voice default.");
@@ -35,7 +39,7 @@ function Editor({ businessId, data, onSaved }) {
   return (
     <Card title="Languages" sub="The language the receptionist answers in, and up to three it switches to when a caller speaks them. Only the Zella Voice team changes these; the owner sees them in Settings.">
       <Banner tone={plan?.source === "none" ? "warn" : ""}>{planSummary(plan)}</Banner>
-      {data.within_plan === false && <Banner tone="warn">The saved languages are more than the plan includes. {planMessage(plan)}</Banner>}
+      {!withinPlan && <Banner tone="warn">The saved languages are more than the plan includes. {planMessage(plan)}</Banner>}
       <div className="zs-grid">
         <Field label="Main language">
           <select value={v.primary} disabled={!canEdit} onChange={(e) => { const primary = e.target.value; form.setValues((f) => ({ ...f, primary, extras: f.extras.filter((c) => c !== primary) })); }}>

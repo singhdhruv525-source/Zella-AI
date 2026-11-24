@@ -80,6 +80,16 @@ export const VOICE_REASONS: Record<string, string> = {
   VOICE_LANGUAGE: "That voice doesn't speak the languages chosen for this receptionist. Pick a voice in one of them, or keep the default.",
 };
 
+// sql/zella_admin_languages.sql: a voice fits the wizard's language choice when it has no language (multilingual) or its
+// language is one of the choice's (en-US: en; es-US: es; en-US+es-US: both). Checked before anything is saved, so a
+// refused voice never leaves a new language behind.
+const WIZARD_FAMILIES: Record<string, string[]> = { "en-US": ["en"], "es-US": ["es"], "en-US+es-US": ["en", "es"] };
+export function voiceFitsLanguage(choice: { language?: unknown } | null | undefined, wizardLanguage: string): boolean {
+  const lang = typeof choice?.language === "string" ? choice.language.trim().toLowerCase().split("-")[0] : "";
+  if (!lang) return true;
+  return (WIZARD_FAMILIES[wizardLanguage] ?? ["en"]).includes(lang);
+}
+
 // sql/zella_admin_languages.sql: the plan decides the receptionist's languages. zella_language_plan_info's answer (no
 // prices) in words for the admin, when a choice is outside it. Kept in step with web/src/business/languagePlan.js.
 export type LanguagePlan = { source?: string; plan?: string | null; allowance?: number | null; plan_languages?: string[] | null; spanish_allowed?: boolean };

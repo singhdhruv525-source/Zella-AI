@@ -1,6 +1,6 @@
 import { latestOwnerInvitation, moveOwnerInvitation } from "./ownerInvitation.ts";
 import { APP_URL_MISSING, FinishError, appUrlUsable, finishSetupWith } from "./owner_invite.ts";
-import { VOICE_REASONS, fallbackPatch, planLanguagesMessage, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
+import { VOICE_REASONS, fallbackPatch, planLanguagesMessage, sameLine, toE164, transferPatch, voiceFitsLanguage, wizardVoice } from "./setup_sync.ts";
 import { withCors } from "../_shared/cors.ts";
 import { readJsonLimited } from "../_shared/body.ts";
 import { clientIp } from "../_shared/client_ip.ts";
@@ -831,22 +831,44 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json, actorId: st
   // the languages first (sql/zella_admin_languages.sql): the business's plan decides, and a voice is accepted only in
   // the languages the receptionist speaks, so a Spanish voice can be chosen in the same save as Spanish. Other refusals
   // (greeting) stay warnings from syncSetupToLive, as before.
+  const wizardLanguage = oneOf(input.language, LANGUAGES, "en-US");
+  if (voice.changed && voice.voiceId) {
+    // a voice in a language this save doesn't choose is refused before anything is saved (the database checks again)
+    const { data: choices, error } = await admin.rpc("zella_voice_choices");
+    const choice = !error && Array.isArray(choices) ? (choices as Json[]).find((c) => c.id === voice.voiceId) : null;
+    if (choice && !voiceFitsLanguage(choice, wizardLanguage)) throw new InputError(VOICE_REASONS.VOICE_LANGUAGE);
+  }
+  let languageChanged = false;
   if (typeof input.language === "string") {
     const { data, error } = await admin.rpc("zella_setup_language_apply", {
-      p_business_id: businessId, p_language: oneOf(input.language, LANGUAGES, "en-US"), p_greeting: text(input.greeting, 500) || null,
+      p_business_id: businessId, p_language: wizardLanguage, p_greeting: text(input.greeting, 500) || null,
     });
     if (!error && (data as Json | null)?.ok === false && (data as Json).reason === "PLAN_LANGUAGES") {
       throw new InputError(planLanguagesMessage((data as Json).plan as Parameters<typeof planLanguagesMessage>[0]));
     }
+    languageChanged = !error && (data as Json | null)?.changed === true;
   }
   if (voice.changed) {
+    // a refused voice puts back the language the step had before, so a failed save leaves both as they were
+    const undoLanguage = async () => {
+      const before = obj(config?.voice_config);
+      if (!languageChanged || typeof before.language !== "string") return;
+      const { error } = await admin.rpc("zella_setup_language_apply", {
+        p_business_id: businessId, p_language: before.language, p_greeting: typeof before.greeting === "string" ? before.greeting : null,
+      });
+      if (error) console.error("setup language undo", businessId, error.message);
+    };
     const { data, error } = await admin.rpc("zella_setup_voice_apply", { p_business_id: businessId, p_voice_id: voice.voiceId || null, p_actor: actorId });
     if (error) {
+      await undoLanguage();
       if (/zella_setup_voice_apply|PGRST202|schema cache/i.test(`${error.code} ${error.message}`)) throw new InputError(VOICE_REASONS.MISSING);
       throw error;
     }
     const reason = (data as Json | null)?.ok === false ? String((data as Json).reason) : null;
-    if (reason) throw new InputError(VOICE_REASONS[reason] ?? VOICE_REASONS.UNKNOWN_VOICE);
+    if (reason) {
+      await undoLanguage();
+      throw new InputError(VOICE_REASONS[reason] ?? VOICE_REASONS.UNKNOWN_VOICE);
+    }
   }
 
   const { error: agentError } = await admin

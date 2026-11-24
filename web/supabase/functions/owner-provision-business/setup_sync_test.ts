@@ -1,6 +1,6 @@
 // deno test --no-lock web/supabase/functions/owner-provision-business/setup_sync_test.ts   (no network)
 import { assertEquals } from "jsr:@std/assert@1";
-import { VOICE_REASONS, fallbackPatch, planLanguagesMessage, sameLine, toE164, transferPatch, wizardVoice } from "./setup_sync.ts";
+import { VOICE_REASONS, fallbackPatch, planLanguagesMessage, sameLine, toE164, transferPatch, voiceFitsLanguage, wizardVoice } from "./setup_sync.ts";
 
 const base = { transferType: "owner", transferPhone: null, integrationsNumber: null, ownerPhone: null, currentNumber: null, currentSource: null };
 
@@ -65,4 +65,13 @@ Deno.test("languages outside the plan: the admin is told why, with no dashes (sq
   assertEquals(planLanguagesMessage(null), "These languages aren't in the business's plan. Change the plan first.");
   assertEquals(VOICE_REASONS.VOICE_LANGUAGE.includes("languages chosen"), true);
   for (const m of [planLanguagesMessage({ allowance: 3, spanish_allowed: false }), VOICE_REASONS.VOICE_LANGUAGE]) assertEquals(/[-–—]/.test(m), false);
+});
+
+Deno.test("a wizard voice must speak the language chosen in the same save (checked before anything is saved)", () => {
+  assertEquals(voiceFitsLanguage({ language: "es" }, "en-US"), false);
+  assertEquals(voiceFitsLanguage({ language: "es" }, "en-US+es-US"), true);
+  assertEquals(voiceFitsLanguage({ language: "en" }, "es-US"), false);
+  assertEquals(voiceFitsLanguage({ language: "en-GB" }, "en-US"), true);
+  assertEquals(voiceFitsLanguage({}, "es-US"), true);   // multilingual (ElevenLabs): always
+  assertEquals(voiceFitsLanguage(null, "en-US"), true);
 });
