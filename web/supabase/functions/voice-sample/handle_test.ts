@@ -18,7 +18,7 @@ const CHOICES = [
 ];
 const MP3 = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 0]);
 type Call = { url: string; method: string; headers: Record<string, string>; body: string };
-type World = { signDown?: boolean; admin?: string | null; spaces?: unknown[]; stored?: Set<string>; limit?: boolean | null; settings?: Record<string, string | null>;
+type World = { signDown?: boolean; admin?: string | null; spaces?: unknown[]; stored?: Set<string>; limit?: boolean | null; settings?: Record<string, unknown>;
   provider?: (c: Call) => Response; userStatus?: number };
 const j = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
 
@@ -35,7 +35,7 @@ function mock(w: World, fn: (calls: Call[]) => Promise<void>) {
       if (url.endsWith("/rpc/zella_my_workspaces")) return j(w.spaces ?? []);
       if (url.endsWith("/rpc/zella_rate_limit")) return j(w.limit === undefined ? true : w.limit);
       if (url.endsWith("/rpc/zella_voice_choices")) return j(CHOICES);
-      if (url.endsWith("/rpc/zella_setting")) { const k = JSON.parse(c.body).p_key; return j((w.settings ?? { voice_cartesia_model: "cm" })[k] ?? null); }
+      if (url.endsWith("/rpc/zella_setting")) { const k = JSON.parse(c.body).p_key; return j(({ voice_samples_live: true, ...(w.settings ?? { voice_cartesia_model: "cm" }) } as Record<string, unknown>)[k] ?? null); }
       const sign = url.match(/^http:\/\/db\.test\/storage\/v1\/object\/sign\/voice-samples\/(.+)$/);
       if (sign && w.signDown) return j({ error: "unavailable" }, 503);
       if (sign) return stored.has(sign[1]) ? j({ signedURL: `/object/sign/voice-samples/${sign[1]}?token=t` }) : j({ error: "not_found" }, 400);
@@ -136,6 +136,25 @@ Deno.test("storage can't sign right now: try again, and no new paid request for 
   Deno.env.set("CARTESIA_API_KEY", "ck");
   assertEquals((await call({ voice_id: KATIE })).status, 503);
   assertEquals(toProvider(calls).length, 0);
+}));
+
+Deno.test("voice_samples_live off: a stored sample still plays, nothing new is made", mock({ ...MEMBER, settings: { voice_cartesia_model: "cm", voice_samples_live: false }, stored: new Set() }, async (calls) => {
+  Deno.env.set("CARTESIA_API_KEY", "ck");
+  assertEquals(await (await call({ voice_id: KATIE })).json(), { ok: false, state: "not_available" });
+  assertEquals(toProvider(calls).length, 0);
+}));
+Deno.test("voice_samples_live off but the sample is stored: it plays", async () => {
+  const stored = new Set<string>();
+  await mock({ ...MEMBER, stored }, async () => { Deno.env.set("CARTESIA_API_KEY", "ck"); await call({ voice_id: KATIE }); })();
+  await mock({ ...MEMBER, stored, settings: { voice_cartesia_model: "cm", voice_samples_live: false } }, async (calls) => {
+    assertEquals((await (await call({ voice_id: KATIE })).json()).ok, true);
+    assertEquals(toProvider(calls).length, 0);
+  })();
+});
+Deno.test("a model id with hyphens from settings is used as it is", mock({ ...MEMBER, settings: { voice_cartesia_model: "model-x-2" } }, async (calls) => {
+  Deno.env.set("CARTESIA_API_KEY", "ck");
+  assertEquals((await (await call({ voice_id: KATIE })).json()).ok, true);
+  assertEquals(JSON.parse(toProvider(calls)[0].body).model_id, "model-x-2");
 }));
 
 Deno.test("no provider key yet: not available, nothing stored", mock({ ...MEMBER }, async (calls) => {

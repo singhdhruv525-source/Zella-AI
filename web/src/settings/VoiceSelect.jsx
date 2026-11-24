@@ -155,32 +155,43 @@ export function VoiceSelect({ value, onChange, choices, languages, defaultName, 
   useEffect(() => {
     const t = track.current;
     if (!t || disabled) return;
-    let idle = 0;
+    let idle = 0, down = false, moved = false;
     const settle = () => {
       clearTimeout(idle);
+      if (down) return;   // a finger still on the track: wait for it to lift
       const els = slides.current.slice(0, items.length);
       const near = nearestIndex(els.map((el) => (el ? el.offsetLeft + el.offsetWidth / 2 : Infinity)), t.scrollLeft + t.clientWidth / 2);
       const ours = target.current, theirs = touched.current;
       target.current = null;
       touched.current = false;
+      moved = false;
       // only a swipe, drag or wheel selects; a scroll from focus moving (Tab) or from us never does
       if (theirs && near >= 0 && near !== ours) select(near);
     };
-    const onScroll = () => { schedule(); clearTimeout(idle); idle = setTimeout(settle, 160); };
+    const onScroll = () => { schedule(); if (down) moved = true; clearTimeout(idle); idle = setTimeout(settle, 160); };
     const hasEnd = "onscrollend" in window;
-    const onTouch = () => { touched.current = true; };
+    const onStart = () => { touched.current = true; down = true; moved = false; };
+    const onWheel = () => { touched.current = true; };   // a wheel has no end event: the scroll coming to rest ends it
+    // the gesture ends when the finger lifts: settle then (momentum scrolling settles again when it stops)
+    const onEnd = () => { if (!down) return; down = false; clearTimeout(idle); if (moved) idle = setTimeout(settle, 160); else touched.current = false; };
     const onKeyAnywhere = (e) => { if (e.key === "Tab") touched.current = false; };   // focus moving is never a swipe
     document.addEventListener("keydown", onKeyAnywhere, true);
-    const inputs = ["pointerdown", "touchstart", "wheel"];
-    for (const ev of inputs) t.addEventListener(ev, onTouch, { passive: true });
+    const listen = [["pointerdown", onStart], ["touchstart", onStart], ["wheel", onWheel], ["pointerup", onEnd], ["touchend", onEnd], ["touchcancel", onEnd]];
+    for (const [ev, fn] of listen) t.addEventListener(ev, fn, { passive: true });
     t.addEventListener("scroll", onScroll, { passive: true });
     if (hasEnd) t.addEventListener("scrollend", settle);
     const onResize = () => { scrollToIndex(centreRef.current, false); };
     window.addEventListener("resize", onResize);
-    return () => { document.removeEventListener("keydown", onKeyAnywhere, true); for (const ev of inputs) t.removeEventListener(ev, onTouch); t.removeEventListener("scroll", onScroll); if (hasEnd) t.removeEventListener("scrollend", settle); window.removeEventListener("resize", onResize); clearTimeout(idle); };
+    return () => {
+      document.removeEventListener("keydown", onKeyAnywhere, true);
+      for (const [ev, fn] of listen) t.removeEventListener(ev, fn);
+      t.removeEventListener("scroll", onScroll); if (hasEnd) t.removeEventListener("scrollend", settle);
+      window.removeEventListener("resize", onResize); clearTimeout(idle);
+    };
   }, [disabled, items.length, select, schedule, scrollToIndex]);
 
-  useEffect(() => () => { cancelAnimationFrame(frame.current); releaseAudio(owner.current); }, []);
+  // on unmount: stop the sample, and make a sample still on its way find itself out of date (token)
+  useEffect(() => () => { cancelAnimationFrame(frame.current); token.current += 1; releaseAudio(owner.current); }, []);
 
   async function play(item) {
     const choice = sampleOf(item);

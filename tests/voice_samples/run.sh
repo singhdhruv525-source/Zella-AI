@@ -26,7 +26,9 @@ fp() {
   q "select md5(coalesce(string_agg(x, '|' order by x collate \"C\"), '')) from (
        select 'b:' || id || ':' || coalesce(name, '') || ':' || public || ':' || coalesce(file_size_limit::text, '') || ':' || coalesce(allowed_mime_types::text, '') x from storage.buckets
        union all select 'p:' || polname || ':' || coalesce(pg_get_expr(polqual, polrelid), '') || ':' || coalesce(pg_get_expr(polwithcheck, polrelid), '') from pg_policy where polrelid = 'storage.objects'::regclass
-       union all select 'o:' || bucket_id || '/' || name from storage.objects) t"
+       union all select 'o:' || bucket_id || '/' || name from storage.objects
+       union all select 's:' || key || '=' || value::text from public.platform_settings where key = 'voice_samples_live'
+       union all select 'm:' || migration || ':' || key from public.zella_migration_settings where migration = 'zella_voice_samples') t"
 }
 
 [ -n "$(q "select to_regclass('storage.buckets')")" ] && ok "the isolated copy has storage.buckets" || { bad "no storage schema"; exit 1; }
@@ -48,6 +50,11 @@ out=$(apply "$MIG") && [ "$(fp)" = "$AFTER" ] && ok "applies again, no change" |
 [ "$(q "select name || '|' || public || '|' || file_size_limit || '|' || allowed_mime_types::text from storage.buckets where id = 'voice-samples'")" = "voice-samples|false|1048576|{audio/mpeg}" ] \
   && ok "private, 1 MB, MP3 only" || bad "bucket row"
 
+[ "$(q "select value::text from public.platform_settings where key = 'voice_samples_live'")" = "false" ] && ok "voice_samples_live added, off" || bad "setting"
+q "update public.platform_settings set value = 'true' where key = 'voice_samples_live'" > /dev/null
+out=$(apply "$RB"); [[ "$out" == *SAMPLES_LIVE* ]] && ok "rollback refuses while samples are switched on" || bad "rollback live: $out"
+q "update public.platform_settings set value = 'false' where key = 'voice_samples_live'" > /dev/null
+
 # a stored sample, as the server writes it
 q "insert into storage.objects (bucket_id, name) values ('voice-samples', 'cartesia/f786b574-daa5-4673-aa0c-cbe3e8534c02-0a1b2c3d.mp3')" > /dev/null
 [ "$(as_role authenticated "select count(*)::text from storage.objects where bucket_id = 'voice-samples'")" = "0" ] && ok "a signed in person can't see samples" || bad "authenticated sees"
@@ -68,6 +75,10 @@ q "update storage.buckets set public = false where id = 'voice-samples'" > /dev/
 out=$(apply "$RB") && [ "$(fp)" = "$BEFORE" ] && ok "rollback is exact" || bad "rollback: $out"
 out=$(apply "$RB") && [ "$(fp)" = "$BEFORE" ] && ok "rollback twice is safe" || bad "rollback twice: $out"
 out=$(apply "$MIG") && [ "$(fp)" = "$AFTER" ] && ok "applies again after the rollback" || bad "reapply: $out"
+# a voice_samples_live the owner already set is kept by the file and by its rollback
+out=$(apply "$RB") && q "insert into public.platform_settings (key, value) values ('voice_samples_live', 'false')" > /dev/null
+out=$(apply "$MIG") && [ -z "$(q "select key from public.zella_migration_settings where migration = 'zella_voice_samples'")" ] && ok "an existing setting is kept, not claimed" || bad "existing setting: $out"
+out=$(apply "$RB") && [ "$(q "select count(*) from public.platform_settings where key = 'voice_samples_live'")" = 1 ] && ok "rollback keeps a setting it didn't add" || bad "rollback kept: $out"
 
 echo "md5 $(md5sum "$MIG" | cut -c1-32) sql/zella_voice_samples.sql"
 echo "md5 $(md5sum "$RB" | cut -c1-32) sql/rollback/zella_voice_samples_rollback.sql"

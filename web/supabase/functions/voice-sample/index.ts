@@ -2,7 +2,8 @@
 // create business wizard).
 //   POST { voice_id }   a signed in member of a business, or an active Zella Voice admin
 // Answers { ok: true, url, expires_in } (a signed link to an MP3 that lives 5 minutes), or { ok: false, state:
-// "not_available" } when there is no sample to give yet (a Vapi voice, a provider key or model not set): the picker
+// "not_available" } when there is no sample to give yet (a Vapi voice, a provider key or model not set, or a sample
+// not made yet while voice_samples_live is off): the picker
 // says so quietly on the card. A sample is made once per voice and line (logic.ts) and kept in the private
 // voice-samples bucket (sql/zella_voice_samples.sql); later presses only sign a link. The provider keys are the
 // function secrets CARTESIA_API_KEY and ELEVENLABS_API_KEY, never logged or returned.
@@ -93,12 +94,17 @@ async function route(req: Request): Promise<Response> {
   // not made yet: once, with the provider's key and model; nothing is said about the business
   const key = Deno.env.get(KEY_ENV[provider]);
   if (!key) return notAvailable();
-  const setting = async (k: string) => {
+  const raw = async (k: string) => {
     const r = await rpc("zella_setting", { p_key: k, p_default: null }, asServer);
     if (!r.ok) throw new Error("setting");
-    const v = await r.json().catch(() => null);
-    return typeof v === "string" && /^[A-Za-z0-9_.]{1,64}$/.test(v) ? v : null;
+    return await r.json().catch(() => null);
   };
+  const setting = async (k: string) => {
+    const v = await raw(k);
+    return typeof v === "string" && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(v) ? v : null;
+  };
+  // a new sample is a paid request: only while the owner has switched voice_samples_live on (sql/zella_voice_samples.sql)
+  if ((await raw("voice_samples_live")) !== true) return notAvailable();
   let model: string | null;
   if (provider === "cartesia") {
     model = await setting("voice_cartesia_model");
