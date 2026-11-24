@@ -311,6 +311,7 @@ n8n instance in staging; the workflows point at production), so no claim is made
   with the same server and credential, `async: false`; book, reschedule and cancel require `confirmed`), and
   `transferCall` with no destinations (only if transfers are on), so Vapi asks the server for this business's number.
 - `analysisPlan.structuredDataPlan`: `callback_requested`, `outcome`, read by the end-of-call parser.
+- `hooks` (since `sql/zella_silence_timeout.sql`): one check and then a goodbye for a silent caller, see "Silent callers" below.
 - `metadata.business_id` (a fallback only; the registered number decides).
 - `ready_to_send` is false, with reasons, until the URL is https, the credential id is set, and the model is in Vapi's list.
   Not set (Vapi defaults): voice, transcriber, max duration, voicemail detection. Choose them before the first call.
@@ -407,6 +408,56 @@ HTTP 36 and Brain tools 40 on both. n8n 386, voice-rules unit 19, lint, build: p
 7. Call it and run the checks in "What still needs a real call" plus: an unknown question, a booking with the read-back,
    a cancellation, "can I speak to someone", a blocked number. Afterwards check `calls`, `ai_tool_calls`,
    `knowledge_gaps`, `callbacks` and the function logs.
+
+## Silent callers (owner, 25 Nov 2026: REQ-VOX-13, `AI-24`)
+
+If the caller says nothing for one minute, the receptionist says a polite goodbye and ends the call. Before
+`sql/zella_silence_timeout.sql` (built, not applied), `zella_assistant_config` set no silence behaviour, so Vapi's
+default applied.
+
+**What Vapi supports** (checked 25 Nov 2026 in `@vapi-ai/server-sdk` 3.0.0, `dist/cjs/api/types`, the same source as
+phase 2):
+
+| Field | File | What it says | Used |
+|---|---|---|---|
+| `silenceTimeoutSeconds` | `TransferAssistant.d.ts` only | Not on `CreateAssistantDto` or `Assistant`: only the transfer assistant has it (default 30) | No: it can't be set on our assistant |
+| `messagePlan.idleMessages`, `idleTimeoutSeconds` | none | Not in the 3.0.0 types at all | No |
+| `hooks` | `CreateAssistantDto.d.ts`, `CreateAssistantDtoHooksItem.d.ts` | A list of hooks, one kind is `CallHookCustomerSpeechTimeout` | Yes |
+| `on: "customer.speech.timeout"`, `name`, `options`, `do` | `CallHookCustomerSpeechTimeout.d.ts` | Runs `do` when the caller hasn't spoken before the timeout | Yes |
+| `timeoutSeconds`, `triggerMaxCount`, `triggerResetMode` | `CustomerSpeechTimeoutOptions.d.ts`, `CustomerSpeechTimeoutOptionsTriggerResetMode.d.ts` | timeout minimum 2, maximum 1000; "the clock starts when the assistant finishes speaking and remains active until the user speaks"; reset `onUserSpeech` or `never` | 30 and 60, once each, reset when the caller speaks |
+| `{ type: "say", exact }` | `CallHookCustomerSpeechTimeoutDoItem.d.ts`, `SayHookAction.d.ts` | Says exact text | The check |
+| `{ type: "tool", tool: { type: "endCall", messages } }` | `ToolCallHookAction.d.ts`, `ToolCallHookActionTool.d.ts`, `CreateEndCallToolDto.d.ts` | Ends the call | The goodbye |
+| `request-start` message: `content`, `contents`, `blocking` | `CreateEndCallToolDtoMessagesItem.d.ts`, `ToolMessageStart.d.ts`, `TextContent.d.ts` | Spoken when the tool starts; `blocking: true`: "the tool call will only trigger after the message is spoken"; `contents` are per language variants | The goodbye, spoken before the call ends |
+| `endCallMessage` | `CreateAssistantDto.d.ts` | "the message that the assistant will say if it ends the call"; the types don't say whether it plays after a hook's endCall | Not set, so the goodbye can't play twice |
+
+**What the assistant gets** (`zella_silence_hooks`, added to the config as `hooks`; nothing else in the config changes):
+
+1. `zella_silence_check`: after half the timeout (30 s) of silence, "Are you still there?" once (reset when the
+   caller speaks).
+2. `zella_silence_goodbye`: after the timeout (60 s), the endCall tool with its goodbye spoken first:
+   "It seems we've been disconnected. Thanks for calling {business name}, goodbye." For a business whose primary
+   language is Spanish: "¿Sigue ahí?" and "Parece que se cortó la llamada. Gracias por llamar a {business name},
+   adiós." A business that speaks both gets both goodbyes as `contents` (its main language first), so Vapi can pick
+   the call's language. The name is the business's name as the greeting uses it, with dashes and control characters
+   spoken as spaces; without a name, "Thanks for calling, goodbye." / "Gracias por llamar, adiós."
+
+The timeout is the platform setting `voice_silence_timeout_seconds` (60), changeable without code, clamped to 60..1000
+(never sooner than the owner's minute, never above Vapi's maximum; anything not a number counts as 60).
+
+**Not confirmed (needs a real test call):** whether the check's own speech restarts the goodbye's clock. The types
+say the clock starts when the assistant finishes speaking. If it does restart, the goodbye comes about 60 s after
+the check (about 90 s of silence in all), not at 60 s; it never comes sooner than 60 s either way. Also to confirm on
+a call: that no Vapi default silence limit ends the call before the hooks (the ended reason `silence-timed-out` still
+exists in `CallEndedReason`), that the goodbye is heard in full before the hang up, and the ended reason recorded.
+If the clock restarts, a later change can lower the goodbye's timeout to the time left after the check.
+
+**How it reaches calls:** per call, with no sync. Vapi asks `voice-rules` for the assistant at the start of each
+call (`assistant-request` -> `zella_assistant_for_call` -> `zella_assistant_config`), so once the file is applied
+the next call on a number set up that way gets the hooks. An assistant stored in Vapi (a number still pointing at
+a stored assistant, or the standby assistant `assistant_fallback_id`) does not change until someone edits it in
+Vapi, with approval.
+
+Tests: `tests/silence_timeout/run.sh` (isolated copy only).
 
 ## Not yet done (later phases)
 
