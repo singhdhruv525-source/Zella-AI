@@ -19,8 +19,8 @@ answer is now written (see the last section).
 
 | Status | Rules |
 |---|---|
-| Covered | 32 |
-| Partly covered (now completed) | 17 |
+| Covered | 31 |
+| Partly covered (now completed) | 18 |
 | Missing (now added) | 1 |
 | Contradicted (now fixed) | 3 |
 | Answered by the owner on 25 Nov 2026 (now written) | 2 (R55, R56; the R26 conflict was settled the same day) |
@@ -71,7 +71,7 @@ answer is now written (see the last section).
 | R38 | 15 Nov | Every business's fallback number is decided when the business is created | Fallback number required at Create Business | Calls, onboarding | Covered | REQ-BIL-34; `docs/PRODUCT.md` §13 |
 | R39 | 15 Nov | Those 4 businesses are demo; Zella Voice is still in production (being built) | No real customers yet; the live project holds demo businesses | Status | Covered | `docs/MEMORY.md` §3 |
 | R40 | 15 Nov | All emails from Zella Voice to businesses: templates, admin preview, safe send queue | One email catalogue, admin preview, platform outbox | Email | Covered | §14.4; `docs/PRODUCT.md` §15 |
-| R41 | 15 Nov | Billing emails will be pushed automatically, right? | Billing emails are built now and held; they go out automatically only once Stripe and email are live, each switched on with the owner's approval | Billing | Covered | §14.4, §23.1a |
+| R41 | 15 Nov | Billing emails will be pushed automatically, right? | Billing emails must be built (not built yet) and stay held; they go out automatically only once Stripe and email are live, each switched on with the owner's approval | Billing | Partly covered | §14.4, §23.1a |
 | R42 | 16 Nov | Complete everything; once Stripe is made we just add the webhook | Build now, connect Stripe later | Billing | Covered | §23.1a; `docs/PRODUCT.md` §17 |
 | R43 | 16 Nov | After the link: set password, go through the details, verify documents (Persona or another app), see the plan, then pay | The owner onboarding journey after the invite | Onboarding | Covered | REQ-LC-21; `docs/PRODUCT.md` §8.8 |
 | R44 | 16 Nov | Zella Voice doesn't have a signup process | Invite only; businesses are created by the Zella Voice team | Onboarding | Covered | D-06, REQ-LC-03, `BIZ-9` |
