@@ -838,6 +838,10 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json, actorId: st
     const choice = !error && Array.isArray(choices) ? (choices as Json[]).find((c) => c.id === voice.voiceId) : null;
     if (choice && !voiceFitsLanguage(choice, wizardLanguage)) throw new InputError(VOICE_REASONS.VOICE_LANGUAGE);
   }
+  // the languages as they were, exactly (the row itself, not the wizard's choice): put back if the voice is refused
+  const { data: languagesBefore, error: languagesReadError } = await admin.from("business_languages")
+    .select("primary_language, extra_languages, greeting, updated_by, updated_at").eq("business_id", businessId).maybeSingle();
+  if (languagesReadError) throw languagesReadError;
   let languageChanged = false;
   if (typeof input.language === "string") {
     const { data, error } = await admin.rpc("zella_setup_language_apply", {
@@ -849,14 +853,24 @@ async function saveReceptionist(admin: SupabaseClient, fields: Json, actorId: st
     languageChanged = !error && (data as Json | null)?.changed === true;
   }
   if (voice.changed) {
-    // a refused voice puts back the language the step had before, so a failed save leaves both as they were
+    // a refused voice puts the saved languages back exactly as they were (whatever the plan now allows), so a failed
+    // save leaves both unchanged; the restore is audited like the change it undoes
     const undoLanguage = async () => {
-      const before = obj(config?.voice_config);
-      if (!languageChanged || typeof before.language !== "string") return;
-      const { error } = await admin.rpc("zella_setup_language_apply", {
-        p_business_id: businessId, p_language: before.language, p_greeting: typeof before.greeting === "string" ? before.greeting : null,
+      if (!languageChanged) return;
+      const restore = languagesBefore
+        ? admin.from("business_languages").update(languagesBefore).eq("business_id", businessId)
+        : admin.from("business_languages").delete().eq("business_id", businessId);
+      const { error } = await restore;
+      if (error) {
+        console.error("setup language undo", businessId, error.message);
+        throw new InputError("The voice was refused and the earlier languages couldn't be put back. Check the business's languages on its page.", 500);
+      }
+      await admin.from("audit_logs").insert({
+        business_id: businessId, user_id: actorId, action: "receptionist.languages_changed", entity_type: "business", entity_id: businessId,
+        old_data: null,
+        new_data: { primary: languagesBefore?.primary_language ?? null, extras: languagesBefore?.extra_languages ?? [], greeting: languagesBefore?.greeting ?? null,
+          by_platform_admin: true, source: "setup_wizard", restored_after_voice_refused: true },
       });
-      if (error) console.error("setup language undo", businessId, error.message);
     };
     const { data, error } = await admin.rpc("zella_setup_voice_apply", { p_business_id: businessId, p_voice_id: voice.voiceId || null, p_actor: actorId });
     if (error) {
