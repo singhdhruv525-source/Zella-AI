@@ -1,4 +1,5 @@
 // Zella Voice: "Continue my plan" link from the cancellation email.
+// Rate limited per visitor address and per business (SEC-12, see VISITOR_LIMIT below).
 //
 // Public function (deploy with --no-verify-jwt): the business owner is not
 // signed in when they click the email link. Access is controlled by the
@@ -11,6 +12,15 @@
 import { withCors } from "../_shared/cors.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { createClient } from "@supabase/supabase-js";
+import { clientIp } from "../_shared/client_ip.ts";
+import { checkLimits, idKey, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
+
+// Rate limits (SEC-12, conformance G-6), counted by the shared database counter before the business is read or
+// changed: per visitor address before the link is checked, then per business once the signed link names it. The link
+// is opened by the owner, not a signed-in person, so the visitor address stands in for the person. These are
+// defaults a normal owner never reaches (the page asks twice: once to show the plan, once to continue it); the owner
+// can change them here.
+export const VISITOR_LIMIT = { max: 30, seconds: 60 }, BUSINESS_LIMIT = { max: 10, seconds: 60 };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,7 +66,15 @@ async function verify(secret: string, token: string) {
   }
 }
 
-Deno.serve(withCors(async (req: Request) => {
+// null when the request may go on; otherwise the answer: 429 over the limit, 503 when the counter can't be checked
+async function limit(base: string, server: string, l: Limit): Promise<Response | null> {
+  const answer = await checkLimits(base, server, [l]);
+  if (answer === "limited") return respond({ error: TOO_MANY_ATTEMPTS }, 429);
+  if (answer === "unavailable") return respond({ error: "Something went wrong. Please try again." }, 503);
+  return null;
+}
+
+export async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return respond({ error: "Method not allowed" }, 405);
 
@@ -76,11 +94,17 @@ Deno.serve(withCors(async (req: Request) => {
   if (!obj) return respond({ error: "Invalid request" }, 400);
   body = obj;
 
+  const ip = clientIp(req.headers) ?? "unknown";   // never the caller-written first X-Forwarded-For value
+  const visitor = await limit(supabaseUrl, serverSecretKey, [`continue-plan:ip:${ip}`, VISITOR_LIMIT.max, VISITOR_LIMIT.seconds]);
+  if (visitor) return visitor;
+
   const token = typeof body.token === "string" ? body.token.slice(0, 2000) : "";
   const action = body.action === "continue" ? "continue" : "preview";
   const claims = token ? await verify(linkSecret, token) : null;
 
   if (!claims) return respond({ status: "invalid" });
+  const busy = await limit(supabaseUrl, serverSecretKey, [`continue-plan:business:${idKey(claims.businessId)}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+  if (busy) return busy;
 
   const admin = createClient(supabaseUrl, serverSecretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -148,4 +172,6 @@ Deno.serve(withCors(async (req: Request) => {
   if (auditError) console.error("continue-plan audit failed", auditError);
 
   return respond({ status: "continued", businessName: business.name });
-}));
+}
+
+if (import.meta.main) Deno.serve(withCors(handler));

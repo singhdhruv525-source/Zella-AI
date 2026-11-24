@@ -5,10 +5,11 @@ for (const [k, v] of Object.entries({ SUPABASE_URL: "http://db.test", ZELLA_SERV
 const B = "c0000000-0000-0000-0000-000000000006", U = "a0000000-0000-0000-0000-000000000002", TOKEN = "test_store_token_not_real_0001";
 type Call = { url: string; method: string; headers: Record<string, string>; body: string };
 const realFetch = globalThis.fetch;
-function mock(route: (c: Call) => Response, fn: (calls: Call[]) => Promise<void>) {
+// the shared rate limit counter (zella_rate_limit) allows every request unless a test passes its own answer
+function mock(route: (c: Call) => Response, fn: (calls: Call[]) => Promise<void>, limiter: (c: Call) => Response = () => j(true)) {
   return async () => {
     const calls: Call[] = [];
-    globalThis.fetch = (async (url: string, init: RequestInit = {}) => { const c = { url: String(url), method: init.method ?? "GET", headers: (init.headers ?? {}) as Record<string, string>, body: String(init.body ?? "") }; calls.push(c); return route(c); }) as typeof fetch;
+    globalThis.fetch = (async (url: string, init: RequestInit = {}) => { const c = { url: String(url), method: init.method ?? "GET", headers: (init.headers ?? {}) as Record<string, string>, body: String(init.body ?? "") }; calls.push(c); return c.url.endsWith("/rpc/zella_rate_limit") ? limiter(c) : route(c); }) as typeof fetch;
     try { await fn(calls); } finally { globalThis.fetch = realFetch; }
   };
 }
@@ -70,4 +71,36 @@ Deno.test("the save fails and its error body cannot be read: try again, no crash
   const r = await connect();
   assertEquals(r.status, 400);
   assertEquals((await r.json()).error, "try_again");
+}));
+
+// Rate limits (SEC-12, conformance G-6): per person, then per business, before Shopify is asked or anything is stored
+const limitKeys = (calls: Call[]) => calls.filter((c) => c.url.endsWith("/rpc/zella_rate_limit")).map((c) => JSON.parse(c.body));
+Deno.test("rate limits: counted per person and per business with the server key, before Shopify", mock(shopify(["read_orders", "read_customers"]), async (calls) => {
+  assertEquals((await connect()).status, 200);
+  assertEquals(limitKeys(calls), [{ p_key: `store-connect:user:${U}`, p_max: 10, p_window_seconds: 60 }, { p_key: `store-connect:business:${B}`, p_max: 20, p_window_seconds: 60 }]);
+  const limits = calls.filter((c) => c.url.endsWith("/rpc/zella_rate_limit"));
+  assert(limits.every((c) => c.headers.Authorization === "Bearer server-key"));
+  assert(calls.lastIndexOf(limits[1]) < calls.findIndex((c) => c.url.includes("myshopify")));
+}));
+Deno.test("rate limits: a person over the limit gets 429 with the app's wording; nothing else runs", mock(shopify(["read_orders", "read_customers"]), async (calls) => {
+  const r = await connect();
+  assertEquals([r.status, await r.json()], [429, { ok: false, error: "rate_limited", message: "Too many attempts. Wait a minute and try again." }]);
+  assertEquals(calls.some((c) => c.url.endsWith("zella_store_can_manage") || c.url.includes("myshopify") || c.url.endsWith("zella_store_connect")), false);
+}, () => j(false)));
+Deno.test("rate limits: a business over the limit gets 429; Shopify isn't asked, nothing stored", mock(shopify(["read_orders", "read_customers"]), async (calls) => {
+  assertEquals((await connect()).status, 429);
+  assertEquals(calls.some((c) => c.url.includes("myshopify") || c.url.endsWith("zella_store_connect")), false);
+}, (c) => j(!JSON.parse(c.body).p_key.includes(":business:"))));
+Deno.test("rate limits: a counter that can't be checked refuses (fails closed)", mock(shopify(["read_orders", "read_customers"]), async (calls) => {
+  const r = await connect();
+  assertEquals([r.status, (await r.json()).error], [503, "try_again"]);
+  assertEquals(calls.some((c) => c.url.includes("myshopify") || c.url.endsWith("zella_store_connect")), false);
+}, () => j({ message: "boom" }, 500)));
+Deno.test("rate limits: someone who can't manage the business doesn't use up its allowance", mock((c) => c.url.endsWith("/auth/v1/user") ? j({ id: U }) : j(false), async (calls) => {
+  assertEquals((await connect()).status, 403);
+  assertEquals(limitKeys(calls).map((k) => k.p_key), [`store-connect:user:${U}`]);
+}));
+Deno.test("rate limits: another spelling of the same business id counts against the same business", mock(shopify(["read_orders", "read_customers"]), async (calls) => {
+  assertEquals((await connect({ business_id: "C000-00000000-0000-0000-000000000006" })).status, 200);
+  assertEquals(limitKeys(calls)[1].p_key, `store-connect:business:${B}`);
 }));
