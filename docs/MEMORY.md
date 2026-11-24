@@ -23,13 +23,15 @@ history.
 - **Say which kind of test proved something:** automated local, staging, or real provider. Never say "everything is
   fixed" or "production-ready" unless the evidence supports it (`NN-11`).
 - **Every change goes through a pull request** that CodeRabbit reviews. The owner has allowed Claude to merge once the
-  review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). CodeRabbit fixes its own findings when
-  the owner ticks "Fix comments", and Claude tells the owner when to tick it (owner, 15 Nov 2026). Who fixes findings
-  is an open question: see `docs/OWNER_DECISIONS_AUDIT.md`, "Needs the owner's answer".
+  review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). **Claude fixes every CodeRabbit finding
+  itself** (owner, 25 Nov 2026), resolves the fixed threads, requests a new review, and merges only when every merge
+  condition holds: CodeRabbit's check a success on the final head, no new comments, no unresolved threads, a clean merge
+  state. Nobody needs to tick "Fix comments".
 - **Keep the owner posted:** while waiting on reviews or agents, check about every 10 minutes and give the owner an
   update (owner, 17 Nov 2026).
 - **Write the owner's decisions down** (`AGT-9`, owner, 24 Nov 2026): a rule or decision given in chat goes into
-  `docs/ARCHITECTURE.md` (and the rulebook when it is a rule) and into §5 below, with the date of the message.
+  `docs/ARCHITECTURE.md` (and the rulebook when it is a rule) and into §5 below, with the date of the message; in the
+  same pull request when that pull request implements it.
 - **Never edit an applied migration.** Write a new one. Every migration is version-guarded (it refuses to run on a
   function body it wasn't written for) and has an exact rollback in `sql/rollback/` that deletes no data.
 - **No model IDs** in commits, PR text, code comments or docs.
@@ -164,11 +166,12 @@ most often needed:
 - **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
   chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:
   - **No notification preferences page (28 Oct 2026):** pop ups, desktop notifications and urgent texts are on by
-    default; the only personal switch is Notification sound (Settings, Appearance); a switch to stop urgent texts is
-    later. Fixed the docs that said each person picks channels per type (architecture §28, REQ-CRM-23, §27; product
+    default; the only personal switch is Notification sound (Settings, Appearance); urgent texts are always on for
+    team members and only the business owner changes who receives them (owner, 25 Nov 2026). Fixed the docs that said each person picks channels per type (architecture §28, REQ-CRM-23, §27; product
     §10, §15).
-  - **Background picture (28 Oct 2026):** a built in default or the person's own picture; the look takes the
-    picture's colours, the Zella Voice logo keeps its own (product §8.6, design system).
+  - **Background picture (28 Oct 2026):** a built in default or the person's own picture; the owner's rule is that the
+    look takes the picture's colours, the Zella Voice logo keeps its own; built in the Glass look only so far (product
+    §8.6, design system).
   - **"You might also need" suggestions (28 Oct 2026):** one of the six extras the owner chose; added to product §10.
   - **Email senders (30 Oct 2026):** support@ is a real mailbox and replies go from it; automatic emails come from
     no-reply@ with Reply-To support@ (architecture §14.4).
@@ -180,12 +183,18 @@ most often needed:
   - **Billing (14 Nov 2026):** Zella Voice emails every invoice itself; auto debit on by default and the owner can
     switch it off and pay by link or in the app; a renewal notice 3 days before every renewal (yearly also 7 days);
     urgent billing emails also by text (REQ-BIL-09, REQ-BIL-28).
-  - **Live usage (14 Nov 2026):** the CRM's usage updates within seconds of use (REQ-BIL-05).
+  - **Live usage (14 Nov 2026):** the CRM's usage must update within seconds of use (REQ-BIL-05); planned, not built:
+    today it refreshes every minute.
   - **No dashes or hyphens (14 Nov 2026):** now also in the rulebook (`BRD-6`).
   - **Website form bot check (18 Nov 2026):** added when the Zella Voice website is built, on before texting or
     calling form leads goes live (REQ-LEAD-02).
   - **Retention (18 Nov 2026):** fixed this file, which still said recordings 30 days; it is 90 days (§23.1c).
-  - **Decisions are written down (24 Nov 2026):** `AGT-9`.
+  - **Decisions are written down (24 Nov 2026):** `AGT-9`, architecture §23.1d.
+  - **The owner's answers of 25 Nov 2026** (architecture §23.1d): Claude fixes CodeRabbit's findings (§1 above);
+    Zella Voice admins set every plan limit and cap, and the owner may only go lower (REQ-BIL-01, REQ-BIL-23,
+    REQ-BIL-32, D-44); a caller silent for 1 minute gets a polite goodbye and the call ends (REQ-VOX-13, `AI-24`; the
+    assistant config doesn't set a silence timeout yet); urgent texts are always on for team members, and only the
+    business owner changes who gets them (§28, REQ-CRM-23).
 
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed

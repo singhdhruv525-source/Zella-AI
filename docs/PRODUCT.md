@@ -313,7 +313,7 @@ the same rules; hiding an item is never the protection.
 | **Security log** | Who did what in this business. | Built |
 | **Integrations** | Calendar (Google, Outlook), Shopify, Google leads, Meta, website. | Built (each provider stays off until approved) |
 | **Notifications** | History of in-app notifications and live pop-ups. | Built |
-| **Settings** | Business profile, team and access, AI receptionist, phone system, billing and subscription, calendar and appointments, CRM and customers, industry and workflows, automations, integrations, SMS/email/messages, notifications, security and privacy, reports and preferences, help and support, personal profile, appearance (the look; a built in default background or the person's own picture, whose colours the whole look takes on, except the Zella Voice logo, which keeps its own, owner, 28 Oct 2026; and the Notification sound switch). Unsaved changes are guarded. | Built |
+| **Settings** | Business profile, team and access, AI receptionist, phone system, billing and subscription, calendar and appointments, CRM and customers, industry and workflows, automations, integrations, SMS/email/messages, notifications, security and privacy, reports and preferences, help and support, personal profile, appearance (the look; a built in default background or the person's own picture; the owner's rule, 28 Oct 2026, is that the whole look takes on the picture's colours except the Zella Voice logo, which keeps its own; built in the Glass look only so far; and the Notification sound switch). Unsaved changes are guarded. | Built |
 
 ### 8.7 Business roles
 
@@ -609,7 +609,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 |---|---|
 | In-app notifications with plain wording and icons | Built |
 | Live pop-ups for urgent events | Built |
-| No notification preferences page (owner, 28 Oct 2026): pop ups, desktop notifications and urgent texts are built and on by default; the one personal switch is Notification sound (Settings, Appearance). A switch to stop urgent texts is later | Built |
+| No notification preferences page (owner, 28 Oct 2026): pop ups, desktop notifications and urgent texts are built and on by default; the one personal switch is Notification sound (Settings, Appearance). Urgent texts are always on for team members: a member can't switch them off, only the business owner changes who receives them (owner, 25 Nov 2026) | Built; the owner's choice of who receives urgent texts is not built yet |
 | Celebrations for milestones (first call answered, first booking) | Built |
 | On-call and scorecard nudges | Built |
 | Business moments: a record day for bookings, a surge in calls, and gaps in the coming weekend's on call cover | Built and applied 15 Nov 2026 (`sql/zella_business_moments.sql`) |
