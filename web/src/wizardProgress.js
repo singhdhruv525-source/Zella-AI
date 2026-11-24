@@ -61,3 +61,14 @@ export function stepProgress(steps, rows, status, savedKeys) {
 // never count as unsaved.
 const comparable = (setup) => JSON.stringify({ ...setup, documents: undefined, invitation: undefined });
 export const hasUnsavedChanges = (setup, saved) => Boolean(saved) && comparable(setup) !== comparable(saved);
+
+// Whether the wizard loads the voice list again (CreateBusinessWizard.jsx). The server lists only voices in the
+// business's languages, within its plan (sql/zella_admin_languages.sql), and the plan can change while the wizard is
+// open, so the list is loaded every time the Receptionist or Review step is entered, and again on those steps when the
+// business or its saved language changes. info: the last load ({ state, businessId, language }).
+export const VOICE_STEPS = ["receptionist", "review"];
+export function voicesNeedLoading({ businessId, step, previousStep, info, language }) {
+  if (!businessId || !VOICE_STEPS.includes(step)) return false;
+  if (step !== previousStep) return true;
+  return !(info?.state === "ok" && info.businessId === businessId && info.language === language);
+}

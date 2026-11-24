@@ -11,7 +11,7 @@ import { humanize } from "./copy/labels";
 import { friendlyError } from "./admin/adminOps";
 import { addLeaveGuard } from "./router";
 import { hoursList } from "./automationOptions";
-import { RESUME_AT, WIZARD_STEPS, hasUnsavedChanges, stepProgress } from "./wizardProgress";
+import { RESUME_AT, WIZARD_STEPS, hasUnsavedChanges, stepProgress, voicesNeedLoading } from "./wizardProgress";
 import { duplicateCheck, duplicateState, matchedWords, newCreationKey } from "./businessDuplicates";
 import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
@@ -1939,12 +1939,16 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   }, [businessId, planStepKey]);
 
   // the approved voices and the default, for the receptionist and review steps (same call as Settings > Voice). The
-  // server lists only voices in the saved languages (sql/zella_admin_languages.sql), so they load again once a new
-  // language is saved.
+  // server lists only voices in the saved languages within the plan (sql/zella_admin_languages.sql), and the plan can
+  // change meanwhile, so they load again each time one of these steps is entered and once a new language is saved
+  // (voicesNeedLoading). Only the newest load may update the screen.
   const [voiceInfo, setVoiceInfo] = useState(null);   // { state: "loading" | "ok" | "error", data, error }
   const savedLanguage = saved?.receptionist?.language;
+  const voiceStepRef = useRef(null);
   useEffect(() => {
-    if (!businessId || (planStepKey !== "receptionist" && planStepKey !== "review") || (voiceInfo?.state === "ok" && voiceInfo.businessId === businessId && voiceInfo.language === savedLanguage)) return;
+    const previousStep = voiceStepRef.current;
+    voiceStepRef.current = planStepKey;
+    if (!voicesNeedLoading({ businessId, step: planStepKey, previousStep, info: voiceInfo, language: savedLanguage })) return;
     let live = true;
     setVoiceInfo({ state: "loading" });
     loadVoice(businessId).then((data) => { if (live) setVoiceInfo({ state: "ok", data, businessId, language: savedLanguage }); },
