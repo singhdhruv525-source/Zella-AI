@@ -40,6 +40,7 @@ Other schemas Zella Voice uses: `auth` (Supabase sign-in users), `storage` (file
 | `brand-assets` | yes | Zella Voice and business logos and backgrounds (no private data) |
 | `business-documents` | no | Business and owner verification documents |
 | `record-files` | no | Files attached to industry records, checked after upload |
+| `voice-samples` | no | Voice picker samples made by the voice-sample function (server key only; `sql/zella_voice_samples.sql`) |
 
 ### Timed jobs (`cron.job`)
 

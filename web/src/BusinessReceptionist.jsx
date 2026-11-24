@@ -218,7 +218,8 @@ function Versions({ workspace, versions, onRestored }) {
   );
 }
 
-export function ReceptionistEditor({ workspace, agent, onNotice }) {
+// stacked: one column (Settings > Voice and personality, where the Voice card sits under it at full width)
+export function ReceptionistEditor({ workspace, agent, onNotice, stacked }) {
   const canManage = MANAGE.includes(workspace.role);
   const { data, error, loading, reload } = useLoad(async () => {
     if (!agent || !canManage) return null;
@@ -241,7 +242,7 @@ export function ReceptionistEditor({ workspace, agent, onNotice }) {
       <Notice error={error} onRetry={reload} />
       {loading && !data && <p className="ba-muted">Loading…</p>}
       {data && (
-        <div className="ba-grid-2" style={{ marginTop: 16 }}>
+        <div className={stacked ? "ba-stack-1" : "ba-grid-2"} style={{ marginTop: 16 }}>
           <Editor key={data.versions.find((v) => v.status === "published")?.id ?? "none"} agent={agent} base={data.base} onSaved={(published, version) => {
             if (published) onNotice?.(`Version ${version} published. Rules apply from the next call; wording changes wait for the assistant update.`);
             reload();

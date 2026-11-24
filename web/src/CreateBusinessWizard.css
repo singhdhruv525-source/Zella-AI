@@ -699,7 +699,7 @@
   font-size: 13px;
 }
 
-.wiz-review-row span:not(.wiz-review-dot) {
+.wiz-review-row > div > span {
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -727,6 +727,16 @@
 .wiz-review-dot.later {
   background: var(--bg-surface-subdued);
   color: var(--text-muted);
+}
+
+/* optional and not set: a small hollow ring, no word (a word overflowed the circle) */
+.wiz-review-dot.later::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  box-sizing: border-box;
 }
 
 /* Footer */
