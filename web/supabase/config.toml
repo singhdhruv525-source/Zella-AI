@@ -514,6 +514,13 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/store-connect/index.ts"
 
+# A short sample of an approved receptionist voice for the voice picker (members and Zella Voice admins; checked
+# through the database). Provider keys are the function secrets CARTESIA_API_KEY and ELEVENLABS_API_KEY.
+[functions.voice-sample]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/voice-sample/index.ts"
+
 # Sends team invitation emails from the business app. Checks the caller's sign-in itself.
 [functions.staff-invite]
 enabled = true

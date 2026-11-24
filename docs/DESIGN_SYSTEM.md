@@ -9,7 +9,10 @@ three looks, chosen in Settings, Appearance (`appearance.js`), and all three re-
 | Classic | `web/src/styles/tokens.css` | Warm and light: ivory pages, a cream sidebar, white cards, and mocha for the things you act on. 8px buttons. |
 | Glass | `web/src/styles/glass.css` | Dark frosted surfaces over a wallpaper; the sidebar and top bar float as rounded cards. |
 
-Sign in and the public pages always use Classic. Token values change only in `tokens.css` (and the theme files'
+Each person can also choose a background: a built in picture (the default) or their own upload. With a picture, the look
+takes its colours from it, everywhere, and the Zella Voice logo keeps its own colours (owner, 28 Oct 2026). Today the
+code does this in the Glass look only, with the switch "Match colours to the picture", on by default
+(`web/src/appearance.js`). Sign in and the public pages always use Classic. Token values change only in `tokens.css` (and the theme files'
 re-pointing blocks); app stylesheets use the tokens.
 
 ## Where it lives
@@ -66,6 +69,26 @@ continue"), as onboarding does.
 
 - **Usage meter** (`.zs-usage`, `.zs-meter` in `web/src/settings/settings.css`): a label, "used of included", a bar, and what is left. The bar is mocha below 80%, amber from 80% and red at 100%, and the words say the same (a "Over 80%" or "Used up" badge), so colour never carries the meaning alone. It has `role="meter"` and an accessible label.
 - **Billing layouts** (`web/src/billing.css`, `.bp-*`): the plan page puts the form (cards: Pricing, Monthly allowances, Account) beside a sticky summary card (price, estimated margin with a Healthy / Below target / Loses money label, cost lines, warnings, the review button); money inputs carry a `$` prefix and a unit suffix; Base/Pro, Monthly/Yearly and languages are segmented buttons (`aria-pressed`). The owner's plan page shows a plan header (name, status, price, next charge, what's included as chips) and one usage tile per resource. Below 1100px the summary moves under the form; below 760px everything is one column.
+
+## Voice carousel
+
+`VoiceSelect` (`web/src/settings/VoiceSelect.jsx`, `.zs-vc` in `settings/settings.css`) picks the receptionist's voice in
+Settings > Voice and the admin create business wizard. Use the pattern for any choice among a few to a few dozen
+items that people judge one at a time:
+
+- One card per item in a horizontal track with scroll snap; the centred card is the choice (`role="radiogroup"`, each
+  card a `radio` with `aria-checked`, one tab stop, arrow keys, Home and End, and a polite live line such as
+  "Katie, Cartesia, English, female, selected"). Moving to a card selects it.
+- Neighbours peek in at both sides, smaller and dimmer; the centred card grows to full size and takes a soft glow in
+  `--zella-primary-ring` with an accent border. Scale, opacity and glow follow the scroll position each frame
+  (`cardLook`: transform and opacity only), so a swipe, a smooth scroll and the snap all move as one. With reduced
+  motion the scroll jumps and nothing eases.
+- Card width is `min(280px, 70cqw)` of its stage (about 70% on a phone), with 14px gaps (10px on a phone).
+- Under the track: Previous and Next buttons around the dots (`.zs-vc-dot`, the current one in the accent and a little
+  larger); past nine items the dots become a window that follows, with a "4 of 21" counter.
+- Filters are `.zs-chip` toggle chips (`aria-pressed`) above the track. Card actions (the round play button) sit beside
+  the radio, never inside it, and never select.
+- Disabled: the chosen card only, nothing moves.
 
 ## Tabs on one business's page
 
@@ -176,7 +199,10 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 - Status badges always carry a word (Active, Pending, Failed). Colour backs the word up, never replaces it:
   green done or active, blue scheduled or informational, amber pending or warning, red failed, cancelled or urgent.
 - Icons are Material Symbols Outlined (`<Icon name="..." />` from `BusinessUI.jsx`) in both apps.
-- Motion is quiet: pages fade in once; nothing moves on hover. All motion stops for people who prefer reduced motion.
+- Motion is lively but short (owner, 6 Nov 2026: buttons and pages should not feel flat, in the CRM and the admin
+  dashboard): buttons lift on hover and press in on click with a ripple, main buttons get a sheen, cards and panels
+  respond to the pointer, tabs glide, popups open with a pop and pages ease in (`web/src/styles/motion.css`,
+  `web/src/CrmMotion.css`). All motion stops for people who prefer reduced motion.
 - On phones (CRM under 760px, admin under 600px) the sidebar opens as a drawer from the menu button in the top bar;
   it closes on Escape, on the backdrop, or when a page is chosen. Wide tables and tab rows scroll inside themselves,
   never the whole page, and fade at the right edge while there is more.
