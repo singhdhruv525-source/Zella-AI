@@ -253,3 +253,10 @@ test("a count from the server must be a real count: anything else is a failed re
   // the admin's open ticket count reads the same way (navigation/AdminPhone.jsx)
   assert.equal(countValue({ openTickets: null }.openTickets), null);
 });
+
+test("a numeric string too large to be a number is not a count", () => {
+  assert.equal(countValue("9".repeat(309)), null);
+  assert.deepEqual(spamRead({ data: { unreviewed: "9".repeat(309) } }), { type: "fail" });
+  assert.equal(countValue("0"), 0);
+  assert.equal(countValue("3"), 3);
+});
