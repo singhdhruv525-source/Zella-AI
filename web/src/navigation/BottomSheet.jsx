@@ -66,7 +66,9 @@ export function BottomSheet({ title, description, onClose, busy = false, size = 
 
   const sheet = (
     <div className={`pn-sheet-layer ${closing ? "closing" : ""}`}>
-      <button type="button" className="pn-scrim on sheet" aria-label="Close" tabIndex={-1}
+      {/* the backdrop is for pointer taps only (hidden from assistive technology, like the side panel's); the sheet's
+          own Close button is the accessible way out */}
+      <button type="button" className="pn-scrim on sheet" aria-hidden="true" tabIndex={-1}
         onClick={() => requestClose()} />
       {/* once closing starts nothing inside can be used (inert), so a form can't be sent while it slides away and
           then lose its draft and its error when the close finishes */}

@@ -91,7 +91,11 @@ export function usePullToRefresh({ enabled, onRefresh }) {
     let startY = null, startX = 0, distance = 0;
     const blocked = (t) => t.closest?.('[role="dialog"], .pn-panel, .pn-bottom, input, textarea, select, .ba-table-wrap, .owner-table-wrap');
     const start = (e) => {
-      if (refreshing.current || window.scrollY > 0 || e.touches.length !== 1 || blocked(e.target)) { startY = null; return; }
+      if (refreshing.current) { startY = null; return; }
+      if (window.scrollY > 0 || e.touches.length !== 1 || blocked(e.target)) {
+        // an interrupted pull (a second finger, a scroll, a dialog) forgets the shown distance, as a sideways drag does
+        startY = null; distance = 0; setState((s) => (s.distance === 0 ? s : { ...s, distance: 0 })); return;
+      }
       startY = e.touches[0].clientY; startX = e.touches[0].clientX; distance = 0;
     };
     const move = (e) => {
