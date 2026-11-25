@@ -261,6 +261,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
   const tablesOn = scheduling && capabilityOn(capabilities, "tables");
   const [tableNames, setTableNames] = useState(null);   // null until loaded; "failed" if the lookup failed
+  const [tableRound, setTableRound] = useState(0);      // bumped by the page Refresh and Try again to read table names again
   useEffect(() => {
     if (!tablesOn) return undefined;
     let live = true;
@@ -268,7 +269,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       if (live) setTableNames(error ? "failed" : Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
     });
     return () => { live = false; };
-  }, [tablesOn, workspace.id, refresh]);   // a refresh also reloads the table names (a table added since Today opened)
+  }, [tablesOn, workspace.id, refresh, tableRound]);   // any refresh also reloads the table names (a table added since Today opened)
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
   const cfg = todayConfig(industry);
@@ -387,6 +388,8 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   }, [workspace.id, day, tz, opsKeys, cfg.staffColumn, refresh]);
 
   useEffect(() => { load(); }, [load]);
+  // the page Refresh and Try again read the table names again too, not only the bookings
+  const reloadAll = useCallback(() => { setTableRound((n) => n + 1); load(); }, [load]);
 
   async function act(key, run, message) {
     setWorking(key);
@@ -451,11 +454,11 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
           {canEdit && (scheduling && cfg.walkIn
             ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />Walk in</button>
             : <button type="button" className={`ba-btn ${scheduling ? "" : "primary"}`} onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>)}
-          <button type="button" className="ba-btn ghost" onClick={load} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
+          <button type="button" className="ba-btn ghost" onClick={reloadAll} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
         </div>
       </div>
 
-      {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={load}>Try again</button></div>}
+      {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={reloadAll}>Try again</button></div>}
       {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
       {/* On a phone: "Needs you now" (approved 25 Nov 2026, P14). Nothing on a tablet or desktop. */}
       <TodayTopSlot />
