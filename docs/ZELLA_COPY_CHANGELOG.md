@@ -1,5 +1,22 @@
 # Zella Voice: copy changelog
 
+## 25 November 2026: CRM Today page polish
+
+Owner approved, 25 Nov 2026 (architecture §23.1d). Frontend wording only.
+
+| Where | Before | After | Change |
+|---|---|---|---|
+| Today, title | "Good morning, Rosa!" (a greeting with the first name) | "Today" (another day: its date, for example "Thursday, November 26") | 1 |
+| Today, line under the title | "Here's what's happening at The Olive Table today." | "Wednesday, November 25 · The Olive Table" (another day: the business name) | 2 |
+| Today, walk in button | "walk in" | "Walk in" | 3 |
+| Sidebar | "check ins" | "Check ins" | 3 |
+| Today, card | "Tasks & follow ups" | "Tasks and follow ups" | 4 |
+| Today, card | "Reviews & feedback" | "Reviews and feedback" | 4 |
+| Header search, placeholder | "Search guests (press Enter)" | "Search guests" (the industry's word) | 5 |
+| Today, bookings table, empty Table or staff cell | "None" | "Not set" | 6 |
+| Today, bookings table, empty Guests cell | "None" | left blank | 6 |
+| Sidebar section names | "WORKSPACE", "CRM", "RESTAURANT OPERATIONS" (spaced capitals by style) | "Workspace", "CRM", "Restaurant operations" (sentence case) | 19 |
+
 ## 30 October 2026: product language pass
 
 Frontend wording only (`web/src`). Internal values, routes, permissions and backend behavior are unchanged, except

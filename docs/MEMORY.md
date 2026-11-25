@@ -198,6 +198,10 @@ most often needed:
     REQ-BIL-32, D-44); a caller silent for 1 minute gets a polite goodbye and the call ends (REQ-VOX-13, `AI-24`; built in
     `sql/zella_silence_timeout.sql`, not applied yet); urgent texts are always on for team members, and only the
     business owner changes who gets them (§28, REQ-CRM-23).
+  - **CRM polish (25 Nov 2026)** (architecture §23.1d, `AGT-9`): the owner approved all 26 changes of the design pass
+    on the CRM Today page, "yes to whole CRM". Polish only: Glass, the dock, the picture palette and the brand stay;
+    no feature, section or order changes. The motion changes apply to every CRM page; the admin dashboard is not
+    changed by it (its own pass is separate). Rules in `web/src/styles/crm-polish.css`, scoped to the CRM root.
 
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed

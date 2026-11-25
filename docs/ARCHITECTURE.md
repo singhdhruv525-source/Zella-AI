@@ -2217,6 +2217,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | Limits and caps (25 Nov) | Zella Voice admins set every plan limit and cap at Create Business and can change them later; the owner may choose a lower monthly spending limit and what happens at the limit, never above the plan | REQ-BIL-01, REQ-BIL-23, REQ-BIL-32, D-44 |
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
+| CRM polish (25 Nov) | The owner approved 26 polish changes to the CRM Today page ("yes to whole CRM"): polish only, Glass, the dock, the picture palette and the Zella Voice brand kept; no feature, section or order changes; the motion changes (no lift, bounce, spring, shine or ripple; one easing curve) apply to every CRM page; the admin dashboard does not change. List in `docs/DESIGN_SYSTEM.md` (CRM polish) and `docs/ZELLA_COPY_CHANGELOG.md` | `web/src/styles/crm-polish.css`, `web/src/BusinessToday.jsx`, `AGT-9` |
 
 ### 23.3 Rulebook alignment
 

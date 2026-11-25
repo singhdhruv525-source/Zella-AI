@@ -199,6 +199,11 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 - Status badges always carry a word (Active, Pending, Failed). Colour backs the word up, never replaces it:
   green done or active, blue scheduled or informational, amber pending or warning, red failed, cancelled or urgent.
 - Icons are Material Symbols Outlined (`<Icon name="..." />` from `BusinessUI.jsx`) in both apps.
+- **CRM motion (owner, 25 Nov 2026, replaces the line below for the CRM):** quiet and short. Nothing lifts, bounces,
+  springs, shines or ripples. A hover is a colour or border change, a press scales to 0.98, the page eases in once
+  (40ms apart), menus open in 200ms, popups in 300ms, all on one curve `cubic-bezier(0.22, 1, 0.36, 1)`. The live dot
+  and numbers counting up stay. Rules in `web/src/styles/crm-polish.css`, scoped to `html:has(.ba-root)`, so the
+  admin dashboard is not affected.
 - Motion is lively but short (owner, 6 Nov 2026: buttons and pages should not feel flat, in the CRM and the admin
   dashboard): buttons lift on hover and press in on click with a ripple, main buttons get a sheen, cards and panels
   respond to the pointer, tabs glide, popups open with a pop and pages ease in (`web/src/styles/motion.css`,
@@ -212,3 +217,34 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
   table in a Settings card shows its first rows with a count and a "See all" button under it (`.zs-table-more`).
 - Setting keys (`sms_live`, `calls_live`, ...) are code: pages say what they mean in words ("Texts are in test mode",
   `web/src/copy/liveSwitches.js`) and give the key only as a tooltip (`NotAvailable`'s `tip`, or a `title`).
+
+## CRM polish (owner approved, 25 Nov 2026)
+
+A design pass on the CRM Today page; the shared parts apply to the whole CRM. Glass, the dock, the picture palette
+and the Zella Voice brand are kept; no feature, section or order changed. Files: `web/src/BusinessToday.jsx`, the
+Today section of `web/src/BusinessApp.css`, and `web/src/styles/crm-polish.css` (every rule scoped to the CRM root,
+loaded last from `web/src/main.jsx`).
+
+- **Number cards:** a label, the figure (32px, weight 500, tabular) and its change; a small 18px icon in the faint
+  text colour, no coloured tile.
+- **Colour means something:** list and feed icons sit in a neutral 32px box (`--zella-subtle`, secondary text);
+  only a missed call (danger) and a call handed to a person (warning) keep a colour. "To review" counts are plain
+  danger text, not a bubble. The top guests mark uses the secondary text colour.
+- **Calls this week:** the Zella voice bars, solid. Past days are the text colour at 50%; the chosen day is the
+  accent (`--zella-primary` in Glass and Classic, coral `#FF4F2E` in the Zella Voice theme). No gradient, no glow.
+  Each bar's number is printed above it. Measured on the rendered page (25 Nov 2026), grey bar against the card and
+  against its track: Zella Voice 3.9:1 and 3.5:1, Classic 3.5:1 and 3.0:1, Glass over the Lounge picture 5.3:1 and
+  4.6:1; the chosen day against the card: coral 3.3:1, Classic copper 8.1:1, Glass copper 9.0:1 (WCAG 1.4.11 asks 3:1).
+- **Spacing:** the 4px grid; every Today card uses a 20px side inset for its head, tabs and body; 16px between the
+  usage strip, the number cards and the card grid; cards in a row share one height.
+- **Type:** weights 400 and 500 (600 only for the page title); sizes 12, 13, 14, 16, 28 and 32px on Today; figures
+  without negative tracking; sidebar section names in sentence case (12px, 500).
+- **"You are here":** a 3px accent bar on the selected sidebar item in every CRM theme, the Glass dock included.
+- **Glass:** floating sidebar corners 20px and top bar 16px (the dock stays a pill); the "Plain" background is the
+  flat warm base colour.
+- **Phone (under 760px):** the date on its own line with the buttons under it; the bookings table folds guests,
+  table, staff and status under the name and hides the notes, so it never scrolls sideways.
+- **Motion:** see Rules of use above.
+
+Guided by unslop by @heydamir (CC BY 4.0).
+
