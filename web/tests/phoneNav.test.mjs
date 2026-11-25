@@ -304,3 +304,25 @@ test("leaving the page sends a waiting change straight away", async () => {
   assert.equal(sent, 1);
   assert.equal(timers.pending, 0);
 });
+
+test("Undo for a dismissed task: the same deferral, the cancel only sent after the window, put back on failure", async () => {
+  const timers = fakeTimers();
+  const sent = [];
+  const shown = new Set(["task-1"]);
+  const dismiss = (fail) => deferChange({
+    apply: () => shown.delete("task-1"),
+    commit: async () => { sent.push({ p_task_id: "task-1", p_cancel: true }); return fail ? { error: new Error("offline") } : {}; },
+    revert: () => shown.add("task-1"), timers,
+  });
+  const a = dismiss(false);
+  assert.equal(shown.has("task-1"), false, "gone from the list at once");
+  assert.equal(sent.length, 0, "nothing sent inside the Undo window");
+  a.undo();
+  assert.equal(shown.has("task-1"), true);
+  await timers.run();
+  assert.equal(sent.length, 0, "Undo sends nothing");
+  dismiss(true);
+  await timers.run();
+  assert.deepEqual(sent, [{ p_task_id: "task-1", p_cancel: true }]);
+  assert.equal(shown.has("task-1"), true, "a failed dismiss comes back");
+});

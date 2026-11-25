@@ -337,7 +337,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       {key === "receptionist" && <ReceptionistPage workspace={workspace} onNotice={setNotice} onReload={onReload} />}
       {key === "automations" && <AutomationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
       {key === "callbacks" && <CallbacksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
-      {key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={signals.refresh} />}
       {key === "dispatch" && <DispatchPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
       {key === "resources" && <ResourcesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
       {key === "recurring" && <RecurringPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}

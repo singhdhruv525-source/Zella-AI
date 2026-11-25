@@ -399,3 +399,4 @@ html.pn-phone :is(.st-layout, .ba-content, .owner-content) > section:has(> .pn-l
 html.pn-phone .pn-list { max-width: 100%; }
 html.pn-phone .ba-root[data-pn-action] .cal-toolbar > .ba-btn.primary { display: none; }
 html[data-zella-theme="glass"] .pn-sheet-actions :is(button, a):first-child { background: var(--zella-primary); color: var(--zella-on-primary); }
+.pn-item .pn-meta.wide { max-width: 150px; }   /* a date and a time (callbacks) */

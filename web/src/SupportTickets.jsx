@@ -7,7 +7,6 @@ import { Pill } from "./OwnerOverview";
 import { formatDateTime, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import { businessHoursText } from "./adminAccess";
-import { Icon } from "./BusinessUI";
 import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
@@ -214,7 +213,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
                   return (
                     <SwipeRow key={t.id} actions={actions}>
                       <div className="pn-row">
-                        <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { selectTicket(t.id); setCreating(false); }}>
+                        <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>
                           <span className="pn-main"><strong>{t.subject}</strong><small>{t.business_name} · {t.assignee ?? "Unassigned"} · {timeAgo(t.created_at)}</small></span>
                           <span className={`pn-meta ${timesKnown && t.overdue === true ? "late" : ""}`}>{timesKnown && t.overdue === true ? "No reply yet" : label(STATUSES, t.status)}</span>
                         </button>

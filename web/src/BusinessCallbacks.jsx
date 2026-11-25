@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
-import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, useLoad } from "./BusinessShared";
 import { ATTEMPT_LABEL, CB_CLOSED, CB_REASON, CB_STATUS, NewCallbackModal, PRIORITY_TONE, when } from "./BusinessWork";
 import { Assignee, useRoster } from "./BusinessLeads";
@@ -271,7 +271,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
                     <button type="button" className="pn-item" aria-haspopup="dialog" onClick={() => setOpen({ cb: c })}>
                       {closed && <span className="pn-lead" aria-hidden="true">{initials(name)}</span>}
                       <span className="pn-main"><strong>{name}</strong><small>{[CB_REASON[c.reason] ?? "Call back", blocked ? "Do not contact" : "", c.summary].filter(Boolean).join(", ")}</small></span>
-                      <span className={`pn-meta ${late ? "late" : ""}`}>{closed ? timeAgo(c.completed_at ?? c.updated_at) : late ? "Overdue" : formatTime(c.due_at, tz)}</span>
+                      <span className={`pn-meta wide ${late ? "late" : ""}`}>{closed ? timeAgo(c.completed_at ?? c.updated_at) : late ? "Overdue" : when(c.due_at, tz)}</span>
                     </button>
                     <button type="button" className="pn-more" aria-label={`More for ${name}`} aria-haspopup="dialog" onClick={() => setOpen({ cb: c })}><Icon name="more_horiz" /></button>
                   </div>

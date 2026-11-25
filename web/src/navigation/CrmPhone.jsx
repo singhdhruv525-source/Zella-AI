@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 import { Icon, personName } from "../BusinessUI";
 import { BottomSheet } from "./BottomSheet";
@@ -19,8 +19,10 @@ const WAITING_PAGE = 100;   // read in pages up to a hard cap; callers past it s
 const WAITING_CAP = 500;
 const OVERDUE_LIMIT = 100;
 export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
-  const [signals, setSignals] = useState({ oldest: null, waiting: [], waitingMore: 0, overdue: [], spam: 0, complete: {}, at: null });
+  const [signals, setSignals] = useState({ oldest: null, waiting: [], waitingMore: 0, overdue: [], overdueTotal: 0, overdueMore: 0, spam: 0, complete: {}, at: null });
   const [tick, setTick] = useState(0);
+  // a page that changes one of these (a task done or dismissed) reads them again at once, not at the next minute
+  const refresh = useCallback(() => setTick((n) => n + 1), []);
   useEffect(() => {
     if (!enabled) return undefined;
     const timer = setInterval(() => setTick((n) => n + 1), 60000);
@@ -49,7 +51,8 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
       }
       return { data: rows.slice(0, WAITING_CAP), total, error: null };
     })();
-    const overdue = supabase.from("crm_tasks").select("id, title, due_at, customer_id").eq("business_id", id).eq("status", "open")
+    // the oldest OVERDUE_LIMIT overdue tasks, with the exact number of overdue tasks (the rest share one bell note)
+    const overdue = supabase.from("crm_tasks").select("id, title, due_at, customer_id", { count: "exact" }).eq("business_id", id).eq("status", "open")
       .lt("due_at", now.toISOString()).order("due_at", { ascending: true }).limit(OVERDUE_LIMIT);
     const spam = SPAM_ROLES.includes(workspace.role)
       ? supabase.rpc("zella_spam_overview", { p_business_id: id, p_from: new Date(now.getTime() - 30 * DAY).toISOString(), p_to: now.toISOString() })
@@ -70,20 +73,22 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
         // callers past the cap (or a count that moved while reading): one summary note, so the bell counts them all
         waitingMore: Number.isFinite(w.total) ? Math.max(0, w.total - list.length) : 0,
         overdue: tasks.map((t) => ({ ...t, who: nameOf[t.customer_id] ?? null })),
+        overdueTotal: Number.isFinite(o.count) ? Math.max(o.count, tasks.length) : tasks.length,
+        overdueMore: Number.isFinite(o.count) ? Math.max(0, o.count - tasks.length) : 0,
         spam: Number(s.data?.unreviewed) || 0,
         // a list read in full: anything missing from it has been dealt with
-        complete: { waiting: !w.error && Boolean(w.data) && Number.isFinite(w.total) && calls.length >= w.total, task: !o.error && Boolean(o.data) && tasks.length < OVERDUE_LIMIT },
+        complete: { waiting: !w.error && Boolean(w.data) && Number.isFinite(w.total) && calls.length >= w.total, task: !o.error && Boolean(o.data) && Number.isFinite(o.count) && tasks.length >= o.count },
         at: now.toISOString(),
       });
     });
     return () => { live = false; };
   }, [enabled, workspace.id, workspace.role, attention, refreshKey, tick]);
-  return signals;
+  return useMemo(() => ({ ...signals, refresh }), [signals, refresh]);
 }
 
 // P14: the top of Today. Shown only when something needs the owner.
 export function NeedsYouNow({ attention, signals, onGo }) {
-  const rows = needsNowRows({ waiting: attention, oldest: signals.oldest, overdue: signals.overdue, spam: signals.spam });
+  const rows = needsNowRows({ waiting: attention, oldest: signals.oldest, overdue: signals.overdue, overdueTotal: signals.overdueTotal, spam: signals.spam });
   if (!rows.length) return null;
   return (
     <section aria-labelledby="pn-now-title">

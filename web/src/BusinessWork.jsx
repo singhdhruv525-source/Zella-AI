@@ -204,23 +204,24 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   const pendingChanges = useRef(new Map());
   const [rowMenu, setRowMenu] = useState(null);
   useEffect(() => () => { pendingChanges.current.forEach((c) => c.flush()); }, []);
-  function quickDone(t) {
+  // done, or dismissed (cancel): both leave the list at once with Undo and are sent after the Undo window
+  function quickDone(t, cancel = false) {
     if (pendingChanges.current.has(t.id)) return;
     const forget = () => setDoneHere((set) => { const next = new Set(set); next.delete(t.id); return next; });
     const change = deferChange({
       apply: () => setDoneHere((set) => new Set(set).add(t.id)),
       commit: async () => {
-        const { error: failure } = await supabase.rpc("zella_complete_task", { p_task_id: t.id });
+        const { error: failure } = await supabase.rpc("zella_complete_task", cancel ? { p_task_id: t.id, p_cancel: true } : { p_task_id: t.id });
         pendingChanges.current.delete(t.id);
         if (failure) throw failure;
         reload();
         onChanged?.();
       },
       revert: () => { pendingChanges.current.delete(t.id); forget(); },
-      onError: (err) => ui.toast(`Couldn't mark it done, so it's back on the list. ${explain(err)}`),
+      onError: (err) => ui.toast(`Couldn't ${cancel ? "dismiss it" : "mark it done"}, so it's back on the list. ${explain(err)}`),
     });
     pendingChanges.current.set(t.id, change);
-    ui.toast("Task marked done", { undo: () => change.undo() });
+    ui.toast(cancel ? "Task dismissed" : "Task marked done", { undo: () => change.undo() });
   }
 
   const tasks = data?.tasks ?? [];
@@ -340,7 +341,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
               {isOpen && <button type="button" className="pn-row-link" onClick={() => { close(); quickDone(t); }}><Icon name="check" /><span>Mark done</span></button>}
               {isOpen && person?.phone && !person.do_not_call && !person.do_not_contact && <a className="pn-row-link" href={`tel:${person.phone}`}><Icon name="phone_callback" /><span>Call back {personName(person)}</span></a>}
               {person && <button type="button" className="pn-row-link" onClick={() => { close(); onOpenPerson(person.id); }}><Icon name="person" /><span>Open {personName(person)}</span></button>}
-              {isOpen && <button type="button" className="pn-row-link" disabled={working === t.id} onClick={() => { close(); run(t.id, () => supabase.rpc("zella_complete_task", { p_task_id: t.id, p_cancel: true }), "Task dismissed."); }}><Icon name="do_not_disturb_on" /><span>Dismiss</span></button>}
+              {isOpen && <button type="button" className="pn-row-link" onClick={() => { close(); quickDone(t, true); }}><Icon name="do_not_disturb_on" /><span>Dismiss</span></button>}
             </div>
           </BottomSheet>
         );
@@ -528,7 +529,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.id]);
 
-  const notes = useMemo(() => (needsNow ? needsNowNotes({ waiting: needsNow.waiting, waitingMore: needsNow.waitingMore, overdue: needsNow.overdue, spam: needsNow.spam, at: needsNow.at }) : []), [needsNow]);
+  const notes = useMemo(() => (needsNow ? needsNowNotes({ waiting: needsNow.waiting, waitingMore: needsNow.waitingMore, overdue: needsNow.overdue, overdueMore: needsNow.overdueMore, spam: needsNow.spam, at: needsNow.at }) : []), [needsNow]);
   const merged = useMemo(() => mergeBellNotes(rows, notes, readNotes, needsNow?.complete ?? {}, needsNow?.at), [rows, notes, readNotes, needsNow]);
   const shown = merged.rows;
   const unread = shown.filter((r) => !r.read_at);

@@ -36,7 +36,8 @@ export function adminStrip(incidents = [], now = Date.now()) {
 
 // "Needs you now" at the top of Today (P14): callers waiting, overdue tasks, calls to review in Spam protection.
 // Each row goes straight to the page that deals with it; with nothing to do the section isn't shown (empty list).
-export function needsNowRows({ waiting = 0, oldest = null, overdue = [], spam = 0, now = Date.now() } = {}) {
+// overdueTotal: how many tasks are overdue in all (the list may be cut off at its limit); defaults to the list's length
+export function needsNowRows({ waiting = 0, oldest = null, overdue = [], overdueTotal, spam = 0, now = Date.now() } = {}) {
   const rows = [];
   if (waiting > 0) {
     rows.push({
@@ -45,11 +46,12 @@ export function needsNowRows({ waiting = 0, oldest = null, overdue = [], spam = 
       meta: oldest?.since ? waitLabel(oldest.since, now) : "",
     });
   }
-  if (overdue.length) {
+  const lateCount = Math.max(overdue.length, Number.isFinite(overdueTotal) ? overdueTotal : 0);
+  if (lateCount && overdue.length) {
     const t = overdue[0];
-    rows.push(overdue.length === 1
+    rows.push(lateCount === 1
       ? { key: "overdue", icon: "task_alt", tone: "danger", page: "tasks", title: t.title || "Task", sub: t.who ? `Task for ${t.who}, due ${waitLabel(t.due_at, now)} ago` : `Due ${waitLabel(t.due_at, now)} ago`, meta: "Overdue" }
-      : { key: "overdue", icon: "task_alt", tone: "danger", page: "tasks", title: `${overdue.length} overdue tasks`, sub: `The oldest: ${t.title || "a task"}`, meta: "Overdue" });
+      : { key: "overdue", icon: "task_alt", tone: "danger", page: "tasks", title: `${lateCount} overdue tasks`, sub: `The oldest: ${t.title || "a task"}`, meta: "Overdue" });
   }
   if (spam > 0) {
     rows.push({ key: "spam", icon: "gpp_maybe", tone: "", page: "spam", title: `${spam === 1 ? "1 call" : `${spam} calls`} to review in Spam protection`, sub: "Blocked as likely spam, check it was right", meta: "" });

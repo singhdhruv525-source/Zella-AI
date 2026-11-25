@@ -19,10 +19,11 @@ const lower = (s) => String(s).charAt(0).toLowerCase() + String(s).slice(1);
  *   waiting: calls waiting for a person [{ id, name, summary, since }]
  *   waitingMore: callers waiting beyond the ones listed (the list has a hard cap): one summary note for them
  *   overdue: open tasks past their due time [{ id, title, who, due_at }]
+ *   overdueMore: overdue tasks beyond the ones listed (the list has a limit): one summary note for them
  *   spam:    calls to review in Spam protection (a count)
  *   at:      when the signals were read (the time shown on the spam note)
  */
-export function needsNowNotes({ waiting = [], waitingMore = 0, overdue = [], spam = 0, at = null, now = Date.now() } = {}) {
+export function needsNowNotes({ waiting = [], waitingMore = 0, overdue = [], overdueMore = 0, spam = 0, at = null, now = Date.now() } = {}) {
   const notes = [];
   for (const c of waiting) {
     if (!c?.id) continue;
@@ -48,6 +49,13 @@ export function needsNowNotes({ waiting = [], waitingMore = 0, overdue = [], spa
       title: `Overdue: ${t.title || "a task"}`,
       body: t.who ? `Task for ${t.who}, due ${waitLabel(t.due_at, now)} ago` : `Due ${waitLabel(t.due_at, now)} ago`,
       page_key: "tasks", created_at: t.due_at ?? null,
+    });
+  }
+  if (overdueMore > 0) {
+    notes.push({
+      key: `task-more:${overdueMore}`, group: "task-more", entity_id: null, derived: true, kind: "needs_you_now", icon: "task_alt", severity: "warning",
+      title: overdueMore === 1 ? "And 1 more overdue task" : `And ${overdueMore} more overdue tasks`,
+      body: "Open Tasks to see them all", page_key: "tasks", created_at: at,
     });
   }
   if (spam > 0) {

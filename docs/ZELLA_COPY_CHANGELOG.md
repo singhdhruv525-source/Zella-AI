@@ -24,7 +24,7 @@ New words on phones only (under 768 wide); tablets and desktops show nothing new
 | Admin business sheet | Plan, Stage, Last call, Open, Continue setup, Call owner, Activity, Needs attention, Setup; "Plumbing, owner Dana Reyes" | P12 |
 | Pull to refresh | Pull to refresh, Let go to refresh, Refreshing | P17 |
 | Placeholders (screen readers) | Loading the page, Loading tasks, Loading callbacks, Loading tickets, Checking your access | P18 |
-| Notification bell, "Needs you now" notes (phones and desktops) | Kicker "Needs you now"; "Tom Becker wants a person" or "A caller wants a person", "Asked about ... Waiting 4 min" or "Your AI receptionist handed them over. Waiting 4 min"; "Overdue: Confirm cake delivery" (or "Overdue: a task"), "Task for Maya Chen, due 1 hr ago" or "Due 5 min ago"; "1 call to review in Spam protection", "Blocked as likely spam, check it was right" | Owner, 25 Nov 2026: Needs you now should show in the notification |
+| Notification bell, "Needs you now" notes (phones and desktops) | Kicker "Needs you now"; "Tom Becker wants a person" or "A caller wants a person", "Asked about ... Waiting 4 min" or "Your AI receptionist handed them over. Waiting 4 min"; "Overdue: Confirm cake delivery" (or "Overdue: a task"), "Task for Maya Chen, due 1 hr ago" or "Due 5 min ago"; "1 call to review in Spam protection", "Blocked as likely spam, check it was right"; "And 37 more callers want a person", "Open Needs attention to see them all"; "And 1 more overdue task", "Open Tasks to see them all"; "Task dismissed", "Couldn't dismiss it, so it's back on the list." | Owner, 25 Nov 2026: Needs you now should show in the notification |
 
 ## 25 November 2026: wording pass across the admin and CRM
 

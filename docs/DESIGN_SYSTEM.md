@@ -274,27 +274,19 @@ for dialogs that open outside it), so the CRM does not change. A shared componen
 - Status badges always carry a word (Active, Pending, Failed). Colour backs the word up, never replaces it:
   green done or active, blue scheduled or informational, amber pending or warning, red failed, cancelled or urgent.
 - Icons are Material Symbols Outlined (`<Icon name="..." />` from `BusinessUI.jsx`) in both apps.
-- **CRM motion (owner, 25 Nov 2026, replaces the line below for the CRM):** quiet and short. Nothing lifts, bounces,
+- **CRM motion (owner, 25 Nov 2026, replaces the lively motion of 6 Nov 2026 for the CRM):** quiet and short. Nothing lifts, bounces,
   springs, shines or ripples. A hover is a colour or border change, a press scales to 0.98, the page eases in once
   (40ms apart), menus open in 200ms, all on one curve `cubic-bezier(0.22, 1, 0.36, 1)`. A centred dialog
   (`.ba-modal`, `.zs-dialog`, `.bd-confirm`) opens with a 200ms fade only, no rise or scale. Two movements stay, as
   approved: the phone bottom sheet (under 641px) slides up from the bottom edge in 300ms, and the booking side panel
   slides in from the side (`bp-slide`). The live dot and numbers counting up stay. Rules in `web/src/styles/crm-polish.css`, scoped to `html:has(.ba-root)`, so the
   admin dashboard is not affected.
-- Motion is lively but short (owner, 6 Nov 2026: buttons and pages should not feel flat, in the CRM and the admin
-  dashboard): buttons lift on hover and press in on click with a ripple, main buttons get a sheen, cards and panels
-  respond to the pointer, tabs glide, popups open with a pop and pages ease in (`web/src/styles/motion.css`,
-  `web/src/CrmMotion.css`). All motion stops for people who prefer reduced motion. The admin dashboard is calmer
-  since 25 Nov 2026 (see "Admin polish" below); the CRM keeps the lively motion.
+- Motion in both apps is calm since 25 Nov 2026 (the CRM motion rule above, and "Admin polish" below for the admin
+  dashboard), which replaces the lively motion of 6 Nov 2026 (`web/src/styles/motion.css`, `web/src/CrmMotion.css`).
+  All motion stops for people who prefer reduced motion.
 - On phones (both apps under 768px) the bottom bar and the side panel replace the sidebar and the menu button (see
   "Phone navigation" below, owner 25 Nov 2026). Wide tables and tab rows scroll inside themselves, never the whole
   page, and fade at the right edge while there is more.
-
-  `web/src/CrmMotion.css`). All motion stops for people who prefer reduced motion. Both apps are calmer since
-  25 Nov 2026: the admin dashboard (see "Admin polish" below) and the CRM (the CRM motion rule above).
-- On phones (CRM under 760px, admin under 600px) the sidebar opens as a drawer from the menu button in the top bar;
-  it closes on Escape, on the backdrop, or when a page is chosen. Wide tables and tab rows scroll inside themselves,
-  never the whole page, and fade at the right edge while there is more.
 - The admin sidebar's background and border run the full height of the page (`.owner-sidebar-col`); only the nav inside
   it is sticky. The settings sub navigation (`.zs-nav`) is sticky at the top of its column.
 - A short choice such as a period is as wide as its options (`<Field fit>` in Settings), not the whole row. A long

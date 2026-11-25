@@ -68,8 +68,11 @@ export function BottomSheet({ title, description, onClose, busy = false, size = 
         className={`pn-sheet ${current} ${closing ? "closing" : "open"} ${drag ? "dragging" : ""} ${className}`}
         style={!drag ? undefined : drag < 0 && current === "half" ? { height: `min(92dvh, calc(52dvh + ${-drag}px))` } : { "--pn-drag": `${drag}px` }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-        <button type="button" className="pn-grab" aria-label={current === "full" ? "Show less" : "Show more"}
-          aria-expanded={current === "full"} onClick={(e) => { if (e.detail === 0) toggle(); }} />
+        {/* a sheet that fits its content has no other height: the handle is only a drag area, not a button */}
+        {current === "fit"
+          ? <span className="pn-grab" aria-hidden="true" />
+          : <button type="button" className="pn-grab" aria-label={current === "full" ? "Show less" : "Show more"}
+            aria-expanded={current === "full"} onClick={(e) => { if (e.detail === 0) toggle(); }} />}
         {(title || description) && (
           <div className="pn-sheet-head">
             {icon && <span className={`ba-modal-icon ${tone ?? ""}`}><Icon name={icon} /></span>}

@@ -128,3 +128,20 @@ test("callers past the list's cap share one summary note, so every waiting calle
   assert.equal(needsNowNotes({ waitingMore: 1 })[0].title, "And 1 more caller wants a person");
   assert.deepEqual(needsNowNotes({ waiting: listed.slice(0, 3), waitingMore: 0 }).map((n) => n.key), ["waiting:call-0", "waiting:call-1", "waiting:call-2"]);
 });
+
+test("overdue tasks past the list's limit: the real total on Today, one summary note in the bell", () => {
+  const listed = Array.from({ length: 100 }, (_, n) => ({ id: `task-${n}`, title: `Task ${n}`, who: null, due_at: ago(90) }));
+  const row = needsNowRows({ overdue: listed, overdueTotal: 101, now: NOW }).find((r) => r.key === "overdue");
+  assert.equal(row.title, "101 overdue tasks");
+  const notes = needsNowNotes({ overdue: listed, overdueMore: 1, at: ago(0), now: NOW });
+  assert.equal(notes.filter((n) => n.page_key === "tasks").length, 101);
+  const more = notes.at(-1);
+  assert.equal(more.key, "task-more:1");
+  assert.equal(more.title, "And 1 more overdue task");
+  assert.equal(needsNowNotes({ overdueMore: 5 })[0].title, "And 5 more overdue tasks");
+  // no total given: the list's own length; nothing overdue: no row and no note
+  assert.equal(needsNowRows({ overdue: listed.slice(0, 2), now: NOW })[0].title, "2 overdue tasks");
+  assert.equal(needsNowRows({ overdue: listed.slice(0, 1), overdueTotal: 1, now: NOW })[0].title, "Task 0");
+  assert.deepEqual(needsNowRows({ overdue: [], overdueTotal: 0, now: NOW }), []);
+  assert.deepEqual(needsNowNotes({ overdue: [], overdueMore: 0 }), []);
+});
