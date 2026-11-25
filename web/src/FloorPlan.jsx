@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "./BusinessUI";
-import { fitOptions, fitPlan } from "./floorPlanFit";
+import { FIT, fitOptions, fitPlan } from "./floorPlanFit";
 
 /* The floor plan: each table drawn where the owner placed it (Settings > Tables and seating), with its chairs, its
    name and seats, and its state from the seating board (zella_table_board). Used by the Tables page, the Today
@@ -94,11 +94,19 @@ export function FloorPlan({ tables, selectedId, onSelect, compact = false, edita
     onMove?.(t.id, Math.min(96, Math.max(4, t.x + d[0])), Math.min(94, Math.max(6, t.y + d[1])));
   };
 
+  // The frame holds the scaled drawing at its scaled size (plus the padding), and clips the layer's unscaled box, so a
+  // plan that scrolls scrolls exactly to the end of the drawing, never into empty space.
+  const frameStyle = plan ? {
+    width: plan.width * plan.scale + 2 * FIT.pad > frame.width ? plan.offsetX + plan.width * plan.scale + FIT.pad : "100%",
+    height: plan.height * plan.scale + 2 * FIT.pad > plan.boxHeight ? plan.offsetY + plan.height * plan.scale + FIT.pad : "100%",
+  } : undefined;
+
   return (
     <div className={`fp ${compact ? "compact" : ""} ${editable ? "editable" : ""} ${fitting ? "fit" : ""}`}>
       <div className={`fp-room ${plan ? "fitted" : ""} ${plan?.scrolls ? "scrolls" : ""}`} ref={box} role="group" aria-label={label}
         style={plan ? { height: plan.boxHeight } : undefined}>
         {!placed.length && <p className="fp-empty">No tables in this section.</p>}
+        <div className="fp-frame" style={frameStyle}>
         <div className="fp-layer" style={plan ? { left: plan.offsetX, top: plan.offsetY, width: plan.width, height: plan.height, transform: `scale(${plan.scale})` } : undefined}>
         {placed.map((t) => {
           const st = FLOOR_STATES[t.state] ?? FLOOR_STATES.available;
@@ -123,6 +131,7 @@ export function FloorPlan({ tables, selectedId, onSelect, compact = false, edita
             </button>
           );
         })}
+        </div>
         </div>
       </div>
       <ul className="fp-legend" aria-label="Key">

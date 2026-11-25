@@ -77,8 +77,9 @@ html:root:has(.ba-root) .zs-vc-glow { box-shadow: 0 0 0 1px var(--zella-primary-
 /* The floor plan's tables sit in a layer. Normally the layer is the whole room, so saved positions draw as before
    (Today's card, the layout editor). On the Tables page (FloorPlan fit) the layer is cropped to the tables' box and
    scaled to fit the width and a height cap (floorPlanFit.js); positions and the relative layout are unchanged. */
-html:root:has(.ba-root) .fp-layer { position: absolute; inset: 0; }
+html:root:has(.ba-root) :is(.fp-frame, .fp-layer) { position: absolute; inset: 0; }
 html:root:has(.ba-root) .fp-room.fitted { aspect-ratio: auto; min-height: 0; }
+html:root:has(.ba-root) .fp-room.fitted .fp-frame { inset: 0 auto auto 0; overflow: hidden; }
 html:root:has(.ba-root) .fp-room.fitted .fp-layer { inset: auto; transform-origin: 0 0; }
 html:root:has(.ba-root) .fp-room.fitted.scrolls { overflow: auto; }
 /* names and seats stay at least 12px at the smallest scale (0.86) */
