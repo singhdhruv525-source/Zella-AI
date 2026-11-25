@@ -305,6 +305,12 @@ export function ReportsPage({ workspace, refreshKey }) {
   // The review covers a rolling window too, so it reloads with the figures.
   const lastDay = r?.perDay.at(-1)?.day;
   const reloadReview = review.reload;
+  // Whether the review's last finished read failed. A retry after a failure keeps the failure note (an older answer
+  // could be the all clear); only a refresh that starts from a good answer keeps that answer on screen, dimmed.
+  const [reviewFailed, setReviewFailed] = useState(false);
+  const reviewSettledFailed = review.loading ? reviewFailed : Boolean(review.error);
+  if (reviewSettledFailed !== reviewFailed) setReviewFailed(reviewSettledFailed);
+  const showReviewFailure = Boolean(review.error) || (review.loading && reviewFailed);
   const [dayKey, setDayKey] = useState(0);   // tells the panels below to rerun their rolling windows
   useEffect(() => {
     let timer;
@@ -325,13 +331,13 @@ export function ReportsPage({ workspace, refreshKey }) {
       <Notice error={error} onRetry={reload} />
       {loading && !r ? <p className="ba-muted">Loading…</p> : r && (
         <>
-          {/* a review that couldn't be read (first time or a refresh) never shows the all clear or an old list; while it
-              is being read again the last good answer stays, dimmed */}
-          {review.error ? (
+          {/* a review that couldn't be read (first time or a refresh) never shows the all clear or an old list, also
+              while it is tried again; a refresh from a good answer keeps that answer, dimmed */}
+          {showReviewFailure ? (
             <section className="ba-panel ba-gap" role="status">
               <div className="ba-panel-head">
                 <div className="ba-panel-title"><div><h2>Zella Voice's review</h2><p>Couldn't load the review. The figures below are still your own records.</p></div></div>
-                <button type="button" className="ba-btn sm" disabled={review.loading} onClick={reloadReview}>Try again</button>
+                <button type="button" className="ba-btn sm" disabled={review.loading} onClick={reloadReview}>{review.loading ? "Trying again…" : "Try again"}</button>
               </div>
             </section>
           ) : review.data && (
