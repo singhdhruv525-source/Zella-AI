@@ -302,13 +302,15 @@ export function ReportsPage({ workspace, refreshKey }) {
   // The chart's last bar is today only until the business's midnight. Then the figures reload; until they have, the
   // bar is named by its own date, never "Today". Each midnight's timer arms the next one itself, so a reload that
   // fails never stops later midnights from refreshing; it is cleared when the business or the page changes.
+  // The review covers a rolling window too, so it reloads with the figures.
   const lastDay = r?.perDay.at(-1)?.day;
+  const reloadReview = review.reload;
   useEffect(() => {
     let timer;
-    const arm = () => { timer = setTimeout(() => { reload(); arm(); }, msUntilNextDay(tz)); };
+    const arm = () => { timer = setTimeout(() => { reload(); reloadReview(); arm(); }, msUntilNextDay(tz)); };
     arm();
     return () => clearTimeout(timer);
-  }, [tz, reload]);
+  }, [tz, reload, reloadReview]);
   const lastIsToday = Boolean(lastDay) && lastDay.getTime() === dayRange(tz, 0).start.getTime();
   const lastName = lastIsToday ? "Today" : shortDay(lastDay, tz);
 

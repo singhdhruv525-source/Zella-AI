@@ -323,7 +323,7 @@ catering"), report counts agree with their number ("1 arrival", "1 no show"), th
 |---|---|---|
 | **Lead sources** | Website forms and chat widget (public form key, allowed websites, spam checks), Google Ads lead forms (key shown once), Facebook and Instagram leads, lead rules and questions. | Built (Meta channels: see §10) |
 | **Reviews** | Google reviews and AI reply drafts the owner approves before anything is posted. | Built, off (`reviews_live`, `review_ai_live`) |
-| **Reports & analytics** | Calls, bookings, response times, lead sources, campaigns, usage; scheduled reports. The calls figures sit in one row of five cards and the people figures in one row; "Calls per day" marks its first, middle and last day, with today in the accent (owner, 25 Nov 2026). | Built |
+| **Reports and analytics** | Calls, bookings, response times, lead sources, campaigns, usage; scheduled reports. The calls figures sit in one row of five cards and the people figures in one row; "Calls per day" marks its first, middle and last day, with today in the accent (owner, 25 Nov 2026). | Built |
 
 | **Reports and analytics** | Calls, bookings, response times, lead sources, campaigns, usage; scheduled reports. | Built |
 

@@ -37,6 +37,12 @@ function zonedMidnight(year, month, day, timeZone) {
   let instant = guess - zoneOffset(new Date(guess), timeZone);
   // Second pass corrects for a daylight-saving change between guess and result.
   instant = guess - zoneOffset(new Date(instant), timeZone);
+  // Where the clocks skip midnight (America/Santiago in September jumps from 00:00 to 01:00), that instant is still
+  // the evening before in the zone: move on to the first instant whose local date is the requested day.
+  const p = zonedParts(new Date(instant), timeZone);
+  if (Date.UTC(p.year, p.month - 1, p.day) < guess) {
+    instant += (24 * 3600 - (p.hour * 3600 + p.minute * 60 + p.second)) * 1000;
+  }
   return new Date(instant);
 }
 
