@@ -204,7 +204,9 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   // nor loses their Undo; a page outside the app (no store given) keeps its own
   const [ownStore] = useState(createPendingStore);
   const store = ui.pending ?? ownStore;
-  const views = usePendingViews(store, (id) => { reload().then(() => store.clearSettled(id)); });
+  // a task sent while this page is open stays hidden until the list has been read fresh: a failed refresh would
+  // otherwise bring the completed or dismissed task back next to the error
+  const views = usePendingViews(store, (id) => { reload().then((fresh) => { if (fresh) store.clearSettled(id); }); });
   useEffect(() => { store.clearAllSettled(); }, [store]);   // a fresh read on opening already has what was sent
   useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [rowMenu, setRowMenu] = useState(null);
