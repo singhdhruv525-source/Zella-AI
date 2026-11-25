@@ -277,7 +277,7 @@ export default function OwnerDashboard({ onSignOut }) {
                     goTo("Businesses");
                   }
                 }}
-                placeholder="Search businesses..."
+                placeholder="Search businesses"
                 aria-label="Search businesses"
               />
               <kbd>⌘ K</kbd>

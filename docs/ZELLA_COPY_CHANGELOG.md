@@ -14,6 +14,20 @@ Approved by the owner on 25 Nov 2026 (A41, C33, C36, C39, C45). Details: the adm
 | Admin Settings, Reporting configuration, empty answer | the page crashed | "Couldn't load this: The server didn't answer." with Try again | S62 |
 | Settings, Billing, Auto reload, a resource with no packs | the page crashed when the list was missing | "No packs of texts are on offer right now, so there is nothing to reload with. Ask Zella Voice support." (per resource) | CRM audit, section 4 |
 
+## 25 November 2026: admin dashboard polish
+
+Admin dashboard only (owner approved, `docs/DESIGN_SYSTEM.md` "Admin polish"). No words added or removed.
+
+| Where | Before | After | Why |
+|---|---|---|---|
+| Admin sidebar group labels | BUSINESSES, CONFIGURATION, AI & COMMUNICATIONS, OPERATIONS, ADMINISTRATION (spaced capitals) | Businesses, Configuration, AI & communications, Operations, Administration | Sentence case, as written |
+| Line above the page title | PLATFORM CONTROL CENTER (and every admin page's eyebrow) | Platform control center | Sentence case |
+| Admin sidebar scroll cue | MORE BELOW | More below | Sentence case |
+| Overview panel captions | "Problems that block a client from going live." and the four others | No full stop at the end | A caption is a label, not a sentence; empty state sentences keep theirs |
+| Top bar search hint | "Search businesses..." | "Search businesses" | No trailing dots |
+| Overview counts | 3182, 2847 handled by AI | 3,182, 2,847 handled by AI | Thousands separator |
+| Overview buttons | "↻ Refresh", "＋ Create business", "＋ Create your first business" | Same words with real icons | Typed symbols replaced by the icon set |
+
 ## 30 October 2026: product language pass
 
 Frontend wording only (`web/src`). Internal values, routes, permissions and backend behavior are unchanged, except
