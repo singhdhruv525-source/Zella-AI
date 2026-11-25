@@ -1,0 +1,402 @@
+/* =========================================================
+   Phone navigation (approved 25 Nov 2026, P1 to P29): bottom bar, side panel, bottom sheets, live strip, sticky
+   action, swipe rows, toasts, pull to refresh and skeletons, for both apps under 768 wide.
+
+   Every rule is scoped to html.pn-phone, which the apps set only while a phone layout is drawn
+   (navigation/usePhoneLayout.js), so tablets (768 to 1023, the icon rail) and desktops never change. It only reads
+   the shared --zella-* tokens, so the Zella Voice theme, Glass and Classic all follow. Loaded last (main.jsx), and
+   no shared stylesheet is edited. One curve, three durations: panel 280ms, sheets 300ms, backdrop 200ms.
+   ========================================================= */
+
+html.pn-phone {
+  --pn-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pn-mark: var(--zella-primary);            /* the selected marker: copper in Glass, mocha in Classic */
+  --pn-safe: env(safe-area-inset-bottom, 0px);
+  --pn-bar-h: 56px;
+  --pn-strip-h: 0px;
+  --pn-action-h: 0px;
+  --pn-bar-bg: var(--zella-sidebar);
+  --pn-sheet-bg: var(--zella-card);
+  overscroll-behavior-y: contain;             /* our pull to refresh, not the browser's */
+}
+html.pn-phone[data-zella-theme="zella"] { --pn-mark: #FF4F2E; }     /* coral, like the sidebar's selected bar */
+html.pn-phone[data-zella-theme="glass"] { --pn-bar-bg: rgba(26, 21, 19, 0.8); --pn-sheet-bg: var(--glass-solid); }
+html.pn-phone.pn-has-strip { --pn-strip-h: 52px; }
+html.pn-phone.pn-has-action { --pn-action-h: 60px; }
+
+/* ---------- The shell: no desktop sidebar or header; the document scrolls ---------- */
+html.pn-phone .ba-root, html.pn-phone .owner-app { display: block; min-height: 100dvh; }
+html.pn-phone :is(.ba-main, .owner-main) { width: 100%; min-width: 0; }
+/* P24: room at the bottom, so nothing hides behind the bar, the strip or the sticky action */
+html.pn-phone :is(.ba-content, .owner-content) {
+  padding-bottom: calc(var(--pn-bar-h) + var(--pn-safe) + var(--pn-strip-h) + var(--pn-action-h) + 24px) !important;
+}
+html.pn-phone .owner-content { padding-left: 15px; padding-right: 15px; padding-top: 20px; }
+html.pn-phone .owner-page-heading { flex-direction: column; align-items: stretch; gap: 16px; }
+html.pn-phone .owner-page-heading h1 { font-size: 24px; }
+html.pn-phone .pn-tabpage[hidden] { display: none !important; }
+
+/* ---------- Top bar (P9): one slim row ---------- */
+.pn-top {
+  position: sticky; top: 0; z-index: 40;
+  border-bottom: 1px solid var(--zella-border);
+  background: var(--zella-bg);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+html[data-zella-theme="zella"] .pn-top { background: rgba(250, 250, 247, 0.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+html[data-zella-theme="glass"] .pn-top { background: var(--pn-bar-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge); }
+.pn-top-row { display: flex; align-items: center; gap: 4px; min-height: 56px; padding: 6px 4px 6px 12px; }
+.pn-top-actions { display: flex; align-items: center; gap: 0; margin-left: auto; flex-shrink: 0; }
+.pn-top-search { padding: 0 12px 10px; }
+.pn-top-search .ba-search, .pn-top-search .owner-search { width: 100%; min-width: 0; max-width: none; }
+.pn-top-search input { font-size: 16px; }   /* 16px keeps the phone from zooming in on focus */
+.pn-biz {
+  display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;
+  min-height: 44px; padding: 0 8px 0 0; border: 0; border-radius: 12px; background: none; color: var(--zella-text); text-align: left; font: inherit; cursor: pointer;
+}
+.pn-biz .ba-switcher-logo { width: 32px; height: 32px; flex-shrink: 0; }
+.pn-biz > span:nth-child(2) { min-width: 0; }
+.pn-biz strong { display: block; overflow: hidden; font-size: 15px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.pn-biz small { display: block; overflow: hidden; color: var(--zella-text-secondary); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.pn-biz .ba-icon { color: var(--zella-text-secondary); font-size: 18px; }
+.pn-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; color: var(--zella-text); font-size: 17px; font-weight: 600; }
+.pn-title img { width: 20px; height: 20px; flex-shrink: 0; }
+.pn-title span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; opacity: 0; transition: opacity 150ms var(--pn-ease); }
+.pn-title.scrolled span { opacity: 1; }
+.pn-iconbtn {
+  position: relative; display: inline-grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0;
+  border: 0; border-radius: 999px; background: none; color: var(--zella-text); cursor: pointer;
+}
+.pn-iconbtn .ba-icon { font-size: 20px; }
+.pn-iconbtn:active { background: var(--zella-nav-hover); }
+/* the bells keep their own popovers; on a phone their buttons get the full 44px target */
+html.pn-phone .pn-top :is(.owner-icon-button, .ba-btn.icon) { min-width: 44px; min-height: 44px; }
+
+/* ---------- Bottom stack: sticky action, live strip, tab bar ---------- */
+.pn-bottom {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: flex; flex-direction: column;
+  pointer-events: none; transition: transform 200ms var(--pn-ease);
+}
+.pn-bottom > * { pointer-events: auto; }
+html.pn-kb .pn-bottom { transform: translateY(110%); visibility: hidden; }   /* P23: the keyboard is open */
+html.pn-kb :is(.ba-content, .owner-content) { padding-bottom: 24px !important; }
+
+.pn-tabbar {
+  display: grid; grid-template-columns: repeat(var(--pn-cols, 5), minmax(0, 1fr));
+  padding: 0 4px var(--pn-safe);
+  border-top: 1px solid var(--zella-border);
+  background: var(--pn-bar-bg);
+}
+html[data-zella-theme="glass"] .pn-tabbar { backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge); }
+.pn-tab {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-width: 0; min-height: var(--pn-bar-h); padding: 6px 2px 4px; border: 0; background: none;
+  color: var(--zella-text-secondary); font: 500 11px/1.2 var(--zella-font, Inter, system-ui, sans-serif); letter-spacing: 0;
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
+}
+.pn-tab > span:last-child { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pn-tab .pn-ic { position: relative; display: grid; place-items: center; width: 56px; max-width: 100%; height: 28px; border-radius: 14px; transition: background-color 150ms var(--pn-ease), transform 150ms var(--pn-ease); }
+.pn-tab .ba-icon { font-size: 22px; }
+.pn-tab[aria-current="page"] { color: var(--zella-text); }
+.pn-tab[aria-current="page"] .ba-icon { color: var(--zella-primary); font-variation-settings: "FILL" 1; }
+html[data-zella-theme="zella"] .pn-tab[aria-current="page"] .ba-icon { color: var(--zella-text); }
+/* P4: the brand's selected marker, a thin bar along the top edge of the tab */
+.pn-tab[aria-current="page"]::before {
+  content: ""; position: absolute; top: -1px; left: 50%; width: 20px; height: 3px; margin-left: -10px;
+  border-radius: 0 0 3px 3px; background: var(--pn-mark);
+}
+.pn-tab:active .pn-ic { background: var(--zella-nav-hover); transform: scale(0.94); }
+.pn-tab:focus-visible { outline: none; }
+.pn-tab:focus-visible .pn-ic { box-shadow: 0 0 0 2px var(--pn-mark); }
+.pn-count {
+  position: absolute; top: -3px; left: calc(50% + 4px); min-width: 18px; height: 18px; padding: 0 5px; margin: 0;
+  display: inline-grid; place-items: center; border-radius: 999px;
+  background: var(--zella-danger); color: #fff; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1;
+  box-shadow: 0 0 0 2px var(--pn-bar-bg);
+}
+html[data-zella-theme="glass"] .pn-count { box-shadow: 0 0 0 2px #2a221e; }
+
+/* P10: one main action per page, in the thumb zone, above the bar */
+.pn-action { display: flex; align-items: center; gap: 8px; padding: 0 16px 12px; }
+.pn-action :is(.ba-btn, .owner-primary-button, .owner-secondary-button) { min-height: 48px; box-shadow: var(--zella-shadow-md); }
+.pn-action :is(.ba-btn.primary, .owner-primary-button) { flex: 1; justify-content: center; font-size: 15px; }
+.pn-action .pn-round { width: 48px; min-width: 48px; padding: 0; justify-content: center; flex-shrink: 0; border-radius: 999px; }
+.pn-action .pn-round .ba-icon { font-size: 22px; }
+html[data-zella-theme="glass"] .pn-action :is(.ba-btn:not(.primary), .owner-secondary-button) { background: var(--glass-solid); }
+
+/* P13: the live strip, while something is happening now */
+.pn-strip {
+  display: flex; align-items: center; gap: 12px; min-height: 44px; margin: 0 8px 8px; padding: 4px 6px 4px 14px;
+  border: 1px solid var(--zella-border); border-radius: 14px; background: var(--zella-card); color: var(--zella-text);
+  font: 500 13px/1.25 var(--zella-font, Inter, system-ui, sans-serif); text-align: left; cursor: pointer;
+  box-shadow: var(--zella-shadow-md), inset 3px 0 0 var(--pn-mark);
+}
+html[data-zella-theme="glass"] .pn-strip { background: var(--glass-solid); }
+.pn-strip .pn-live { position: relative; width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--pn-mark); color: var(--pn-mark); }
+.pn-strip .pn-strip-text { flex: 1; min-width: 0; }
+.pn-strip .pn-strip-text b { display: block; overflow: hidden; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.pn-strip .pn-strip-text small { display: block; overflow: hidden; color: var(--zella-text-secondary); font-size: 12px; font-weight: 400; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.pn-strip .pn-strip-go { display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 12px; border-radius: 999px; background: var(--zella-primary); color: var(--zella-on-primary); font-size: 13px; flex-shrink: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .pn-strip .pn-live::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid currentColor; opacity: 0; animation: pn-live 1.8s var(--pn-ease) infinite; }
+}
+@keyframes pn-live { 0% { opacity: 0.7; transform: scale(0.6); } 100% { opacity: 0; transform: scale(1.6); } }
+
+/* ---------- Side panel (P7) ---------- */
+.pn-scrim {
+  position: fixed; inset: 0; z-index: 60; border: 0; padding: 0; background: var(--zella-overlay);
+  opacity: 0; pointer-events: none; transition: opacity 200ms var(--pn-ease);
+}
+html[data-zella-theme="glass"] .pn-scrim { backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.pn-scrim.on { opacity: 1; pointer-events: auto; }
+.pn-panel {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 61; display: flex; flex-direction: column;
+  width: min(320px, 86vw); padding-top: env(safe-area-inset-top, 0px);
+  border-right: 1px solid var(--zella-border); border-radius: 0 20px 20px 0;
+  background: var(--zella-sidebar); box-shadow: var(--zella-shadow-pop); outline: none;
+  /* closed: off screen and inert (PhoneNav.jsx), never visibility: hidden, which buttons inside would fade in late
+     and refuse focus while the panel opens */
+  transform: translateX(calc(-100% - 48px));
+  transition: transform 280ms var(--pn-ease);
+  touch-action: pan-y;
+}
+html[data-zella-theme="glass"] .pn-panel { background: rgba(26, 21, 19, 0.72); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+.pn-panel.on { transform: translateX(var(--pn-drag, 0px)); }
+.pn-panel.dragging { transition: none; }
+.pn-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 14px 8px 4px 16px; }
+.pn-panel-head .zv-brand { padding: 4px 0 8px; margin: 0; }
+.pn-panel-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 4px 12px calc(16px + var(--pn-safe)); }
+
+/* the business or platform card at the top of the panel */
+.pn-card-btn {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; margin: 4px 0 8px; padding: 10px 12px;
+  border: 1px solid var(--zella-border); border-radius: 14px; background: var(--zella-card); color: var(--zella-text); text-align: left; font: inherit; cursor: pointer;
+}
+html[data-zella-theme="glass"] .pn-card-btn { background: rgba(255, 255, 255, 0.05); }
+.pn-card-btn > span:nth-child(2) { flex: 1; min-width: 0; }
+.pn-card-btn strong { display: block; overflow: hidden; font-size: 14px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.pn-card-btn small { display: block; color: var(--zella-text-secondary); font-size: 12px; }
+.pn-card-btn > .pn-card-end { color: var(--zella-text-secondary); font-size: 13px; }
+.pn-card-btn .owner-workspace-icon, .pn-card-btn .ba-switcher-logo { width: 32px; height: 32px; flex-shrink: 0; }
+
+/* the desktop menu, opened up inside the panel (the tablet rules would hide its labels) */
+.pn-panel .ba-nav-section, .pn-panel .owner-nav-group { margin-top: 4px; }
+.pn-panel .ba-nav-group { display: flex !important; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 12px 10px 6px; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--zella-text-faint); }
+.pn-panel .ba-nav-section.folded .ba-nav { display: none; }
+.pn-panel .ba-nav-item { justify-content: flex-start !important; width: 100%; min-height: 44px; padding: 8px 10px !important; gap: 12px; font-size: 14px; }
+.pn-panel .ba-nav-item > span:nth-child(2) { display: block !important; flex: 1; text-align: left; }
+.pn-panel .ba-nav-item .ba-icon { font-size: 18px; }
+.pn-panel .ba-nav-item :is(.ba-nav-chev, .ba-count) { display: inline-flex !important; }
+.pn-panel .ba-nav-notice { display: block !important; }
+.pn-panel .ba-nav-children { margin-left: 18px; padding-left: 8px; border-left: 1px solid var(--zella-border); }
+.pn-panel .ba-nav-item.active { background: var(--zella-nav-active); color: var(--zella-text); box-shadow: inset 3px 0 0 var(--pn-mark); }
+.pn-panel .owner-nav { display: flex; flex-direction: column; overflow: visible; max-height: none; mask-image: none; -webkit-mask-image: none; }
+.pn-panel .owner-nav::after { display: none !important; }
+.pn-panel .owner-nav-label { display: block !important; padding: 16px 12px 8px; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--zella-text-faint); }
+.pn-panel .owner-nav-item { justify-content: flex-start !important; width: 100%; min-height: 44px; padding: 8px 12px !important; gap: 12px; font-size: 14px; }
+.pn-panel .owner-nav-item > span:nth-child(2) { display: inline !important; flex: 1; text-align: left; }
+.pn-panel .owner-nav-icon { width: 18px; }
+.pn-panel .owner-nav-icon .ba-icon { font-size: 18px; }
+.pn-panel .owner-nav-item.active { box-shadow: inset 3px 0 0 var(--pn-mark); }
+.pn-panel .ba-agent-card { display: flex !important; margin: 16px 0 8px; }
+.pn-panel .ba-agent-card > * { display: revert; }
+.pn-panel .owner-sidebar-bottom { display: flex !important; width: 100%; min-height: 48px; margin: 12px 0 0; }
+
+/* account, at the bottom of the panel */
+.pn-account { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--zella-border); }
+.pn-account-who { display: flex; align-items: center; gap: 12px; padding: 4px 10px 8px; min-width: 0; }
+.pn-account-who .ba-avatar { width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: var(--zella-subtle); color: var(--zella-text); font-size: 13px; font-weight: 600; }
+.pn-account-who > span:last-child { min-width: 0; }
+.pn-account-who strong { display: block; overflow: hidden; color: var(--zella-text); font-size: 14px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.pn-account-who small { display: block; color: var(--zella-text-secondary); font-size: 12px; }
+.pn-row-link {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 10px;
+  background: none; color: var(--zella-text-2); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.pn-row-link .ba-icon { color: var(--zella-text-secondary); font-size: 18px; }
+.pn-row-link:active { background: var(--zella-nav-hover); }
+
+/* ---------- Bottom sheets (P12) ---------- */
+.pn-sheet-layer { position: fixed; inset: 0; z-index: 1100; }
+.pn-sheet-layer .pn-scrim { z-index: 0; }
+.pn-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: flex; flex-direction: column;
+  height: 92dvh; max-height: calc(100dvh - 24px);
+  border: 1px solid var(--zella-border); border-bottom: 0; border-radius: 20px 20px 0 0;
+  background: var(--pn-sheet-bg); box-shadow: var(--zella-shadow-pop); color: var(--zella-text); outline: none;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  transform: translateY(max(0px, var(--pn-drag, 0px)));
+  transition: transform 300ms var(--pn-ease), height 300ms var(--pn-ease);
+}
+html[data-zella-theme="glass"] .pn-sheet { backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+.pn-sheet.half { height: 52dvh; }
+.pn-sheet.fit { height: auto; max-height: 86dvh; }
+.pn-sheet.dragging { transition: none; }
+.pn-sheet.open { animation: pn-sheet-in 300ms var(--pn-ease) both; }
+.pn-sheet.dragging, .pn-sheet.open.dragging { animation: none; }
+.pn-sheet.closing { transform: translateY(100%); }
+.pn-sheet-layer.closing .pn-scrim { opacity: 0; }
+@keyframes pn-sheet-in { from { translate: 0 100%; } to { translate: 0 0; } }
+.pn-grab { display: grid; place-items: center; width: 100%; min-height: 28px; height: 28px; border: 0; background: none; cursor: grab; flex-shrink: 0; touch-action: none; }
+.pn-grab::before { content: ""; width: 36px; height: 5px; border-radius: 3px; background: var(--zella-border-strong); }
+.pn-sheet-head { display: flex; align-items: flex-start; gap: 12px; padding: 0 8px 12px 16px; touch-action: none; }
+.pn-sheet-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--zella-text); }
+.pn-sheet-head p { margin: 2px 0 0; color: var(--zella-text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pn-sheet-head > div { flex: 1; min-width: 0; padding-top: 4px; }
+.pn-sheet-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pn-sheet-body > :is(.ba-modal-body, form.ba-modal-body) { padding-top: 0; }
+.pn-sheet-body:not(:has(> .ba-modal-body, > form)) { padding: 0 16px 16px; }
+.pn-sheet-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--zella-border); }
+.pn-sheet-foot .ba-btn { min-height: 44px; }
+
+/* sheet content: quick actions, the switcher, a business or a task */
+.pn-sheet-actions { display: grid; grid-template-columns: repeat(var(--pn-sa, 4), minmax(0, 1fr)); gap: 8px; margin: 0 0 16px; }
+.pn-sheet-actions :is(button, a) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 64px; padding: 10px 4px; border: 1px solid var(--zella-border); border-radius: 14px; background: var(--zella-card); color: var(--zella-text); font: inherit; font-size: 12px; font-weight: 500; text-align: center; text-decoration: none; cursor: pointer; }
+html[data-zella-theme="glass"] .pn-sheet-actions :is(button, a) { background: rgba(255, 255, 255, 0.05); }
+.pn-sheet-actions :is(button, a):first-child { border-color: transparent; background: var(--zella-primary); color: var(--zella-on-primary); }
+.pn-sheet-actions .ba-icon { font-size: 20px; }
+.pn-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 16px; }
+.pn-facts div { min-width: 0; padding: 10px 12px; border-radius: 12px; background: var(--zella-subtle); }
+.pn-facts small { display: block; color: var(--zella-text-secondary); font-size: 12px; }
+.pn-facts strong { display: block; margin-top: 2px; overflow: hidden; font-size: 15px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.pn-sheet-section { margin: 0 0 16px; }
+.pn-sheet-section h3 { margin: 0 0 8px; color: var(--zella-text-secondary); font-size: 12px; font-weight: 500; }
+.pn-sheet-section p { margin: 0; color: var(--zella-text-2); font-size: 14px; line-height: 1.5; }
+.pn-menu-list { display: flex; flex-direction: column; margin: 0 -8px 8px; }
+
+/* the dialogs pages draw themselves, as sheets on a phone (BottomSheet.jsx useSheetEnhancer) */
+html.pn-phone .bp-backdrop { align-items: flex-end; justify-content: stretch; }
+html.pn-phone [data-pn-sheet] {
+  position: relative; width: 100% !important; max-width: none !important; height: 92dvh; max-height: calc(100dvh - 24px) !important; margin: 0;
+  border-radius: 20px 20px 0 0 !important; padding-top: 28px; overflow-y: auto; overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+html.pn-phone [data-pn-sheet]::before {
+  content: ""; position: absolute; top: 12px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: var(--zella-border-strong);
+}
+html.pn-phone [data-pn-sheet] { transform: translateY(max(0px, var(--pn-drag, 0px))); transition: transform 300ms var(--pn-ease), height 300ms var(--pn-ease); }
+html.pn-phone [data-pn-sheet="half"] { height: 52dvh; }
+html.pn-phone [data-pn-sheet="fit"] { height: auto; }
+html.pn-phone [data-pn-sheet][data-pn-dragging] { transition: none; }
+html.pn-phone .owner-modal-overlay:has([data-pn-sheet]) { align-items: flex-end; padding: 0; overflow: hidden; }
+html.pn-phone[data-zella-theme="glass"] [data-pn-sheet] { background: var(--glass-solid); }
+
+/* ---------- Lists on a phone: swipe rows and the "Needs you now" block ---------- */
+.pn-list { margin: 0 0 16px; padding: 0; list-style: none; overflow: hidden; border: 1px solid var(--zella-border); border-radius: 16px; background: var(--zella-card); }
+html[data-zella-theme="glass"] .pn-list { background: rgba(36, 30, 27, 0.7); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge); }
+.pn-list > li { position: relative; border-top: 1px solid var(--zella-border); }
+.pn-list > li:first-child { border-top: 0; }
+.pn-list-label { margin: 8px 4px 8px; color: var(--zella-text-secondary); font-size: 12px; font-weight: 500; }
+.pn-item-wrap { position: relative; z-index: 1; background: var(--zella-card); transition: transform 220ms var(--pn-ease); touch-action: pan-y; }
+html[data-zella-theme="glass"] .pn-item-wrap { background: #241e1b; }
+.pn-item-wrap.dragging { transition: none; }
+.pn-item {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 12px 10px 16px;
+  border: 0; background: transparent; color: var(--zella-text); text-align: left; font: inherit; cursor: pointer;
+  transition: background-color 150ms var(--pn-ease);
+}
+.pn-item:active { background: var(--zella-nav-hover); }
+.pn-item .pn-main { flex: 1; min-width: 0; }
+.pn-item .pn-main strong { display: block; overflow: hidden; font-size: 15px; font-weight: 500; white-space: nowrap; text-overflow: ellipsis; }
+.pn-item .pn-main small { display: block; margin-top: 2px; overflow: hidden; color: var(--zella-text-secondary); font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+.pn-item .pn-lead { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: var(--zella-subtle); color: var(--zella-text-secondary); font-size: 13px; font-weight: 500; }
+.pn-item .pn-lead .ba-icon { font-size: 18px; }
+.pn-item .pn-lead.warn { background: var(--zella-warning-bg); color: var(--zella-warning); }
+.pn-item .pn-lead.danger { background: var(--zella-danger-bg); color: var(--zella-danger); }
+.pn-item .pn-meta { flex-shrink: 0; color: var(--zella-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pn-item .pn-meta.late { color: var(--zella-danger); }
+.pn-row { display: flex; align-items: center; min-height: 64px; }
+.pn-row > .pn-item { flex: 1; min-width: 0; padding-left: 4px; }
+.pn-check {
+  display: grid; place-items: center; width: 44px; height: 44px; margin-left: 6px; flex-shrink: 0; border: 0; border-radius: 50%; background: none; color: var(--zella-text-secondary); cursor: pointer;
+}
+.pn-check::before { content: ""; width: 20px; height: 20px; border: 1.5px solid var(--zella-border-strong); border-radius: 50%; }
+.pn-check:active::before { background: var(--zella-success-bg); border-color: var(--zella-success); }
+.pn-more { display: grid; place-items: center; width: 44px; height: 44px; margin-right: 4px; flex-shrink: 0; border: 0; border-radius: 50%; background: none; color: var(--zella-text-secondary); cursor: pointer; }
+.pn-swipe-actions { position: absolute; inset: 0 0 0 auto; display: flex; }
+.pn-swipe-actions :is(button, a) { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 76px; border: 0; color: #fff; font: inherit; font-size: 12px; font-weight: 500; text-decoration: none; cursor: pointer; }
+.pn-swipe-actions .ba-icon { font-size: 20px; }
+.pn-swipe-actions .call { background: var(--zella-info); }
+.pn-swipe-actions .done { background: var(--zella-success); }
+.pn-swipe-actions .info { background: var(--zella-primary); color: var(--zella-on-primary); }
+html[data-zella-theme="glass"] .pn-swipe-actions :is(.call, .done) { color: #1b1613; }
+.pn-hint { display: flex; align-items: center; gap: 8px; margin: 0 4px 12px; color: var(--zella-text-secondary); font-size: 12px; }
+.pn-hint .ba-icon { font-size: 16px; }
+.pn-today-top { margin: 0 0 16px; }
+.pn-today-top .pn-item { min-height: 56px; }
+
+/* ---------- Skeleton (P18) ---------- */
+.pn-skel { display: grid; gap: 12px; padding: 4px 0; }
+.pn-skel i { display: block; height: 64px; border-radius: 16px; background: var(--zella-subtle); }
+.pn-skel i:first-child { height: 28px; width: 40%; border-radius: 8px; }
+.pn-skel i:nth-child(2) { height: 18px; width: 64%; border-radius: 8px; margin-bottom: 8px; }
+@media (prefers-reduced-motion: no-preference) {
+  .pn-skel i { animation: pn-shimmer 1.4s ease-in-out infinite; }
+}
+@keyframes pn-shimmer { 50% { opacity: 0.55; } }
+
+/* ---------- Toast, above the bar (P21) ---------- */
+.pn-toast {
+  position: fixed; left: 12px; right: 12px; z-index: 80;
+  bottom: calc(var(--pn-bar-h) + var(--pn-safe) + var(--pn-strip-h) + var(--pn-action-h) + 12px);
+  display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 6px 6px 6px 16px;
+  border-radius: 14px; background: var(--zella-text); color: var(--zella-bg); font-size: 14px; box-shadow: var(--zella-shadow-pop);
+  opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity 200ms var(--pn-ease), transform 200ms var(--pn-ease);
+}
+html[data-zella-theme="glass"] .pn-toast { background: #F7F2ED; color: #1b1613; }
+html.pn-kb .pn-toast { bottom: 12px; }
+.pn-toast.on { opacity: 1; transform: none; pointer-events: auto; }
+.pn-toast > span { flex: 1; min-width: 0; }
+.pn-toast button { min-height: 44px; min-width: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; font-weight: 600; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.pn-toast button.pn-toast-close { text-decoration: none; display: grid; place-items: center; padding: 0; }
+
+/* ---------- Pull to refresh (P17) ---------- */
+.pn-ptr { display: flex; align-items: center; justify-content: center; gap: 8px; height: 0; overflow: hidden; color: var(--zella-text-secondary); font-size: 12px; transition: height 200ms var(--pn-ease); }
+.pn-ptr.on { height: 40px; }
+@media (prefers-reduced-motion: no-preference) {
+  .pn-spin { animation: pn-spin 0.9s linear infinite; }
+}
+@keyframes pn-spin { to { transform: rotate(360deg); } }
+
+/* ---------- What moved off the page heads on a phone ---------- */
+/* Today: New booking, Walk in, Add lead and Refresh live in the sticky action, Quick actions and pull to refresh.
+   The date and the "Today" button stay. */
+html.pn-phone .td-head .ba-page-actions > .ba-btn:has(.ba-icon) { display: none; }
+/* the page's own main button where the sticky action names it (data-pn-action on the app root) */
+html.pn-phone :is(.ba-root, .owner-app)[data-pn-action] :is(.ba-page-head, .owner-page-heading) :is(.ba-btn.primary, .owner-primary-button) { display: none; }
+/* Refresh buttons on the pages with pull to refresh (data-pn-pull) */
+html.pn-phone .owner-app[data-pn-pull] .owner-page-heading .op-heading-actions > .owner-secondary-button { display: none; }
+html.pn-phone .ba-root[data-pn-pull] .ba-page-head .ba-btn.ghost[aria-label="Refresh"] { display: none; }
+/* the waiting callers banner: the live strip says it on a phone */
+html.pn-phone .ba-banner.alert[data-pn-strip] { display: none; }
+
+/* ---------- Every tap shows a press (P22) ---------- */
+html.pn-phone :is(.pn-row-link, .pn-card-btn, .pn-strip, .pn-iconbtn, .pn-sheet-actions button, .pn-sheet-actions a) { transition: transform 150ms var(--pn-ease), background-color 150ms var(--pn-ease); -webkit-tap-highlight-color: transparent; }
+html.pn-phone :is(.pn-row-link, .pn-card-btn, .pn-strip, .pn-sheet-actions button, .pn-sheet-actions a):active { transform: scale(0.98); }
+
+/* ---------- Focus rings (P29) ---------- */
+:is(.pn-iconbtn, .pn-grab, .pn-row-link, .pn-item, .pn-card-btn, .pn-strip, .pn-check, .pn-more, .pn-biz, .pn-swipe-actions button, .pn-swipe-actions a, .pn-toast button):focus-visible {
+  outline: none; box-shadow: var(--zella-focus, 0 0 0 3px var(--zella-primary-ring));
+}
+.pn-grab:focus-visible { box-shadow: none; }
+.pn-grab:focus-visible::before { box-shadow: 0 0 0 3px var(--zella-primary-ring); }
+
+/* ---------- Reduced motion (P26): no slides, the live dot stops ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .pn-panel, .pn-panel.on, .pn-sheet, .pn-scrim, .pn-bottom, .pn-toast, .pn-item, .pn-item-wrap, .pn-tab .pn-ic, .pn-ptr, .pn-title span, [data-pn-sheet] { transition: none !important; }
+  .pn-sheet.open { animation: none; }
+}
+.pn-item .pn-meta { max-width: 112px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* the bells in the phone top bar look like the other icon buttons there (the mockups): no outline, 44px round */
+html.pn-phone .pn-top :is(.ba-bell > .ba-btn.icon, .owner-bell > .owner-icon-button) {
+  width: 44px; height: 44px; padding: 0; border: 0; border-radius: 999px; background: none; box-shadow: none; color: var(--zella-text);
+}
+html.pn-phone .pn-top .ba-bell > .ba-btn.icon .ba-count { top: 4px; right: 2px; }
+html.pn-phone .pn-top .owner-bell-count { top: 4px; right: 2px; }
+/* phone lists sit in page grids (Support's list and detail): never wider than the screen */
+html.pn-phone .st-layout { grid-template-columns: minmax(0, 1fr); }
+html.pn-phone :is(.st-layout, .ba-content, .owner-content) > section:has(> .pn-list) { min-width: 0; }
+html.pn-phone .pn-list { max-width: 100%; }
+html.pn-phone .ba-root[data-pn-action] .cal-toolbar > .ba-btn.primary { display: none; }
+html[data-zella-theme="glass"] .pn-sheet-actions :is(button, a):first-child { background: var(--zella-primary); color: var(--zella-on-primary); }
+.pn-item .pn-meta.wide { max-width: 150px; }   /* a date and a time (callbacks) */

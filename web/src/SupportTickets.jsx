@@ -7,6 +7,10 @@ import { Pill } from "./OwnerOverview";
 import { formatDateTime, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import { businessHoursText } from "./adminAccess";
+import { usePhoneUi } from "./navigation/phoneContext";
+import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
+import { BottomSheet } from "./navigation/BottomSheet";
+import { deferChange } from "./navigation/phoneHelpers";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
 const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]];
@@ -23,7 +27,14 @@ const firstReplyText = (h) => (Number.isFinite(h) && h < 1 ? "First reply: withi
 
 const EMPTY_TICKET = { businessId: "", subject: "", description: "", category: "", priority: "normal" };
 
-export default function SupportTickets({ onOpenBusiness }) {
+export default function SupportTickets({ onOpenBusiness, myEmail }) {
+  // On a phone the list is rows you can swipe (approved 25 Nov 2026, P19 and P20): Assign to yourself or Resolve, shown
+  // at once with Undo, and only sent once the Undo window has passed (navigation/phoneHelpers.js deferChange).
+  const ui = usePhoneUi();
+  const [pending, setPending] = useState({});
+  const pendingChanges = useRef(new Map());
+  const [rowMenu, setRowMenu] = useState(null);
+  useEffect(() => () => { pendingChanges.current.forEach((c) => c.flush()); }, []);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -86,7 +97,7 @@ export default function SupportTickets({ onOpenBusiness }) {
   const emptyIsCurrent = listMatches && !loading && !error;
   // without reply times (sql/zella_support_replies.sql not applied) the server can't tell which tickets are overdue
   const overdueUnknown = overdueTab && listMatches && !timesKnown;
-  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).filter((t) =>
+  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).map((t) => (pending[t.id] ? { ...t, ...pending[t.id] } : t)).filter((t) =>
     statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue === true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
@@ -110,6 +121,32 @@ export default function SupportTickets({ onOpenBusiness }) {
       setBusy(false);
     }
   }
+
+  // The signed in admin in the list of people a ticket can be assigned to.
+  const me = (data?.assignees ?? []).find((a) => a.email && myEmail && a.email.toLowerCase() === myEmail.toLowerCase()) ?? null;
+  const drop = (id) => setPending((m) => { const next = { ...m }; delete next[id]; return next; });
+  function quickChange(t, kind) {
+    if (pendingChanges.current.has(t.id)) return;
+    const resolve = kind === "resolve";
+    const shown = resolve ? { status: "resolved" } : { assigned_to: me.id, assignee: me.email };
+    const sent = resolve ? { status: "resolved" } : { assignedTo: me.id };
+    const change = deferChange({
+      apply: () => setPending((m) => ({ ...m, [t.id]: shown })),
+      commit: async () => {
+        await callOwnerFunction("ticket_update", { ticketId: t.id, ...sent });
+        pendingChanges.current.delete(t.id);
+        await loadRef.current();
+        drop(t.id);
+      },
+      revert: () => { pendingChanges.current.delete(t.id); drop(t.id); },
+      onError: (err) => ui.toast(`Couldn't save that change, so it's back as it was. ${friendlyError(err)}`),
+    });
+    pendingChanges.current.set(t.id, change);
+    ui.toast(resolve ? "Ticket resolved" : "Ticket assigned to you", { undo: () => change.undo() });
+  }
+  useEffect(() => {
+    if (ui.phone && selectedId) document.querySelector(".st-detail")?.scrollIntoView({ block: "start" });
+  }, [ui.phone, selectedId]);
 
   async function create(event) {
     event.preventDefault();
@@ -160,6 +197,35 @@ export default function SupportTickets({ onOpenBusiness }) {
       </div>
 
       <div className={`st-layout ${detailOpen ? "with-detail" : ""}`}>
+        {ui.phone ? (
+          <section aria-label="Tickets">
+            {tickets.length > 0 && <p className="pn-hint"><Icon name="swipe_left" />Swipe a ticket left to assign it to you or resolve it</p>}
+            {!tickets.length ? (loading && !data ? <Skeleton label="Loading tickets" /> : (
+              <div className="op-empty">{overdueUnknown ? "Overdue tracking is unavailable until reply times are recorded (a database update is needed)." : emptyIsCurrent ? "No tickets here." : loading ? "Loading tickets..." : "Couldn't load this list. Pull down to try again, or reload the page."}</div>
+            )) : (
+              <ul className="pn-list pn-swipes">
+                {tickets.map((t) => {
+                  const done = ["resolved", "closed"].includes(t.status);
+                  const actions = [
+                    me && t.assigned_to !== me.id && !done && { key: "assign", label: "Assign", icon: "person_add", tone: "call", onClick: () => quickChange(t, "assign") },
+                    !done && { key: "resolve", label: "Resolve", icon: "check", tone: "done", onClick: () => quickChange(t, "resolve") },
+                  ].filter(Boolean);
+                  return (
+                    <SwipeRow key={t.id} actions={actions}>
+                      <div className="pn-row">
+                        <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>
+                          <span className="pn-main"><strong>{t.subject}</strong><small>{t.business_name} · {t.assignee ?? "Unassigned"} · {timeAgo(t.created_at)}</small></span>
+                          <span className={`pn-meta ${timesKnown && t.overdue === true ? "late" : ""}`}>{timesKnown && t.overdue === true ? "No reply yet" : label(STATUSES, t.status)}</span>
+                        </button>
+                        <button type="button" className="pn-more" aria-label={`More for ${t.subject}`} aria-haspopup="dialog" onClick={() => setRowMenu(t)}><Icon name="more_horiz" /></button>
+                      </div>
+                    </SwipeRow>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        ) : (
         <section className="owner-panel">
           <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">
@@ -205,6 +271,7 @@ export default function SupportTickets({ onOpenBusiness }) {
             </table>
           </div>
         </section>
+        )}
 
         {creating && (
           <form className="wiz-section st-detail" onSubmit={create}>
@@ -332,6 +399,20 @@ export default function SupportTickets({ onOpenBusiness }) {
           </aside>
         )}
       </div>
+      {rowMenu && (
+        <BottomSheet title={rowMenu.subject} description={`${rowMenu.business_name} · ${label(STATUSES, rowMenu.status)}`} size="fit" onClose={() => setRowMenu(null)}>
+          <div className="pn-menu-list">
+            <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); selectTicket(t.id); setCreating(false); }}><Icon name="open_in_new" /><span>Open ticket</span></button>
+            {me && rowMenu.assigned_to !== me.id && !["resolved", "closed"].includes(rowMenu.status) && (
+              <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); quickChange(t, "assign"); }}><Icon name="person_add" /><span>Assign to me</span></button>
+            )}
+            {!["resolved", "closed"].includes(rowMenu.status) && (
+              <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); quickChange(t, "resolve"); }}><Icon name="check" /><span>Resolve</span></button>
+            )}
+            <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); onOpenBusiness(t.business_id); }}><Icon name="storefront" /><span>Open {rowMenu.business_name}</span></button>
+          </div>
+        </BottomSheet>
+      )}
     </section>
   );
 }
