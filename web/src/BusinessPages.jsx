@@ -64,6 +64,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
   const visible = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const sources = [...new Set((data ?? []).map((p) => p.source || "other"))].sort();
   const noun = isLeads ? "lead" : term("customer").toLowerCase();
+  const nounMany = isLeads ? "leads" : term("customers").toLowerCase();
 
   return (
     <>
@@ -152,7 +153,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
                 </tbody>
               </table>
             </div>
-            <Pager page={page} pages={pages} total={rows.length} onPage={setPage} noun={noun} />
+            <Pager page={page} pages={pages} total={rows.length} onPage={setPage} noun={noun} nounMany={nounMany} />
           </>
         )}
       </section>

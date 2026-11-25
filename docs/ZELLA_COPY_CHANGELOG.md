@@ -103,9 +103,30 @@ Where an item also offered the page's own button (A20, C13, C14) the button is t
 | Settings, Usage and charges | "None to None. Counted from your records." | "No billing period yet. Counted from your records." | C48 |
 | Settings, Appearance | "Paper, midnight and coral. The official Zella Voice look." and the other theme and sidebar descriptions | "Paper, midnight and coral, the official Zella Voice look"; the descriptions lose their full stops | C50 |
 
-Not in this pass: A40 and the Industry configuration empty state (A20) are on the same lines as the open bug fix pull
-request, which already shows "Industries didn't load." with Try again; the Industry profile "Words" link (C12) sits on
-the line that pull request changes. They follow once it merges. The Today page keeps its own wording pass.
+Added once the bug fix pull request (#121) merged, on the lines it changed:
+
+| Where | Before | After | Item |
+|---|---|---|---|
+| Industry configuration, failed load | "Couldn't load the industries. Reload the page to try again." (with "Industries didn't load." in a second panel) | one message, "Industries didn't load.", with a Try again button (from #121); the empty right hand panel is gone | A40 |
+| Industry configuration, empty list | "No industries yet." | "No industries yet." with a New industry button | A20 |
+| Industry configuration, loading | "Loading industries...", "Loading..." | "Loading industries…", "Loading…" | A17 |
+| Settings, Industry profile, Words | "Industry & business workflows > Terminology" | "Industry and workflows, Terminology" | C12 |
+
+The Today page keeps its own wording pass.
+
+## 25 November 2026: wording bugs found by the page audits
+
+Approved by the owner on 25 Nov 2026 (A41, C33, C36, C39, C45). Details: the admin and CRM page audits.
+
+| Where | Before | After | Item |
+|---|---|---|---|
+| Record lists, count under the table | "4 event or catering enquirys" | each kind's own plural word, as stored in its setup: "4 events and catering" for the restaurant preset (customer lists too) | C33 |
+| Spam protection, incidents per day chart | "11-23" | "Nov 23" | C36 |
+| Reports, Checked in | "1 arrivals" | "1 arrival" (and "1 no show" under No show rate) | C39 |
+| Settings, Industry profile, Modules switched on | "Ai-receptionist, Automations, Calendar, Calls" | "AI receptionist, Automations, Calendar, Calls" | C45 |
+| Admin, Industry configuration, failed or empty load | "Cannot read properties of undefined (reading '0')", "Couldn't load the industries. Reload the page to try again." and "Industries didn't load." | "Industries didn't load." with a Try again button | A41 (A40 wording) |
+| Admin Settings, Reporting configuration, empty answer | the page crashed | "Couldn't load this: The server didn't answer." with Try again | S62 |
+| Settings, Billing, Auto reload, a resource with no packs | the page crashed when the list was missing | "No packs of texts are on offer right now, so there is nothing to reload with. Ask Zella Voice support." (per resource) | CRM audit, section 4 |
 
 ## 25 November 2026: admin dashboard polish
 

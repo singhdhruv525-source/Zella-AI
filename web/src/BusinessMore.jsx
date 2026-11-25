@@ -331,8 +331,8 @@ export function ReportsPage({ workspace, refreshKey }) {
           <h2 className="ba-h2">{term("appointments")} and people</h2>
           <div className="ba-kpis">
             <Stat label={`${term("appointments")} so far`} value={r.booked} note={`${r.completed} completed`} />
-            <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={`${r.noShows} no shows`} />
-            <Stat label="Checked in" value={pct(r.checkedIn, r.booked)} note={`${r.checkedIn} arrivals`} />
+            <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={plural(r.noShows, "no show")} />
+            <Stat label="Checked in" value={pct(r.checkedIn, r.booked)} note={plural(r.checkedIn, "arrival")} />
             <Stat label={`New ${term("customers").toLowerCase()}`} value={r.leads} />
           </div>
         </>

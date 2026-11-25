@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { friendly } from "../BusinessShared";
 import { Banner, Card, Facts, Field, LoadState, Pill, SaveBar, Table, useAsync, useForm } from "./SettingsKit";
 import "../billing.css";
+import { autoReloadChoices } from "./autoReload";
 
 // Billing & Subscription for the business owner (REQ-BIL-05). Everything comes from zella_billing_overview, which the
 // database answers only for the owner (and billing admins): staff and other businesses are refused there, not here.
@@ -152,8 +153,11 @@ export function AutoReloadPanel({ w }) {
 }
 
 function AutoReloadForms({ w, o, reload }) {
-  return ["minutes", "texts", "emails"].map((r) => <AutoReloadForm key={r} w={w} resource={r} packs={o.packs.filter((p) => p.resource === r)}
-    current={o.auto_reload.find((a) => a.resource === r)} onSaved={reload} />);
+  return ["minutes", "texts", "emails"].map((r) => {
+    const { packs, current } = autoReloadChoices(o, r);
+    if (!packs.length) return <Card key={r} title={`Auto reload: ${RES[r][0].toLowerCase()}`} sub={`No packs of ${RES[r][1]} are on offer right now, so there is nothing to reload with. Ask Zella Voice support.`} />;
+    return <AutoReloadForm key={r} w={w} resource={r} packs={packs} current={current} onSaved={reload} />;
+  });
 }
 
 function AutoReloadForm({ w, resource, packs, current, onSaved }) {

@@ -13,7 +13,7 @@ import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Missin
 import { settingLabel } from "../copy/settingLabels";
 import RecordingPolicy from "./panels/RecordingPolicy";
 import DataRetention from "./panels/DataRetention";
-import { figureRows, reportError, scheduleFacts, weekLabel } from "./weeklyReport";
+import { NO_ANSWER, figureRows, readWeeklyReports, reportError, scheduleFacts, weekLabel } from "./weeklyReport";
 
 
 // Admin Settings content. Every panel reads and writes through the
@@ -1305,12 +1305,14 @@ export function ReportingConfig({ me }) {
     if (!allowed) return null;
     const { data, error } = await supabase.rpc("zella_admin_weekly_reports", { p_limit: 12 });
     if (error) throw new Error(reportError(error.message));
-    return data;
+    const answer = readWeeklyReports(data);
+    if (!answer) throw new Error(NO_ANSWER);
+    return answer;
   }, [allowed]);
   if (!allowed) return <Banner tone="warn">{reportError("NOT_ALLOWED")}</Banner>;
   return (
     <LoadState state={state}>{(d) => {
-      const [latest, ...earlier] = d.reports ?? [];
+      const [latest, ...earlier] = d.reports;
       return (
         <>
           <Card title="Weekly platform report" sub="Counts only: no names, numbers or messages."><Facts rows={scheduleFacts(d.schedule, when)} /></Card>

@@ -6,6 +6,7 @@ import { friendly, orThrow } from "./BusinessShared";
 import { TimeZoneSelect } from "./formFields";
 import { ReviewLinkPanel } from "./BusinessDrafts";
 import { makeTerm } from "./businessWorkspace";
+import { moduleName } from "./industryModules";
 import { DATA_RIGHTS_ROLES, DataRightsList } from "./BusinessDataRights";
 import { HoursSection } from "./BusinessHours";
 import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
@@ -798,7 +799,7 @@ function Terminology({ w, onReload }) {
 function IndustryProfile({ w }) {
   return (
     <Card title="Industry profile">
-      <Facts rows={[["Industry", w.industry ?? "None"], ["Modules switched on", (w.modules ?? []).map(words).join(", ") || "None"], ["Words", "Industry & business workflows > Terminology"], ["Setup", words(w.onboarding_status ?? "")]]} />
+      <Facts rows={[["Industry", w.industry ?? "None"], ["Modules switched on", (w.modules ?? []).map(moduleName).filter(Boolean).join(", ") || "None"], ["Words", "Industry and workflows, Terminology"], ["Setup", words(w.onboarding_status ?? "")]]} />
     </Card>
   );
 }

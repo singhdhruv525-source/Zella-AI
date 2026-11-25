@@ -7,7 +7,7 @@ import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
 import IndustryRecords from "./IndustryRecords";
 import { ReasonDialog, friendlyError } from "./admin/adminOps";
-import { businessWord, modulesLosingUsers, switchesOff } from "./industryModules";
+import { businessWord, modulesLosingUsers, readIndustriesAnswer, switchesOff } from "./industryModules";
 import { CATALOG } from "./automationCatalog";
 import { emptyAutomations } from "./industryAutomations";
 
@@ -125,15 +125,16 @@ export default function IndustryConfiguration() {
     setLoading(true);
     setError("");
     try {
-      const data = await callOwnerFunction("industries_list");
-      setIndustries(data.industries ?? []);
-      setIndustryData(Boolean(data.industryData));
+      const data = readIndustriesAnswer(await callOwnerFunction("industries_list"));
+      if (!data) throw new Error("EMPTY_ANSWER");
+      setIndustries(data.industries);
+      setIndustryData(data.industryData);
       setLoadFailed(false);
-      const next = (data.industries ?? []).find((i) => i.id === keepId) || data.industries[0] || null;
+      const next = data.industries.find((i) => i.id === keepId) || data.industries[0] || null;
       setSelectedId(next?.id ?? null);
       setDraft(next ? toDraft(next) : null);
-    } catch (err) {
-      setError(friendlyError(err));
+    } catch {
+      // One plain message with Try again in the list (A40, A41), never the raw error text.
       setLoadFailed(true);
     } finally {
       setLoading(false);
@@ -306,7 +307,12 @@ export default function IndustryConfiguration() {
             />
           </div>
           {loading && !industries.length ? (
-            <div className="op-empty">Loading industries...</div>
+            <div className="op-empty">Loading industries…</div>
+          ) : loadFailed && !loading ? (
+            <div className="op-empty" role="alert">
+              Industries didn't load.{" "}
+              <button type="button" className="owner-secondary-button" onClick={() => load(selectedId)}>Try again</button>
+            </div>
           ) : visible.length ? (
             <ul>
               {visible.map((industry) => (
@@ -326,7 +332,9 @@ export default function IndustryConfiguration() {
               ))}
             </ul>
           ) : (
-            <div className="op-empty">{loadFailed ? "Couldn't load the industries. Reload the page to try again." : industries.length ? "No matching industries." : "No industries yet."}</div>
+            <div className="op-empty">{industries.length ? "No matching industries." : (
+              <>No industries yet.{" "}<button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={() => { setCreating(true); setNotice(""); setError(""); }}>New industry</button></>
+            )}</div>
           )}
         </aside>
 
@@ -391,7 +399,7 @@ export default function IndustryConfiguration() {
               </div>
             </form>
           ) : !selected || !draft ? (
-            <div className="owner-panel"><div className="op-empty">{loading ? "Loading..." : loadFailed ? "Industries didn't load." : "Select an industry."}</div></div>
+            (loadFailed && !loading ? null : <div className="owner-panel"><div className="op-empty">{loading ? "Loading…" : "Select an industry."}</div></div>)
           ) : (
             <>
               <header className="ic-detail-head">
