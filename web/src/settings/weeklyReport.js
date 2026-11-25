@@ -64,11 +64,11 @@ export function reportError(message) {
     : String(message ?? "Something went wrong.");
 }
 
-// The zella_admin_weekly_reports answer, checked. Returns null when the server sent no answer at all, so the page
-// shows its plain load error with Try again; a missing or broken list reads as "no report yet", never a crash.
+// The zella_admin_weekly_reports answer, checked. Returns null when the server sent no answer, or no report list, so
+// the page shows its plain load error with Try again: a missing list is never "no report yet". An explicit empty list is.
 export function readWeeklyReports(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const reports = Array.isArray(data.reports) ? data.reports.filter((r) => r && typeof r === "object") : [];
+  if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.reports)) return null;
+  const reports = data.reports.filter((r) => r && typeof r === "object");
   return { schedule: data.schedule && typeof data.schedule === "object" ? data.schedule : {}, reports };
 }
 

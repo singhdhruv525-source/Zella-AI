@@ -31,13 +31,16 @@ export function moduleName(slug) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-// The industries_list answer, checked. Returns null when the server sent nothing usable (no answer, or no list),
-// so the page shows "Industries didn't load." with Try again instead of a code error. Rows the page can't render (no id,
-// no string name) are left out, and so are module entries that aren't objects. An empty list is a valid answer.
+// The industries_list answer, checked. Returns null when the server sent nothing usable (no answer, no list, or a list
+// with rows but none the page can render), so the page shows "Industries didn't load." with Try again instead of a code
+// error or "No industries yet". Rows the page can't render (no id, no string name, no module list) are left out, and so
+// are module entries that aren't objects. A missing module list is malformed, never "no modules". An explicitly empty
+// list of industries, or of an industry's modules, is a valid answer.
 export function readIndustriesAnswer(data) {
   if (!data || typeof data !== "object" || !Array.isArray(data.industries)) return null;
   const industries = data.industries
-    .filter((i) => i && typeof i === "object" && !Array.isArray(i) && i.id && typeof i.name === "string")
-    .map((i) => ({ ...i, modules: (Array.isArray(i.modules) ? i.modules : []).filter((m) => m && typeof m === "object" && !Array.isArray(m)) }));
+    .filter((i) => i && typeof i === "object" && !Array.isArray(i) && i.id && typeof i.name === "string" && Array.isArray(i.modules))
+    .map((i) => ({ ...i, modules: i.modules.filter((m) => m && typeof m === "object" && !Array.isArray(m)) }));
+  if (data.industries.length && !industries.length) return null;
   return { industries, industryData: Boolean(data.industryData) };
 }

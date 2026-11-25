@@ -53,11 +53,13 @@ test("no dash or hyphen in anything a person reads", () => {
   assert.doesNotMatch(text, /[-‐-―]/);
 });
 
-test("an empty server answer is a plain load error, and a missing list is no report yet (S62)", async () => {
+test("an empty answer or a missing report list is a plain load error, never no report yet (S62)", async () => {
   const { readWeeklyReports } = await import("./weeklyReport.js");
-  for (const bad of [null, undefined, "", [], 0]) assert.equal(readWeeklyReports(bad), null);
-  assert.deepEqual(readWeeklyReports({}), { schedule: {}, reports: [] });
-  assert.deepEqual(readWeeklyReports({ reports: null, schedule: null }), { schedule: {}, reports: [] });
+  for (const bad of [null, undefined, "", [], 0, {}, { reports: null }, { reports: "x" }, { reports: {} }, { schedule: { job_on: true } }]) {
+    assert.equal(readWeeklyReports(bad), null);
+  }
+  assert.deepEqual(readWeeklyReports({ reports: [] }), { schedule: {}, reports: [] });   // no report yet is still valid
+  assert.deepEqual(readWeeklyReports({ reports: [], schedule: null }), { schedule: {}, reports: [] });
   const r = readWeeklyReports({ schedule: { job_on: true }, reports: [{ id: 1 }, null, "x"] });
   assert.deepEqual(r.reports, [{ id: 1 }]);
   assert.equal(r.schedule.job_on, true);
