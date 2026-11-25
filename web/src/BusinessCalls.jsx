@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
-import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { formatDay, formatTime, timeAgoLabel, todayInput, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, loadPeople, plural, useLoad, callResult } from "./BusinessShared";
 import { EscalationControls, Transcript, isOpenEscalation } from "./BusinessProfile";
 import { Assignee, useRoster } from "./BusinessLeads";
 import { CB_REASON, when } from "./BusinessWork";
 import { useServerPages } from "./crm/paging";
+import { formatPhone } from "./lib/format";
 
 /* Every call, what came of it, and who is looking after it. */
 
@@ -64,7 +65,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
   const followedUp = () => run("followed", () => supabase.rpc("zella_call_mark_followed_up", { p_call_id: call.id }), "Missed call marked as followed up.");
 
   return (
-    <Modal wide title={personName(person) ?? call.from_number ?? "Unknown caller"} onClose={onClose} busy={Boolean(busy)}
+    <Modal wide title={personName(person) ?? (call.from_number ? formatPhone(call.from_number) : "Unknown caller")} onClose={onClose} busy={Boolean(busy)}
       description={`${call.direction === "outbound" ? "Outgoing" : "Incoming"} call · ${formatDay(call.created_at, tz)} · ${formatTime(call.created_at, tz)}`}>
       <div className="ba-modal-body">
         {error && <p className="ba-error" role="alert">{error}</p>}
@@ -86,7 +87,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
           <form className="ba-form-grid ba-finish" onSubmit={createLead}>
             <Field label="First name"><input value={lead.first} onChange={(e) => setLead({ ...lead, first: e.target.value })} autoFocus /></Field>
             <Field label="Last name"><input value={lead.last} onChange={(e) => setLead({ ...lead, last: e.target.value })} /></Field>
-            <p className="ba-muted full">Uses {call.from_number}. If they're already in your list, the call links to them instead.</p>
+            <p className="ba-muted full">Uses {formatPhone(call.from_number)}. If they're already in your list, the call links to them instead.</p>
             <div className="full ba-form-actions"><button type="submit" className="ba-btn primary sm" disabled={Boolean(busy)}>Create lead</button><button type="button" className="ba-btn sm" onClick={() => setLead(null)}>Cancel</button></div>
           </form>
         )}
@@ -118,7 +119,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
           <div className="full ba-form-actions"><button type="submit" className="ba-btn primary sm" disabled={Boolean(busy)}>Save outcome</button></div>
         </form>
 
-        <h3 className="ba-sub">follow up</h3>
+        <h3 className="ba-sub">Follow up</h3>
         {!followUps.length ? <p className="ba-muted">No follow up linked to this call.</p> : (
           <ul className="ba-threads">
             {followUps.map((f) => (
@@ -139,7 +140,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
         )}
         {call.recording_url && !recordingAllowed(call) && <p className="ba-muted">A recording exists but is hidden because the caller didn't agree to be recorded.</p>}
         <section><h3 className="ba-sub">Transcript</h3><Transcript transcript={call.transcript} role={workspace.role} /></section>
-        <section><h3 className="ba-sub">handoff</h3><EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} /></section>
+        <section><h3 className="ba-sub">Handed to a person</h3><EscalationControls call={call} onChanged={onChanged} onNotice={onNotice} /></section>
       </div>
     </Modal>
   );
@@ -229,8 +230,8 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
   return (
     <>
       <PageHead
-        crumb={transcriptsOnly ? "AI Receptionist / Transcripts" : "Calls & messages / Calls"}
-        title={transcriptsOnly ? "Transcripts and recordings" : "Calls"}
+        crumb={transcriptsOnly ? "AI receptionist / Transcripts" : "Calls and messages / Calls"}
+        title={transcriptsOnly ? "Transcripts" : "Calls"}
         sub={transcriptsOnly ? "What callers said and how your AI receptionist answered." : missedOpen ? `${plural(missedOpen, "missed call")} still waiting for a follow up.` : "Every call, what came of it, and who is following up."}
       >
         <Segment label="Call filter" value={filter} onChange={setFilter} options={FILTERS} />
@@ -251,14 +252,14 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                 <tbody>
                   {visible.map((c) => {
                     const person = data.people[c.customer_id];
-                    const name = personName(person) ?? c.from_number ?? "Unknown caller";
+                    const name = personName(person) ?? (c.from_number ? formatPhone(c.from_number) : "Unknown caller");
                     const missed = c.status === "missed";
                     const links = c.follow_ups ?? [];
                     const openLinks = links.filter((l) => !l.done).length;
                     return (
                       <tr key={c.id} onClick={() => setOpenId(c.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && setOpenId(c.id)}>
-                        <td><div className="ba-person"><div className="ba-avatar sm">{initials(name)}</div><div><strong>{name}</strong><small>{person ? c.from_number ?? "" : "Not in your list yet"}</small></div></div></td>
-                        <td><span title={`${formatDay(c.created_at, tz)} ${formatTime(c.created_at, tz)}`}>{timeAgo(c.created_at)}</span></td>
+                        <td><div className="ba-person"><div className="ba-avatar sm">{initials(name)}</div><div><strong>{name}</strong><small>{person ? formatPhone(c.from_number) : "Not in your list yet"}</small></div></div></td>
+                        <td><span title={`${formatDay(c.created_at, tz)} ${formatTime(c.created_at, tz)}`}>{timeAgoLabel(c.created_at)}</span></td>
                         <td><Pill tone={callResult(c.status).tone}>{missed && c.metadata?.followed_up_at ? "Missed, followed up" : callResult(c.status).label}</Pill></td>
                         <td>{c.ai_handled ? "AI receptionist" : "Team"}</td>
                         <td>{clock(c.duration_seconds)}</td>

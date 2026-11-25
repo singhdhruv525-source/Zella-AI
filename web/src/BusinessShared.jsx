@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { Icon } from "./BusinessUI";
 import { humanize } from "./copy/labels";
 import { blockCovers } from "./schedulingLogic";
+import { countWord } from "./lib/format";
 
 // Small pieces shared by the business app pages and the person profile.
 
@@ -17,7 +18,7 @@ export const PAGE_SIZE = 25;
 export { callResult, isAnswered } from "./copy/labels";
 
 export const sourceLabel = (s) => SOURCE_LABELS[s] ?? (s ? humanize(s) : "Other");
-export const plural = (n, word, many) => `${n} ${n === 1 ? word : many ?? `${word}s`}`;
+export const plural = countWord;
 export const clock = (seconds) =>
   seconds || seconds === 0 ? `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}` : "None";
 
@@ -56,11 +57,12 @@ export function Empty({ title, icon = "inbox", children }) {
   );
 }
 
-export function Notice({ error, onRetry }) {
+// `plain`: the error already says what didn't load ("Your receptionist's settings didn't load."), so it stands alone.
+export function Notice({ error, onRetry, plain = false }) {
   if (!error) return null;
   return (
     <div className="ba-banner error">
-      <span>Couldn't load this page: {error}</span>
+      <span>{plain ? error : <>Couldn't load this page: {error}</>}</span>
       {onRetry && <button type="button" className="ba-btn sm" onClick={onRetry}>Try again</button>}
     </div>
   );
@@ -115,12 +117,12 @@ export async function loadPeople(ids) {
  * hasNext overrides the page-count estimate when supplied; busy disables navigation.
  * size controls when a first page needs only a total with no controls.
  */
-export function Pager({ page, pages, total, onPage, noun, hasNext, busy = false, size = PAGE_SIZE }) {
+export function Pager({ page, pages, total, onPage, noun, nounMany, hasNext, busy = false, size = PAGE_SIZE }) {
   const more = hasNext ?? page < pages - 1;
-  if (total <= size && page === 0 && !more) return <div className="ba-table-foot"><span>{plural(total, noun)}</span></div>;
+  if (total <= size && page === 0 && !more) return <div className="ba-table-foot"><span>{plural(total, noun, nounMany)}</span></div>;
   return (
     <div className="ba-table-foot">
-      <span>{plural(total, noun)} · page {page + 1} of {Math.max(pages, page + 1)}</span>
+      <span>{plural(total, noun, nounMany)} · page {page + 1} of {Math.max(pages, page + 1)}</span>
       <div className="ba-page-actions">
         <button type="button" className="ba-btn sm" disabled={page === 0 || busy} onClick={() => onPage(page - 1)}>Previous</button>
         <button type="button" className="ba-btn sm" disabled={!more || busy} onClick={() => onPage(page + 1)}>Next</button>

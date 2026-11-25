@@ -78,7 +78,7 @@ export default function OverviewTab({ can, data, b, r, kb, term, invitation, pho
       {data.readiness ? <ReadinessCard readiness={data.readiness} /> : (
       <Card title="Setup progress" description="What's done and what's left before this business goes live.">
         <ul className="op-checks">
-          <Check ok title="Business details" detail={`${data.industryName} · ${b.timezone}`} />
+          <Check ok title="Business details" detail={`${data.industryName}, ${b.timezone}`} />
           <Check
             ok={Boolean(invitation)}
             title="Owner"

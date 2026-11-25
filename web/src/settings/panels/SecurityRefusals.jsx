@@ -47,7 +47,7 @@ export default function SecurityRefusals() {
                 <td>{r.ip ?? "Unknown address"}</td>
               </tr>
             ))}
-            {!data?.recent?.length && <tr><td colSpan={5}><div className="op-empty">{data ? "No refused requests in the last 24 hours." : error ? "Couldn't load this list." : "Loading..."}</div></td></tr>}
+            {!data?.recent?.length && <tr><td colSpan={5}><div className="op-empty">{data ? "No refused requests in the last 24 hours." : error ? "Couldn't load this list." : "Loading…"}</div></td></tr>}
           </tbody>
         </table>
       </div>

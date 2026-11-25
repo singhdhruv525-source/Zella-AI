@@ -49,3 +49,40 @@ test("durations", () => {
   assert.equal(formatDuration(3600), "1 h");
   assert.equal(formatDuration(undefined), "");
 });
+
+test("counts agree with their number (C39) and use each kind's own plural (C33)", async () => {
+  const { countWord } = await import("../src/lib/format.js");
+  assert.equal(countWord(1, "arrival"), "1 arrival");
+  assert.equal(countWord(0, "arrival"), "0 arrivals");
+  assert.equal(countWord(3, "arrival"), "3 arrivals");
+  assert.equal(countWord(1, "no show"), "1 no show");
+  assert.equal(countWord(2, "no show"), "2 no shows");
+  assert.equal(countWord(4, "event or catering enquiry", "event or catering enquiries"), "4 event or catering enquiries");
+  assert.equal(countWord(1, "event or catering enquiry", "event or catering enquiries"), "1 event or catering enquiry");
+  assert.doesNotMatch(countWord(4, "enquiry", "enquiries"), /enquirys/);
+});
+
+test("chart days read as dates, not codes with a hyphen (C36)", async () => {
+  const { formatMonthDay } = await import("../src/lib/format.js");
+  assert.equal(formatMonthDay("2026-11-23"), "Nov 23");
+  assert.equal(formatMonthDay("2026-01-01"), "Jan 1");   // read in UTC: never shifts to Dec 31
+  assert.equal(formatMonthDay(""), "");
+  assert.equal(formatMonthDay(null), "");
+  assert.equal(formatMonthDay("not a day"), "");
+});
+
+test("formatPhone keeps a number with an extension as written; phoneMatches finds raw and shown numbers", async () => {
+  const { formatPhone: fp, phoneMatches: pm } = await import("../src/lib/format.js");
+  assert.equal(fp("+1 202 555 0123 ext 45"), "+1 202 555 0123 ext 45");
+  assert.equal(fp("2025550123 x45"), "2025550123 x45");
+  assert.equal(fp("+1 202 555 0123"), "(202) 555 0123");
+  assert.equal(pm("+12025550123", "(202) 555 0123"), true);
+  assert.equal(pm("+12025550123", "+12025550123"), true);
+  assert.equal(pm("2025550123", "+1 202 555 0123"), true);
+  assert.equal(pm("+12025550123", "555 01"), true);
+  assert.equal(pm("+12025550123", "99"), false);
+  assert.equal(pm("+12025550123", "303"), false);
+  assert.equal(pm(null, "202"), false);
+  assert.equal(pm("+12025550123", "alex123@example.com"), false);
+  assert.equal(pm("+12025550123", "room 0123"), false);
+});

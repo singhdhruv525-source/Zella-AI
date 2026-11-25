@@ -6,6 +6,7 @@ import { friendly, orThrow } from "./BusinessShared";
 import { TimeZoneSelect } from "./formFields";
 import { ReviewLinkPanel } from "./BusinessDrafts";
 import { makeTerm } from "./businessWorkspace";
+import { moduleName } from "./industryModules";
 import { DATA_RIGHTS_ROLES, DataRightsList } from "./BusinessDataRights";
 import { HoursSection } from "./BusinessHours";
 import { AccessPage, ApprovalsPage, FailedWorkPage, SecurityLogPage } from "./BusinessAccess";
@@ -32,6 +33,7 @@ import { CallContentAccess, CapabilitiesPanel } from "./settings/CapabilitiesPan
 import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
 import { AutoReloadPanel, BillingBalancesPanel, BillingPlanPanel } from "./settings/BillingPanels";
 import { AssignmentSettings, BusinessOffersSettings, LeadQuestions, LeadRules, WebsiteForms, WebsiteSources } from "./settings/BusinessLeadPanels";
+import { formatTimeZone } from "./lib/format";
 
 // Business Settings: one Settings item in the CRM sidebar opens this workspace,
 // with 16 categories at /app/settings/<category>/<page>. Everything saves
@@ -157,7 +159,7 @@ function BusinessInfo({ w, onReload }) {
               <Field label="Business name"><input value={f.values.name} onChange={f.set("name")} maxLength={200} /></Field>
               <Field label="Legal business name"><input value={f.values.legal_name} onChange={f.set("legal_name")} maxLength={200} /></Field>
               <Field label="Industry" hint="Set by the Zella Voice team when your workspace was created."><input value={s.business.industry ?? w.industry ?? ""} disabled readOnly /></Field>
-              <Field label="Business type" hint="For example: family clinic, 24-hour plumbing."><input value={f.values.business_type} onChange={f.set("business_type")} maxLength={80} /></Field>
+              <Field label="Business type" hint="For example: family clinic, 24 hour plumbing."><input value={f.values.business_type} onChange={f.set("business_type")} maxLength={80} /></Field>
               <Field label="Description" full hint="One or two sentences about what you do."><textarea rows={3} value={f.values.description} onChange={f.set("description")} maxLength={1000} /></Field>
               <Field label="Website"><input value={f.values.website} onChange={f.set("website")} inputMode="url" placeholder="https://" /></Field>
               <Field label="Business email"><input type="email" value={f.values.email} onChange={f.set("email")} /></Field>
@@ -212,7 +214,7 @@ function BusinessHours({ w }) {
     <>
       <LoadState state={state}>{(s) => <HoursSection key={JSON.stringify(s.hours) + JSON.stringify(s.closures)} workspace={w} settings={s} onSaved={state.reload} />}</LoadState>
       <Card title="Breaks and emergencies">
-        <Facts rows={[["Break periods", "Add a second time range on the same day, for example 9 to 12 and 1 to 5"], ["Emergency calls", "AI receptionist > Escalation and fallback decides who is alerted at once"]]} />
+        <Facts rows={[["Break periods", "Add a second time range on the same day, for example 9 to 12 and 1 to 5"], ["Emergency calls", "AI receptionist, Escalation and fallback decides who is alerted at once"]]} />
       </Card>
     </>
   );
@@ -308,8 +310,8 @@ function RolesPermissions() {
     <>
       <Card title="What each role can do" sub="Checked by the database on every change, not just hidden in the app. These are business roles; Zella Voice's own admin roles are separate.">
         <div className="zs-table-wrap" tabIndex={0}><table className="zs-matrix">
-          <thead><tr><th>Can…</th>{roles.map((r) => <th key={r}>{words(r === "viewer" ? "view only" : r)}</th>)}</tr></thead>
-          <tbody>{ROLE_ROWS.map(([label, who]) => <tr key={label}><td>{label}</td>{roles.map((r) => <td key={r}>{who.includes(r) ? "✓" : "None"}</td>)}</tr>)}</tbody>
+          <thead><tr><th>Permission</th>{roles.map((r) => <th key={r}>{words(r === "viewer" ? "view only" : r)}</th>)}</tr></thead>
+          <tbody>{ROLE_ROWS.map(([label, who]) => <tr key={label}><td>{label}</td>{roles.map((r) => <td key={r}>{who.includes(r) ? "✓" : "No"}</td>)}</tr>)}</tbody>
         </table></div>
       </Card>
       <Needs title="Custom roles (receptionist, sales, technician) aren't available yet" have="Use Staff for front desk, sales and field teams, Manager for leads, View only for read only access.">Custom roles need a permission list per role that every database check reads.</Needs>
@@ -389,7 +391,7 @@ function Booking({ w, onGo }) {
           <Facts rows={[["Can book", (d.config?.capabilities ?? []).includes?.("book_appointments") ? "Yes" : "Set by your setup"],
             ["Rules", d.config?.appointment_rules ? JSON.stringify(d.config.appointment_rules).slice(0, 200) : "Your opening hours, team hours and blocked times"]]} />
         </Card>
-        <LinkRows rows={[{ title: "Hours and holidays", detail: "Business profile", onClick: () => onGo("settings/profile/hours") }, { title: "Team availability", detail: "Team & access", onClick: () => onGo("settings/team/availability") }]} />
+        <LinkRows rows={[{ title: "Hours and holidays", detail: "Business profile", onClick: () => onGo("settings/profile/hours") }, { title: "Team availability", detail: "Team and access", onClick: () => onGo("settings/team/availability") }]} />
         <Needs title="Minimum notice, buffers and appointment types aren't editable yet" have="Booking uses your hours, each person's working hours and blocked times, and prevents double booking.">They need an appointment types table that the booking tool reads.</Needs>
       </>
     )}</LoadState>
@@ -445,7 +447,7 @@ function UsageCard({ e }) {
   const u = e.usage ?? {}; const l = e.limits ?? {};
   const of = (k, unit) => `${u[k] ?? 0}${l[k] != null ? ` of ${l[k]}` : ""} ${unit}${l[k] != null && l[k] > 0 ? ` (${Math.round(((u[k] ?? 0) / l[k]) * 100)}%)` : ""}`;
   return (
-    <Card title="This period" sub={`${when(e.period?.from)} to ${when(e.period?.to)}${e.period?.calendar_month ? " (calendar month; no subscription yet)" : ""}. Counted from your records.`}>
+    <Card title="This period" sub={`${e.period?.from || e.period?.to ? `${when(e.period?.from)} to ${when(e.period?.to)}${e.period?.calendar_month ? " (calendar month; no subscription yet)" : ""}` : "No billing period yet"}. Counted from your records.`}>
       <Facts rows={[["AI voice minutes", of("voice_minutes", "min")], ["Texts sent", of("sms_messages", "")], ["Phone numbers", of("phone_numbers", "")], ["Team seats", of("team_members", "")],
         ["Active automations", of("automations", "")], ["Estimated extra charges", "None: Zella Voice doesn't charge for extra usage yet"]]} />
     </Card>
@@ -695,7 +697,7 @@ function AppointmentSettings({ onGo }) {
   return (
     <>
       <LinkRows rows={[{ title: "Opening hours and holidays", detail: "Business profile > Business hours", onClick: () => onGo("settings/profile/hours") },
-        { title: "Who can be booked, and when", detail: "Team & access > Staff availability", onClick: () => onGo("settings/team/availability") },
+        { title: "Who can be booked, and when", detail: "Team and access, Staff availability", onClick: () => onGo("settings/team/availability") },
         { title: "Reminders, confirmations, follow ups", detail: "Automations", onClick: () => onGo("settings/automations/library") }]} />
       <Needs title="Default length, buffers, minimum notice and booking horizon aren't settings yet" have="Each booking sets its own length; the calendar prevents overlaps with appointments and blocked times.">They need an appointment types table with these fields that booking reads.</Needs>
     </>
@@ -797,7 +799,7 @@ function Terminology({ w, onReload }) {
 function IndustryProfile({ w }) {
   return (
     <Card title="Industry profile">
-      <Facts rows={[["Industry", w.industry ?? "None"], ["Modules switched on", (w.modules ?? []).map(words).join(", ") || "None"], ["Words", "Industry & business workflows > Terminology"], ["Setup", words(w.onboarding_status ?? "")]]} />
+      <Facts rows={[["Industry", w.industry ?? "None"], ["Modules switched on", (w.modules ?? []).map(moduleName).filter(Boolean).join(", ") || "None"], ["Words", "Industry and workflows, Terminology"], ["Setup", words(w.onboarding_status ?? "")]]} />
     </Card>
   );
 }
@@ -821,7 +823,7 @@ function UsageNotifications({ w, onGo }) {
     <LoadState state={state}>{(p) => (
       <>
         <Card title="Usage notices"><Facts rows={[["AI minutes", `At ${p.notify_thresholds.join(", ")}% of your allowance`], ["Who", "Owners"], ["Failed payments", "Sent by the payment provider once billing is connected"]]} /></Card>
-        <LinkRows rows={[{ title: "Change thresholds", detail: "Billing & subscription > AI usage protection", onClick: () => onGo("settings/billing/protection") }]} />
+        <LinkRows rows={[{ title: "Change thresholds", detail: "Billing and subscription, AI usage protection", onClick: () => onGo("settings/billing/protection") }]} />
       </>
     )}</LoadState>
   );
@@ -1009,7 +1011,7 @@ function registry(w) {
       page("connections", "Calendar connections", () => <CalendarConnections w={w} />, "google outlook sync"),
       page("settings", "Appointment settings", (c) => <AppointmentSettings onGo={c.onGo} />, "duration buffer notice"),
       page("types", "Appointment types", lazyNeeds("Appointment types aren't a setting yet", "Each booking has its own title and length.", "They need an appointment types table (name, length, staff, rules).")),
-      page("rules", "Scheduling rules", () => <Card title="How scheduling works"><Facts rows={[["Double booking", "Prevented: overlapping appointments and blocked times are refused"], ["Staff", "Only during each person's working hours"], ["Time zone", w.timezone.replace(/_/g, " ")], ["Holidays", "Closed days from Business hours"]]} /></Card>, "conflicts holidays"),
+      page("rules", "Scheduling rules", () => <Card title="How scheduling works"><Facts rows={[["Double booking", "Prevented: overlapping appointments and blocked times are refused"], ["Staff", "Only during each person's working hours"], ["Time zone", formatTimeZone(w.timezone)], ["Holidays", "Closed days from Business hours"]]} /></Card>, "conflicts holidays"),
       page("notifications", "Appointment notifications", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "reminder confirmation"),
     ] },
     { key: "crm", label: "CRM and customers", icon: "group", items: [
@@ -1132,7 +1134,7 @@ export function BusinessSettingsPage({ workspace, email, userId, records, onSign
   const reg = registry(workspace);
   return (
     <SettingsWorkspace
-      description={`${workspace.name} · ${words(workspace.role)}`}
+      description={`${workspace.name}, signed in as ${words(workspace.role).toLowerCase()}`}
       registry={reg} category={section} item={sub} base={window.location.pathname.startsWith("/app/preview") ? "/app/preview/settings" : "/app/settings"}
       go={(path) => onGo(path.replace(/^\/app(\/preview)?\//, ""))}
       Icon={({ name }) => <Icon name={name} size="sm" />}

@@ -118,7 +118,7 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       check(await p.isVisible("text=Platform defaults"), `loading then authorized: page appears${w}`);
       await ctx.close(); }
 
-    // failed lookup: error and Retry; nothing protected; retry recovers
+    // failed lookup: error and Try again; nothing protected; trying again recovers
     { const { ctx, p, log } = await open(b, { width, meMode: (_s, n) => (n === 1 ? "fail" : "ok") });
       await p.goto(BASE + "/businesses"); await p.waitForSelector("[data-access=failed]");
       await menu(p);
@@ -126,7 +126,7 @@ const text = (p) => p.evaluate(() => document.body.innerText);
       check(!(await p.isVisible("text=Create business")) && !(await p.isVisible(".owner-search")), `failed: no protected actions${w}`);
       check(!log.actions.includes("dashboard_data") && !log.actions.includes("businesses_list"), `failed: no protected data requested${w}`);
       if (width === 390) await p.keyboard.press("Escape");
-      await p.click("button:has-text('Retry')"); await p.waitForSelector(".owner-nav-item", { state: "attached" });
+      await p.click("button:has-text('Try again')"); await p.waitForSelector(".owner-nav-item", { state: "attached" });
       check(await p.isVisible("text=Create business"), `retry after a temporary failure loads the permissions${w}`);
       await ctx.close(); }
 

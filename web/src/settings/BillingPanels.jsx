@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { friendly } from "../BusinessShared";
 import { Banner, Card, Facts, Field, LoadState, Pill, SaveBar, Table, useAsync, useForm } from "./SettingsKit";
 import "../billing.css";
+import { autoReloadChoices } from "./autoReload";
 
 // Billing & Subscription for the business owner (REQ-BIL-05). Everything comes from zella_billing_overview, which the
 // database answers only for the owner (and billing admins): staff and other businesses are refused there, not here.
@@ -12,6 +13,8 @@ const RES = { minutes: ["Minutes", "AI call minutes"], texts: ["Texts", "texts"]
 const KIND = { rollover: "Rolled over", plan: "Plan", pack: "Pack", buffer: "Reminder buffer" };
 const money = (cents) => (cents == null ? "None" : `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
 const num = (n) => (n == null ? "None" : Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 }));
+// ["English", "Spanish", "French"] -> "English, Spanish and French"
+const andList = (items) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items.join(""));
 const LANG = { en: "English", es: "Spanish" };
 
 async function overview(businessId) {
@@ -82,18 +85,18 @@ export function BillingPlanPanel({ w }) {
               <div>
                 <div className="bp-hero-name"><h3>{p.tier === "pro" ? "Pro" : "Base"} plan</h3><Pill tone={status[0]}>{status[1]}</Pill></div>
                 <div className="bp-price" style={{ marginTop: 6 }}><strong>{money(p.price_cents)}</strong><span>{p.billing_interval === "yearly" ? "per year" : "per month"} · USD</span></div>
-                {p.setup_fee_cents > 0 && <p className="bp-sub">One-time setup fee {money(p.setup_fee_cents)}</p>}
+                {p.setup_fee_cents > 0 && <p className="bp-sub">One time setup fee {money(p.setup_fee_cents)}</p>}
               </div>
               {s?.current_period_end && s.status !== "trial" && <div style={{ textAlign: "right" }}><p className="bp-muted">Current period ends</p><strong>{day(s.current_period_end)}</strong></div>}
             </div>
             <div className="bp-chips">
-              <span className="bp-chip">{num(p.minutes)} AI minutes / month</span>
-              <span className="bp-chip">{num(p.texts)} texts / month</span>
-              <span className="bp-chip">{num(p.emails)} emails / month</span>
+              <span className="bp-chip">{p.minutes == null ? "AI minutes not set" : `${num(p.minutes)} AI minutes / month`}</span>
+              <span className="bp-chip">{p.texts == null ? "Texts not set" : `${num(p.texts)} texts / month`}</span>
+              <span className="bp-chip">{p.emails == null ? "Emails not set" : `${num(p.emails)} emails / month`}</span>
               <span className="bp-chip">{p.team_seats} {p.team_seats === 1 ? "user" : "users"}</span>
               <span className="bp-chip">{p.phone_numbers} phone {p.phone_numbers === 1 ? "number" : "numbers"}</span>
               <span className="bp-chip">{p.locations} {p.locations === 1 ? "location" : "locations"}</span>
-              <span className="bp-chip">{p.languages.map((l) => LANG[l] ?? l).join(" & ")}</span>
+              <span className="bp-chip">{andList(p.languages.map((l) => LANG[l] ?? l))}</span>
               {p.overage_cents_per_minute != null && <span className="bp-chip">Pay as you go: {money(p.overage_cents_per_minute)} / extra minute</span>}
             </div>
           </div></section>
@@ -150,8 +153,11 @@ export function AutoReloadPanel({ w }) {
 }
 
 function AutoReloadForms({ w, o, reload }) {
-  return ["minutes", "texts", "emails"].map((r) => <AutoReloadForm key={r} w={w} resource={r} packs={o.packs.filter((p) => p.resource === r)}
-    current={o.auto_reload.find((a) => a.resource === r)} onSaved={reload} />);
+  return ["minutes", "texts", "emails"].map((r) => {
+    const { packs, current } = autoReloadChoices(o, r);
+    if (!packs.length) return <Card key={r} title={`Auto reload: ${RES[r][0].toLowerCase()}`} sub={`No packs of ${RES[r][1]} are on offer right now, so there is nothing to reload with. Ask Zella Voice support.`} />;
+    return <AutoReloadForm key={r} w={w} resource={r} packs={packs} current={current} onSaved={reload} />;
+  });
 }
 
 function AutoReloadForm({ w, resource, packs, current, onSaved }) {

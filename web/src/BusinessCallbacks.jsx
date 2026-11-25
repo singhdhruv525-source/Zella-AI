@@ -229,7 +229,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
 
   return (
     <>
-      <PageHead crumb="Calls & messages / Callbacks" title="Callbacks"
+      <PageHead crumb="Calls and messages / Callbacks" title="Callbacks"
         sub={needPerson ? `${needPerson === 1 ? "1 callback needs" : `${needPerson} callbacks need`} a person. Zella Voice has stopped calling.` : "People waiting for a call back, and what happened on each try."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_call" size="sm" />Add callback</button>
       </PageHead>

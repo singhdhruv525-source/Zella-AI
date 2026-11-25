@@ -63,3 +63,13 @@ export function reportError(message) {
     ? "Your admin role can't read the weekly platform report. The Zella Voice owner can give it the Weekly platform report permission in Platform roles."
     : String(message ?? "Something went wrong.");
 }
+
+// The zella_admin_weekly_reports answer, checked. Returns null when the server sent no answer, or no report list, so
+// the page shows its plain load error with Try again: a missing list is never "no report yet". An explicit empty list is.
+export function readWeeklyReports(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.reports)) return null;
+  const reports = data.reports.filter((r) => r && typeof r === "object");
+  return { schedule: data.schedule && typeof data.schedule === "object" ? data.schedule : {}, reports };
+}
+
+export const NO_ANSWER = "The server didn't answer.";

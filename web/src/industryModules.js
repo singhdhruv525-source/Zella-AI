@@ -14,3 +14,33 @@ export function modulesLosingUsers(saved, draftModules, usage) {
 export function switchesOff(saved, draftModules) {
   return draftModules.some((m) => m.id && !m.isActive && saved.some((s) => s.id === m.id && s.is_active));
 }
+
+// A module's name as people read it, from its slug (the names in sql/zella_industries_seed.sql).
+// An unknown slug is spelled out in words, with "AI" kept in capitals: never "Ai-receptionist".
+const MODULE_NAMES = {
+  calls: "Calls", sms: "Text messages", email: "Email", calendar: "Calendar", automations: "Automations",
+  "ai-receptionist": "AI receptionist", "ai-appointments": "AI appointments", "ai-follow-up": "AI follow up",
+  "ai-sales": "AI sales", "ai-support": "AI support",
+};
+
+export function moduleName(slug) {
+  const key = String(slug ?? "").trim();
+  if (!key) return "";
+  if (Object.hasOwn(MODULE_NAMES, key)) return MODULE_NAMES[key];   // inherited names ("constructor") use the fallback
+  const text = key.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase().replace(/\bai\b/g, "AI");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// The industries_list answer, checked. Returns null when the server sent nothing usable (no answer, no list, or a list
+// with rows but none the page can render), so the page shows "Industries didn't load." with Try again instead of a code
+// error or "No industries yet". Rows the page can't render (no id, no string name, no module list) are left out, and so
+// are module entries that aren't objects. A missing module list is malformed, never "no modules". An explicitly empty
+// list of industries, or of an industry's modules, is a valid answer.
+export function readIndustriesAnswer(data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.industries)) return null;
+  const industries = data.industries
+    .filter((i) => i && typeof i === "object" && !Array.isArray(i) && i.id && typeof i.name === "string" && Array.isArray(i.modules))
+    .map((i) => ({ ...i, modules: i.modules.filter((m) => m && typeof m === "object" && !Array.isArray(m)) }));
+  if (data.industries.length && !industries.length) return null;
+  return { industries, industryData: Boolean(data.industryData) };
+}

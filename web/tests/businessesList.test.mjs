@@ -23,14 +23,14 @@ test("a draft's stage label names the step the wizard reopens at (BIZ-27)", () =
     if (key === "review") continue;
     const step = WIZARD_STEPS.find((s) => s.key === key);
     assert.ok(step, `${status} reopens at a real step`);
-    assert.equal(STAGE_LABELS[status], `Draft · next: ${step.label}`);
+    assert.equal(STAGE_LABELS[status], `Draft, next step: ${step.label}`);
   }
-  assert.equal(stageLabel("owner_setup"), "Draft · next: Hours & services");
-  assert.equal(stageLabel("industry_setup"), "Draft · next: Team");
-  assert.equal(stageLabel("automation_setup"), "Draft · next: CRM setup");
+  assert.equal(stageLabel("owner_setup"), "Draft, next step: Hours & services");
+  assert.equal(stageLabel("industry_setup"), "Draft, next step: Team");
+  assert.equal(stageLabel("automation_setup"), "Draft, next step: CRM setup");
   // an older status the wizard doesn't know reopens at the first step, and says so (never the raw value)
   assert.equal(resumeStep("plan_setup").key, "business");
-  assert.equal(stageLabel("plan_setup"), "Draft · next: Business");
+  assert.equal(stageLabel("plan_setup"), "Draft, next step: Business");
   assert.equal(stageLabel(null), "Draft");
   for (const [status, label] of [["testing", "Setup complete"], ["ready", "Ready to go live"], ["active", "Live"], ["paused", "Paused"], ["failed", "Failed"], ["suspended", "Suspended"], ["cancelled", "Canceled"]]) {
     assert.equal(stageLabel(status), label);

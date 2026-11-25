@@ -32,7 +32,7 @@ export default function MessagingPage({ me, sub, onOpenBusiness }) {
   const openFailed = (channel) => { setFailedFilter(true); setTab(channel); };
   return (
     <section className="owner-page ao-page">
-      <PageHeader eyebrow="AI and communications" title="Messaging" description="Texts and emails across every business: what was sent, what failed, the templates they use and the senders." />
+      <PageHeader eyebrow="AI & communications" title="Messaging" description="Texts and emails across every business: what was sent, what failed, the templates they use and the senders." />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={(k) => { setFailedFilter(false); setTab(k); }} />
       {tab === "overview" && <Overview onTab={setTab} onFailed={openFailed} />}

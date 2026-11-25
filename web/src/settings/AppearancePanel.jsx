@@ -13,14 +13,14 @@ import { chime, deviceAlerts, setDeviceAlerts } from "../liveAlerts";
 // Every change applies at once and is saved to their account.
 
 const THEMES = [
-  { key: "zella", label: "Zella Voice", text: "Paper, midnight and coral. The official Zella Voice look." },
-  { key: "classic", label: "Classic", text: "Warm cream and copper. The earlier Zella Voice look." },
-  { key: "glass", label: "Glass", text: "Frosted panels over a background picture of your choice." },
+  { key: "zella", label: "Zella Voice", text: "Paper, midnight and coral, the official Zella Voice look" },
+  { key: "classic", label: "Classic", text: "Warm cream and copper, the earlier Zella Voice look" },
+  { key: "glass", label: "Glass", text: "Frosted panels over a background picture of your choice" },
 ];
 const SIDEBAR = [
-  { key: null, label: "Automatic", text: "A slim dock with Glass, the full list with the other themes." },
-  { key: "full", label: "Always full", text: "Icons with their names." },
-  { key: "compact", label: "Always a dock", text: "Icons only; names appear when you point at one." },
+  { key: null, label: "Automatic", text: "A slim dock with Glass, the full list with the other themes" },
+  { key: "full", label: "Always full", text: "Icons with their names" },
+  { key: "compact", label: "Always a dock", text: "Icons only, with names when you point at one" },
 ];
 
 // Colours from the picture: buttons, links, highlights, panels and text take on the picture's palette (Glass only).
@@ -85,7 +85,7 @@ export function AppearancePanel() {
     setPic({ busy: true, error: "" });
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Your session has ended. Please sign in again.");
+      if (!user) throw new Error("Your session ended. Sign in again.");
       const small = await prepareBackground(file);
       const url = await uploadImage(`user/${user.id}/background`, small);
       const old = look.customUrl;

@@ -1,13 +1,14 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
-import { dayRange, formatDay, formatTime, timeAgo } from "./businessTime";
+import { dayRange, formatDay, formatTime, msUntilNextDay, timeAgo } from "./businessTime";
 import { APPT_LABEL, APPT_TONE, Empty, Notice, PageHead, Segment, SOURCE_LABELS, clock, friendly, loadPeople, noShowNotice, explain, orThrow, plural, setCheckIn, sourceLabel, useLoad, isAnswered } from "./BusinessShared";
 import { CallCard, isOpenEscalation } from "./BusinessProfile";
 import { RescheduleModal } from "./BusinessForms";
 import { MoreReports } from "./BusinessReports";
 import { humanize } from "./copy/labels";
+import { formatPhone } from "./lib/format";
 
 // Needs attention, Check-ins, Unified Inbox, Lead sources, Reports and
 // Integrations. Everything is calculated from the business's own records.
@@ -40,7 +41,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   return (
     <>
       <PageHead
-        crumb="Calls & messages / Needs attention"
+        crumb="Calls and messages / Needs attention"
         title="Needs attention"
         sub={open.length ? `${plural(open.length, "caller")} waiting for a person. Your AI receptionist handed these over.` : "Nothing is waiting. Anything your AI receptionist can't handle shows up here."}
       >
@@ -61,8 +62,8 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
                   <div className="ba-person">
                     <div className="ba-avatar sm">{initials(personName(person) ?? c.from_number ?? "?")}</div>
                     <div>
-                      <NameButton person={person} fallback={c.from_number ?? "Unknown caller"} onOpenPerson={onOpenPerson} />
-                      <small>{person ? c.from_number : ""} {c.escalated_at ? `· handed over ${timeAgo(c.escalated_at)}` : ""}</small>
+                      <NameButton person={person} fallback={c.from_number ? formatPhone(c.from_number) : "Unknown caller"} onOpenPerson={onOpenPerson} />
+                      <small>{person ? formatPhone(c.from_number) : ""} {c.escalated_at ? `· handed over ${timeAgo(c.escalated_at)}` : ""}</small>
                     </div>
                   </div>
                   {(person?.phone || c.from_number) && <a className="ba-btn primary sm" href={`tel:${person?.phone ?? c.from_number}`}><Icon name="call" size="sm" />Call now</a>}
@@ -239,6 +240,9 @@ export function LeadSourcesPage({ workspace, refreshKey }) {
 /* Reports                                                           */
 /* ---------------------------------------------------------------- */
 
+// "Nov 3" in the business's own time zone, for the chart's date marks
+const shortDay = (value, timeZone) => new Date(value).toLocaleDateString("en-US", { timeZone, month: "short", day: "numeric" });
+
 function Stat({ label, value, note }) {
   return (
     <div className="ba-kpi">
@@ -295,48 +299,86 @@ export function ReportsPage({ workspace, refreshKey }) {
     };
   }, [data, tz]);
 
+  // The chart's last bar is today only until the business's midnight. Then the figures reload; until they have, the
+  // bar is named by its own date, never "Today". Each midnight's timer arms the next one itself, so a reload that
+  // fails never stops later midnights from refreshing; it is cleared when the business or the page changes.
+  // The review covers a rolling window too, so it reloads with the figures.
+  const lastDay = r?.perDay.at(-1)?.day;
+  const reloadReview = review.reload;
+  // Whether the review's last finished read failed. A retry after a failure keeps the failure note (an older answer
+  // could be the all clear); only a refresh that starts from a good answer keeps that answer on screen, dimmed.
+  const [reviewFailed, setReviewFailed] = useState(false);
+  const reviewSettledFailed = review.loading ? reviewFailed : Boolean(review.error);
+  if (reviewSettledFailed !== reviewFailed) setReviewFailed(reviewSettledFailed);
+  const showReviewFailure = Boolean(review.error) || (review.loading && reviewFailed);
+  const [dayKey, setDayKey] = useState(0);   // tells the panels below to rerun their rolling windows
+  useEffect(() => {
+    let timer;
+    const arm = () => { timer = setTimeout(() => { reload(); reloadReview(); setDayKey((k) => k + 1); arm(); }, msUntilNextDay(tz)); };
+    arm();
+    return () => clearTimeout(timer);
+  }, [tz, reload, reloadReview]);
+  const lastIsToday = Boolean(lastDay) && lastDay.getTime() === dayRange(tz, 0).start.getTime();
+  const lastName = lastIsToday ? "Today" : shortDay(lastDay, tz);
+
   const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "None");
   const peak = Math.max(1, ...(r?.perDay ?? []).map((d) => d.n));
   return (
     <>
-      <PageHead crumb="Business growth / Reports & analytics" title="Reports" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
+      <PageHead crumb="Business growth / Reports and analytics" title="Reports and analytics" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
         <Segment label="Date range" value={range} onChange={setRange} options={RANGES} />
       </PageHead>
       <Notice error={error} onRetry={reload} />
       {loading && !r ? <p className="ba-muted">Loading…</p> : r && (
         <>
-          {review.data && (
-            <section className="ba-panel ba-gap">
+          {/* a review that couldn't be read (first time or a refresh) never shows the all clear or an old list, also
+              while it is tried again; a refresh from a good answer keeps that answer, dimmed */}
+          {showReviewFailure ? (
+            <section className="ba-panel ba-gap" role="status">
+              <div className="ba-panel-head">
+                <div className="ba-panel-title"><div><h2>Zella Voice's review</h2><p>Couldn't load the review. The figures below are still your own records.</p></div></div>
+                <button type="button" className="ba-btn sm" disabled={review.loading} onClick={reloadReview}>{review.loading ? "Trying again…" : "Try again"}</button>
+              </div>
+            </section>
+          ) : review.data && (
+            <section className={`ba-panel ba-gap rp-review ${review.loading ? "is-refreshing" : ""}`} aria-busy={review.loading}>
               <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Zella Voice's review</h2><p>{review.data.issues?.length ? "Things worth a look" : "Nothing needs attention"}</p></div></div></div>
               {review.data.issues?.length > 0 && <ul className="ba-checklist">{review.data.issues.map((t) => <li key={t}>{t}</li>)}</ul>}
             </section>
           )}
           <h2 className="ba-h2">Calls</h2>
-          <div className="ba-kpis">
+          <div className="ba-kpis rp-kpis">
             <Stat label="Total calls" value={r.calls} note={`${r.answered} answered`} />
             <Stat label="Handled by AI" value={pct(r.ai, r.calls)} note={`${r.ai} calls`} />
             <Stat label="Missed" value={r.missed} note={r.missed ? `${r.followed} followed up` : "None missed"} />
             <Stat label="Average call" value={r.avg ? clock(r.avg) : r.calls ? "Not available" : "No calls yet"} />
-            <Stat label="Handed to a human" value={r.handoffs} note={r.handoffsOpen ? `${r.handoffsOpen} still waiting` : "None waiting"} />
+            <Stat label="Handed to a person" value={r.handoffs} note={r.handoffsOpen ? `${r.handoffsOpen} still waiting` : "None waiting"} />
           </div>
           <section className="ba-panel ba-gap">
             <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Calls per day</h2><p>Last {Math.min(Number(range), 30)} days</p></div></div></div>
-            <div className="ba-bars" role="img" aria-label="Calls per day">
-              {r.perDay.map((d) => (
-                <span key={d.day.toISOString()} title={`${formatDay(d.day, tz)}: ${d.n}`}><i style={{ height: `${Math.max(3, (d.n / peak) * 100)}%` }} /></span>
+            <div className="ba-bars" role="img" aria-label={`Calls per day, ${formatDay(r.perDay[0]?.day, tz)} to ${lastIsToday ? "today" : formatDay(lastDay, tz)}. ${lastIsToday ? "Today" : formatDay(lastDay, tz)}: ${r.perDay.at(-1)?.n ?? 0}`}>
+              {r.perDay.map((d, i) => (
+                <span key={d.day.toISOString()} className={i === r.perDay.length - 1 ? "on" : ""} title={`${formatDay(d.day, tz)}: ${d.n}`}><i style={{ height: `${Math.max(3, (d.n / peak) * 100)}%` }} /></span>
               ))}
+            </div>
+            {/* date marks under the first, middle and last bar */}
+            <div className="ba-bars-axis" aria-hidden="true">
+              {r.perDay.map((d, i) => {
+                const mark = i === 0 || i === r.perDay.length - 1 || i === Math.floor((r.perDay.length - 1) / 2);
+                return <span key={d.day.toISOString()}>{mark ? (i === r.perDay.length - 1 ? lastName : shortDay(d.day, tz)) : ""}</span>;
+              })}
             </div>
           </section>
           <h2 className="ba-h2">{term("appointments")} and people</h2>
-          <div className="ba-kpis">
+          <div className="ba-kpis rp-kpis">
             <Stat label={`${term("appointments")} so far`} value={r.booked} note={`${r.completed} completed`} />
-            <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={`${r.noShows} no shows`} />
-            <Stat label="Checked in" value={pct(r.checkedIn, r.booked)} note={`${r.checkedIn} arrivals`} />
+            <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={plural(r.noShows, "no show")} />
+            <Stat label="Checked in" value={pct(r.checkedIn, r.booked)} note={plural(r.checkedIn, "arrival")} />
             <Stat label={`New ${term("customers").toLowerCase()}`} value={r.leads} />
           </div>
         </>
       )}
-      <MoreReports workspace={workspace} days={Number(range)} refreshKey={refreshKey} />
+      <MoreReports workspace={workspace} days={Number(range)} refreshKey={refreshKey} dayKey={dayKey} />
     </>
   );
 }
@@ -564,7 +606,7 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
             onNotice={onNotice} onChanged={reload} workspace={workspace} />
         ))}
       </div>
-      <p className="ba-muted ba-gap">Want one connected or connected again? Ask the Zella Voice team and it will be set up for you.</p>
+      <p className="ba-muted ba-gap ba-integrations-note">Want one connected or connected again? Ask the Zella Voice team and it will be set up for you.</p>
     </>
   );
 }

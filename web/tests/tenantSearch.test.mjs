@@ -31,7 +31,7 @@ test("plan display distinguishes unavailable, none and a subscription", () => {
   const display = new Function("r", "b", "words", "return " + expression);
   assert.equal(display({ subscriptionLookupFailed: true }, {}, String), "Unavailable");
   assert.equal(display({}, {}, String), "None");
-  assert.equal(display({}, { subscription: { plan: "Basic", status: "active" } }, String), "Basic · active");
+  assert.equal(display({}, { subscription: { plan: "Basic", status: "active" } }, String), "Basic, active");
 });
 test("summary toggle labels match expanded state without an overriding accessible name", () => {
   const button = panels.split('aria-expanded={expanded === b.id}')[1].split("</button>")[0];

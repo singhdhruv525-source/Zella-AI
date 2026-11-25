@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, initials, personName } from "./BusinessUI";
-import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { formatDay, formatTime, timeAgoLabel, todayInput, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PageHead, Pager, Segment, clock, explain, loadPeople, plural, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { useServerPages } from "./crm/paging";
 import { inboxItem, replyBlock, supportProblems, threadFrom } from "./crm/inbox";
@@ -314,7 +314,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
 
   return (
     <>
-      <PageHead crumb="Calls & messages / Inbox" title="Inbox"
+      <PageHead crumb="Calls and messages / Inbox" title="Inbox"
         sub={unreadCount ? `${plural(unreadCount, "conversation")} unread.` : "Every call, text and email in one place."} />
       <Notice error={listError} onRetry={reload} />
       {problems && <div className="ba-banner" role="status" data-partial="inbox"><span>{problems}</span><button type="button" className="ba-btn sm" onClick={retrySupport}>Try again</button></div>}
@@ -339,7 +339,7 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
               <button key={i.key} type="button" className={`ba-inbox-row ${selected?.key === i.key ? "active" : ""} ${unread ? "unread" : ""}`} onClick={() => setSelected(i)}>
                 <span className={`ba-thread-icon ${missed ? "bad" : ""}`}><Icon name={missed ? "phone_missed" : (CHANNEL[ch] ?? CHANNEL.other)[0]} size="sm" /></span>
                 <span className="ba-inbox-text">
-                  <span className="ba-inbox-line"><strong>{label}</strong><time title={`${formatDay(i.at, tz)} ${formatTime(i.at, tz)}`}>{timeAgo(i.at)}</time></span>
+                  <span className="ba-inbox-line"><strong>{label}</strong><time title={`${formatDay(i.at, tz)} ${formatTime(i.at, tz)}`}>{timeAgoLabel(i.at)}</time></span>
                   <small>{isCall ? (missed ? "Missed call" : i.call.summary || (isAnswered(i.call.status) ? `${i.call.ai_handled ? "AI answered" : "Team answered"} · ${clock(i.call.duration_seconds)}` : `Call ${callResult(i.call.status).label.toLowerCase()}`))
                     : snippet || (previews.error ? "Preview unavailable" : i.convo.subject || `${(CHANNEL[ch] ?? CHANNEL.other)[1]} conversation`)}</small>
                   <span className="ba-inbox-tags">

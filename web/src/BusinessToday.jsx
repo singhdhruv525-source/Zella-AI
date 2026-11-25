@@ -3,9 +3,8 @@ import UsageLive from "./UsageLive";
 import { supabase } from "./supabase";
 import { Icon, Pill, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
-import { useRoster } from "./BusinessLeads";
 import { CountUp } from "./CrmMotion";
-import { formatLongDate, formatTime, greeting, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { formatLongDate, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { changed, friendly, noShowNotice, setCheckIn, callResult, isAnswered } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
 import { CONNECT, todayConfig } from "./todayConfig";
@@ -53,10 +52,10 @@ function trend(cur, prev, upIsGood = true) {
   return { text: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, label: `${up ? "Up" : "Down"} ${Math.abs(pct)}% vs last week`, tone: up === upIsGood ? "up" : "down", arrow: up ? "arrow_upward" : "arrow_downward" };
 }
 
-function Kpi({ icon, tone, label, value, change, loading, unavailable }) {
+function Kpi({ icon, label, value, change, loading, unavailable }) {
   return (
     <div className="ba-kpi td-kpi">
-      <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} /></span>
+      <span className="td-kpi-icon"><Icon name={icon} /></span>
       <div className="td-kpi-body">
         <span className="td-kpi-label">{label}</span>
         <div className="td-kpi-row">
@@ -101,7 +100,7 @@ function SpamKpi({ workspace, day, tz, onOpen }) {
   return (
     <button type="button" className="ba-kpi td-kpi td-kpi-link td-kpi-spam" onClick={onOpen}
       aria-label={d ? `Spam: ${d.total} suspected, ${d.unreviewed} to review. Open Spam protection` : "Open Spam protection"}>
-      <span className={`ba-kpi-icon ${d?.unreviewed ? "rose" : ""}`}><Icon name="gpp_maybe" /></span>
+      <span className="td-kpi-icon"><Icon name="gpp_maybe" /></span>
       <div className="td-kpi-body">
         <span className="td-kpi-label">Spam</span>
         <div className="td-kpi-row">
@@ -198,7 +197,7 @@ function WorkCard({ work, operations, loading, wide, onGo }) {
         <ul className="td-list">
           {rows.map((w) => (
             <li key={w.key}>
-              <span className="ba-kpi-icon indigo"><Icon name={w.icon || "folder"} size="sm" /></span>
+              <span className="ba-kpi-icon"><Icon name={w.icon || "folder"} size="sm" /></span>
               <div>
                 <button type="button" className="ba-namebtn" onClick={() => onGo(`rec:${w.key}`)}>{w.plural}</button>
                 <small>{w.open} open{w.due_today ? ` · ${w.due_today} due today` : ""}{w.unassigned ? ` · ${w.unassigned} unassigned` : ""}</small>
@@ -252,7 +251,7 @@ function Empty({ title, children }) {
   return <div className="ba-empty">{title && <strong>{title}</strong>}{children}</div>;
 }
 
-export default function BusinessToday({ workspace, userId, fallbackName, industry, operations = [], capabilities, canEdit = true, onAddLead, onBook, onGo, onNotice, onOpenPerson }) {
+export default function BusinessToday({ workspace, industry, operations = [], capabilities, canEdit = true, onAddLead, onBook, onGo, onNotice, onOpenPerson }) {
   // What this business does (zella_capabilities). A shop or a firm without bookings gets no booking cards or buttons.
   const scheduling = capabilityOn(capabilities, "scheduling");
   const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
@@ -270,9 +269,6 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
   const term = makeTerm(workspace);
   const cfg = todayConfig(industry);
   const agent = receptionistState(workspace);
-  const roster = useRoster(workspace);
-  const known = (n) => (n && n !== "Team member" ? n : "");
-  const firstName = String(known(roster.nameOf[userId]) || fallbackName || "").trim().split(/\s+/)[0];
 
   const today = todayInput(tz);
   const [day, setDay] = useState(today);
@@ -432,8 +428,11 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
     <>
       <div className="ba-page-head td-head">
         <div>
-          <h1>{greeting(tz)}{firstName ? `, ${firstName}` : ""}!</h1>
-          <p>Here's what's happening at {workspace.name} {isToday ? "today" : `on ${dayLabel}`}.</p>
+          {/* The page or the day as the title, then the date, then the business on a quieter line
+              (approved 25 Nov 2026, changes 1 and 2; no "A · B" meta line, owner 25 Nov 2026) */}
+          <h1>{isToday ? "Today" : dayLabel}</h1>
+          {isToday && <p>{formatLongDate(dayBounds(day, tz).start, tz)}</p>}
+          <p className="td-head-biz">{workspace.name}</p>
         </div>
         <div className="ba-page-actions">
           <label className="td-date">
@@ -443,7 +442,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           {!isToday && <button type="button" className="ba-btn" onClick={() => setDay(today)}>Today</button>}
           {canEdit && scheduling && <button type="button" className="ba-btn primary" onClick={() => onBook()}><Icon name="add" size="sm" />New {oneBooking.toLowerCase()}</button>}
           {canEdit && (scheduling && cfg.walkIn
-            ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />walk in</button>
+            ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />Walk in</button>
             : <button type="button" className={`ba-btn ${scheduling ? "" : "primary"}`} onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>)}
           <button type="button" className="ba-btn ghost" onClick={load} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
         </div>
@@ -454,12 +453,12 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
       {isToday && <UsageLive workspace={workspace} onGo={onGo} />}
 
       <div className="td-kpis">
-        {scheduling && <Kpi icon="event" tone="rose" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} unavailable={!data && !loading} change={p && trend(active.length, p.bookings)} />}
-        {!scheduling && <Kpi icon="pending_actions" tone="rose" label="Open work" value={(data?.work ?? []).reduce((n, w) => n + w.open, 0)} loading={loading && !data} unavailable={!data && !loading} />}
-        {scheduling && showGuests && <Kpi icon="groups" tone="indigo" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} unavailable={!data && !loading} change={p && trend(guests, p.guests)} />}
-        <Kpi icon="person_add" tone="amber" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.leads.length, p.leads)} />
-        <Kpi icon="smart_toy" tone="green" label="AI answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.aiCalls, p.aiCalls)} />
-        <Kpi icon="phone_missed" tone="rose" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.missed, p.missed, false)} />
+        {scheduling && <Kpi icon="event" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} unavailable={!data && !loading} change={p && trend(active.length, p.bookings)} />}
+        {!scheduling && <Kpi icon="pending_actions" label="Open work" value={(data?.work ?? []).reduce((n, w) => n + w.open, 0)} loading={loading && !data} unavailable={!data && !loading} />}
+        {scheduling && showGuests && <Kpi icon="groups" label={`Total ${term("customers").toLowerCase()}`} value={guests} loading={loading && !data} unavailable={!data && !loading} change={p && trend(guests, p.guests)} />}
+        <Kpi icon="person_add" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.leads.length, p.leads)} />
+        <Kpi icon="smart_toy" label="AI answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.aiCalls, p.aiCalls)} />
+        <Kpi icon="phone_missed" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.missed, p.missed, false)} />
         <SpamKpi workspace={workspace} day={day} tz={tz} onOpen={() => onGo("spam")} />
       </div>
 
@@ -480,8 +479,8 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             <div className="ba-table-wrap" tabIndex={0}>
               <table className="ba-table static td-table">
                 <thead><tr>
-                  <th>Time</th><th>{term("customer")}</th>{showGuests && <th>{term("customers")}</th>}{tablesOn && <th>Table</th>}{showStaff && <th>{term("staff")}</th>}
-                  <th>Status</th><th>Notes</th><th><span className="ba-sr">Actions</span></th>
+                  <th>Time</th><th>{term("customer")}</th>{showGuests && <th className="td-wide">{term("customers")}</th>}{tablesOn && <th className="td-wide">Table</th>}{showStaff && <th className="td-wide">{term("staff")}</th>}
+                  <th className="td-wide">Status</th><th className="td-wide">Notes</th><th><span className="ba-sr">Actions</span></th>
                 </tr></thead>
                 <tbody>
                   {rows.map((a) => {
@@ -489,16 +488,26 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
                     const [src, srcIcon] = SOURCE[a.customer?.source] ?? (a.customer?.source ? [a.customer.source, "more_horiz"] : ["None", null]);
                     const busy = working === `appt-${a.id}`;
                     const mins = minutes(a);
+                    const note = a.description || a.internal_notes || a.location || "";
+                    const tableName = !(a.table_ids ?? []).length ? "Not set" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id] ?? "Not available").join(" + ");
+                    const staffName = showStaff ? data.staff[a.staff_id] ?? "Not set" : "";
+                    // on a phone the folded columns read under the name instead
+                    const folded = [showGuests ? (a.party_size ? `${a.party_size} ${term("customers").toLowerCase()}` : `${term("customers")}: None`) : "",
+                      tablesOn && (a.table_ids ?? []).length ? `Table ${tableName}` : "", showStaff && a.staff_id ? staffName : ""].filter(Boolean).join(" · ");
                     return (
                       <tr key={a.id}>
                         <td className="td-time">{formatTime(a.start_time, tz)}{mins ? <small>{mins} min</small> : null}</td>
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
-                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small></td>
-                        {showGuests && <td>{a.party_size ?? "None"}</td>}
-                        {tablesOn && <td>{!(a.table_ids ?? []).length ? "None" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id] ?? "Not available").join(" + ")}</td>}
-                        {showStaff && <td>{data.staff[a.staff_id] ?? "None"}</td>}
-                        <td><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
-                        <td className="td-notes">{a.description || a.internal_notes || a.location || ""}</td>
+                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small>
+                          {folded && <small className="td-sub td-folded">{folded}</small>}
+                          {note && <small className="td-sub td-folded td-folded-note">{note}</small>}
+                          <span className="td-folded td-folded-status"><Pill tone={tone}>{stageLabel}</Pill>
+                            {a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</span></td>
+                        {showGuests && <td className="td-wide">{a.party_size ?? <span className="op-muted">None</span>}</td>}
+                        {tablesOn && <td className="td-wide">{tableName}</td>}
+                        {showStaff && <td className="td-wide">{staffName}</td>}
+                        <td className="td-wide"><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
+                        <td className="td-notes td-wide">{note}</td>
                         <td>
                           <div className="td-actions">
                             {a.customer?.phone && <a className="ba-btn ghost sm" href={`tel:${a.customer.phone}`} aria-label={`Call ${personName(a.customer) ?? ""}`} title="Call"><Icon name="call" size="sm" /></a>}
@@ -531,10 +540,10 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
               {data.activity.map((x) => {
                 const who = personName(x.customer) ?? x.from_number ?? "a caller";
                 const [icon, tone, text, sub] = x.kind === "message"
-                  ? ["sms", "violet", `Replied by ${x.channel === "email" ? "email" : "text"} to ${who}`, x.subject]
+                  ? ["sms", "", `Replied by ${x.channel === "email" ? "email" : "text"} to ${who}`, x.subject]
                   : x.status === "missed" ? ["phone_missed", "rose", `Missed call from ${who}`, x.metadata?.followed_up_at ? "Followed up" : "Waiting for a call back"]
                     : x.needs_human ? ["support_agent", "amber", `Handed ${who} to a person`, x.summary]
-                      : !isAnswered(x.status) ? ["call", "", `Call with ${who}: ${callResult(x.status).label.toLowerCase()}`, x.summary || x.outcome] : ["call", "green", `${x.ai_handled ? "Answered" : "Call with"} ${who}`, x.summary || x.outcome];
+                      : !isAnswered(x.status) ? ["call", "", `Call with ${who}: ${callResult(x.status).label.toLowerCase()}`, x.summary || x.outcome] : ["call", "", `${x.ai_handled ? "Answered" : "Call with"} ${who}`, x.summary || x.outcome];
                 return (
                   <li key={`${x.kind}-${x.id}`}>
                     <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} size="sm" /></span>
@@ -588,7 +597,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           ) : <Empty title={loading && !data ? "Loading…" : "No completed visits yet"}>{!loading && `Ranked by completed ${bookingWord.toLowerCase()} in the last 90 days.`}</Empty>}
         </Card>}
 
-        <Card title="Tasks & follow ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
+        <Card title="Tasks and follow ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
           {data?.tasks.length ? (
             <ul className="td-list">
               {data.tasks.map((t) => {
@@ -613,7 +622,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
             <ul className="td-list">
               {data.upcoming.map((a) => (
                 <li key={a.id}>
-                  <span className="ba-kpi-icon rose"><Icon name="event" size="sm" /></span>
+                  <span className="ba-kpi-icon"><Icon name="event" size="sm" /></span>
                   <div><strong>{personName(a.customer) ?? a.title}</strong><small>{formatLongDate(a.start_time, tz)} · {formatTime(a.start_time, tz)}{a.party_size ? ` · ${a.party_size} ${term("customers").toLowerCase()}` : ""}</small></div>
                 </li>
               ))}
@@ -626,7 +635,7 @@ export default function BusinessToday({ workspace, userId, fallbackName, industr
           return (
             <Card key={key} title={c.title} className="td-connect">
               <div className="td-connect-body">
-                <span className="ba-kpi-icon indigo"><Icon name={c.icon} /></span>
+                <span className="ba-kpi-icon"><Icon name={c.icon} size="sm" /></span>
                 <p>{c.text}</p>
                 {key === "reviews" && <button type="button" className="ba-btn sm" onClick={() => onGo("settings/messages/reviews")}>Review link</button>}
                 {key === "tables" && operations.some((t) => t.key === "tables" && t.enabled) && <button type="button" className="ba-btn sm" onClick={() => onGo("rec:tables")}>Open tables</button>}

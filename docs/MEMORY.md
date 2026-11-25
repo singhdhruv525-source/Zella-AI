@@ -26,7 +26,10 @@ history.
   review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). **Claude fixes every CodeRabbit finding
   itself** (owner, 25 Nov 2026), resolves the fixed threads, requests a new review, and merges only when every merge
   condition holds: CodeRabbit's check a success on the final head, no new comments, no unresolved threads, a clean merge
-  state. Nobody needs to tick "Fix comments".
+  state. Nobody needs to tick "Fix comments". **The last review before a merge is a full review** ("@coderabbitai full
+  review", owner, 25 Nov 2026: "make sure coderabbit review everything"): an incremental review only reads commits it
+  hasn't seen, so after merges of main it can cover a few files of a large pull request. The owner has two CodeRabbit
+  seats, so up to two reviews run at once.
 - **Keep the owner posted:** while waiting on reviews or agents, check about every 10 minutes and give the owner an
   update (owner, 17 Nov 2026).
 - **Write the owner's decisions down** (`AGT-9`, owner, 24 Nov 2026): a rule or decision given in chat goes into
@@ -171,6 +174,22 @@ most often needed:
   ripple), which supersedes the 6 Nov lively motion rule for the admin only. Details in `docs/DESIGN_SYSTEM.md`
   "Admin polish"; architecture §23.1d.
 
+- **Admin pages polish (owner, 25 Nov 2026):** the owner approved the admin items for every page except Overview
+  ("yes to all A and C"). Built in one pull request: A1, A6 to A13, A22 to A24, A33, A35, A37, A39, A44 to A49, A51,
+  A54, A55, A57, A59 (`web/src/styles/admin-polish.css`, loaded last and scoped to `.owner-app`, so the CRM does not
+  change). The admin phone items (A27 to A30, A32, A53) wait for the phone navigation pull request (#122). Details in
+  `docs/DESIGN_SYSTEM.md` "Admin pages polish"; architecture §23.1d.
+
+- **Full review before every merge (owner, 25 Nov 2026):** "make sure coderabbit review everything". The last review
+  before a merge is a full review of the final head ("@coderabbitai full review"), because an incremental review reads
+  only commits it hasn't seen. `NN-5`, architecture §23.1.
+- **Wording pass, admin and CRM (owner, 25 Nov 2026):** the owner approved every item of the admin and CRM page audits,
+  "yes to all A and C" (A1 to A59, C1 to C51). The wording items are built in one pull request (admin A2 to A5, A14 to
+  A21, A34, A36, A38, A42, A43, A50, A52, A56, A58; CRM C1 to C8, C11 to C15, C28, C31, C32, C34, C35, C38, C43, C44,
+  C46 to C48, C50); the visual and phone items follow in later batches. Frontend wording only: no behaviour,
+  permission or data change. Every old and new line is in `docs/ZELLA_COPY_CHANGELOG.md`; architecture §23.1d,
+  `AGT-9`.
+
 - **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
   chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:
   - **No notification preferences page (28 Oct 2026):** pop ups, desktop notifications and urgent texts are on by
@@ -203,6 +222,24 @@ most often needed:
     REQ-BIL-32, D-44); a caller silent for 1 minute gets a polite goodbye and the call ends (REQ-VOX-13, `AI-24`; built in
     `sql/zella_silence_timeout.sql`, not applied yet); urgent texts are always on for team members, and only the
     business owner changes who gets them (§28, REQ-CRM-23).
+  - **CRM polish (25 Nov 2026)** (architecture §23.1d, `AGT-9`): the owner approved all 26 changes of the design pass
+    on the CRM Today page, "yes to whole CRM". Polish only: Glass, the dock, the picture palette and the brand stay;
+    no feature, section or order changes. Revised the same day: Today's date and business name sit on two lines, not
+    joined by a middle dot ("A · B" meta lines read as a template tell). The motion changes apply to every CRM page; the admin dashboard is not
+    changed by it (its own pass is separate). Rules in `web/src/styles/crm-polish.css`, scoped to the CRM root.
+
+  - **Audit bug fixes approved (owner, 25 Nov 2026):** fix in one small pull request the crashes and wording bugs the
+    page audits found: A41 (Industry configuration shows "Industries didn't load." with Try again, never a code
+    error), the Reporting configuration and Auto reload crashes on empty or missing data, and C33, C36, C39, C45
+    (branch `claude/audit-bugfixes`; wording in `docs/ZELLA_COPY_CHANGELOG.md`).
+  - **CRM look approved (owner, 25 Nov 2026, "yes to all A and C"):** C9, C10, C16, C17, C18, C27, C29, C37, C40,
+    C41, C42 and C51 on every CRM page except Today (architecture §23.1d). Polish only: Glass, the dock, the picture
+    palette, Classic and the Zella Voice theme stay; no feature, section or order changes; the admin dashboard is not
+    changed. Rules in `web/src/styles/crm-look.css`, scoped to the CRM root (branch `claude/crm-look`). The CRM phone
+    items (C20 to C25, C30, C49) wait for the phone navigation pull request.
+  - **Tables page compacted (owner feedback, 25 Nov 2026, same pull request):** "the table layout is showing way too
+    enlarged". The floor plan now fits its tables (saved positions kept, only cropped and scaled, never below
+    readable sizes) and the four counts are compact cards (`docs/DESIGN_SYSTEM.md` "CRM look").
 
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed
@@ -519,6 +556,12 @@ Waiting on the owner:
   trial setup (REQ-BIL-12) instead of a first payment.
 
 ## 6. Lessons learnt (don't repeat these)
+
+- **An incremental review is not a review of the whole pull request (25 Nov 2026):** #120 and #123 merged after
+  incremental reviews whose last rounds read 2 of 12 and 12 of 93 files. A review only pull request (#126) gave both a
+  full review afterwards and found five real issues (a blank count, an empty later page read as an empty list, an
+  extension merged into a phone number, a shown phone number that search couldn't find, a load failure shown while
+  still loading), fixed in one follow up pull request. Merge only after a full review of the final head.
 
 - **Write the owner's rule into the source of truth, or the build follows the old one (24 Nov 2026):** `docs/ARCHITECTURE.md` REQ-CRM-17 listed languages as editable by the owner, so the build followed it and Settings >
   Languages let owners change them, against the owner's rule that only Zella Voice admins do, within the plan. The rule
