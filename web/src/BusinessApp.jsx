@@ -271,7 +271,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               onChange={(e) => setSearch(e.target.value)}
               // On a page without a list, Enter opens the search results in the customer list.
               onKeyDown={(e) => { if (e.key === "Enter" && !searchable && search.trim()) setPage("customers"); }}
-              placeholder={searchable ? `Search ${searchLabel}` : `Search ${term("customers").toLowerCase()} (press Enter)`}
+              placeholder={searchable ? `Search ${searchLabel}` : `Search ${term("customers").toLowerCase()}`}
               aria-label={`Search ${searchLabel}`}
             />
           </label>

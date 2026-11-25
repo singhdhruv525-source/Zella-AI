@@ -12,6 +12,8 @@ import './styles/brand.css'
 // Motion for every page in both apps: buttons, cards, tabs, rows and popups (off with reduced motion).
 import './styles/motion.css'
 import './styles/motion.js'
+// The business CRM's polish (25 Nov 2026): scoped to the CRM root, so the admin dashboard never changes.
+import './styles/crm-polish.css'
 import { startAppearance } from './appearance'
 import { ErrorBoundary } from './BusinessUI'
 
