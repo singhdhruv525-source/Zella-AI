@@ -108,7 +108,7 @@ Enterprise customers may require certificates of insurance naming them as certif
 | Annual revenue, current and projected | **[REVENUE]** |
 | Customers | Not launched to real customers; the production system holds demo businesses only (project memory, 15 November 2026). **[UPDATE AT APPLICATION]** |
 | Number of personal records held | **[RECORD COUNT]** |
-| Sensitive data | Call transcripts. Call recording is intended to be off by default; the live Vapi recording setting is not yet confirmed **[OWNER TO CONFIRM THE LIVE VAPI RECORDING SETTING BEFORE ANSWERING]**. Regulated Industry data is intended only after legal review. Card numbers are designed never to enter Zella Voice (payments through Stripe, which is not yet switched on) |
+| Sensitive data | Call transcripts. Call recording is intended to be off by default; the live Vapi recording setting is not yet confirmed **[OWNER TO CONFIRM THE LIVE VAPI RECORDING SETTING BEFORE ANSWERING]**. Regulated Industry data is intended only after legal review. Zella Voice never collects card numbers on purpose, and payment is only through Stripe (not yet switched on). However, callers may speak card numbers on a call, and call transcripts may currently store them; transcript redaction is pending remediation. **[OWNER TO CONFIRM TRANSCRIPT REDACTION STATUS BEFORE ANSWERING]** |
 | Multi factor authentication | Built but not yet live for Zella Voice administrators and for Owners at onboarding. **[CONFIRM WHAT IS LIVE AT THE DATE OF THE APPLICATION]** |
 | Encryption | In transit (connections to the database service use HTTPS); at rest **[CONFIRM WITH THE HOSTING PROVIDER]** |
 | Backups | **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** |
@@ -212,6 +212,7 @@ Placeholders in this document:
 - **[UPDATE AT APPLICATION]**
 - **[RECORD COUNT]**
 - **[OWNER TO CONFIRM THE LIVE VAPI RECORDING SETTING BEFORE ANSWERING]**
+- **[OWNER TO CONFIRM TRANSCRIPT REDACTION STATUS BEFORE ANSWERING]**
 - **[CONFIRM WHAT IS LIVE AT THE DATE OF THE APPLICATION]**
 - **[CONFIRM WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**

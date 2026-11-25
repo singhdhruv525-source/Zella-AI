@@ -53,7 +53,8 @@ Last updated: **[LAST UPDATED DATE]**
 | Customer Data is never used to train AI models | Live |
 | Export and erasure tools for each business | Live |
 | Automatic deletion of recordings and transcripts after 90 days, and deletion of copies at the voice provider | Built, going live |
-| Deletion 30 days after cancellation **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**, and account deletion after a 30 day grace period | Built, going live |
+| Deletion after cancellation, after **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, and account deletion after a 30 day grace period | Built, going live |
+| Removal of payment card numbers that callers speak on calls from call transcripts | Not built; pending remediation |
 | Backups with point in time recovery | **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** |
 
 ## 6. Application and AI security
@@ -161,7 +162,7 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SECURITY CONTACT]**

@@ -90,7 +90,7 @@ Taking into account the nature of processing and the information available to it
 
 12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
 
-12.2 **After cancellation.** Customer Personal Data remains available for export for 30 days after cancellation **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**, after a final offer to export, and is then deleted. Backups are cleared within 90 days.
+12.2 **After cancellation.** Customer Personal Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days.
 
 12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted.
 
@@ -152,7 +152,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Nature | Collection, recording, organization, storage, transcription, summarization, retrieval, use, transmission, restriction, export and erasure, including processing by artificial intelligence |
 | Purpose | Answering and routing Customer's calls with the AI Receptionist, answering questions from approved knowledge, booking and changing appointments, taking messages, transferring calls, sending messages Customer has set up, keeping Customer's CRM, lead intake, order lookup, calendar sync and review replies where connected and enabled, reporting, security, spam protection and support |
 | Data subjects | End Users: callers, clients, customers, patients, guests, members, students, tenants, policyholders and leads; relationships Customer records (such as parents and guardians); Customer's staff as named in bookings and rotas |
-| Types of Personal Data | Identity and contact details; call records, summaries and transcripts; recordings only when recording is on; texts and emails; appointments and attendance; CRM notes, requests, tasks, quotes and recorded payments (no card numbers); industry records and uploaded files; lead details and consent evidence; consent and opt out history; order details; calendar entries; review text and approved replies |
+| Types of Personal Data | Identity and contact details; call records, summaries and transcripts; recordings only when recording is on; texts and emails; appointments and attendance; CRM notes, requests, tasks, quotes and recorded payments (card numbers are never collected on purpose, but a number a caller speaks may appear in a transcript until redaction is in place); industry records and uploaded files; lead details and consent evidence; consent and opt out history; order details; calendar entries; review text and approved replies |
 | Special categories and sensitive data | Only where a Regulated Industry's records allow it: patient records (healthcare, dental), children's details (childcare), legal matters (legal), financial and insurance details (financial services, insurance), and private fields such as access codes and member numbers. Kept in private fields, never read aloud, transcripts never shown to staff in those industries |
 | Frequency | Continuous |
 | Retention | As in section 12 |
@@ -173,7 +173,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Entry points | Size limits, rate limits and authentication first at every public entry point; provider messages verified by signature, timestamp window and replay protection |
 | Storage and links | Private storage under each Customer's own path; files checked after upload; downloads by short lived signed links; customer links random, single purpose, expiring and stored only as hashes |
 | AI safeguards | Caller input treated as untrusted; the AI acts only through server checked tools that recheck the Customer and caller; no secrets or other Customers' data in prompts |
-| Messaging safeguards | Consent, opt out, frequency and duplicate checks at the time of sending, and sending hours for marketing texts (Zella Voice Messaging Terms, section 4.2) |
+| Messaging safeguards | Consent, opt out, frequency and duplicate checks at the time of sending, and contact hours in the recipient's time zone when known (Zella Voice Messaging Terms, section 4.2). Marketing and automated texts stay off until the sender enforces the recipient's time zone (section 4.3 of those terms) |
 | Resilience | Backups with point in time recovery **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**; a standby assistant takes messages if the database is unavailable; every Live Feature has a control |
 | Retention | Scheduled deletion per data class, legal holds, deletion reaching files and provider copies where possible |
 
@@ -340,7 +340,7 @@ Placeholders in this document:
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[AUDIT NOTICE PERIOD]**
 - **[DATA HOSTING REGION]**
 - **[SCC MODULE TWO (CONTROLLER TO PROCESSOR) AND, WHERE APPLICABLE, MODULE THREE; OPTIONAL CLAUSES; GOVERNING LAW; COMPETENT SUPERVISORY AUTHORITY; SWISS ADJUSTMENTS]**

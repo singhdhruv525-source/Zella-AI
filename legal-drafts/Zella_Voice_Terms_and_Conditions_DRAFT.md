@@ -139,7 +139,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 9.4 **Automatic renewal.** **AT THE END OF EACH BILLING PERIOD, THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR A FURTHER BILLING PERIOD OF THE SAME LENGTH (MONTHLY OR YEARLY, AS STATED IN THE ORDER FORM) UNTIL CUSTOMER CANCELS UNDER SECTION 10.2.** Zella Voice sends a renewal notice 3 days before every renewal and, for yearly Plans, also 7 days before.
 
-9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Payment card details are entered on Stripe's hosted pages and are never received or stored by Zella Voice.
+9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Payment card details are entered on Stripe's hosted pages and are never collected by Zella Voice on purpose. Zella Voice never collects card numbers on purpose and payment goes only through Stripe, but a number a caller speaks on a call may appear in the call transcript until transcript redaction is in place. **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]** Customer should configure the AI Receptionist not to ask callers for card numbers.
 
 9.6 **Usage and allowances.**
 
@@ -196,7 +196,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 12.6 **Export.** The Owner may export customers and call history as CSV files at any time, and may request a whole business export of Customer Data.
 
-12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call; after cancellation, Customer Data remains available for export for 30 days **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request.
+12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call; after cancellation, Customer Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the export window is deleted on that date.
 
 12.8 **Telephone numbers.** Customer may port telephone numbers into or out of the Services at no charge. Porting time depends on the carrier. Numbers provided by Zella Voice are released 30 days after cancellation unless ported out before then.
 
@@ -610,9 +610,10 @@ Placeholders in this document:
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
+- **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
 - **[FLOOR AMOUNT]**

@@ -34,7 +34,7 @@ Last updated: **[LAST UPDATED DATE]**
 - Sign in records: password (held only in protected form by our sign in provider), two step sign in records, sign in times and signed in devices.
 - Invitations, and acceptance of our legal documents (version, time and person).
 - Owner identity verification: a photo identification document and the Customer's business registration, uploaded to private storage and checked by the Zella Voice team. Where enabled, an identity verification provider may carry out the check (section 8).
-- Billing records: Plan, Fees, usage, invoices, refunds and payment status. **Payment card details are entered on our payment processor's pages and never reach Zella Voice.**
+- Billing records: Plan, Fees, usage, invoices, refunds and payment status. **Payment card details are entered on our payment processor's pages, and Zella Voice never collects card numbers on purpose.** Zella Voice never collects card numbers on purpose and payment goes only through Stripe, but a number a caller speaks on a call may appear in the call transcript until transcript redaction is in place. **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - Support requests and correspondence.
 
 ### 3.2 Customer Personal Data
@@ -45,7 +45,7 @@ A Customer keeps records about its End Users, which may include:
 - calls: calling and called numbers, time and length, what the AI Receptionist did, the outcome, a written summary and a transcript, and a recording only when the Customer has turned call recording on (section 6);
 - texts and emails sent or received for the Customer, with delivery status and replies;
 - appointments, reservations, jobs, waitlist entries, check ins and attendance;
-- requests, notes, tasks, follow ups, quotes and recorded payments (never card numbers);
+- requests, notes, tasks, follow ups, quotes and recorded payments (Zella Voice does not collect card numbers; see section 3.1 about numbers spoken on calls);
 - the records the Customer's industry uses, which may include uploaded files;
 - relationships the Customer records, such as a parent or guardian;
 - consent records, contact preferences, opt outs and do not contact flags;
@@ -105,7 +105,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 ## 7. Messages, consent and opting out
 
-7.1 Before every message, the Services check consent for that channel and purpose (service or marketing), opt outs, the hours in which messages may be sent (Zella Voice Messaging Terms, section 4.2), frequency limits and duplicates. Consent is recorded with when and how it was given.
+7.1 Before every message, the Services check consent for that channel and purpose (service or marketing), opt outs, contact hours in the recipient's time zone when known, otherwise the Customer's (Zella Voice Messaging Terms, sections 4.2 and 4.3; marketing and automated texts are not switched on until the sender enforces this), frequency limits and duplicates. Consent is recorded with when and how it was given.
 
 7.2 Reply **STOP** to a text to stop texts from that Customer, use the unsubscribe link in a marketing email, or say "don't call me" to stop calls. Opt outs take effect immediately for that Customer. We keep the opt out record after other data is erased so that it keeps working. The Zella Voice Messaging Terms give more detail.
 
@@ -152,7 +152,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
 | Other Customer Data and Account Data | While the account is active |
-| After a Customer cancels | Available for export for 30 days, then deleted **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**; backups cleared within 90 days |
+| After a Customer cancels | Data still held is available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts are still deleted 90 days after the call, even during the export window |
 | Telephone numbers of a canceled Customer | Released 30 days after cancellation unless ported out |
 | Consent and opt out records | Kept after erasure so that opt outs continue to work |
 
@@ -273,12 +273,13 @@ Placeholders in this document:
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
+- **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**

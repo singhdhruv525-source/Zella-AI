@@ -59,7 +59,7 @@ The separate files were removed after merging; their full text is inside the mer
 
 3.1 The architecture (section 20, REQ BIL 49) and the rulebook (PRV 4) say a canceled Customer's data is deleted 30 days after cancellation, after a final export offer. The version 0.1 privacy policy said 90 days. The product document notes that the database falls back to 90 days when no value is set, and the admin page labels it "Pending legal review".
 
-3.2 **Every document in this set uses 30 days**, because the rulebook prevails, and marks it in each place with **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]** (Terms 12.7, Privacy Policy section 10, DPA 12.2, Trust overview section 5). Decide, set the database value to match, and remove the marker before publishing.
+3.2 **Every document in this set uses the placeholder **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** for this period**, wherever it appears (Terms 12.7, Privacy Policy section 10, DPA 12.2, Trust overview section 5). The rulebook's 30 days is shown as the proposal. To resolve: decide the period, replace the placeholder with it everywhere it appears, and set the database value to match. Each kind of data keeps its own deletion schedule during the export window, so recordings and transcripts are still deleted 90 days after the call and the window covers only data still held.
 
 3.3 **Recordings: 90 days or 30 days.** The owner decided on 18 November 2026 that call recordings and transcripts are kept 90 days (architecture section 23.1c; rulebook PRV 4). The earlier proposal was recordings 30 days and transcripts 90 days. The per kind retention settings built on 16 November 2026 (not deployed) still default to that earlier proposal, recordings 30 days, while the privacy retention migration (not applied) sets both to 90 days. Every period is pending legal review. **The drafts use 90 days for recordings and transcripts.** Decide between 90 days (current owner decision) and 30 days (earlier proposal), and make the settings match before publishing.
 
@@ -71,7 +71,7 @@ The separate files were removed after merging; their full text is inside the mer
 |---|---|
 | Recordings and transcripts deleted automatically after 90 days | Built, not applied; purge switch off; periods pending legal review |
 | Copies at Vapi deleted | Built, not applied; Vapi deletion switch off |
-| Deletion 30 days after cancellation; account deletion after 30 days | Built, not deployed; purge runs need two approvals; account deletion migration not applied |
+| Deletion after the cancellation period (placeholder); account deletion after 30 days | Built, not deployed; purge runs need two approvals; account deletion migration not applied |
 | AI disclosure cannot be removed and is added in the caller's language | Built, not applied (call disclosure migration) |
 | Recording off by default | Policy built, not deployed; until a call path change is approved, the voice provider's own settings decide whether a call is recorded. Confirm recording is off at Vapi |
 | Caller verification with confirmation codes | Built, not applied |
@@ -85,11 +85,13 @@ The separate files were removed after merging; their full text is inside the mer
 | Status page wording ("everything is working" only when checked) | Built, not applied |
 | Support replies in the app | Built, not applied |
 | Trust overview "Built, going live" items | Must be relabelled Live only once in production |
+| Contact hours in the recipient's time zone (Messaging Terms 4.2) | **Blocker for texts going live:** the text sender checks only marketing texts, only 8 a.m. to 9 p.m., and only in the Business's time zone; rulebook COM 3 requires the recipient's time zone when known. Marketing and automated texts must stay off until the sender enforces it (Messaging Terms 4.3) |
+| Card numbers never collected | Zella Voice never asks for them and payment is only through Stripe, but callers may speak card numbers and transcripts may store them; transcript redaction is not built (pending remediation) |
 | HIPAA BAA available | Offered only after BAAs with every vendor (D 49); not in place |
 
 ## 5. Open decisions for the owner
 
-1. Retention after cancellation: 30 days (used) or 90 days (section 3). Also: retention of call recordings, 90 days (used; owner decision of 18 November 2026) or 30 days (earlier proposal still in the per kind settings) (section 3.3).
+1. Retention after cancellation: 30 days (proposed) or 90 days (database fallback); a placeholder in every document until decided (section 3.2). Also: retention of call recordings, 90 days (used; owner decision of 18 November 2026) or 30 days (earlier proposal still in the per kind settings) (section 3.3).
 2. Publicity: the Terms take the safer default (no use of a Customer's name without written consent). Confirm or choose an opt out model.
 3. Whether to publish an uptime target. The source documents say there is no formal uptime guarantee at launch and service credits are the remedy; the rulebook's internal service level targets are not published.
 4. Founding customer price terms (open decision D 47).
@@ -114,7 +116,8 @@ The separate files were removed after merging; their full text is inside the mer
 23. Accessibility contact, response time and known limitations after an audit.
 24. Reseller and referral model, commission rate, period and payment timing, and whether to include non solicitation.
 25. HR providers and retention periods for applicant, employee and payroll records.
-26. Whether to tighten the text sender to the recipient's time zone and a 9 a.m. to 7 p.m. window for marketing, and add quiet hours for reminders (Messaging Terms 4.2).
+26. Product fix before texts go live: make the text sender use the recipient's time zone when known (rulebook COM 3) and apply the windows in Messaging Terms 4.2; confirm the hour ranges.
+27. Product fix: redact payment card numbers that callers speak from call transcripts (and summaries), and check existing transcripts.
 
 ## 6. Points for counsel
 
@@ -141,8 +144,9 @@ The separate files were removed after merging; their full text is inside the mer
 21. **Employee and applicant notice:** the California CPRA notice at collection for employees and applicants, and other state requirements.
 22. **Reseller agreement:** resale structure, anti bribery and marketing compliance, commission tail and non solicitation.
 23. **Trademark:** clearance search, filing basis and classes for ZELLA VOICE.
-24. **Messaging hours.** Whether the product must use the recipient's time zone and a narrower window (9 a.m. to 7 p.m.), and whether reminders need quiet hours; the Messaging Terms describe current behavior until then.
+24. **Messaging hours.** The Messaging Terms now state the rulebook COM 3 rule (recipient's time zone when known) with a condition that marketing and automated texts stay off until the sender enforces it. Confirm the hour ranges, whether marketing needs a narrower window, and whether reminders need quiet hours.
 25. **Missed call text basis** for 10DLC registration (Consent Pack section 5.2).
+26. **Spoken card numbers in transcripts.** Callers may speak card numbers, which may be stored in transcripts until redaction exists. Advise on PCI DSS scope and on the wording now used in the Privacy Policy, Terms 9.5 and DPA Annex 1.
 
 ## 7. Owner actions that are not documents
 
@@ -169,7 +173,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 6. Google Fonts is listed although it is not in the architecture's subprocessor table, because the web application loads the Inter typeface from it.
 7. Push notifications and WhatsApp and Messenger are omitted: push is only planned (D 40) and those Meta channels are undecided (D 39).
 8. Encryption at rest is a placeholder; the source documents do not state it.
-9. The messaging hours in the Messaging Terms now describe what the text sender actually does: marketing texts are blocked before 8 a.m. and from 9 p.m. in the Business's time zone; follow ups are scheduled by default between 9 a.m. and 7 p.m. in the Business's time zone; reminders have no quiet window in the sender. The product document's target (recipient's time zone, reminders 7 a.m. to 9 p.m., other messages 9 a.m. to 7 p.m.) is not implemented, so the documents do not promise it.
+9. The Messaging Terms state the rulebook COM 3 contact hours (recipient's time zone when known) as the commitment, with a condition (section 4.3) that marketing and automated texts are not switched on until the sender enforces it; the sender today checks only marketing texts, 8 a.m. to 9 p.m., in the Business's time zone.
 10. START restores service texts only, as the code does; marketing consent must be given again.
 11. Terms Schedule 3 (Content and Defamation Complaints Policy) says Zella Voice cannot remove content from third party sites such as Google, only stop further sending or publishing.
 12. Terms Schedule 4 (Service Level and Support Policy) adds standard exclusions (Customer causes, suspension, Beta and switched off features, force majeure, announced maintenance) to the documented service credit.
@@ -193,7 +197,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 
 - **Defined terms:** one definition list (Terms section 2), adopted by every document. "AUP" is now defined in Terms section 1.5 as Schedule 1, and "Policies" as Schedules 1 to 4 plus the Messaging Terms. The Messaging Terms Part A uses "Business" for recipients and defines it.
 - **Document names and cross references:** no reference to a removed document remains. Every reference to a Schedule, Annex or section was checked against the headings: Terms sections 1.5, 2, 5.4, 5.5, 5.9, 7.4, 11, 16, 17, 20, 22, 22.3, 26 and 28.3; Schedules 1 to 4; DPA sections 4, 8, 9.2, 11, 12 and 14, Annexes 1 to 3 and Schedule 1 (sections S1.1 to S1.8); Privacy Policy sections 10 and 15. One stale reference was fixed (the Privacy Policy pointed to a non existent "Annex A" of the DPA; it is Annex 2).
-- **Retention:** 90 days (recordings and transcripts, subject to the decision in section 3.3; identity documents), 2 years (message contents), 7 years (audit logs), 30 days (after cancellation, account deletion, number release, replaced identity copies) and 90 days (backups after cancellation) are identical in the Terms, Privacy Policy, DPA, Terms Schedule 2, the Trust overview and the Handbook.
+- **Retention:** 90 days (recordings and transcripts, subject to the decision in section 3.3; identity documents), 2 years (message contents), 7 years (audit logs), the cancellation period placeholder (after cancellation), 30 days (account deletion, number release, replaced identity copies) and 90 days (backups after cancellation) are identical in the Terms, Privacy Policy, DPA, Terms Schedule 2, the Trust overview and the Handbook.
 - **Contacts:** one placeholder each for privacy, support, legal notices, content complaints, security, legal requests and the DMCA agent. The Subprocessor List location is one placeholder, used in the Privacy Policy, the DPA and the Trust overview.
 - **Subprocessors:** the Privacy Policy summary table and DPA Annex 3 list the same providers.
 - **Claims:** backups with point in time recovery were stated as fact in the Privacy Policy and DPA; they are now behind a placeholder, because the go live checklist still lists turning them on.
@@ -206,7 +210,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 ### This memo
 
 - **[MEMO DATE]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 
 ### Zella Voice Terms of Service
 
@@ -217,9 +221,10 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
+- **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
 - **[FLOOR AMOUNT]**
@@ -251,12 +256,13 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
+- **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
@@ -278,7 +284,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[AUDIT NOTICE PERIOD]**
 - **[DATA HOSTING REGION]**
 - **[SCC MODULE TWO (CONTROLLER TO PROCESSOR) AND, WHERE APPLICABLE, MODULE THREE; OPTIONAL CLAUSES; GOVERNING LAW; COMPETENT SUPERVISORY AUTHORITY; SWISS ADJUSTMENTS]**
@@ -307,7 +313,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
-- **[OWNER AND COUNSEL: DECIDE WHETHER THE PRODUCT SHOULD USE THE RECIPIENT'S TIME ZONE AND A NARROWER WINDOW, AND WHETHER REMINDERS NEED QUIET HOURS; UPDATE THIS SECTION TO MATCH]**
+- **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
+- **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
 - **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[CONFIRM THE HELP REPLY INCLUDES THE BUSINESS NAME AND A CONTACT METHOD]**
@@ -353,7 +360,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
-- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
+- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SECURITY CONTACT]**
@@ -479,7 +486,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
 - **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
 - **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- **[OWNER AND COUNSEL: DECIDE WHETHER TO TIGHTEN THE PRODUCT]**
+- **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
 - **[UPDATE THE TEMPLATE SPELLING]**
 
 <!-- ALL PLACEHOLDERS END -->

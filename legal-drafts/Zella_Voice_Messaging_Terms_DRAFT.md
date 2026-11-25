@@ -38,7 +38,9 @@ Last updated: **[LAST UPDATED DATE]**
 
 4.1 **Message frequency varies** with your appointments and requests. The Services limit how often you are contacted: unless the Business's plan sets a different limit, no more than one unprompted message a day.
 
-4.2 Marketing texts are not sent before 8 a.m. or from 9 p.m. onward in the Business's time zone. Automated follow ups are scheduled during the day, by default between 9 a.m. and 7 p.m. in the Business's time zone. Appointment reminders are timed from the appointment, for example 24 hours and 2 hours before it. Replies to your own messages may be sent at any time. **[OWNER AND COUNSEL: DECIDE WHETHER THE PRODUCT SHOULD USE THE RECIPIENT'S TIME ZONE AND A NARROWER WINDOW, AND WHETHER REMINDERS NEED QUIET HOURS; UPDATE THIS SECTION TO MATCH]**
+4.2 **Contact hours.** Messages are sent within contact hours in your local time zone when the Business knows it, and otherwise in the Business's time zone. Replies to your own messages, the missed call text and booking confirmations are sent immediately. The other windows are: follow ups after a call attempt, within the Business's calling hours; appointment reminders, between 7 a.m. and 9 p.m.; other service messages, between 9 a.m. and 7 p.m.; and marketing messages, between 9 a.m. and 7 p.m. A message due outside its window moves to the next allowed time. **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
+
+4.3 **Condition before sending.** Marketing texts and automated texts are not switched on until the text sender enforces section 4.2 using the recipient's time zone. Today the sender checks the Business's time zone only. **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
 
 ## 5. Costs
 
@@ -86,7 +88,7 @@ Carriers are not liable for delayed or undelivered messages. Delivery depends on
 
 11.1 Every consent and opt out is recorded per Business, with the channel, purpose, time, source and the keyword or link used. Consent records are kept as an append only history.
 
-11.2 Before every message, the Services check consent, opt outs, frequency limits, duplicate protection and, for marketing texts, the hours in section 4.2, at the time of sending, not only when the message was created.
+11.2 Before every message, the Services check consent, opt outs, frequency limits, duplicate protection and the contact hours in section 4.2, at the time of sending, not only when the message was created.
 
 11.3 When a Business erases a person's data, the person's consent and opt out history is kept so that the opt out continues to work.
 
@@ -108,7 +110,8 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
-- **[OWNER AND COUNSEL: DECIDE WHETHER THE PRODUCT SHOULD USE THE RECIPIENT'S TIME ZONE AND A NARROWER WINDOW, AND WHETHER REMINDERS NEED QUIET HOURS; UPDATE THIS SECTION TO MATCH]**
+- **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
+- **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
 - **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[CONFIRM THE HELP REPLY INCLUDES THE BUSINESS NAME AND A CONTACT METHOD]**
