@@ -2,8 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
 import { useDialogFocus } from "../useDialogFocus";
 import { MORE_TAB, badgeText, tabName } from "./phoneTabs.js";
-import { createPendingStore, panelDrag, panelReleaseCloses, rowDrag, rowReleaseOpens } from "./phoneHelpers.js";
+import { createPendingStore, createToastStore, panelDrag, panelReleaseCloses, rowDrag, rowReleaseOpens } from "./phoneHelpers.js";
 import { prefersReducedMotion } from "./usePhoneLayout.js";
+import { lockBodyScroll } from "./bodyScrollLock.js";
 
 // The phone navigation for both apps (approved 25 Nov 2026, P1 to P29). Only drawn under 768 wide; the desktop
 // sidebar and the tablet rail are untouched. Look: styles/phone-nav.css.
@@ -128,11 +129,7 @@ function PanelFocus({ box, onClose }) {
   // the panel element is always in the page; point the hook at it before the hook's own effect starts
   useLayoutEffect(() => { ref.current = box.current; }, [ref, box]);
   // the page behind doesn't scroll while the panel is open; the earlier value comes back when it closes
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previous; };
-  }, []);
+  useEffect(() => lockBodyScroll(), []);   // shared with the sheets (bodyScrollLock.js)
   // The panel was hidden until this render; the browser can refuse focus until it has drawn it, so check once more
   // on the next frame.
   useEffect(() => {
@@ -167,23 +164,7 @@ export function PanelAccount({ name, detail, initials, rows }) {
 // business remounts the workspace, and a toast still in its time keeps a working Undo there.
 const TOASTS = {};
 function toastStoreFor(scope) {
-  if (!TOASTS[scope]) {
-    let current = null, timer = null;
-    const subs = new Set();
-    const emit = () => subs.forEach((f) => f(current));
-    TOASTS[scope] = {
-      get: () => current,
-      show(text, opts = {}) {
-        clearTimeout(timer);
-        const id = Date.now() + Math.random();
-        current = { id, text, undo: opts.undo ?? null, tone: opts.tone ?? "" };
-        emit();
-        timer = setTimeout(() => { if (current?.id === id) { current = null; emit(); } opts.onExpire?.(); }, opts.ms ?? 5000);
-      },
-      dismiss() { clearTimeout(timer); current = null; emit(); },
-      subscribe(f) { subs.add(f); return () => subs.delete(f); },
-    };
-  }
+  if (!TOASTS[scope]) TOASTS[scope] = createToastStore();
   return TOASTS[scope];
 }
 export function useToast(scope = "app") {

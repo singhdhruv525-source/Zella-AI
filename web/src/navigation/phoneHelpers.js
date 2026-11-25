@@ -256,3 +256,45 @@ export function keepaliveRequest({ url, key, token }, kind, name, body) {
     },
   };
 }
+
+// The toast above the bar: one at a time, each for its time (5 seconds). A plain message never takes the place of a
+// toast that still offers Undo: it waits and shows once that toast ends (its time, Undo or dismiss), so an active
+// Undo is never dropped. A new Undo toast replaces an older one (its Undo calls off every change still waiting).
+//   timers: { setTimeout, clearTimeout } (passed in by tests)
+export function createToastStore(timers = TIMERS) {
+  let current = null, timer = null, nextId = 0;
+  const queue = [];
+  const subs = new Set();
+  const emit = () => subs.forEach((f) => f(current));
+  const end = () => {
+    timers.clearTimeout(timer);
+    current = null;
+    const next = queue.shift();
+    if (next) present(next.text, next.opts); else emit();
+  };
+  const present = (text, opts) => {
+    timers.clearTimeout(timer);
+    const id = ++nextId;
+    current = { id, text, undo: opts.undo ?? null, tone: opts.tone ?? "" };
+    emit();
+    timer = timers.setTimeout(() => { if (current?.id === id) { opts.onExpire?.(); end(); } }, opts.ms ?? 5000);
+  };
+  return {
+    get: () => current,
+    show(text, opts = {}) {
+      if (!opts.undo && current?.undo) { queue.push({ text, opts }); return; }   // never over an active Undo
+      present(text, opts);
+    },
+    dismiss: () => end(),
+    subscribe(f) { subs.add(f); return () => subs.delete(f); },
+  };
+}
+
+// Does a change made in a ticket's panel replace a quick change still waiting for that ticket? Only when it sets the
+// same field: a status choice replaces a waiting Resolve, an assignee choice a waiting Assign. A note or a reply
+// replaces neither, so the waiting change goes ahead.
+//   view: what the waiting change shows ({ status } or { assigned_to, assignee }); payload: what the panel sends
+export function panelReplacesPending(view, payload = {}) {
+  if (!view) return false;
+  return ("status" in view && "status" in payload) || ("assigned_to" in view && "assignedTo" in payload);
+}

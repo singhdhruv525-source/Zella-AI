@@ -316,7 +316,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     <>
       {key === "today" && (
         <BusinessToday
-          key={refreshKey}
+          refresh={refreshKey}
+          onTaskDone={signals.refresh}
           workspace={workspace}
           userId={userId}
           fallbackName={myName || fallbackName}
@@ -378,7 +379,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
 
   return (
     <PhoneUi.Provider value={phoneUi}>
-    <TodayTop.Provider value={phone ? <NeedsYouNow attention={attention} signals={signals} onGo={setPage} /> : null}>
+    <TodayTop.Provider value={phone ? <NeedsYouNow signals={signals} onGo={setPage} /> : null}>
     <div className="ba-root" data-pn-action={action ? "" : undefined} data-pn-pull={pullable ? "" : undefined}>
       {!phone && navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
       {!phone && <aside id="ba-sidebar" className={`ba-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">

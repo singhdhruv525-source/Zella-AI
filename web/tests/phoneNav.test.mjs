@@ -2,10 +2,11 @@
 // tabs for each permission set, and the pure helpers behind the gestures, the live strip, "Needs you now", the per
 // tab memory and the Undo window.
 import { test } from "node:test";
+import { createScrollLock } from "../src/navigation/bodyScrollLock.js";
 import assert from "node:assert/strict";
 import { buildNavigation, flatten } from "../src/navigation/navConfig.js";
 import { MORE_TAB, PHONE_QUERY, adminTabs, badgeText, crmTabs, selectedTab, tabName } from "../src/navigation/phoneTabs.js";
-import { SIGNAL_START, adminStripFor, createPendingStore, keepaliveRequest, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
+import { SIGNAL_START, adminStripFor, createPendingStore, createToastStore, keepaliveRequest, panelReplacesPending, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
 import {
   adminStrip, createTabMemory, crmStrip, deferChange, keyboardOpen, needsNowRows, panelDrag, panelReleaseCloses,
   pullDistance, pullReleaseRefreshes, rowDrag, rowReleaseOpens, sheetRelease, waitLabel,
@@ -448,4 +449,55 @@ test("a beacon that isn't ready (no token, no config, no fetch) still makes the 
   d.unload();
   await Promise.resolve();
   assert.deepEqual(sent, ["send"]);
+});
+
+test("a plain message never replaces a toast that still offers Undo: it waits for it to end", () => {
+  const timers = fakeTimers();
+  const t = createToastStore(timers);
+  const seen = [];
+  t.subscribe((c) => seen.push(c?.text ?? null));
+  let undone = 0;
+  t.show("Task marked done", { undo: () => undone++ });
+  t.show("Saved.");
+  assert.equal(t.get().text, "Task marked done", "the Undo toast stays");
+  assert.equal(typeof t.get().undo, "function");
+  t.get().undo(); t.dismiss();                             // Undo pressed
+  assert.equal(undone, 1);
+  assert.equal(t.get().text, "Saved.", "the message shows once the Undo toast has ended");
+  t.show("Ticket resolved", { undo: () => {} });          // a new Undo toast may replace a plain one
+  assert.equal(t.get().text, "Ticket resolved");
+  t.show("Another message");
+  timers.run();                                            // the Undo toast's time is up
+  assert.equal(t.get().text, "Another message");
+  assert.deepEqual(seen, ["Task marked done", "Saved.", "Ticket resolved", "Another message"]);
+});
+
+test("one shared scroll lock: released in any order, the page gets its own value back only after the last", () => {
+  const doc = { body: { style: { overflow: "auto" } } };
+  const lock = createScrollLock(doc);
+  const sheet = lock();
+  const panel = lock();
+  assert.equal(doc.body.style.overflow, "hidden");
+  sheet();                                                 // the older lock goes first
+  assert.equal(doc.body.style.overflow, "hidden", "still covered by the panel");
+  sheet();                                                 // a second release of the same lock does nothing
+  assert.equal(doc.body.style.overflow, "hidden");
+  panel();
+  assert.equal(doc.body.style.overflow, "auto", "the page's own value back");
+  const again = lock();
+  assert.equal(doc.body.style.overflow, "hidden");
+  again();
+  assert.equal(doc.body.style.overflow, "auto");
+});
+
+test("a note or a reply never calls off a waiting Resolve or Assign; the same field does", () => {
+  const resolve = { status: "resolved" };
+  const assign = { assigned_to: "u1", assignee: "me@zella.test" };
+  assert.equal(panelReplacesPending(resolve, { note: "Called them" }), false);
+  assert.equal(panelReplacesPending(resolve, { reply: "On it" }), false);
+  assert.equal(panelReplacesPending(resolve, { status: "open" }), true);
+  assert.equal(panelReplacesPending(resolve, { assignedTo: "u2" }), false);
+  assert.equal(panelReplacesPending(assign, { assignedTo: "u2" }), true);
+  assert.equal(panelReplacesPending(assign, { priority: "high" }), false);
+  assert.equal(panelReplacesPending(null, { status: "open" }), false);
 });

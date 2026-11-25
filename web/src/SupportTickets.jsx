@@ -10,7 +10,7 @@ import { businessHoursText } from "./adminAccess";
 import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
-import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { createPendingStore, deferChange, panelReplacesPending, pendingToastText, undoAll } from "./navigation/phoneHelpers";
 import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
@@ -119,8 +119,9 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   const detailOpen = Boolean(selected || creating);
 
   async function update(payload) {
-    // the admin's last explicit choice wins: a quick change still waiting for this ticket is called off first
-    store.change(selectedId)?.undo();
+    // the admin's last explicit choice wins: a quick change still waiting for this ticket is called off when this sets
+    // the same field (a status or an assignee); a note or a reply leaves it to go ahead
+    if (store.has(selectedId) && panelReplacesPending(store.views().get(selectedId), payload)) store.change(selectedId)?.undo();
     setBusy(true);
     setError("");
     try {
@@ -141,7 +142,8 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   // The signed in admin in the list of people a ticket can be assigned to.
   const me = (data?.assignees ?? []).find((a) => a.email && myEmail && a.email.toLowerCase() === myEmail.toLowerCase()) ?? null;
   function quickChange(t, kind) {
-    if (store.has(t.id)) return;
+    // one quick change per ticket at a time (the others are disabled while it waits); never a silent drop
+    if (store.has(t.id)) { ui.toast("A change to this ticket is still being saved. Try again in a moment."); return; }
     const resolve = kind === "resolve";
     const shown = resolve ? { status: "resolved" } : { assigned_to: me.id, assignee: me.email };
     const sent = resolve ? { status: "resolved" } : { assignedTo: me.id };
@@ -221,7 +223,8 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
               <ul className="pn-list pn-swipes">
                 {tickets.map((t) => {
                   const done = ["resolved", "closed"].includes(t.status);
-                  const actions = [
+                  const waiting = store.has(t.id);   // a quick change still waiting: no other one until it is saved
+                  const actions = waiting ? [] : [
                     me && t.assigned_to !== me.id && !done && { key: "assign", label: "Assign", icon: "person_add", tone: "call", onClick: () => quickChange(t, "assign") },
                     !done && { key: "resolve", label: "Resolve", icon: "check", tone: "done", onClick: () => quickChange(t, "resolve") },
                   ].filter(Boolean);
@@ -230,7 +233,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
                       <div className="pn-row">
                         <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>
                           <span className="pn-main"><strong>{t.subject}</strong><small>{t.business_name} · {t.assignee ?? "Unassigned"} · {timeAgo(t.created_at)}</small></span>
-                          <span className={`pn-meta ${timesKnown && t.overdue === true ? "late" : ""}`}>{timesKnown && t.overdue === true ? "No reply yet" : label(STATUSES, t.status)}</span>
+                          <span className={`pn-meta ${!waiting && timesKnown && t.overdue === true ? "late" : ""}`}>{waiting ? "Saving" : timesKnown && t.overdue === true ? "No reply yet" : label(STATUSES, t.status)}</span>
                         </button>
                         <button type="button" className="pn-more" aria-label={`More for ${t.subject}`} aria-haspopup="dialog" onClick={() => setRowMenu(t)}><Icon name="more_horiz" /></button>
                       </div>
@@ -418,10 +421,11 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
         <BottomSheet title={rowMenu.subject} description={`${rowMenu.business_name} · ${label(STATUSES, rowMenu.status)}`} size="fit" onClose={() => setRowMenu(null)}>
           <div className="pn-menu-list">
             <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); selectTicket(t.id); setCreating(false); }}><Icon name="open_in_new" /><span>Open ticket</span></button>
-            {me && rowMenu.assigned_to !== me.id && !["resolved", "closed"].includes(rowMenu.status) && (
+            {store.has(rowMenu.id) && <p className="pn-hint" role="status"><Icon name="schedule" />A change to this ticket is about to be saved. Undo it from the message, or wait a moment.</p>}
+            {!store.has(rowMenu.id) && me && rowMenu.assigned_to !== me.id && !["resolved", "closed"].includes(rowMenu.status) && (
               <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); quickChange(t, "assign"); }}><Icon name="person_add" /><span>Assign to me</span></button>
             )}
-            {!["resolved", "closed"].includes(rowMenu.status) && (
+            {!store.has(rowMenu.id) && !["resolved", "closed"].includes(rowMenu.status) && (
               <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); quickChange(t, "resolve"); }}><Icon name="check" /><span>Resolve</span></button>
             )}
             <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); onOpenBusiness(t.business_id); }}><Icon name="storefront" /><span>Open {rowMenu.business_name}</span></button>

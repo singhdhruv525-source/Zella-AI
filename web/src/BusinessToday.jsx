@@ -75,7 +75,7 @@ function Kpi({ icon, label, value, change, loading, unavailable }) {
 // Spam: suspected spam incidents for the selected day, how many still need a look, and the same day last week.
 // Real counts from zella_spam_overview (owners, admins and managers only); the whole card opens Spam protection.
 const SPAM_ROLES = ["owner", "admin", "manager"];
-function SpamKpi({ workspace, day, tz, onOpen }) {
+function SpamKpi({ workspace, day, tz, refresh, onOpen }) {
   const [state, setState] = useState({ loading: true });
   const allowed = SPAM_ROLES.includes(workspace.role);
   useEffect(() => {
@@ -94,7 +94,7 @@ function SpamKpi({ workspace, day, tz, onOpen }) {
       }
     });
     return () => { live = false; };
-  }, [allowed, workspace.id, day, tz]);
+  }, [allowed, workspace.id, day, tz, refresh]);
   if (!allowed) return null;
   const d = state.data;
   const change = d && state.prev && trend(d.total, state.prev.total, false);
@@ -252,7 +252,10 @@ function Empty({ title, children }) {
   return <div className="ba-empty">{title && <strong>{title}</strong>}{children}</div>;
 }
 
-export default function BusinessToday({ workspace, industry, operations = [], capabilities, canEdit = true, onAddLead, onBook, onGo, onNotice, onOpenPerson }) {
+// refresh: changes when the workspace asks for fresh data (Refresh, pull to refresh); Today reads again without being
+// remounted, so its chosen day and filter stay. onTaskDone: after a task is completed here (the bell and "Needs you
+// now" read again).
+export default function BusinessToday({ workspace, industry, operations = [], capabilities, canEdit = true, onAddLead, onBook, onGo, onNotice, onOpenPerson, refresh = 0, onTaskDone }) {
   // What this business does (zella_capabilities). A shop or a firm without bookings gets no booking cards or buttons.
   const scheduling = capabilityOn(capabilities, "scheduling");
   const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
@@ -380,7 +383,8 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
     } finally {
       if (request === loadSeq.current) setLoading(false);
     }
-  }, [workspace.id, day, tz, opsKeys, cfg.staffColumn]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.id, day, tz, opsKeys, cfg.staffColumn, refresh]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -389,9 +393,10 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
     setActionError("");
     const { error: e } = await run();
     setWorking(null);
-    if (e) { setActionError(friendly(e)); return; }
+    if (e) { setActionError(friendly(e)); return false; }
     if (message) onNotice(message);
     load();
+    return true;
   }
   async function markNoShow(a) {
     setWorking(`appt-${a.id}`);
@@ -404,7 +409,8 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   }
   const setStatus = (a, status, done) => act(`appt-${a.id}`, () => changed(supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id)), done);
   const checkIn = (a) => act(`appt-${a.id}`, () => setCheckIn(a.id, !a.checked_in_at), a.checked_in_at ? "Undone." : `${personName(a.customer) ?? a.title}: ${cfg.arrived.toLowerCase()}.`);
-  const completeTask = (t) => act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.");
+  const completeTask = (t) => act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.")
+    .then((ok) => { if (ok) onTaskDone?.(); });
   const person = (id, label) => (id && onOpenPerson ? <button type="button" className="ba-namebtn" onClick={() => onOpenPerson(id)}>{label}</button> : <span>{label}</span>);
 
   const now = Date.now();
@@ -453,7 +459,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
       {/* On a phone: "Needs you now" (approved 25 Nov 2026, P14). Nothing on a tablet or desktop. */}
       <TodayTopSlot />
-      {isToday && <UsageLive workspace={workspace} onGo={onGo} />}
+      {isToday && <UsageLive key={refresh} workspace={workspace} onGo={onGo} />}
 
       <div className="td-kpis">
         {scheduling && <Kpi icon="event" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} unavailable={!data && !loading} change={p && trend(active.length, p.bookings)} />}
@@ -462,7 +468,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
         <Kpi icon="person_add" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.leads.length, p.leads)} />
         <Kpi icon="smart_toy" label="AI answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.aiCalls, p.aiCalls)} />
         <Kpi icon="phone_missed" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.missed, p.missed, false)} />
-        <SpamKpi workspace={workspace} day={day} tz={tz} onOpen={() => onGo("spam")} />
+        <SpamKpi workspace={workspace} day={day} tz={tz} refresh={refresh} onOpen={() => onGo("spam")} />
       </div>
 
       <div className="td-grid">

@@ -325,7 +325,7 @@ stylesheet changes, so tablets and desktops look exactly as before.
 | Sticky action | One pill button, 48px, full width above the bar (plus a 48px round button for Quick actions on Today). |
 | Live strip | A card above the bar with a 3px brand mark on its left edge, a live dot (stops with reduced motion) and a pill "Open" or "View". |
 | Swipe row | Swipe left for a tray of 76px actions (blue Call, green Done); every row also has a round check and a "more" button. A hint line says what the swipe does. |
-| Toast | Dark (light in Glass), above the bar, 5 seconds, Undo when the change can be undone. |
+| Toast | Dark (light in Glass), above the bar, 5 seconds, Undo when the change can be undone. A plain message never replaces a toast that still offers Undo: it waits and shows when that toast ends. |
 | Skeleton | Grey rounded shapes in `--zella-subtle`, a slow fade (none with reduced motion). |
 
 Motion: one curve, `cubic-bezier(0.22, 1, 0.36, 1)`; panel 280ms, sheets 300ms, backdrop 200ms, a press of 150ms on

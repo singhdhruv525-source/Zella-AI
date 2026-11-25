@@ -241,7 +241,9 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
           options={TABS.map(([k, l]) => [k, groups[k].length && k !== "done" ? `${l} (${groups[k].length})` : l])} />
       </div>
       <Notice error={error} onRetry={reload} />
-      {loading && !data ? (ui.phone ? <Skeleton label="Loading callbacks" /> : <p className="ba-muted">Loading…</p>) : !shown.length ? (
+      {loading && !data ? (ui.phone ? <Skeleton label="Loading callbacks" /> : <p className="ba-muted">Loading…</p>)
+        // no successful read yet (the first one failed): only the error and its Try again above, never "Nothing here"
+        : !data ? null : !shown.length ? (
         <Empty title={active === "done" ? "Nothing finished yet" : "Nothing here"}>
           {active === "person" ? "When Zella Voice can't reach someone after its tries, or you escalate one, it shows up here."
             : active === "done" ? "Finished callbacks are kept here, with what happened."

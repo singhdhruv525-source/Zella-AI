@@ -4,6 +4,7 @@ import { useDialogFocus } from "../useDialogFocus";
 import { Icon } from "../BusinessUI";
 import { sheetRelease } from "./phoneHelpers.js";
 import { prefersReducedMotion } from "./usePhoneLayout.js";
+import { lockBodyScroll } from "./bodyScrollLock.js";
 
 // A bottom sheet for phones (P12, approved 25 Nov 2026). It opens at half height with a drag handle: drag it up for
 // full height, down to go back or close. It also closes on Escape (unless busy), a tap outside or its close button.
@@ -26,11 +27,7 @@ export function BottomSheet({ title, description, onClose, busy = false, size = 
   };
   const ref = useDialogFocus(requestClose, busy);
 
-  useEffect(() => {
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previous; };
-  }, []);
+  useEffect(() => lockBodyScroll(), []);   // shared with the side panel (bodyScrollLock.js)
 
   const onPointerDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return;

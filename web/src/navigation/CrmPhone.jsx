@@ -62,8 +62,9 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
 }
 
 // P14: the top of Today. Shown only when something needs the owner.
-export function NeedsYouNow({ attention, signals, onGo }) {
-  const rows = needsNowRows({ waiting: attention, oldest: signals.oldest, overdue: signals.overdue, overdueTotal: signals.overdueTotal, spam: signals.spam });
+// The waiting callers count from the same read the bell uses (signals.waiting and waitingMore), so the two always match.
+export function NeedsYouNow({ signals, onGo }) {
+  const rows = needsNowRows({ waiting: signals.waiting.length + (signals.waitingMore ?? 0), oldest: signals.oldest, overdue: signals.overdue, overdueTotal: signals.overdueTotal, spam: signals.spam });
   if (!rows.length && !signals.unavailable) return null;
   return (
     <section aria-labelledby="pn-now-title">

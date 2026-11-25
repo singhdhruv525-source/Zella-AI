@@ -119,11 +119,19 @@ test("reload() says whether it put fresh data on screen: true, false on a failur
   fail = true;
   assert.equal(await reload(), false, "a failed read keeps the old data and reports it");
   assert.equal(h.state().data, "rows");
-  const first = deferred(), second = deferred();
+  // separate requests: the initial load, then two reloads; the latest finishes first, the stale ones after it
+  const initial = deferred(), older = deferred(), latest = deferred();
+  const requests = [initial, older, latest];
   let calls = 0;
-  const h2 = mount(() => (++calls === 1 ? first.promise : second.promise), []);
+  const h2 = mount(() => requests[calls++].promise, []);
   const r = h2.render().reload;
   const a = r(); const b = r();
-  first.resolve("stale"); second.resolve("latest");
-  assert.deepEqual([await a, await b], [false, true]);
+  latest.resolve("latest");
+  assert.equal(await b, true);
+  assert.equal(h2.state().data, "latest");
+  older.resolve("older"); initial.resolve("initial");
+  assert.equal(await a, false, "the overtaken reload reports it didn't put its data on screen");
+  await flush();
+  assert.equal(h2.state().data, "latest", "a stale result finishing last never replaces the latest");
+  assert.equal(calls, 3);
 });
