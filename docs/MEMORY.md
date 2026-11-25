@@ -171,6 +171,12 @@ most often needed:
   ripple), which supersedes the 6 Nov lively motion rule for the admin only. Details in `docs/DESIGN_SYSTEM.md`
   "Admin polish"; architecture §23.1d.
 
+- **Admin pages polish (owner, 25 Nov 2026):** the owner approved the admin items for every page except Overview
+  ("yes to all A and C"). Built in one pull request: A1, A6 to A13, A22 to A24, A33, A35, A37, A39, A44 to A49, A51,
+  A54, A55, A57, A59 (`web/src/styles/admin-polish.css`, loaded last and scoped to `.owner-app`, so the CRM does not
+  change). The admin phone items (A27 to A30, A32, A53) wait for the phone navigation pull request (#122). Details in
+  `docs/DESIGN_SYSTEM.md` "Admin pages polish"; architecture §23.1d.
+
 - **Wording pass, admin and CRM (owner, 25 Nov 2026):** the owner approved every item of the admin and CRM page audits,
   "yes to all A and C" (A1 to A59, C1 to C51). The wording items are built in one pull request (admin A2 to A5, A14 to
   A21, A34, A36, A38, A42, A43, A50, A52, A56, A58; CRM C1 to C8, C11 to C15, C28, C31, C32, C34, C35, C38, C43, C44,

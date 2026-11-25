@@ -84,9 +84,15 @@ export function UsageCard({ usage, action }) {
   );
 }
 
-export function NumbersCard({ numbers, title = "Phone numbers", canAssign, businessId }) {
+// fallback: on the Phone & integrations tab, the fallback number ("Not set" when empty) is the card's last row.
+export function NumbersCard({ numbers, title = "Phone numbers", canAssign, businessId, fallback }) {
   if (!numbers) return null;
-  if (!numbers.available) return <Card title={title}><Empty>{NOT_AVAILABLE}</Empty></Card>;
+  const fallbackRow = fallback !== undefined && (
+    <li className="op-fallback-row"><div><strong>Fallback number: {fallback || "Not set"}</strong><span>Where calls go when the AI receptionist can't take them</span></div></li>
+  );
+  if (!numbers.available) {
+    return <Card title={title}><Empty>{NOT_AVAILABLE}</Empty>{fallbackRow && <ul className="op-list">{fallbackRow}</ul>}</Card>;
+  }
   return (
     <Card title={title} description="Numbers Zella Voice assigned to this business."
       action={canAssign && <button type="button" className="owner-secondary-button op-small" onClick={() => navigate(`/voice/numbers?assign=${businessId}`)}>Assign a number</button>}>
@@ -95,8 +101,14 @@ export function NumbersCard({ numbers, title = "Phone numbers", canAssign, busin
           {numbers.rows.map((n) => (
             <li key={n.id}><div><strong>{n.e164}</strong><span>{n.label || "No label"} · {humanize(n.status)}</span></div></li>
           ))}
+          {fallbackRow}
         </ul>
-      ) : <Empty>No number assigned yet.</Empty>}
+      ) : (
+        <>
+          <Empty>No number assigned yet.</Empty>
+          {fallbackRow && <ul className="op-list">{fallbackRow}</ul>}
+        </>
+      )}
     </Card>
   );
 }

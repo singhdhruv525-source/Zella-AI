@@ -731,7 +731,7 @@ function ListEditor({ items, onChange, fields, addLabel, emptyText }) {
         className="owner-secondary-button"
         onClick={() => onChange([...items, Object.fromEntries(fields.map((f) => [f.key, ""]))])}
       >
-        ＋ {addLabel}
+        <Icon name="add" size="sm" />{addLabel}
       </button>
     </div>
   );
@@ -808,7 +808,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
           <div className="wiz-chip-row wiz-prompts">
             <span className="wiz-hint">Often asked:</span>
             {prompts.map((q) => (
-              <button key={q} type="button" className="wiz-chip" onClick={() => onChange({ ...value, faqs: [...value.faqs, { question: q, answer: "" }] })}>＋ {q}</button>
+              <button key={q} type="button" className="wiz-chip" onClick={() => onChange({ ...value, faqs: [...value.faqs, { question: q, answer: "" }] })}><Icon name="add" size="sm" />{q}</button>
             ))}
           </div>
         )}
@@ -1549,7 +1549,7 @@ function TeamStep({ value, onChange, config, terminology, showErrors }) {
           </div>
         ))}
         <button type="button" className="owner-secondary-button" disabled={value.length >= 50} onClick={() => { if (value.length < 50) onChange([...value, { id: "", name: "", title: "", phone: "", email: "" }]); }}>
-          ＋ Add {staffWord.toLowerCase()}
+          <Icon name="add" size="sm" />Add {staffWord.toLowerCase()}
         </button>
       </div>
       {value.length >= 50 && <p role="alert">The team limit is 50 members. {value.length > 50 ? "All existing members are shown. Remove members explicitly to save this list." : "Remove a member before adding another."}</p>}
@@ -1791,7 +1791,7 @@ function Readiness({ businessId }) {
     <Section title="Readiness" description="Read from the business's real records. A step is reached only when every check before it passes.">
       <ol className="wiz-ladder" aria-label="Readiness">
         {RUNGS.map(([k, label], i) => (
-          <li key={k} className={i <= at ? "done" : ""} aria-current={i === at ? "step" : undefined}>{i <= at ? "✓ " : ""}{label}</li>
+          <li key={k} className={i <= at ? "done" : ""} aria-current={i === at ? "step" : undefined}>{i <= at && <Icon name="check" size="sm" />}{label}</li>
         ))}
       </ol>
       <div className="wiz-review">
@@ -1818,7 +1818,7 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, on
           {rows.map((row) => (
             <div key={row.title} className="wiz-review-row">
               <span className={`wiz-review-dot ${row.ok ? "ok" : row.required ? "missing" : "later"}`}>
-                {(row.ok || row.required) && <span aria-hidden="true">{row.ok ? "✓" : "!"}</span>}
+                {(row.ok || row.required) && <Icon name={row.ok ? "check" : "priority_high"} size="sm" />}
                 <span className="zs-sr-only">{row.ok ? "Done" : row.required ? "To finish" : "Optional, not set yet"}</span>
               </span>
               <div>
@@ -2256,7 +2256,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     return (
       <section className="wiz">
         <div className="wiz-done" role="status">
-          <div className={`wiz-done-icon ${completed && sent ? "" : "warn"}`}>{completed && sent ? "✓" : "!"}</div>
+          <div className={`wiz-done-icon ${completed && sent ? "" : "warn"}`}><Icon name={completed && sent ? "check" : "priority_high"} /></div>
           <h2>{completed ? `${setup.business.name} is set up` : `${setup.business.name} isn't finished yet`}</h2>
           <p>{completed
             ? "The workspace is active. The AI receptionist stays off until its phone number and voice agent are connected."
@@ -2328,7 +2328,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
                 aria-current={index === step ? "step" : undefined}
                 aria-label={`${item.label}: ${said}`}
               >
-                <span className="wiz-step-num" aria-hidden="true">{state === "done" ? "✓" : index + 1}</span>
+                <span className="wiz-step-num" aria-hidden="true">{state === "done" ? <Icon name="check" size="sm" /> : index + 1}</span>
                 <span className="wiz-step-label">{item.label}</span>
               </button>
             </li>
@@ -2424,7 +2424,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
             </button>
           ) : (
             <button type="button" className="owner-primary-button" disabled={saving} onClick={() => run(() => setStep(step + 1))}>
-              {saving ? "Saving…" : step === 0 && !businessId ? "Create draft & continue" : "Save & continue"}
+              {saving ? "Saving…" : <>{step === 0 && !businessId ? "Create draft & continue" : "Save & continue"}<Icon name="arrow_forward" size="sm" /></>}
             </button>
           )}
         </div>

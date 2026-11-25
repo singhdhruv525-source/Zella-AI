@@ -289,7 +289,7 @@ export default function IndustryConfiguration() {
           }}
           disabled={saving}
         >
-          ＋ New industry
+          <Icon name="add" size="sm" />New industry
         </button>
       </div>
 
@@ -577,7 +577,7 @@ export default function IndustryConfiguration() {
                   className="owner-secondary-button op-gap-top"
                   onClick={() => setDraft({ ...draft, modules: [...draft.modules, { name: "", description: "", isActive: true }] })}
                 >
-                  ＋ Add module
+                  <Icon name="add" size="sm" />Add module
                 </button>
               </section>
 

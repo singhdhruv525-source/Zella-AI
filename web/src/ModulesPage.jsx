@@ -1,4 +1,5 @@
 import "./OwnerPages.css";
+import { Icon } from "./BusinessUI";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
@@ -24,7 +25,7 @@ export default function ModulesPage({ onNavigate }) {
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading…" : "↻ Refresh"}
+            {loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
           <button type="button" className="owner-primary-button" onClick={() => onNavigate("Industry Configuration")}>
             Edit in Industry configuration

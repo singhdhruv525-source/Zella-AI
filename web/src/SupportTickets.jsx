@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Icon } from "./BusinessUI";
 import "./OwnerPages.css";
 import "./SupportTickets.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -140,10 +141,10 @@ export default function SupportTickets({ onOpenBusiness }) {
         </div>
         <div className="op-heading-actions">
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading…" : "↻ Refresh"}
+            {loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
           <button type="button" className="owner-primary-button" onClick={() => { setCreating(true); selectTicket(null); }}>
-            ＋ New ticket
+            <Icon name="add" size="sm" />New ticket
           </button>
         </div>
       </div>
@@ -253,7 +254,7 @@ export default function SupportTickets({ onOpenBusiness }) {
                   {selected.creator && <> by <span className="owner-cell-truncate st-creator" title={selected.creator}>{selected.creator}</span></>}
                 </p>
               </div>
-              <button type="button" className="owner-modal-close" aria-label="Close ticket" onClick={() => selectTicket(null)}>×</button>
+              <button type="button" className="owner-modal-close" aria-label="Close ticket" onClick={() => selectTicket(null)}><Icon name="close" size="sm" /></button>
             </div>
 
             {selected.description && <p className="st-description">{selected.description}</p>}

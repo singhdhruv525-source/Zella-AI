@@ -213,7 +213,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
         </div>
         <div className="op-heading-actions">
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading…" : "↻ Refresh"}
+            {loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
           {!isCancelled && canManage && (
             // BIZ-06: setup can't be finished while suspended (the server refuses too). COM-04 option B: on a live
