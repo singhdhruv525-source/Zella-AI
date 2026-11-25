@@ -6,6 +6,7 @@ import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { emptyText, metric } from "./admin/loadStatus";
 // The one KPI card shared by every admin page (docs/DESIGN_SYSTEM.md).
 import { Metric } from "./admin/adminOps";
+import { Icon } from "./BusinessUI";
 
 const ATTENTION_LABELS = {
   invitation_failed: "Invitation failed",
@@ -46,8 +47,9 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
   const load = r.reload;
 
   const s = data?.stats;
-  // a missing or unloaded number shows "—", never a made-up 0
-  const show = (value) => metric(value, r);
+  // a missing or unloaded number shows "—", never a made-up 0; counts get the locale's thousands separator (3,182)
+  const count = (value) => (typeof value === "number" ? value.toLocaleString() : value);
+  const show = (value) => count(metric(value, r));
   const list = (key) => (Array.isArray(data?.[key]) ? data[key] : null);
   const maxFunnel = Math.max(1, ...(data?.funnel ?? []).map((f) => f.count));
 
@@ -62,11 +64,11 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
         <div className="op-heading-actions">
           <UpdatedAt r={r} />
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : "↻ Refresh"}
+            {loading ? "Loading..." : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
           {onCreateBusiness && (
             <button type="button" className="owner-primary-button" onClick={onCreateBusiness}>
-              ＋ Create business
+              <Icon name="add" size="sm" />Create business
             </button>
           )}
         </div>
@@ -79,7 +81,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
         <Metric label="Setups in progress" value={show(s?.setupsInProgress)} note={`${show(s?.setupComplete)} setup complete`} />
         <Metric label="Owner invitations" value={show(s?.pendingInvitations)} note={`Pending · ${show(s?.acceptedInvitations)} accepted`} />
         {/* the one server definition (docs/PRODUCT.md §9.1): live and answering are separate states */}
-        <Metric label="AI receptionists live" value={show(s?.receptionistsLive)} note={typeof s?.receptionistsAnswering === "number" ? `${s.receptionistsAnswering} answered a call in 7 days` : "Answering not available"} />
+        <Metric label="AI receptionists live" value={show(s?.receptionistsLive)} note={typeof s?.receptionistsAnswering === "number" ? `${count(s.receptionistsAnswering)} answered a call in 7 days` : "Answering not available"} />
       </div>
 
       <div className="owner-stat-grid">
@@ -92,7 +94,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
       <div className="op-grid">
         <Panel
           title="Needs attention"
-          description="Problems that block a client from going live."
+          description="Problems that block a client from going live"
         >
           {data?.attention?.length ? (
             <ul className="op-list">
@@ -114,15 +116,16 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           )}
         </Panel>
 
-        <Panel title="Setup pipeline" description="Where client businesses are in onboarding.">
+        <Panel title="Setup pipeline" description="Where client businesses are in onboarding">
           <div className="op-funnel">
             {(data?.funnel ?? []).map((stage) => (
-              <div key={stage.label} className="op-funnel-row">
+              // data-stage lets the stylesheet mark the Live row in the theme's accent; the other stages stay neutral
+              <div key={stage.label} className="op-funnel-row" data-stage={stage.label}>
                 <span>{stage.label}</span>
                 <div className="op-funnel-bar">
                   <div style={{ width: `${(stage.count / maxFunnel) * 100}%` }} />
                 </div>
-                <strong>{stage.count}</strong>
+                <strong>{count(stage.count)}</strong>
               </div>
             ))}
             {!list("funnel") && <div className="op-empty">{emptyText(r, "Not reported.", "the overview")}</div>}
@@ -133,7 +136,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
       <div className="op-grid">
         <Panel
           title="Setups in progress"
-          description="Drafts that still need steps completed."
+          description="Drafts that still need steps completed"
           action={
             <button type="button" className="owner-secondary-button" onClick={() => onNavigate("Businesses")}>
               All businesses
@@ -165,7 +168,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
 
         <Panel
           title="Recent activity"
-          description="Latest admin actions."
+          description="Latest admin actions"
           action={
             <button type="button" className="owner-secondary-button" onClick={() => onNavigate("Audit Logs")}>
               Audit logs
@@ -193,7 +196,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
       </div>
 
       {data?.upcomingCancellations?.length > 0 && (
-        <Panel title="Upcoming cancellations" description="Memberships that end when the business's current month is over.">
+        <Panel title="Upcoming cancellations" description="Memberships that end when the business's current month is over">
           <ul className="op-list">
             {data.upcomingCancellations.map((b) => (
               <li key={b.id}>
@@ -234,7 +237,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
             {/* only after an answer that really lists no businesses */}
             {onCreateBusiness && list("recentBusinesses") && !list("recentBusinesses").length && (
               <button type="button" className="owner-primary-button op-gap-top" onClick={onCreateBusiness}>
-                ＋ Create your first business
+                <Icon name="add" size="sm" />Create your first business
               </button>
             )}
           </div>

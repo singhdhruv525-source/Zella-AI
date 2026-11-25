@@ -2218,6 +2218,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
 | CRM polish (25 Nov) | The owner approved 26 polish changes to the CRM Today page ("yes to whole CRM"): polish only, Glass, the dock, the picture palette and the Zella Voice brand kept; no feature, section or order changes; Today's subtitle is the date, with the business name on a second, quieter line (revised the same day: no "A · B" meta line); the motion changes (no lift, bounce, spring, shine or ripple; one easing curve) apply to every CRM page; the admin dashboard does not change. List in `docs/DESIGN_SYSTEM.md` (CRM polish) and `docs/ZELLA_COPY_CHANGELOG.md` | `web/src/styles/crm-polish.css`, `web/src/BusinessToday.jsx`, `AGT-9` |
+| Admin dashboard polish (25 Nov) | 21 admin dashboard design changes approved: polish only, Glass and the brand kept, admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin polish" |
 
 ### 23.3 Rulebook alignment
 

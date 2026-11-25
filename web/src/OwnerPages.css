@@ -13,11 +13,11 @@
 .op-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
+  gap: 24px;
   align-items: start;
 }
 
-.op-grid > .owner-panel { margin-bottom: 22px; }
+.op-grid > .owner-panel { margin-bottom: 24px; }
 
 .op-stack {
   display: flex;
@@ -106,8 +106,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 13px 21px;
+  gap: 12px;
+  padding: 12px 24px;
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -135,7 +135,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 30px 21px;
+  padding: 32px 24px;
   color: var(--text-muted);
   font-size: 12px;
   text-align: center;
@@ -145,8 +145,8 @@
 .op-funnel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 21px;
+  gap: 12px;
+  padding: 24px;
 }
 
 .op-funnel-row {
@@ -158,20 +158,45 @@
 }
 
 .op-funnel-row span { color: var(--text-secondary); }
-.op-funnel-row strong { text-align: right; }
+.op-funnel-row strong { text-align: right; font-variant-numeric: tabular-nums; }
 
+/* dates and counts in admin tables line up digit for digit */
+.owner-page .owner-table td { font-variant-numeric: tabular-nums; }
+
+/* The one chart on the Overview: every stage in a quiet neutral step, only Live in the theme's accent (mocha in
+   Classic, copper in Glass; coral in the Zella Voice theme, zella-theme.css), so the eye lands on how many clients
+   are answering calls. The Live row also carries the selected-item mark from the sidebar. */
 .op-funnel-bar {
-  height: 10px;
+  height: 8px;
   overflow: hidden;
-  border-radius: var(--radius-full);
-  background: var(--bg-surface-subdued);
+  border-radius: 4px;
+  background: var(--zella-subtle);
 }
 
 .op-funnel-bar div {
   height: 100%;
   min-width: 2px;
-  border-radius: var(--radius-full);
-  background: var(--color-primary);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--zella-text) 28%, transparent);
+}
+
+.op-funnel-row[data-stage="Live"] { --op-live: var(--zella-primary); }
+.op-funnel-row[data-stage="Live"] .op-funnel-bar div { background: var(--op-live); }
+.op-funnel-row[data-stage="Live"] > span {
+  position: relative;
+  padding-left: 9px;
+  color: var(--zella-text);
+}
+.op-funnel-row[data-stage="Live"] > span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  margin-top: -8px;
+  border-radius: 2px;
+  background: var(--op-live);
 }
 
 /* Tabs */
