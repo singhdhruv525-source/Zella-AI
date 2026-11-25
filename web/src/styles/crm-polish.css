@@ -47,11 +47,26 @@ html:root:has(.ba-root) :is(.ba-nav-item, .zs-nav a, .zs-nav button):hover { tra
   html:root:has(.ba-root) .ba-content > :not([role="dialog"]) { animation-duration: 400ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
   /* menus and popups */
   html:root:has(.ba-root) :is(.ba-menu, .ba-bell-panel, .ba-modal-backdrop, .bp-backdrop, .zs-overlay) { animation-duration: 200ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
-  html:root:has(.ba-root) :is(.ba-modal, .zs-dialog, .bp-panel, .bd-confirm) { animation-duration: 300ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+  /* the side panel keeps its sideways slide; dialogs are set below */
+  html:root:has(.ba-root) .bp-panel { animation-duration: 300ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
   html:root:has(.ba-root) :is(.zs-dialog-icon, .ao-dialog-icon, .ba-modal-icon) { animation: none; }
   html:root:has(.ba-root) :is(.tb-card, .bp-msg) { transition: border-color 150ms cubic-bezier(0.22, 1, 0.36, 1); }
   html:root:has(.ba-root) :is(.tb-card, .bp-msg):hover { transform: none; box-shadow: none; }
 }
+
+/* Dialogs (owner, 25 Nov 2026): a centred dialog opens with a fade only, no rise, pop or scale. The one exception is
+   the phone bottom sheet (under 641px, where .ba-modal and .zs-dialog run ba-sheet / zella-sheet), which keeps its
+   slide up from the bottom edge. The booking side panel keeps its sideways slide (bp-slide). */
+@media (prefers-reduced-motion: no-preference) and (min-width: 641px) {
+  html:root:has(.ba-root) :is(.ba-modal, .zs-dialog, .bd-confirm, .owner-modal) {
+    animation: crm-fade 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  html:root:has(.ba-root) .bd-confirm { animation: crm-fade 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  html:root:has(.ba-root) :is(.ba-modal, .zs-dialog) { animation-duration: 300ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+}
+@keyframes crm-fade { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- Type (changes 17 and 19) ---------- */
 /* 17. Titles, figures, names and times in a medium weight; the page title keeps 600. Figures without negative

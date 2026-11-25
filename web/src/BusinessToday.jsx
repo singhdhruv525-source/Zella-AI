@@ -499,7 +499,8 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
                           <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small>
                           {folded && <small className="td-sub td-folded">{folded}</small>}
-                          <span className="td-folded td-folded-status"><Pill tone={tone}>{stageLabel}</Pill></span></td>
+                          <span className="td-folded td-folded-status"><Pill tone={tone}>{stageLabel}</Pill>
+                            {a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</span></td>
                         {showGuests && <td className="td-wide">{a.party_size ?? ""}</td>}
                         {tablesOn && <td className="td-wide">{tableName}</td>}
                         {showStaff && <td className="td-wide">{staffName}</td>}
