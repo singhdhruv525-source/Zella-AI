@@ -1,0 +1,365 @@
+# Zella Voice Data Processing Addendum
+
+> **Draft for legal review. Not legal advice. Have a qualified lawyer review before publishing.**
+> Version 0.2 (draft). Forms part of the Agreement under the Zella Voice Terms of Service. It is not in effect.
+
+Effective date: **[EFFECTIVE DATE]**
+Last updated: **[LAST UPDATED DATE]**
+
+## 1. Scope and incorporation
+
+1.1 This Data Processing Addendum ("DPA") is between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company with its registered address at **[REGISTERED ADDRESS]** ("Zella Voice"), and Customer. It forms part of the Agreement under section 1.5 of the Zella Voice Terms of Service ("Terms"), and Customer accepts it with the Terms.
+
+1.2 This DPA applies to Zella Voice's processing of Customer Personal Data in providing the Services. It does not apply to Account Data or Usage Data, which Zella Voice processes as a controller under the Zella Voice Privacy Policy.
+
+1.3 Capitalized terms have the meanings given in section 2 of the Terms. "Controller", "processor", "data subject", "personal data breach", "processing", "supervisory authority", "service provider", "Data Fiduciary" and "Data Processor" have the meanings given in Data Protection Laws. "Personal Data Breach" means a breach of security leading to the accidental or unlawful destruction, loss, alteration, unauthorized disclosure of, or access to, Customer Personal Data.
+
+## 2. Roles of the parties
+
+2.1 Customer is the controller (and, under the CCPA, the "business"; under the DPDP Act, the Data Fiduciary) of Customer Personal Data.
+
+2.2 Zella Voice is Customer's processor (and, under the CCPA, its "service provider"; under the DPDP Act, its Data Processor) for Customer Personal Data.
+
+2.3 Customer is responsible for the lawfulness of the processing it instructs, including having a lawful basis, giving every notice and obtaining every consent the law requires, including those described in sections 5.2 to 5.7 of the Terms.
+
+## 3. Processing on documented instructions
+
+3.1 Zella Voice will process Customer Personal Data only on Customer's documented instructions, including with regard to transfers to a third country, unless required to do so by law, in which case Zella Voice will inform Customer of that legal requirement before processing unless the law prohibits it.
+
+3.2 Customer's documented instructions are: (a) the Agreement; (b) Customer's configuration and use of the Services, including settings and connected services; and (c) other written instructions that Customer gives and Zella Voice accepts, consistent with the Agreement.
+
+3.3 Zella Voice will immediately inform Customer if, in its opinion, an instruction infringes Data Protection Laws, and may suspend the affected processing until Customer confirms or changes the instruction.
+
+## 4. Details of processing
+
+4.1 The subject matter, duration, nature and purpose of the processing, the types of Customer Personal Data and the categories of data subjects are set out in Annex 1.
+
+## 5. Confidentiality of personnel
+
+Zella Voice will ensure that every person it authorizes to process Customer Personal Data is under an appropriate obligation of confidentiality, has access only as their role requires, and uses two step sign in. Access by Zella Voice personnel is recorded in the audit log.
+
+## 6. Security
+
+6.1 Zella Voice will implement and maintain the technical and organizational measures in Annex 2, which take into account the state of the art, the costs of implementation, and the nature, scope, context and purposes of processing, and the risks to data subjects, as required by Article 32 of the GDPR and by Section 8(5) of the DPDP Act, where they apply.
+
+6.2 Zella Voice may update the measures, provided that the overall level of security is not reduced.
+
+6.3 Customer is responsible for the security of its own accounts, devices and credentials, for assigning roles appropriately and for using the security features of the Services.
+
+## 7. Customer Data use restrictions (CCPA)
+
+As Customer's service provider, Zella Voice will not: (a) sell or share Customer Personal Data; (b) retain, use or disclose Customer Personal Data for any purpose, including any commercial purpose, other than the business purposes specified in the Agreement, or outside the direct business relationship with Customer; (c) combine Customer Personal Data with personal information it receives from or on behalf of another person or collects from its own interactions with consumers, except as the CCPA permits; or (d) use Customer Personal Data to train artificial intelligence models. Zella Voice will comply with the CCPA, provide the same level of privacy protection the CCPA requires, notify Customer if it can no longer meet its obligations, and permit Customer, on notice, to take reasonable and appropriate steps to stop and remediate unauthorized use. Zella Voice certifies that it understands and will comply with these restrictions.
+
+## 8. Subprocessors
+
+8.1 **General authorization.** Customer gives Zella Voice general written authorization to engage Subprocessors. The current Subprocessors are listed in Annex 3, and the current list is also kept at **[SUBPROCESSOR LIST LOCATION]**.
+
+8.2 **Notice of changes.** Zella Voice will notify Owners by email or in the Services at least **[SUBPROCESSOR CHANGE NOTICE PERIOD]** before a new or replacement Subprocessor begins processing Customer Personal Data, except where an urgent replacement is needed to keep the Services running or secure, in which case Zella Voice will notify Customer as soon as practicable.
+
+8.3 **Objection.** Customer may object on reasonable data protection grounds within the notice period. The parties will discuss the objection in good faith. If they cannot resolve it within 30 days, Customer may terminate the affected Services by notice and receive a refund of prepaid Fees for the unused part of the paid period.
+
+8.4 **Flow down and liability.** Zella Voice will impose on each Subprocessor, by written contract, data protection obligations no less protective than those in this DPA, and remains liable to Customer for the performance of each Subprocessor's obligations.
+
+## 9. Data subject requests
+
+9.1 **Tools.** Taking into account the nature of the processing, Zella Voice will assist Customer by appropriate technical and organizational measures, insofar as possible, to respond to requests from data subjects. The Services provide these tools:
+
+- a request log in the CRM for access, export and erasure requests, each with a due date 30 days after it is recorded and a reminder before it is due;
+- export of customers and call history as CSV at any time, and a whole business export on request, downloadable for 7 days;
+- correction of records in the CRM;
+- erasure of an End User: their details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is requested. Consent and opt out history is retained so that opt outs continue to work. Erasure needs a second person's approval at Customer;
+- opt outs by STOP, unsubscribe link and "don't call me", honored immediately for Customer.
+
+9.2 **Requests received by Zella Voice.** If Zella Voice receives a request from a data subject about Customer Personal Data, it will promptly forward it to Customer and will not respond except to direct the data subject to Customer, unless Customer instructs otherwise or the law requires.
+
+## 10. Assistance
+
+Taking into account the nature of processing and the information available to it, Zella Voice will provide reasonable assistance to Customer with its obligations under Articles 32 to 36 of the GDPR and equivalent provisions of other Data Protection Laws, including security, Personal Data Breach notification, data protection impact assessments and prior consultations with supervisory authorities. Zella Voice may charge reasonable fees, agreed in advance, for assistance beyond the functionality of the Services.
+
+## 11. Personal Data Breach
+
+11.1 Zella Voice will notify Customer without undue delay, and in any event within **[BREACH NOTIFICATION HOURS]** hours, after becoming aware of a Personal Data Breach.
+
+11.2 The notice will describe, to the extent known: the nature of the breach, including the categories and approximate numbers of data subjects and records concerned; the likely consequences; the measures taken or proposed to address it and mitigate its effects; and a contact point. Zella Voice will provide information in phases as it becomes available.
+
+11.3 Zella Voice will take reasonable steps to contain, investigate and remediate the breach. Notification is not an acknowledgment of fault or liability.
+
+11.4 Customer is responsible for notifying supervisory authorities, the Data Protection Board of India, regulators and data subjects where Data Protection Laws require, with Zella Voice's reasonable assistance.
+
+## 12. Deletion or return
+
+12.1 **During the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
+
+12.2 **After cancellation.** Customer Personal Data remains available for export for 30 days after cancellation, after a final offer to export, and is then deleted. Backups are cleared within 90 days.
+
+12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted.
+
+12.4 **Provider copies.** Deletion extends to files and copies held by Subprocessors where technically possible.
+
+12.5 **Exceptions.** Zella Voice may retain: (a) audit and security logs for 7 years, or longer if the law requires, which contain no message contents, transcripts or recordings and are kept without Customer's identifying details; (b) data under an active legal hold until the hold is released; and (c) data the law requires Zella Voice to keep. Retained data remains subject to this DPA.
+
+12.6 **Certification.** On written request, Zella Voice will confirm in writing that deletion has been completed.
+
+## 13. Audits
+
+13.1 Zella Voice will make available to Customer all information reasonably necessary to demonstrate compliance with this DPA and Article 28 of the GDPR, including a description of its security measures and its Subprocessor list in Annex 3, and will respond to reasonable written security questionnaires.
+
+13.2 If that information is insufficient, or a supervisory authority requires it, Customer may audit Zella Voice's processing of Customer Personal Data, itself or through an independent auditor bound by confidentiality, no more than once in any 12 month period (except after a Personal Data Breach or where a supervisory authority requires), on at least **[AUDIT NOTICE PERIOD]** written notice, during normal business hours, without access to other customers' data and with minimal disruption. Each party bears its own costs.
+
+13.3 Audits of Subprocessors are satisfied by the information and reports each Subprocessor makes available.
+
+## 14. International transfers
+
+14.1 Zella Voice's main database is hosted in **[DATA HOSTING REGION]**, and Zella Voice is operated from the United States. Subprocessors may process Customer Personal Data in other countries.
+
+14.2 **EEA and Switzerland.** Where a transfer of Customer Personal Data is subject to the GDPR and is not covered by an adequacy decision or other valid mechanism, the parties agree to the Standard Contractual Clauses approved by Commission Implementing Decision (EU) 2021/914, **[SCC MODULE TWO (CONTROLLER TO PROCESSOR) AND, WHERE APPLICABLE, MODULE THREE; OPTIONAL CLAUSES; GOVERNING LAW; COMPETENT SUPERVISORY AUTHORITY; SWISS ADJUSTMENTS]**, incorporated by reference with Annexes 1 to 3 of this DPA completing their appendices.
+
+14.3 **United Kingdom.** Where a transfer is subject to UK Data Protection Laws, the parties agree to **[UK INTERNATIONAL DATA TRANSFER AGREEMENT OR UK ADDENDUM TO THE EU STANDARD CONTRACTUAL CLAUSES, WITH TABLES COMPLETED]**.
+
+14.4 **India.** Zella Voice will not transfer Customer Personal Data subject to the DPDP Act to any country or territory that the Government of India has restricted by notification.
+
+14.5 **Conflict.** If this DPA conflicts with the transfer mechanism, the transfer mechanism prevails.
+
+## 15. India DPDP Act
+
+Where the DPDP Act applies, Zella Voice will, as Customer's Data Processor: process Customer Personal Data only under this DPA and Customer's instructions; implement reasonable security safeguards to prevent a personal data breach; notify Customer of a personal data breach under section 11; erase Customer Personal Data when Customer instructs, including when a data principal withdraws consent or the specified purpose is no longer served, subject to retention the law requires; and assist Customer in responding to data principals and the Data Protection Board of India.
+
+## 16. Protected health information
+
+Customer must not submit protected health information under HIPAA unless the parties have signed a BAA (Terms, section 5.9). The form of BAA is Schedule 1 to this DPA. It is optional, is offered only to healthcare Customers that Zella Voice has approved, and only once Zella Voice has business associate agreements in place with every Subprocessor that would handle protected health information (decision D 49). Where signed, the BAA prevails over this DPA for protected health information.
+
+## 17. Liability and precedence
+
+17.1 Each party's liability under this DPA is subject to section 20 of the Terms, to the extent permitted by Data Protection Laws.
+
+17.2 This DPA prevails over the Terms with respect to the processing of Customer Personal Data, as section 26 of the Terms provides.
+
+17.3 This DPA terminates when Zella Voice no longer processes Customer Personal Data.
+
+## 18. Contact
+
+**[LEGAL ENTITY NAME]**
+**[REGISTERED ADDRESS]**
+Privacy and data protection: **[PRIVACY CONTACT EMAIL]**
+Data protection contact: **[DPO OR PRIVACY CONTACT]**
+
+## Annex 1. Details of processing
+
+| Item | Details |
+|---|---|
+| Subject matter | Provision of the Services to Customer |
+| Duration | The Subscription Term, and afterwards until deletion under section 12 |
+| Nature | Collection, recording, organization, storage, transcription, summarization, retrieval, use, transmission, restriction, export and erasure, including processing by artificial intelligence |
+| Purpose | Answering and routing Customer's calls with the AI Receptionist, answering questions from approved knowledge, booking and changing appointments, taking messages, transferring calls, sending messages Customer has set up, keeping Customer's CRM, lead intake, order lookup, calendar sync and review replies where connected and enabled, reporting, security, spam protection and support |
+| Data subjects | End Users: callers, clients, customers, patients, guests, members, students, tenants, policyholders and leads; relationships Customer records (such as parents and guardians); Customer's staff as named in bookings and rotas |
+| Types of Personal Data | Identity and contact details; call records, summaries and transcripts; recordings only when recording is on; texts and emails; appointments and attendance; CRM notes, requests, tasks, quotes and recorded payments (no card numbers); industry records and uploaded files; lead details and consent evidence; consent and opt out history; order details; calendar entries; review text and approved replies |
+| Special categories and sensitive data | Only where a Regulated Industry's records allow it: patient records (healthcare, dental), children's details (childcare), legal matters (legal), financial and insurance details (financial services, insurance), and private fields such as access codes and member numbers. Kept in private fields, never read aloud, transcripts never shown to staff in those industries |
+| Frequency | Continuous |
+| Retention | As in section 12 |
+
+## Annex 2. Technical and organizational measures
+
+| Area | Measure |
+|---|---|
+| Separation between Customers | Row level security on every table; every Customer function checks the person's membership and role; cross Customer tests for every table, view, function and endpoint |
+| Access control | Roles of owner, admin, manager, staff and viewer enforced by the database; transcripts limited by role and closed to staff in Regulated Industries |
+| Authentication | Two step sign in required for every Zella Voice administrator, who cannot remove their last authenticator; Owners set up two step sign in at onboarding; enforced on the server for roles that require it |
+| Audit | Append only audit log of every privileged action (who, what, which Customer, when, before and after), with sensitive Personal Data and secrets redacted |
+| Sensitive actions | Exports, erasure and role changes need a second person's approval or a second confirmation |
+| Personnel access | Named permissions and least privilege; contact details masked in the administration tools by default and shown only with a recorded reason |
+| Encryption | Encryption in transit. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** |
+| Secrets | Held only in the database vault and function secrets; never in code, logs or tables |
+| Logging | No full telephone numbers, email addresses, message contents or transcripts in logs; masking where needed |
+| Entry points | Size limits, rate limits and authentication first at every public entry point; provider messages verified by signature, timestamp window and replay protection |
+| Storage and links | Private storage under each Customer's own path; files checked after upload; downloads by short lived signed links; customer links random, single purpose, expiring and stored only as hashes |
+| AI safeguards | Caller input treated as untrusted; the AI acts only through server checked tools that recheck the Customer and caller; no secrets or other Customers' data in prompts |
+| Messaging safeguards | Consent, opt out, contact hours, frequency and duplicate checks at the time of sending |
+| Resilience | Backups with point in time recovery **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**; a standby assistant takes messages if the database is unavailable; every Live Feature has a control |
+| Retention | Scheduled deletion per data class, legal holds, deletion reaching files and provider copies where possible |
+
+## Annex 3. Subprocessor List
+
+### A3.1 About this list
+
+A3.1.1 Zella Voice uses the providers below to deliver the Services.
+
+A3.1.2 Part A3.2 lists Subprocessors, which process Customer Personal Data for Zella Voice under this DPA. Part A3.3 lists providers that process only Account Data or website traffic, for which Zella Voice is the controller.
+
+A3.1.3 Each provider receives only what it needs for its part and is bound by a written agreement. Providers marked "where enabled" are used only when the feature is switched on for live use, or only for a Customer that connects them.
+
+### A3.2 Subprocessors of Customer Personal Data
+
+| Subprocessor | Purpose | Customer Personal Data it receives |
+|---|---|---|
+| Supabase | Database, sign in, file storage and server functions | All Customer Data |
+| Vapi | AI telephone conversations, voice and transcripts | Call audio, the caller's number, transcripts, and the business context needed for the call |
+| Anthropic | AI model for the AI Receptionist's answers and, where enabled, summaries and drafts | The conversation content needed for the task; not used for training |
+| ElevenLabs, Cartesia and Deepgram, reached through Vapi (where enabled) | Voices and transcription | Call audio and the text needed for the call |
+| Telnyx (where enabled) | Telephone numbers, calls and texts | Telephone numbers, call routing data and message content |
+| Resend (where enabled) | Email delivery | Email addresses and email content |
+| n8n (n8n Cloud) | Scheduled and automatic tasks | Task details and message content while a task runs |
+| Cloudflare | Hosting of the web application | Web traffic, including network addresses |
+| Google and Microsoft (where a Customer connects a calendar) | Calendar sync | Appointment times and titles |
+| Google (where a Customer connects Ads lead forms or, where enabled, its Business Profile) | Lead intake; review replies | Lead details; review text and replies the Customer approved |
+| Meta (where enabled and connected) | Facebook and Instagram lead ads | Lead details |
+| Shopify (where a store connects it) | Order lookup | The order number and customer contact used for the lookup |
+| **[MONITORING PROVIDER NAME]** | Uptime checks, logs and alerts | Request information only; no Personal Data |
+
+### A3.3 Other providers (Account Data and website traffic)
+
+| Provider | Purpose | Data it receives |
+|---|---|---|
+| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Zella Voice never receives or stores card data |
+| Google Fonts (Google) | Serves the typeface used by the web application | The visitor's network address and browser details when a page loads |
+| Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Verifying an Owner's identity | The Owner's identity documents and the check result |
+| **[EMAIL INBOX PROVIDER]** | Zella Voice's own email inboxes | The contents of emails sent to Zella Voice |
+
+### A3.4 Location
+
+The main database is hosted in **[DATA HOSTING REGION]**. Providers may process data in other countries under the safeguards described in section 14.
+
+### A3.5 Changes to this list
+
+A3.5.1 Zella Voice will update this list, which is also kept at **[SUBPROCESSOR LIST LOCATION]**,, and notify Owners by email or in the Services, at least **[SUBPROCESSOR CHANGE NOTICE PERIOD]** before a new or replacement Subprocessor begins processing Customer Personal Data.
+
+A3.5.2 A Customer may object on reasonable data protection grounds within that period, as described in section 8.
+
+A3.5.3 Zella Voice may replace a Subprocessor with less notice where needed to keep the Services running or secure, and will then give notice as soon as practicable.
+
+## Schedule 1. Business Associate Agreement (optional)
+
+This Schedule is optional. It is for use only with healthcare Customers that Zella Voice has approved, and only once Zella Voice has business associate agreements in place with every Subprocessor that would handle protected health information (decision D 49: Vapi, Supabase, Telnyx, n8n, Anthropic, and the email and payment providers, reviewed by counsel). Zella Voice makes no HIPAA compliance claim. **[OPTIONAL SCHEDULE: USE ONLY FOR APPROVED HEALTHCARE CUSTOMERS AND ONLY IF COUNSEL APPROVES]**
+
+BAA effective date: **[BAA EFFECTIVE DATE]**
+
+### S1.1 Parties and background
+
+S1.1.1 This Business Associate Agreement ("BAA") is between **[CUSTOMER LEGAL NAME]** ("Covered Entity") and **[LEGAL ENTITY NAME]**, a Wyoming limited liability company ("Business Associate" or "Zella Voice"). It is Schedule 1 to the Zella Voice Data Processing Addendum ("DPA") and supplements the Zella Voice Terms of Service and the DPA (together with the Order Form, the "Agreement").
+
+S1.1.2 Covered Entity uses the Services, under which Zella Voice may create, receive, maintain or transmit protected health information for Covered Entity. This BAA sets out the terms required by 45 CFR 164.502(e), 164.504(e) and 164.314(a).
+
+S1.1.3 **Approval.** This BAA takes effect only when signed by both parties after Zella Voice has approved Covered Entity for healthcare use. Until then, Covered Entity must not submit protected health information to the Services, as section 5.9 of the Zella Voice Terms of Service provides.
+
+### S1.2 Definitions
+
+Terms used but not defined in this BAA, such as Breach, Designated Record Set, Disclosure, Individual, Minimum Necessary, Required by Law, Secretary, Security Incident, Subcontractor, Unsecured Protected Health Information and Use, have the meanings given in the HIPAA Rules. "HIPAA Rules" means the Privacy, Security, Breach Notification and Enforcement Rules at 45 CFR Parts 160 and 164. "PHI" means protected health information, as defined at 45 CFR 160.103, that Zella Voice creates, receives, maintains or transmits for Covered Entity. Other capitalized terms have the meanings given in section 2 of the Zella Voice Terms of Service.
+
+### S1.3 Obligations of Business Associate
+
+Business Associate will:
+
+S1.3.1 not Use or Disclose PHI other than as permitted or required by this BAA or as Required by Law;
+
+S1.3.2 use appropriate safeguards, and comply with Subpart C of 45 CFR Part 164 with respect to electronic PHI, to prevent Use or Disclosure of PHI other than as provided for by this BAA;
+
+S1.3.3 report to Covered Entity any Use or Disclosure of PHI not provided for by this BAA of which it becomes aware, including Breaches of Unsecured Protected Health Information as required by 45 CFR 164.410, and any Security Incident of which it becomes aware, without unreasonable delay and in any event within **[BAA BREACH NOTICE DAYS]** calendar days after discovery. The parties agree that this section is notice of the ongoing existence of unsuccessful Security Incidents, such as pings, port scans and blocked log in attempts, for which no further notice is required;
+
+S1.3.4 in accordance with 45 CFR 164.502(e)(1)(ii) and 164.308(b)(2), ensure that any Subcontractor that creates, receives, maintains or transmits PHI on its behalf agrees in writing to the same restrictions, conditions and requirements that apply to Business Associate;
+
+S1.3.5 make PHI in a Designated Record Set available to Covered Entity as necessary to satisfy Covered Entity's obligations under 45 CFR 164.524, within **[BAA RESPONSE DAYS]** days after request;
+
+S1.3.6 make amendments to PHI in a Designated Record Set as directed by Covered Entity under 45 CFR 164.526, within **[BAA RESPONSE DAYS]** days after request;
+
+S1.3.7 maintain and make available the information required for Covered Entity to provide an accounting of Disclosures under 45 CFR 164.528, within **[BAA RESPONSE DAYS]** days after request;
+
+S1.3.8 to the extent it carries out an obligation of Covered Entity under Subpart E of 45 CFR Part 164, comply with the requirements of Subpart E that apply to Covered Entity in performing that obligation;
+
+S1.3.9 make its internal practices, books and records relating to PHI available to the Secretary for purposes of determining compliance with the HIPAA Rules;
+
+S1.3.10 limit its Uses, Disclosures and requests of PHI to the Minimum Necessary; and
+
+S1.3.11 forward to Covered Entity any request from an Individual for access, amendment or an accounting that it receives directly, and not respond to it except as Covered Entity directs.
+
+### S1.4 Permitted Uses and Disclosures
+
+S1.4.1 Business Associate may Use or Disclose PHI only as necessary to provide the Services to Covered Entity under the Agreement, as described in section 4 and Annex 1 of the DPA.
+
+S1.4.2 Business Associate may Use or Disclose PHI as Required by Law.
+
+S1.4.3 Business Associate may Use PHI for its proper management and administration or to carry out its legal responsibilities, and may Disclose PHI for those purposes if the Disclosure is Required by Law, or if Business Associate obtains reasonable assurances from the recipient that the PHI will be held confidentially, Used or further Disclosed only as Required by Law or for the purpose for which it was Disclosed, and that the recipient will notify Business Associate of any breach of confidentiality of which it becomes aware.
+
+S1.4.4 **[OPTIONAL: DATA AGGREGATION SERVICES RELATING TO THE HEALTH CARE OPERATIONS OF COVERED ENTITY, IF COUNSEL APPROVES]**
+
+S1.4.5 Business Associate will not Use or Disclose PHI in a manner that would violate Subpart E of 45 CFR Part 164 if done by Covered Entity, except as permitted by sections S1.4.3 and S1.4.4. Business Associate will not sell PHI and will not use PHI to train artificial intelligence models.
+
+### S1.5 Obligations of Covered Entity
+
+Covered Entity will:
+
+S1.5.1 notify Business Associate of any limitation in its notice of privacy practices, any change in or revocation of an Individual's permission, and any restriction on Use or Disclosure it has agreed to, to the extent it may affect Business Associate's Use or Disclosure of PHI;
+
+S1.5.2 not request Business Associate to Use or Disclose PHI in any manner that would not be permissible under Subpart E of 45 CFR Part 164 if done by Covered Entity;
+
+S1.5.3 submit to the Services only the Minimum Necessary PHI, and use the Regulated Industry settings that Zella Voice applies, including private fields and transcripts closed to staff; and
+
+S1.5.4 remain responsible for obtaining any authorization, giving any notice and meeting any obligation that the HIPAA Rules place on Covered Entity, including notifying Individuals, the Secretary and the media of a Breach.
+
+### S1.6 Term and termination
+
+S1.6.1 **Term.** This BAA starts on the effective date above and ends when the Agreement ends and all PHI has been returned or destroyed under section S1.6.3.
+
+S1.6.2 **Termination for breach.** If Covered Entity determines that Business Associate has violated a material term of this BAA, Covered Entity may give written notice and an opportunity to cure within 30 days, and may terminate this BAA and the affected Services if Business Associate does not cure. Business Associate has the same right if Covered Entity violates a material term.
+
+S1.6.3 **Return or destruction.** On termination, Business Associate will return or destroy all PHI that it still maintains in any form, consistent with the deletion process in section 12 of the DPA, and retain no copies. If return or destruction is infeasible, for example for backups that are cleared on a schedule or records under a legal hold, Business Associate will extend the protections of this BAA to that PHI and limit further Uses and Disclosures to the purposes that make return or destruction infeasible, for as long as it maintains the PHI.
+
+### S1.7 Miscellaneous
+
+S1.7.1 **Interpretation.** Any ambiguity in this BAA will be resolved to permit compliance with the HIPAA Rules. A reference to a section of the HIPAA Rules means the section as in effect or as amended.
+
+S1.7.2 **Amendment.** The parties will amend this BAA as necessary to comply with changes in the HIPAA Rules.
+
+S1.7.3 **Precedence.** For PHI, this BAA prevails over any conflicting term of the Agreement.
+
+S1.7.4 **Survival.** Section S1.6.3 survives termination.
+
+S1.7.5 **No third party beneficiaries.** Nothing in this BAA confers rights on any person other than the parties.
+
+S1.7.6 **Limitation of liability.** **[COUNSEL TO DECIDE WHETHER THE LIMITATION OF LIABILITY IN SECTION 20 OF THE ZELLA VOICE TERMS OF SERVICE APPLIES TO THIS BAA, OR A SEPARATE CAP]**
+
+### S1.8 Signatures
+
+| Covered Entity | Business Associate |
+|---|---|
+| **[CUSTOMER LEGAL NAME]** | **[LEGAL ENTITY NAME]** |
+| Name: **[SIGNATORY NAME]** | Name: **[SIGNATORY NAME]** |
+| Title: **[SIGNATORY TITLE]** | Title: **[SIGNATORY TITLE]** |
+| Date: **[SIGNATURE DATE]** | Date: **[SIGNATURE DATE]** |
+
+## Before publishing
+
+This section is for the owner and counsel. Remove it before publishing. The full notes are in the cover memo.
+
+Placeholders in this document:
+
+<!-- PLACEHOLDERS START -->
+
+- **[EFFECTIVE DATE]**
+- **[LAST UPDATED DATE]**
+- **[LEGAL ENTITY NAME]**
+- **[REGISTERED ADDRESS]**
+- **[SUBPROCESSOR LIST LOCATION]**
+- **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
+- **[BREACH NOTIFICATION HOURS]**
+- **[AUDIT NOTICE PERIOD]**
+- **[DATA HOSTING REGION]**
+- **[SCC MODULE TWO (CONTROLLER TO PROCESSOR) AND, WHERE APPLICABLE, MODULE THREE; OPTIONAL CLAUSES; GOVERNING LAW; COMPETENT SUPERVISORY AUTHORITY; SWISS ADJUSTMENTS]**
+- **[UK INTERNATIONAL DATA TRANSFER AGREEMENT OR UK ADDENDUM TO THE EU STANDARD CONTRACTUAL CLAUSES, WITH TABLES COMPLETED]**
+- **[PRIVACY CONTACT EMAIL]**
+- **[DPO OR PRIVACY CONTACT]**
+- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
+- **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
+- **[MONITORING PROVIDER NAME]**
+- **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
+- **[EMAIL INBOX PROVIDER]**
+- **[OPTIONAL SCHEDULE: USE ONLY FOR APPROVED HEALTHCARE CUSTOMERS AND ONLY IF COUNSEL APPROVES]**
+- **[BAA EFFECTIVE DATE]**
+- **[CUSTOMER LEGAL NAME]**
+- **[BAA BREACH NOTICE DAYS]**
+- **[BAA RESPONSE DAYS]**
+- **[OPTIONAL: DATA AGGREGATION SERVICES RELATING TO THE HEALTH CARE OPERATIONS OF COVERED ENTITY, IF COUNSEL APPROVES]**
+- **[COUNSEL TO DECIDE WHETHER THE LIMITATION OF LIABILITY IN SECTION 20 OF THE ZELLA VOICE TERMS OF SERVICE APPLIES TO THIS BAA, OR A SEPARATE CAP]**
+- **[SIGNATORY NAME]**
+- **[SIGNATORY TITLE]**
+- **[SIGNATURE DATE]**
+
+<!-- PLACEHOLDERS END -->

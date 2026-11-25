@@ -115,6 +115,13 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 ## 4. Open problems
 
+- **Legal document set, drafts only (25 Nov 2026):** `legal-drafts/` holds version 0.2 drafts written from these docs: the
+  Terms of Service (with the Acceptable Use, AI and Call Disclosure, Content Complaints and Service Level schedules),
+  Privacy Policy, Data Processing Addendum, Messaging Terms, Order Form, Trust and Security Overview, team and partner
+  templates, the operations handbook, the consent and carrier pack, a counsel memo, and a separate owner action pack.
+  None is published: `/privacy` and `/terms` still show the v0.1 drafts from `sql/zella_privacy_retention.sql`.
+  Open before publishing: counsel review, the placeholders, retention after cancellation (30 days in the rulebook, 90
+  in v0.1 and the database fallback), and the claims that wait on features going live (memo section 4).
 - **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
   CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
   **report only** until a release runs without reports, then rename the header to `Content-Security-Policy`. Live

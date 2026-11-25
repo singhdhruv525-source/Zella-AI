@@ -1,252 +1,636 @@
 # Zella Voice Terms of Service
 
 > **Draft for legal review. Not legal advice. Have a qualified lawyer review before publishing.**
-> Version 0.2 (draft). These are the Zella Voice Terms and Conditions. This version expands draft 0.1, which is shown on the /terms page. It is not in effect.
+> Version 0.2 (draft). The Zella Voice Terms and Conditions: the master agreement for the Services, with Schedules 1 to 4. It expands draft 0.1, which is shown on the /terms page. It is not in effect.
 
 Effective date: **[EFFECTIVE DATE]**
 Last updated: **[LAST UPDATED DATE]**
 
-## 1. About these terms
+## 1. Agreement and acceptance
 
-These terms are an agreement between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company, of **[REGISTERED ADDRESS]** ("Zella Voice", "we", "us") and the business that uses Zella Voice ("you", "the business"). The person who accepts them confirms that they may bind the business.
+1.1 **Parties.** These Terms of Service ("Terms") are between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company with its registered address at **[REGISTERED ADDRESS]** ("Zella Voice", "we", "us" or "our"), and the business entity identified in the Order Form ("Customer" or "you").
 
-You accept these terms, together with the Zella Voice Privacy Policy and the **[DATA PROCESSING ADDENDUM LOCATION]**, during onboarding, and we record which version you accepted and when. Your plan, as shown to you before you pay or start a trial, also forms part of this agreement. If your plan or a signed order says something different from these terms, the plan or order wins for that point.
+1.2 **Clickwrap acceptance.** By selecting the box or button that indicates acceptance during onboarding, by signing an Order Form that refers to these Terms, or by using the Services, you agree to the Agreement. The Services record which version you accepted, who accepted it and when. If you do not agree, you must not select the acceptance box or use the Services.
 
-Zella Voice is for businesses only. It is not for personal, family or household use. Zella Voice is currently offered to businesses in the United States.
+1.3 **Authority.** The individual who accepts the Agreement represents that they are at least 18 years old and have authority to bind Customer. If they do not have that authority, they must not accept the Agreement.
 
-## 2. Words we use
+1.4 **Business use only.** The Services are provided only to businesses for business purposes, and not to consumers for personal, family or household purposes. The Services are currently offered only to Customers located in the United States.
 
-- **Service:** the Zella Voice AI receptionist, the business CRM, the public link pages, and everything we provide with them.
-- **Customer data:** information about your callers, clients, leads and other people you serve that is processed in the service.
-- **Account data:** information about you and your team members as users of the service.
-- **Team member:** anyone you invite to your business in Zella Voice.
-- **Live feature:** a feature that reaches the outside world, such as sending texts, sending emails or making outbound calls. Each one has a switch and is off until it is turned on.
+1.5 **The Agreement.** The "Agreement" consists of:
 
-## 3. The service
+- the Order Form;
+- the Zella Voice Data Processing Addendum ("DPA");
+- these Terms;
+- the Schedules to these Terms: Schedule 1 (Acceptable Use Policy, the "AUP"), Schedule 2 (AI and Call Disclosure Policy), Schedule 3 (Content and Defamation Complaints Policy) and Schedule 4 (Service Level and Support Policy);
+- the Zella Voice Messaging Terms, incorporated by reference and available at **[LEGAL DOCUMENTS LOCATION]** (the Schedules and the Messaging Terms together, the "Policies"); and
+- where signed, a Business Associate Agreement ("BAA").
 
-Zella Voice gives your business an AI receptionist that answers your calls, answers questions from information you approve, books, moves and cancels appointments, takes messages, transfers calls to numbers you authorize, and sends the messages you set up. It comes with a CRM, built for your industry, where you and your team see every customer, call, message, booking and follow up.
+The Zella Voice Privacy Policy, including its section on cookies and browser storage, explains how Zella Voice handles Personal Data as a controller. They are provided for information and do not form part of the Agreement. Section 26 sets the order of precedence.
 
-Some features are switched on only when you connect them or when we turn them on for live use, for example texts, emails, outbound calls to leads and missed callers, calendar sync, review replies and Meta channels. We will tell you which features are available on your plan. We may improve and change the service over time; we will not remove a core feature of your plan during a paid period without telling you first.
+## 2. Definitions
 
-## 4. Accounts and access
+Capitalized terms have the meanings below. The same meanings apply in every document of the Agreement and in the Policies.
 
-- **Setup.** The Zella Voice team creates your business with you and sends the owner an invitation. The owner sets a password, adds two step sign in, checks the details we entered, verifies their identity, and accepts the plan.
-- **Accurate information.** You must give accurate, complete details and keep them up to date, including your hours, services, transfer numbers and a fallback number for when the AI receptionist cannot answer.
-- **Keep sign in safe.** Keep passwords and authenticators safe, use two step sign in where asked, and tell us at once at **[SUPPORT CONTACT EMAIL]** if you think your account has been misused.
-- **Your team.** The owner decides who joins and which role each person has (owner, admin, manager, staff or viewer). You are responsible for what is done in your account and for making sure your team members follow these terms.
+- **"Account Data"** means Personal Data about Authorized Users and Customer's billing and other contacts that Zella Voice processes to provide, secure and bill for the Services, such as names, email addresses, sign in records, identity verification documents and billing records. Zella Voice is the controller of Account Data.
+- **"AI Output"** means content generated by artificial intelligence through the Services, including the AI Receptionist's spoken responses, transcripts, call summaries, call classifications, suggested knowledge answers and suggested replies to reviews and messages.
+- **"AI Receptionist"** means the artificial intelligence voice agent within the Services that answers and, where enabled, places telephone calls for Customer.
+- **"Authorized User"** means an individual whom Customer invites to use the Services on its behalf, such as an employee or contractor, with one of the roles of owner, admin, manager, staff or viewer. The Authorized User with the owner role is the **"Owner"**.
+- **"Beta Feature"** means a feature identified as beta, preview, early access or similar.
+- **"Customer Content"** means information and material that Customer or its Authorized Users provide to the Services or approve within them, including business details, knowledge, greetings, instructions, templates, files, and every message, review reply or other communication that Customer approves or that is sent in Customer's name.
+- **"Customer Data"** means all data, including Customer Content and Customer Personal Data, that is submitted to, collected by or generated within the Services by or for Customer or its End Users, including call records, transcripts, recordings, messages, appointments and CRM records. Customer Data does not include Account Data or Usage Data.
+- **"Customer Personal Data"** means Personal Data within Customer Data.
+- **"Data Protection Laws"** means all privacy and data protection laws that apply to the processing of Personal Data under the Agreement, which may include United States federal and state privacy laws (including the California Consumer Privacy Act as amended, "CCPA"), the EU General Data Protection Regulation ("GDPR"), the UK GDPR and Data Protection Act 2018, and India's Digital Personal Data Protection Act, 2023 ("DPDP Act"), in each case where they apply.
+- **"End User"** means an individual who interacts with Customer through the Services, such as a caller, client, patient, guest, lead or other customer of Customer.
+- **"Fallback Number"** means the telephone number Customer designates to receive calls when the AI Receptionist is paused or unavailable.
+- **"Fees"** means the amounts payable for the Services under the Order Form and section 9.
+- **"Live Feature"** means a feature of the Services that reaches the outside world, such as sending texts, sending emails, placing outbound calls, syncing calendars or posting review replies. Each Live Feature has a control and remains off until Zella Voice switches it on for live use.
+- **"Order Form"** means the plan summary that Customer accepts during onboarding, or an order form signed by both parties, that sets out the Plan, Fees, Subscription Term and any special terms.
+- **"Personal Data"** means information that relates to an identified or identifiable individual, and includes "personal information" and "personal data" as defined in Data Protection Laws.
+- **"Plan"** means the subscription tier and allowances in the Order Form, such as minutes, texts, emails, seats, phone numbers, locations and languages.
+- **"Regulated Industry"** means an industry that Zella Voice designates as regulated in the Services, currently childcare, dental, healthcare, legal, financial services and insurance.
+- **"Services"** means the Zella Voice hosted services described in the Order Form, including the AI Receptionist, the business customer relationship management application ("CRM"), public link pages, messaging features and related support, together with any updates.
+- **"Subprocessor"** means a third party that Zella Voice engages to process Customer Personal Data, as listed in Annex 3 of the DPA.
+- **"Subscription Term"** means the period in section 10.1.
+- **"Usage Data"** means information about the operation and use of the Services, such as volumes, timings and performance metrics, that does not identify Customer, any Authorized User or any End User.
 
-## 5. Your responsibilities to your callers and customers
+## 3. The Services
 
-You are responsible for how your business uses Zella Voice and for the customer data you put into it or collect through it. In particular:
+3.1 **Description.** The Services give Customer an AI Receptionist that answers Customer's calls, answers questions from knowledge that Customer approves, books, moves and cancels appointments, takes messages, transfers calls to numbers Customer authorizes and sends the messages Customer sets up, together with a CRM configured for Customer's industry.
 
-- **AI disclosure.** Callers are told at the start of each call that they are speaking with an AI receptionist for your business. You may change the greeting but not remove that disclosure, and you must not tell callers, or let the receptionist imply, that they are speaking with a human.
-- **Recording.** Call recording is off by default and can be turned on only after Zella Voice has completed a legal review of recording consent and caller disclosures. If you turn recording on, you must make sure recording is lawful where you and your callers are, including any consent that every party to the call must give, and you must not remove the recording notice.
-- **Consent to contact people.** You must have every consent the law requires before Zella Voice calls, texts or emails anyone for you, including consent for calls and texts that use an automated or AI voice, and you must record how you got it. This includes the Telephone Consumer Protection Act, the Telemarketing Sales Rule, the CAN SPAM Act, state telemarketing and texting laws, do not call rules, and the rules of mobile carriers (including texting registration). Texts to your customers start only after your business's texting registration is approved. Leads you add by hand or import are not contacted automatically unless you state a consent basis.
-- **Opt outs.** You must honor requests to stop. Zella Voice honors STOP, "don't call me" and do not contact at once for your business, and you must not work around them.
-- **Accurate knowledge.** The receptionist relies on the information you approve. Keep your knowledge, hours, prices, services and policies correct.
-- **Your own notices.** You must give your customers any privacy notice the law requires, telling them that you use service providers such as Zella Voice, and handle their requests about their information. Zella Voice gives you tools to export and erase a customer's data.
-- **Sensitive and regulated information.** Businesses in regulated industries (such as healthcare, dental, childcare, legal, financial services and insurance) can use Zella Voice only after legal review and with the stricter settings those industries require. You must not use Zella Voice to process protected health information under HIPAA unless we have signed a business associate agreement with you. Do not put payment card numbers, government ID numbers or similar sensitive data into notes, knowledge or messages unless a field is made for it.
-- **Lawful use.** You must comply with all laws that apply to your business and your use of the service.
+3.2 **Live Features.** Each Live Feature is available only when Zella Voice has switched it on for live use and, where relevant, Customer has connected the required account. Zella Voice may keep a Live Feature off, or switch it off, to protect End Users, Customer or the Services, including when a provider fails or a legal review is pending.
+
+3.3 **Beta Features.** Customer may choose to use Beta Features. **BETA FEATURES ARE PROVIDED "AS IS", MAY CONTAIN ERRORS, MAY BE CHANGED OR DISCONTINUED AT ANY TIME, ARE EXCLUDED FROM SERVICE CREDITS AND FROM ANY SERVICE LEVEL, AND ARE NOT COVERED BY SECTION 19.1.** Customer must not rely on a Beta Feature for any critical purpose.
+
+3.4 **Changes to the Services.** Zella Voice may update the Services. Zella Voice will not materially reduce the core functionality of Customer's Plan during a paid period without notice under section 22.
+
+## 4. Accounts and Authorized Users
+
+4.1 **Onboarding.** Zella Voice creates Customer's account with Customer and invites the Owner. Before the account goes live, the Owner sets a password, enables two step sign in, confirms Customer's details, verifies their identity and accepts the Order Form.
+
+4.2 **Accurate information.** Customer must provide accurate and complete information and keep it current, including business hours, services, transfer numbers and a Fallback Number.
+
+4.3 **Authorized Users.** The Owner controls who becomes an Authorized User and each Authorized User's role. Customer is responsible for its Authorized Users' acts and omissions as if they were its own, and must ensure that they comply with the Agreement.
+
+4.4 **Credentials.** Customer must keep passwords and authenticators confidential, require two step sign in where the Services ask for it, and notify Zella Voice promptly at **[SUPPORT CONTACT EMAIL]** of any suspected unauthorized access.
+
+## 5. Customer responsibilities
+
+5.1 **Compliance with law.** Customer must use the Services in compliance with all applicable laws, including Data Protection Laws and laws on telemarketing, telephone solicitation, text messaging, email, call recording and consumer protection.
+
+5.2 **Disclosures to callers.** The AI Receptionist tells every caller at the start of each call that it is an AI receptionist for Customer. Customer may change the greeting but must not remove or obscure that disclosure, and must not cause the AI Receptionist to state or imply that it is a human. Schedule 2 applies.
+
+5.3 **Recording consent.** Call recording is off by default. Customer may enable call recording only after Zella Voice has made it available following legal review. If Customer enables recording, Customer is solely responsible for giving every notice and obtaining every consent that applicable law requires, including in states that require the consent of all parties to a call, and must not remove the recording notice.
+
+5.4 **Consent to contact.** Customer is solely responsible for obtaining, recording and honoring every consent that applicable law requires before the Services call, text or email any person for Customer, including prior express consent and prior express written consent under the Telephone Consumer Protection Act ("TCPA") for calls and texts that use an artificial or prerecorded voice or an automatic telephone dialing system, and compliance with the Telemarketing Sales Rule, the CAN SPAM Act, state telemarketing and mini TCPA laws, and do not call rules. Customer must state a consent basis for every lead it adds by hand or imports; the Services do not contact such a lead automatically without one.
+
+5.5 **Carrier rules.** Customer must comply with the rules and codes of conduct of mobile carriers and industry bodies, including registration of Customer's brand and campaign for application to person texting (10DLC) and any carrier vetting. Texts to Customer's End Users start only after that registration is approved. The Zella Voice Messaging Terms apply.
+
+5.6 **Opt outs.** Customer must honor every request to stop contact. The Services honor STOP, "don't call me" and do not contact requests immediately for Customer, and Customer must not circumvent them.
+
+5.7 **End User notices and requests.** Customer is responsible for providing any privacy notice that the law requires to its End Users, including that Customer uses service providers such as Zella Voice, and for responding to End Users' requests about their Personal Data, using the tools the Services provide.
+
+5.8 **Regulated Industries.** A Customer in a Regulated Industry may use the Services only after Zella Voice has completed legal review for that industry and only with the stricter settings that Zella Voice applies to it.
+
+5.9 **Protected health information.** Customer must not use the Services to create, receive, maintain or transmit protected health information as defined under the Health Insurance Portability and Accountability Act of 1996 and its regulations ("HIPAA") unless Customer and Zella Voice have signed a BAA.
+
+5.10 **Sensitive data.** Customer must not submit payment card numbers, bank account numbers, government identification numbers or similar sensitive data to the Services except in a field designed for that purpose.
+
+5.11 **Accurate knowledge.** Customer is responsible for the accuracy of the information it gives the AI Receptionist, including hours, prices, services and policies.
 
 ## 6. Acceptable use
 
-You must not, and must not let anyone else:
+6.1 Customer must comply, and must ensure that its Authorized Users comply, with the AUP in Schedule 1.
 
-- use Zella Voice for anything illegal, harmful, deceptive or abusive, including fraud, harassment, threats, spam or unlawful telemarketing;
-- impersonate another person or business, or mislead callers about who they are speaking with;
-- call, text or email people without the consent the law requires, or after they have opted out;
-- use the service to collect information you are not allowed to collect, or for surveillance;
-- try to reach another business's data, get around security or usage limits, or test the service's security without our written permission;
-- try to make the AI reveal its instructions, change its rules, or act outside its tools;
-- upload malware or content that infringes someone else's rights;
-- copy, resell or reverse engineer the service, or use it to build a competing product;
-- use the service in a way that could harm our providers, the phone networks, or other businesses' use of the service.
+6.2 Zella Voice may suspend the Services under section 16 for a breach of the AUP.
 
-We can suspend an account that breaks these rules (section 16).
+## 7. Customer Content and AI Output
 
-## 7. The AI receptionist and its limits
+7.1 **Responsibility.** Customer is solely responsible for Customer Content, including the information it gives the AI Receptionist, the answers and knowledge it approves, and every review reply, text, email or other message that it approves or that is sent in its name.
 
-- **It can make mistakes.** The receptionist is AI. It may mishear, misunderstand or give an incomplete answer, and phone and internet connections can fail. Check what it books and records, and review calls that need attention.
-- **Truth only.** It answers only from the information you approve and the service's checked tools. When it does not know, it says so and takes a message or offers a callback or transfer.
-- **Not an emergency service.** Zella Voice is not an emergency service and must not be relied on in an emergency. The receptionist tells callers in an emergency to call 911 and can alert your on call person, but it cannot call emergency services or guarantee that anyone is reached.
-- **No professional advice.** The receptionist does not give medical, legal, financial or safety advice, and it must not be used for that.
-- **Your decisions.** Bookings follow the availability and rules you set. Suggested answers and review replies are drafts until you approve them. You remain responsible for the decisions your business makes and for what your business says to its customers.
-- **Limits that protect callers.** A single call lasts at most 20 minutes, after which the receptionist transfers the caller or ends the call politely. There is also a limit on the number of calls answered at the same time.
+7.2 **Drafts.** AI Output that the Services offer as a suggestion, such as a suggested knowledge answer or review reply, is a draft until Customer approves it. Once approved, it is Customer Content and Customer's own statement. Customer must review every draft before approving it.
 
-## 8. Providers and live features
+7.3 **Public replies.** In public replies, such as replies to reviews, Customer must not name a reviewer or describe their personal details, health or other private matters, or confirm that any person is Customer's patient or client.
 
-The service relies on third party providers, such as our database host, voice and AI providers, phone carriers, email and payment providers. They are listed in the Zella Voice Privacy Policy. Each live feature is switched on only when it is ready, and we may switch a feature off to protect callers, your business or the service, for example if a provider fails. When the AI receptionist is paused or unavailable, calls go to your fallback number.
+7.4 **Removal.** Zella Voice may remove, or decline to send or publish, Customer Content that it reasonably believes is unlawful, defamatory or infringing, or that breaches the Agreement, and may suspend the related feature while it investigates. Where reasonably practicable, Zella Voice will tell Customer what it did and why. Complaints about content are handled under Schedule 3.
 
-## 9. Plans, trials and billing
+**[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 
-### 9.1 Your plan
+## 8. The AI Receptionist and AI Output
 
-Each business has its own plan, agreed with the Zella Voice team: the plan level (for example Base or Pro), a monthly or yearly price, any one time setup fee, and allowances such as minutes, texts, emails, team seats, phone numbers, locations and languages. You see your plan before you pay or start a trial, and it is shown in Settings, Billing and subscription.
+8.1 **Nature of AI Output.** The AI Receptionist and other AI features use artificial intelligence. AI Output may be inaccurate, incomplete or inappropriate. The AI Receptionist may mishear or misunderstand callers, and telephone and internet connections may fail. Customer must review AI Output, bookings and calls that need attention, and is responsible for its decisions and its communications with End Users.
 
-### 9.2 Trial
+8.2 **Approved information only.** The AI Receptionist is designed to answer only from knowledge Customer approves and the Services' checked tools, and to take a message or offer a callback or transfer when it cannot answer.
 
-Your plan may include a free trial. Unless your plan says otherwise, a trial lasts 5 days and includes 20 AI minutes, 5 texts and 5 emails. A payment method is required at the start of the trial, but nothing is charged until the trial ends. You can cancel at any time during the trial at no charge. If you do not cancel, your plan starts when the trial ends and your payment method is charged that day.
+8.3 **No emergency use.** **THE SERVICES ARE NOT AN EMERGENCY SERVICE AND MUST NOT BE RELIED ON IN AN EMERGENCY.** The AI Receptionist is designed to tell a caller in an emergency to call 911 and may alert Customer's on call contact, but it does not contact emergency services and does not guarantee that any person is reached.
 
-### 9.3 Paying and renewal
+8.4 **No professional advice.** The AI Receptionist does not give medical, legal, financial or safety advice, and Customer must not configure or use it to do so.
 
-Plans are paid in advance, monthly or yearly, in US dollars, on your billing date. Without a trial, your billing date is the day the owner first signs in through the invitation; with a trial, it is the day the trial ends. Your plan renews automatically for the same period until you cancel. Automatic payment is on by default; the owner can switch it off and pay each invoice with the Pay now link instead. We send a renewal notice 3 days before every renewal, and for yearly plans also 7 days before. Every charge has an invoice or receipt.
+8.5 **Operational limits.** A single call is limited in length, after which the AI Receptionist transfers the caller or ends the call politely, and the number of calls answered at the same time is limited. The current limits are described in Schedule 2.
 
-### 9.4 Card details
+## 9. Fees, Plans and payment
 
-Payments are processed by Stripe. Card details are entered on Stripe's own pages and are never received or stored by Zella Voice. Stripe's own terms apply to the payment.
+9.1 **Plan and Fees.** The Order Form sets out Customer's Plan, including the plan tier (for example Base or Pro), the monthly or yearly Fee, any one time setup fee and the allowances. Customer must pay the Fees in the Order Form and this section 9.
 
-### 9.5 Usage, allowances and limits
+9.2 **Trial.** If the Order Form includes a free trial, then unless it states otherwise the trial lasts 5 days and includes 20 AI minutes, 5 texts and 5 emails. Customer must provide a payment method at the start of the trial, and nothing is charged until the trial ends. Customer may cancel at any time during the trial at no charge. **IF CUSTOMER DOES NOT CANCEL BEFORE THE TRIAL ENDS, THE PAID SUBSCRIPTION STARTS AUTOMATICALLY AND THE PAYMENT METHOD IS CHARGED THE FEES FOR THE FIRST PERIOD ON THAT DAY.**
 
-- **How usage is counted.** Calls are counted per call, rounded up to the next full minute; calls under 15 seconds and calls flagged as spam are not counted. Texts are counted by message part, as carriers count them. Each email counts as one. We never charge you for our failures, such as dropped calls, duplicate events or our outages.
-- **Refresh and rollover.** Allowances refresh on each monthly billing date (yearly plans also refresh monthly). Up to 20% of your plan's minutes, and up to 20% of each minutes pack's size, roll over for one billing period and then expire. Texts and emails do not roll over.
-- **Alerts.** We alert the owner at 80% and 100% of minutes, texts and emails.
-- **At 100% of minutes,** you choose what happens: stop (new calls go to your fallback number), auto reload a pack, or pay as you go (the receptionist keeps answering and each extra minute is billed at your plan's per minute rate, when your plan has one). A call in progress is never cut. A monthly spending limit you set applies.
-- **At 100% of texts or emails,** routine and marketing messages stop, while appointment confirmations and reminders continue within a small reserve we do not charge for. At 105% every text or email stops until you buy a pack or the next month starts.
-- **Heavy use.** If usage is far above your allowance for two months in a row, we may review the account with you and suggest a different plan. Nothing changes without your action.
+9.3 **Billing.** Fees are payable in advance, monthly or yearly as stated in the Order Form, in US dollars, on the billing date. Without a trial, the billing date is the day the Owner first signs in through the invitation; with a trial, it is the day the trial ends. Automatic payment is on by default; the Owner may switch it off and pay each invoice by the payment link instead. Zella Voice issues an invoice or receipt for every charge.
 
-### 9.6 Packs, auto reload and pay as you go
+9.4 **Automatic renewal.** **THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR SUCCESSIVE PERIODS EQUAL TO THE BILLING PERIOD IN THE ORDER FORM UNTIL CUSTOMER CANCELS UNDER SECTION 10.2.** Zella Voice sends a renewal notice 3 days before every renewal and, for yearly Plans, also 7 days before.
 
-Add on packs of minutes, texts and emails, extra locations and extra users are charged when bought, at the prices shown in Billing and subscription. Auto reload is off by default; when you switch it on you choose the threshold, the pack and a monthly spend cap, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
+9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Payment card details are entered on Stripe's hosted pages and are never received or stored by Zella Voice.
 
-### 9.7 Changes to your plan
+9.6 **Usage and allowances.**
 
-Upgrades take effect straight away: you pay the prorated difference and get the extra allowance for the rest of the period. Downgrades take effect on your next billing date.
+- Calls are counted per call, rounded up to the next full minute; calls under 15 seconds and calls flagged as spam are not counted. Texts are counted by message part as carriers count them. Each email counts as one.
+- Customer is not charged for failures caused by Zella Voice, such as dropped calls, duplicate events or Zella Voice outages.
+- Allowances refresh on each monthly billing date, including for yearly Plans. Up to 20% of the Plan's minutes, and up to 20% of each minutes pack's size, roll over for one billing period and then expire. Texts and emails do not roll over.
+- Zella Voice alerts the Owner at 80% and 100% of minutes, texts and emails.
+- At 100% of minutes, Customer's chosen option applies: stop (new calls go to the Fallback Number), automatic reload of a pack, or pay as you go at the per minute rate in the Order Form, where the Order Form sets one. A call in progress is not cut off. A monthly spending limit applies.
+- At 100% of texts or emails, routine and marketing messages stop, while appointment confirmations and reminders continue within a reserve of 5% that Zella Voice does not charge for. At 105%, all texts or emails stop until Customer buys a pack or the next month starts.
 
-### 9.8 Failed payments
+9.7 **Packs, automatic reload and pay as you go.** Add on packs are charged when bought at the prices shown in the Services. Automatic reload is off by default; if Customer enables it, Customer sets the threshold, the pack and a monthly spend cap, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
 
-If a payment fails, we retry it on days 2, 3 and 4 after the due date and tell you each time. If a payment is 5 days overdue, the AI receptionist pauses and calls go to your fallback number. Your data is kept for 30 days. Paying the balance restores the service. We do not delete data for non payment within that period.
+9.8 **Plan changes.** Upgrades take effect immediately, and Customer pays the prorated difference for the rest of the period. Downgrades take effect on the next billing date.
 
-### 9.9 Price changes
+9.9 **Failed payments.** If a payment fails, Zella Voice retries it on days 2, 3 and 4 after the due date and notifies Customer each time. If a payment remains unpaid 5 days after the due date, the AI Receptionist is paused and calls go to the Fallback Number until the balance is paid. Zella Voice will not delete Customer Data for non payment within 30 days after the due date.
 
-We will give you 30 days' written notice of a price change, and we will change your price at most once in 12 months. **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
+9.10 **Price changes.** Zella Voice will give at least 30 days' written notice of a change to Customer's Fees, and will change them no more than once in any 12 month period. A change takes effect at the start of the next billing period after the notice period. **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 
-### 9.10 Taxes
+9.11 **Taxes.** Fees exclude taxes. Customer must pay all sales, use and similar taxes that apply to the Services, other than taxes on Zella Voice's income. **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
 
-Prices do not include taxes. Where the law requires, we will add sales or similar taxes to your invoice. **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
+9.12 **Disputed charges.** Customer must raise any disputed charge with Zella Voice at **[SUPPORT CONTACT EMAIL]** before initiating a chargeback. Duplicate or incorrect charges are refunded in full after verification, within 5 to 10 business days, to the original payment method. A chargeback suspends the account until it is resolved.
 
-### 9.11 Billing disputes
+## 10. Term, renewal, cancellation and refunds
 
-If you think a charge is wrong, contact support first at **[SUPPORT CONTACT EMAIL]**. Duplicate or wrong charges are refunded in full after checking, within 5 to 10 business days, to the original payment method. A chargeback suspends the account until it is resolved.
+10.1 **Subscription Term.** The Subscription Term starts on the earlier of the start of the trial or the first billing date, and continues for the billing period in the Order Form, renewing under section 9.4 until canceled or terminated.
 
-## 10. Cancellation and refunds
+10.2 **Cancellation.** The Owner may cancel at any time in the Services. Cancellation takes effect at the end of the current billing period, and Customer keeps access until then. There is no cancellation fee. The Services do not offer a pause.
 
-- **Cancelling.** The owner can cancel at any time in Billing and subscription or Settings. Cancellation takes effect at the end of the current billing period, and you keep access until then. There is no cancellation fee and no long term contract. Before the date passes, you can keep your plan with the "Continue my plan" link we send. There is no pause: a business that stops using Zella Voice cancels and can come back later.
-- **30 day money back guarantee.** You can get a full refund of your first plan payment (monthly or yearly) if you ask within 30 days of that payment. It covers the plan fee only, and each business can use it once.
-- **Setup fee.** Refundable in full before onboarding work starts (within 48 hours of purchase). It is not refundable once the Zella Voice team has started creating your business, even within the 30 day guarantee.
-- **Packs and overage.** Used packs and pay as you go minutes are not refundable. An unused pack is refundable within 14 days of purchase.
-- **After 30 days.** There are no refunds for the current period and no partial refunds for unused days. A yearly renewal is refunded in full if you ask within 7 days of the renewal charge. Yearly plans cancelled later are not refunded, except that after prolonged service failures we may give a prorated refund at our discretion.
-- **How to ask.** Request a refund in Billing and subscription. We decide eligibility under this section, and a refund is paid only to the original payment method through our payment provider.
+10.3 **Money back guarantee.** Customer may receive a full refund of its first Plan payment, monthly or yearly, if it requests one within 30 days after that payment. The guarantee covers the Plan Fee only and is available once per Customer.
 
-Nothing in this section limits any refund right the law gives you.
+10.4 **Setup fee.** A setup fee is refundable in full if requested before onboarding work starts, within 48 hours after purchase. It is not refundable once Zella Voice has started creating Customer's account, including within the period in section 10.3.
 
-## 11. Support and service credits
+10.5 **Packs and overage.** Used packs and pay as you go minutes are not refundable. An unused pack is refundable if requested within 14 days after purchase.
 
-- **Support.** We aim to respond to support requests within 4 business hours (Monday to Friday, 9 a.m. to 5 p.m. New York time, unless we tell you otherwise), and we guide you through onboarding. You can reach us in Settings, Help and support, or at **[SUPPORT CONTACT EMAIL]**.
-- **Status.** Our status page at /status says when part of the service is not working.
-- **Service credits.** We do not promise a particular uptime. If AI answering is down for more than 4 hours in a day because of Zella Voice or one of its providers, you can ask, within 30 days, for one free day (your monthly fee divided by 30) for each affected day. Credits apply to your next invoices, have no cash value, and are capped at one month's fee. Service credits are your only remedy for downtime.
+10.6 **Other refunds.** Except as stated in this section 10 or required by law, Fees are non refundable, and there are no refunds or credits for partial periods. A yearly renewal is refunded in full if Customer requests it within 7 days after the renewal charge. Zella Voice may, at its discretion, give a prorated refund of a yearly Plan after prolonged service failures.
 
-## 12. Your data
+10.7 **Process.** Refunds are requested in the Services. Zella Voice determines eligibility under this section 10, and pays refunds only to the original payment method through its payment processor.
 
-- **You own your data.** As between you and us, you own customer data and the content you add. You give us permission to use it only to provide, secure and support the service for you, as described in the Zella Voice Privacy Policy and the **[DATA PROCESSING ADDENDUM LOCATION]**, which forms part of these terms. We process customer data on your instructions, as your processor or service provider.
-- **No selling, no training.** We do not sell customer data, and we never use it to train AI models.
-- **Usage information.** We may use information about how the service is used, without identifying you or any person, to run, secure and improve the service.
-- **Export.** The owner can export customers and call history as CSV at any time, and can ask us for a whole business export.
-- **Erasure.** You can erase a customer's data in the CRM. Their opt out and consent history is kept so that opt outs keep working.
-- **Retention.** Call recordings and transcripts are kept 90 days and then deleted automatically. Other retention periods are in the Zella Voice Privacy Policy.
-- **Deleting your account.** The owner can ask to delete the account in Settings. Once we confirm the request, the account is frozen at once and everything is deleted 30 days later, unless you cancel the request in that time. Audit history is kept without your business's details.
-- **After cancellation.** Your data stays available for export for 30 days after cancellation and is then deleted; backups are cleared within 90 days.
-- **Phone numbers.** You can port numbers in or out at no charge. Porting can take days to weeks, depending on the carrier. Zella Voice numbers are released 30 days after cancellation unless ported out.
+## 11. Service levels and support
 
-## 13. Intellectual property
+Support, service credits and status information are provided under Schedule 4. Service credits under Schedule 4 are Customer's sole and exclusive remedy for unavailability of the Services.
 
-We and our licensors own the service, including the software, the AI receptionist's design, our templates, documentation and the Zella Voice name and brand. During your subscription we give you a limited, non exclusive, non transferable right to use the service for your business under these terms. We keep all rights we do not expressly give you. You may not use the Zella Voice name or brand without our written permission, except to tell people that your business uses Zella Voice.
+## 12. Customer Data
 
-## 14. Feedback
+12.1 **Ownership.** As between the parties, Customer owns Customer Data.
 
-If you send us ideas or suggestions, we may use them freely, without paying you or owing you anything. This does not give us any right to your customer data.
+12.2 **License to Zella Voice.** Customer grants Zella Voice a worldwide, non exclusive, royalty free license to host, copy, process, transmit and display Customer Data only as necessary to provide, secure and support the Services for Customer, to prevent abuse and to comply with law, in each case under the Agreement.
+
+12.3 **Data processing.** Zella Voice processes Customer Personal Data as Customer's processor and service provider under the DPA.
+
+12.4 **No sale and no training.** Zella Voice does not sell or share Customer Data, and does not use Customer Data, or permit any Subprocessor to use it, to train artificial intelligence models.
+
+12.5 **Account Data and Usage Data.** Zella Voice processes Account Data as a controller under the Zella Voice Privacy Policy. Zella Voice may collect and use Usage Data to operate, secure and improve the Services.
+
+12.6 **Export.** The Owner may export customers and call history as CSV files at any time, and may request a whole business export of Customer Data.
+
+12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call; after cancellation, Customer Data remains available for export for 30 days and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request.
+
+12.8 **Telephone numbers.** Customer may port telephone numbers into or out of the Services at no charge. Porting time depends on the carrier. Numbers provided by Zella Voice are released 30 days after cancellation unless ported out before then.
+
+## 13. Confidentiality
+
+13.1 **Definition.** "Confidential Information" means nonpublic information that one party ("Discloser") discloses to the other ("Recipient") that is marked confidential or that a reasonable person would understand to be confidential. Customer Data is Customer's Confidential Information. Confidential Information does not include information that is or becomes public through no fault of Recipient, that Recipient already knew without restriction, that Recipient receives lawfully from a third party without restriction, or that Recipient develops independently.
+
+13.2 **Obligations.** Recipient must use Confidential Information only to perform under or exercise its rights under the Agreement, must protect it with at least reasonable care, and may disclose it only to its employees, contractors, Subprocessors and advisers who need it for that purpose and are bound by obligations of confidentiality at least as protective as this section.
+
+13.3 **Compelled disclosure.** Recipient may disclose Confidential Information when required by law, after giving Discloser prompt notice where legally permitted and reasonable help, at Discloser's cost, to seek protection.
+
+## 14. Intellectual property and feedback
+
+14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. All rights not expressly granted are reserved.
+
+14.2 **Restrictions.** Customer must not copy, modify, reverse engineer, resell or sublicense the Services, or use them to build a competing product, except to the extent applicable law expressly permits.
+
+14.3 **AI Output.** As between the parties, and to the extent Zella Voice has any rights in it, Customer owns AI Output generated for Customer, subject to Zella Voice's rights in the Services and its templates. AI Output may be similar to output generated for others.
+
+14.4 **Feedback.** If Customer gives suggestions or feedback about the Services, Zella Voice may use them without restriction or obligation. Feedback does not include Customer Data.
 
 ## 15. Third party services
 
-Some features connect to services that you choose to use, such as Google or Microsoft calendars, Shopify, Google Ads lead forms, Google Business Profile and Meta. Your use of those services is governed by their own terms, and you authorize us to exchange data with them for you. We are not responsible for third party services, their availability or what they do with data, and a change by a third party may mean we have to change or stop a connection.
+Customer may connect third party services, such as Google or Microsoft calendars, Shopify, Google Ads lead forms, Google Business Profile and Meta. Customer's use of those services is governed by their terms, and Customer authorizes Zella Voice to exchange Customer Data with them as needed for the connection. Zella Voice is not responsible for third party services, and a change by a third party may require Zella Voice to change or end a connection.
 
-## 16. Suspension and termination
+## 16. Suspension
 
-- **By you.** You can cancel at any time (section 10).
-- **Suspension.** We may suspend all or part of the service if you break section 5 or 6, if your use puts callers, other businesses or the service at risk, if a payment is overdue (section 9.8), during a chargeback, or if the law requires it. Where we can, we will tell you why first and give you a chance to fix the problem. We will restore the service once it is fixed.
-- **Termination by us.** We may end these terms if you seriously or repeatedly break them, or with **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]** notice for any other reason, in which case we will refund prepaid fees for the unused part of the period.
-- **After termination.** Your right to use the service ends, and your data is handled as described in section 12. Sections that by their nature should continue (for example fees owed, intellectual property, disclaimers, limitation of liability, indemnity and governing law) continue.
+16.1 **Grounds.** Zella Voice may suspend all or part of the Services if: (a) Customer breaches section 5, section 7 or the AUP; (b) Customer's use poses a risk to End Users, other customers, the Services or Zella Voice's providers; (c) a payment is overdue as described in section 9.9; (d) a chargeback is open; or (e) suspension is required by law or by a carrier or regulator.
 
-## 17. Confidentiality
+16.2 **Process.** Where reasonably practicable, Zella Voice will give notice before suspending and an opportunity to cure, and will limit the suspension to what is reasonably necessary. Zella Voice will restore the Services promptly after the cause is resolved. During a suspension, calls go to the Fallback Number where possible.
 
-Each of us will keep the other's non public information confidential, use it only for this agreement, and share it only with people and providers who need it and are bound to keep it confidential, unless the law requires otherwise.
+## 17. Termination
 
-## 18. Disclaimer of warranties
+17.1 **For breach.** Either party may terminate the Agreement on written notice if the other party materially breaches it and does not cure the breach within 30 days after notice, or immediately if the breach cannot be cured.
 
-We will provide the service with reasonable skill and care. Apart from that, and to the extent the law allows, the service is provided "as is" and "as available". We do not promise that the service will be uninterrupted or error free, that the AI receptionist will always understand callers or answer correctly, or that every call, text or email will reach its destination. We are not responsible for failures of phone networks, carriers or services outside our control.
+17.2 **By Zella Voice for convenience.** Zella Voice may terminate the Agreement on at least **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]** written notice, and will then refund prepaid Fees for the unused part of the paid period.
 
-## 19. Limitation of liability
+17.3 **Effect.** On termination, Customer's right to use the Services ends, unpaid Fees become due (except where Customer terminates under section 17.1), and Customer Data is handled under section 12.7 and the DPA. Section 27 lists the provisions that survive.
 
-To the extent the law allows:
+## 18. Warranties and disclaimers
 
-- neither of us is liable for indirect, incidental, special, consequential or punitive damages, or for lost profits, revenue, business or goodwill, even if told they were possible;
-- our total liability arising out of or relating to these terms is limited to the amount you paid us in the 12 months before the event that gave rise to the claim.
+18.1 **Mutual.** Each party warrants that it has the authority to enter into the Agreement.
 
-These limits do not apply to your payment obligations, to your obligations under section 20, or to liability that cannot be limited by law. **[COUNSEL TO CONFIRM THE LIABILITY CAP AND ANY CARVE OUTS]**
+18.2 **Zella Voice.** Zella Voice warrants that it will provide the Services with reasonable skill and care. If the Services materially fail to meet this warranty and Customer notifies Zella Voice within 30 days, Zella Voice will use reasonable efforts to correct the failure, and if it cannot do so within a reasonable time, either party may terminate the affected Services and Zella Voice will refund prepaid Fees for the unused part of the paid period. This is Customer's exclusive remedy for breach of this warranty. **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
 
-## 20. Indemnity
+18.3 **Customer.** Customer warrants that it has all rights, notices and consents needed for Zella Voice to process Customer Data and to make each call, text and email that the Services make for Customer.
 
-You will defend and indemnify Zella Voice against claims, fines and costs (including reasonable legal fees) brought by third parties or regulators that arise from your customer data, your breach of section 5 or 6, or your calls, texts and emails sent through the service, including claims under telemarketing, texting, recording or privacy laws. We will tell you promptly about a claim, let you control the defense, and give reasonable help at your cost. **[COUNSEL TO CONFIRM WHETHER ZELLA VOICE GIVES A MUTUAL INDEMNITY, FOR EXAMPLE FOR INTELLECTUAL PROPERTY CLAIMS]**
+18.4 **Disclaimer.** **EXCEPT AS EXPRESSLY STATED IN THIS SECTION 18, AND TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE SERVICES, AI OUTPUT AND BETA FEATURES ARE PROVIDED "AS IS" AND "AS AVAILABLE", AND ZELLA VOICE DISCLAIMS ALL OTHER WARRANTIES, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING ANY WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON INFRINGEMENT. ZELLA VOICE DOES NOT WARRANT THAT THE SERVICES WILL BE UNINTERRUPTED OR ERROR FREE, THAT AI OUTPUT WILL BE ACCURATE OR COMPLETE, THAT THE AI RECEPTIONIST WILL UNDERSTAND EVERY CALLER, OR THAT ANY CALL, TEXT OR EMAIL WILL BE DELIVERED. ZELLA VOICE IS NOT RESPONSIBLE FOR FAILURES OF TELEPHONE NETWORKS, CARRIERS, THE INTERNET OR OTHER SERVICES OUTSIDE ITS REASONABLE CONTROL.**
+
+## 19. Indemnification
+
+19.1 **By Zella Voice.** Zella Voice will defend Customer against any claim by a third party alleging that the Services, as provided by Zella Voice and used in accordance with the Agreement, infringe that third party's patent, copyright or trademark or misappropriate its trade secret (an "IP Claim"), and will pay the damages and costs finally awarded against Customer, or agreed in a settlement approved by Zella Voice, for that IP Claim.
+
+19.2 **Exclusions.** Section 19.1 does not apply to an IP Claim that arises from: (a) Customer Data or Customer Content; (b) AI Output that is based on Customer Content or Customer's instructions; (c) a combination of the Services with anything not provided by Zella Voice; (d) a modification not made by Zella Voice; (e) third party services; (f) Beta Features; or (g) use of the Services in breach of the Agreement.
+
+19.3 **Remedies.** If the Services become, or in Zella Voice's opinion are likely to become, the subject of an IP Claim, Zella Voice may at its option and expense: (a) obtain the right for Customer to continue using them; (b) modify or replace them so that they are no longer infringing without materially reducing their functionality; or (c) if neither (a) nor (b) is commercially reasonable, terminate the affected Services and refund prepaid Fees for the unused part of the paid period. **THIS SECTION 19 STATES ZELLA VOICE'S ENTIRE LIABILITY AND CUSTOMER'S EXCLUSIVE REMEDY FOR IP CLAIMS.**
+
+19.4 **By Customer.** Customer will defend Zella Voice and its affiliates, officers, employees and agents against any claim, investigation or proceeding by a third party or a regulator, and will pay the damages, fines, penalties and costs (including reasonable attorneys' fees) finally awarded or agreed in settlement, to the extent arising from: (a) Customer Data or Customer Content, including claims of defamation, libel, slander, invasion of privacy or infringement; (b) calls, texts, emails, review replies or other communications made through the Services for Customer, including claims under the TCPA, the Telemarketing Sales Rule, the CAN SPAM Act, state telemarketing, texting and call recording laws and Data Protection Laws; (c) Customer's breach of applicable law; or (d) Customer's breach of section 5, section 7 or the AUP.
+
+19.5 **Procedure.** The indemnified party must: (a) give the indemnifying party prompt written notice of the claim (a delay relieves the indemnifying party only to the extent it is prejudiced); (b) give the indemnifying party sole control of the defense and settlement, except that a settlement that admits fault for, or imposes an obligation on, the indemnified party needs its prior written consent, not to be unreasonably withheld; and (c) give reasonable cooperation at the indemnifying party's expense. The indemnified party may participate with its own counsel at its own expense.
+
+## 20. Limitation of liability
+
+20.1 **Exclusion of indirect damages.** **TO THE MAXIMUM EXTENT PERMITTED BY LAW, NEITHER PARTY WILL BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, BUSINESS, GOODWILL OR ANTICIPATED SAVINGS, ARISING OUT OF OR RELATING TO THE AGREEMENT, HOWEVER CAUSED AND UNDER ANY THEORY OF LIABILITY, EVEN IF ADVISED OF THEIR POSSIBILITY.**
+
+20.2 **Cap.** **TO THE MAXIMUM EXTENT PERMITTED BY LAW, EACH PARTY'S TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATING TO THE AGREEMENT WILL NOT EXCEED THE GREATER OF (A) THE FEES PAID AND PAYABLE BY CUSTOMER UNDER THE AGREEMENT IN THE 12 MONTHS BEFORE THE EVENT GIVING RISE TO THE LIABILITY AND (B)** **[FLOOR AMOUNT]**.
+
+20.3 **Carve outs.** **SECTIONS 20.1 AND 20.2 DO NOT LIMIT: (A) A PARTY'S DEFENSE AND PAYMENT OBLIGATIONS UNDER SECTION 19; (B) A PARTY'S LIABILITY FOR BREACH OF SECTION 13 (CONFIDENTIALITY), EXCLUDING LIABILITY RELATING TO CUSTOMER DATA, WHICH IS SUBJECT TO SECTION 20.2; (C) CUSTOMER'S OBLIGATION TO PAY FEES; (D) CUSTOMER'S LIABILITY FOR BREACH OF SECTION 5, SECTION 7 OR THE AUP; OR (E) LIABILITY THAT CANNOT BE LIMITED UNDER APPLICABLE LAW.** **[COUNSEL TO CONFIRM THE LIABILITY CAP, THE FLOOR AMOUNT, THE CARVE OUTS AND WHETHER A SEPARATE CAP FOR DATA PROTECTION CLAIMS IS NEEDED]**
+
+20.4 **Basis of the bargain.** The parties agree that the limitations in this section 20 reflect an informed allocation of risk and are an essential basis of the bargain.
 
 ## 21. Governing law and disputes
 
-These terms are governed by the laws of **[GOVERNING LAW AND COURTS]**, without regard to its conflict of law rules. Disputes will be resolved **[DISPUTE RESOLUTION METHOD, FOR EXAMPLE THE COURTS OF A NAMED STATE OR ARBITRATION]**. Before starting any claim, each of us will try in good faith to resolve the dispute by contacting the other.
+21.1 **Governing law and venue.** The Agreement is governed by the laws of **[GOVERNING LAW AND COURTS]**, without regard to conflict of law rules. Disputes will be resolved by **[DISPUTE RESOLUTION METHOD, FOR EXAMPLE THE COURTS OF A NAMED STATE OR ARBITRATION]**. The United Nations Convention on Contracts for the International Sale of Goods does not apply.
 
-## 22. Changes to these terms
+21.2 **Informal resolution.** Before starting proceedings, a party must give the other written notice of the dispute, and the parties must try in good faith to resolve it within **[INFORMAL RESOLUTION PERIOD]**. Either party may seek urgent injunctive relief at any time.
 
-We may update these terms. We will post the new version with a new date and version, and we will tell business owners at least **[NOTICE PERIOD FOR CHANGES]** before a material change takes effect. If you do not agree, you can cancel before the change takes effect. Price changes follow section 9.9.
+21.3 **Time limit for claims.** To the extent permitted by law, a claim arising out of or relating to the Agreement must be brought within **[TIME LIMIT FOR CLAIMS]** after the claimant knew or should have known of the facts giving rise to it, or it is barred. This section does not apply to claims for unpaid Fees.
 
-## 23. General
+21.4 **Class action and jury waiver (optional).** **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES FOR THE CHOSEN LAW]** **TO THE EXTENT PERMITTED BY LAW, EACH PARTY MAY BRING CLAIMS AGAINST THE OTHER ONLY IN ITS INDIVIDUAL CAPACITY, AND NOT AS A PLAINTIFF OR CLASS MEMBER IN ANY CLASS, COLLECTIVE OR REPRESENTATIVE PROCEEDING, AND EACH PARTY WAIVES ANY RIGHT TO A JURY TRIAL IN ANY DISPUTE ARISING OUT OF OR RELATING TO THE AGREEMENT.** **[END OF OPTIONAL CLAUSE]**
 
-- **Whole agreement.** These terms, your plan, the Zella Voice Privacy Policy and the data processing addendum are the whole agreement between us about the service.
-- **Assignment.** You may not transfer this agreement without our written consent. We may transfer it as part of a merger, sale or reorganization.
-- **Events outside our control.** Neither of us is responsible for delays caused by events outside reasonable control, such as network or carrier failures, outages of major providers, natural disasters or government action. This does not excuse payment.
-- **Notices.** We send notices to the owner's email address in the account and in the app. You send notices to **[LEGAL NOTICES EMAIL OR ADDRESS]**.
-- **Severability and waiver.** If a part of these terms cannot be enforced, the rest still applies. Not enforcing a right is not giving it up.
-- **Independent parties.** We are independent contractors. Nothing here creates a partnership, employment or agency.
+## 22. Changes to the Agreement
 
-## 24. Contact
+22.1 **Notice.** Zella Voice may amend these Terms or the Policies by posting the amended version with a new version number and date and notifying the Owner by email or in the Services at least **[NOTICE PERIOD FOR CHANGES]** before the amendment takes effect. Changes required by law, or that address security or abuse, may take effect sooner.
+
+22.2 **Acceptance.** An amendment takes effect on the date stated in the notice. Customer's continued use of the Services after that date is acceptance of the amendment. If a material amendment adversely affects Customer, Customer may cancel by notice before the effective date and receive a refund of prepaid Fees for the unused part of the paid period.
+
+22.3 **Schedules 1 and 4.** Zella Voice may update Schedule 1 (Acceptable Use Policy) and Schedule 4 (Service Level and Support Policy) on notice under section 22.1, as with any other Policy. Schedules 2 and 3 describe how the Services and complaint handling work and are updated under the same process.
+
+22.4 **Order Forms.** An amendment does not change an Order Form during its current paid period without Customer's agreement. Changes to Fees follow section 9.10.
+
+## 23. Electronic acceptance, records and notices
+
+23.1 **Electronic acceptance.** Acceptance by electronic means under section 1.2 is binding and has the same effect as a handwritten signature. Zella Voice's record of the version accepted, the person accepting and the time is evidence of that acceptance.
+
+23.2 **Electronic records.** Customer consents to receiving the Agreement, invoices, receipts, notices and other records electronically, and may keep copies by downloading or printing them.
+
+23.3 **Notices.** Zella Voice gives notices to the Owner's email address in the account or in the Services, and a notice is given when sent. Customer gives legal notices to **[LEGAL NOTICES EMAIL OR ADDRESS]**.
+
+## 24. Sanctions and export control
+
+Customer represents that neither Customer nor any of its owners or Authorized Users is named on, or owned or controlled by a person named on, any sanctions list maintained by the United States or any other government whose sanctions apply to Customer. Customer must not use or permit access to the Services in any country or region, or by any person or for any purpose, prohibited by sanctions or export control laws. Zella Voice may suspend or terminate the Services immediately if this representation becomes untrue.
+
+## 25. Publicity
+
+Zella Voice will not identify Customer as a customer, or use Customer's name or logo, in marketing without Customer's prior written consent, which Customer may withdraw for future use at any time.
+
+## 26. Order of precedence
+
+**[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]** If documents of the Agreement conflict, the following order applies, with the earlier document prevailing to the extent of the conflict:
+
+- a BAA, for protected health information only;
+- the special terms of an Order Form;
+- the DPA, for the processing of Customer Personal Data;
+- these Terms;
+- the Policies (the Schedules and the Messaging Terms).
+
+## 27. Survival
+
+The following survive expiry or termination of the Agreement: section 9 (for Fees accrued), section 12.7 (retention and deletion), section 13 (Confidentiality), section 14 (Intellectual property and feedback), section 18.4 (Disclaimer), section 19 (Indemnification), section 20 (Limitation of liability), section 21 (Governing law and disputes), this section 27 and section 28, and any other provision that by its nature is intended to survive.
+
+## 28. General
+
+28.1 **Entire agreement.** The Agreement is the entire agreement between the parties about its subject matter and supersedes all prior agreements and understandings about it. Terms in any purchase order or other Customer document are void.
+
+28.2 **Assignment.** Neither party may assign the Agreement without the other's prior written consent, except that either party may assign it without consent to a successor in a merger, acquisition or sale of all or substantially all of its relevant assets. Any other attempted assignment is void.
+
+28.3 **Force majeure.** Neither party is liable for a delay or failure caused by events beyond its reasonable control, such as failures of carriers, networks or major providers, natural disasters, epidemics, war, labor disputes or government action. This section does not excuse payment obligations.
+
+28.4 **Severability and waiver.** If a provision is held unenforceable, it will be enforced to the maximum extent permissible and the rest of the Agreement remains in effect. A failure to enforce a provision is not a waiver.
+
+28.5 **Relationship.** The parties are independent contractors. The Agreement does not create a partnership, franchise, joint venture, agency or employment relationship.
+
+28.6 **No third party beneficiaries.** There are no third party beneficiaries of the Agreement.
+
+28.7 **Headings and interpretation.** Headings are for convenience only. References to a Schedule are to a Schedule to these Terms, which forms part of these Terms. "Including" means "including without limitation".
+
+## 29. Contact
 
 **[LEGAL ENTITY NAME]**
 **[REGISTERED ADDRESS]**
 Support: **[SUPPORT CONTACT EMAIL]**
 Legal notices: **[LEGAL NOTICES EMAIL OR ADDRESS]**
 
-## 25. Before publishing
+## Schedule 1. Acceptable Use Policy
 
-This section is for the owner and counsel. Remove it before publishing.
+### 1. Scope
 
-### 25.1 Placeholders to fill
+1.1 This Acceptable Use Policy ("AUP") applies to Customer and every Authorized User. This Schedule forms part of the Zella Voice Terms of Service ("Terms"). Capitalized terms have the meanings given in section 2 of the Terms.
 
-- **[EFFECTIVE DATE]** and **[LAST UPDATED DATE]**
-- **[LEGAL ENTITY NAME]** (the docs say Zella Voice is a Wyoming LLC; confirm the exact registered name)
+1.2 Customer must not, and must not permit any person to, use the Services in any way that this AUP prohibits.
+
+### 2. Unlawful, harmful and deceptive use
+
+Customer must not use the Services:
+
+- for any unlawful purpose, or to promote or facilitate unlawful activity;
+- for fraud, phishing, scams, or any deceptive or unfair practice;
+- to harass, threaten, abuse, stalk or intimidate any person;
+- to impersonate any person or business, or to misrepresent Customer's identity or affiliation;
+- to mislead callers about who they are speaking with, including by causing the AI Receptionist to state or imply that it is a human, or by removing or obscuring the AI disclosure;
+- to discriminate unlawfully against any person.
+
+### 3. Communications
+
+Customer must not use the Services to:
+
+- call, text or email any person without every consent the law requires, or after the person has opted out;
+- make calls or send texts that use an artificial or prerecorded voice to a person who has not given the consent the TCPA or other applicable law requires;
+- send spam, unsolicited bulk messages or messages with false or misleading header, sender or subject information;
+- call or text outside the hours that applicable law or the Services allow, or exceed the frequency limits of the Services;
+- send content that carriers prohibit, including content relating to illegal drugs, firearms sales, hate speech or sexually explicit material, or any other category that carrier codes of conduct prohibit;
+- send texts from an unregistered campaign, or for a use that differs from Customer's registered campaign;
+- record a call without giving the notices and obtaining the consents applicable law requires;
+- circumvent STOP, "don't call me", do not contact or unsubscribe requests.
+
+### 4. Content
+
+Customer must not use the Services to create, send, publish or store any content, including review replies, texts, emails and other messages, the AI Receptionist's answers and knowledge base content, that:
+
+- is defamatory, libelous or slanderous;
+- contains false or misleading statements of fact about any person or business;
+- invades any person's privacy or discloses another person's personal, health or other private information without a lawful basis, including in public replies to reviews;
+- infringes or misappropriates intellectual property or other rights;
+- is obscene, sexually exploits children, or is hateful, violent or threatening;
+- contains malware or harmful code.
+
+### 5. Professional advice and emergencies
+
+Customer must not configure or use the AI Receptionist to give medical, legal, financial or safety advice, or present the Services to callers as an emergency service.
+
+### 6. Data
+
+Customer must not:
+
+- collect, submit or process Personal Data without a lawful basis and every notice the law requires;
+- submit payment card numbers, bank account numbers, government identification numbers or similar sensitive data except in a field designed for it;
+- use the Services to create, receive, maintain or transmit protected health information under HIPAA unless a BAA has been signed;
+- use the Services for surveillance, profiling that produces legal or similarly significant effects, or any decision about a person's eligibility for credit, employment, housing or insurance.
+
+### 7. Security and integrity
+
+Customer must not:
+
+- access or attempt to access another customer's data or any part of the Services that Customer is not authorized to use;
+- probe, scan or test the vulnerability of the Services, or breach or circumvent any security, authentication or usage limit, without Zella Voice's prior written consent;
+- attempt to make the AI Receptionist reveal its instructions, change its rules or act outside its tools, or otherwise manipulate AI features through prompt injection;
+- interfere with or disrupt the Services, Zella Voice's providers or the telephone networks, or place an unreasonable load on them;
+- share credentials, or permit any person other than an Authorized User to use the Services;
+- copy, frame, scrape, reverse engineer, resell or sublicense the Services, or use them to build a competing product.
+
+### 8. Enforcement
+
+8.1 Zella Voice may investigate any suspected breach of this AUP. Zella Voice may remove or decline to send content, suspend the affected feature or the Services, or terminate the Agreement, as provided in sections 7.4, 16 and 17 of the Terms.
+
+8.2 Zella Voice may report unlawful activity to law enforcement or regulators, and may cooperate with carriers and other providers that investigate abuse.
+
+8.3 To report abuse of the Services, contact **[CONTENT COMPLAINTS CONTACT]**. Complaints about content are handled under Schedule 3.
+
+### 9. Changes
+
+Zella Voice may update this Schedule on notice under section 22 of the Terms.
+
+## Schedule 2. AI and Call Disclosure Policy
+
+### 1. Purpose and scope
+
+1.1 This Schedule explains what the AI Receptionist is, what callers are told, who is responsible for recording consent, and the limits of the AI Receptionist. This Schedule forms part of the Zella Voice Terms of Service ("Terms"). Capitalized terms have the meanings given in section 2 of the Terms.
+
+1.2 This Schedule is written for Customers and may also be shared with End Users.
+
+### 2. What the AI Receptionist is
+
+2.1 The AI Receptionist is an artificial intelligence voice agent that answers telephone calls for a Customer. It is not a person.
+
+2.2 It can answer questions from knowledge the Customer has approved, check opening hours, book, find, move and cancel appointments, take messages, record requests, transfer calls to numbers the Customer has authorized, report emergencies to the Customer's on call contact and, for stores that connect Shopify, look up an order's status.
+
+2.3 It recognizes a returning caller by the telephone number the network provides, never by what the caller says. Before it shares appointment details it asks for the name on the booking and the date, and before it cancels or moves a booking it asks for the booking's confirmation code. After three failed checks in one call it takes a message instead.
+
+2.4 Each call produces a record for the Customer: the numbers, time and length of the call, what the AI Receptionist did, a written summary and a transcript.
+
+### 3. Disclosure to callers
+
+3.1 **AI disclosure on every call.** At the start of every call, the AI Receptionist tells the caller that it is an AI receptionist for the Customer, using the name the Customer has chosen. The default greeting is: "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"
+
+3.2 **Customer greetings.** A Customer may change its greeting but may not remove the AI disclosure. The Services check this on the server, and where a custom greeting leaves the disclosure out, the disclosure is added in the caller's language.
+
+3.3 **If asked.** If a caller asks whether they are speaking with a person, the AI Receptionist says that it is an AI assistant. It never pretends to be human.
+
+3.4 **Customer notices.** The Customer must also tell its End Users, in its own privacy notice and where the law requires, that it uses an AI receptionist and service providers to handle calls and messages.
+
+### 4. Call recording and consent
+
+4.1 **Off by default.** Call recording is off for every Customer by default. Zella Voice makes recording available only after recording consent rules and caller disclosures have been legally reviewed and Zella Voice has recorded that approval.
+
+4.2 **Notice when recording is on.** When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer must not remove that notice.
+
+4.3 **Customer responsibility.** The Customer is solely responsible for deciding whether to record calls and for complying with every law that applies to recording, including laws in states that require the consent of all parties to a call, and laws that apply where the caller is located. Where the law requires consent rather than notice, the Customer must ensure that consent is obtained before recording continues.
+
+4.4 **Transcripts.** Calls are transcribed so that the Customer can see what was said and so that a summary can be written. Transcripts are visible only to owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
+
+4.5 **Retention.** Recordings and transcripts are deleted 90 days after the call, as described in the Zella Voice Privacy Policy and the Zella Voice Data Processing Addendum.
+
+### 5. Outbound calls and messages
+
+5.1 Outbound AI calls to new leads and AI callbacks to missed callers are Live Features. They are off unless Zella Voice has switched them on for live use and the Customer has enabled them.
+
+5.2 Before any outbound call or message, the Services check consent for that channel and purpose, opt outs, contact hours and frequency limits. A lead without a recorded consent basis is not called or texted automatically.
+
+5.3 Where the Services leave a voicemail on an outbound call, it is short and professional and contains no sensitive information.
+
+5.4 The Customer is responsible for the consents described in section 5.4 of the Terms and for the Zella Voice Messaging Terms.
+
+### 6. Limits of the AI Receptionist
+
+6.1 **It can make mistakes.** The AI Receptionist may mishear, misunderstand or answer incompletely. Telephone and internet connections can fail. The Customer must review calls and bookings that need attention.
+
+6.2 **Truth only.** It answers only from approved knowledge and the Services' checked tools. When it does not know an answer, it says so and offers to take a message, arrange a callback or transfer the call.
+
+6.3 **Not an emergency service.** The AI Receptionist is not an emergency service. In an emergency it tells the caller to call 911 and may alert the Customer's on call contact. It does not contact emergency services itself.
+
+6.4 **No professional advice.** It does not give medical, legal, financial or safety advice.
+
+6.5 **Escalation.** It transfers early when a caller is upset or in distress, has a complaint, or after two failed attempts to help, and only to numbers the Customer has authorized. A failed transfer becomes a callback task for the Customer.
+
+6.6 **Untrusted input.** Callers cannot change its rules or permissions, make it reveal its instructions or reach another Customer's data. Attempts are declined and may be flagged as spam.
+
+6.7 **Call length and capacity.** A single call is limited to **[MAXIMUM CALL LENGTH]** minutes, after which the AI Receptionist transfers the caller or ends the call politely. If a caller says nothing for 1 minute, it ends the call politely. The number of calls each Customer can have answered at the same time is limited (10 unless set otherwise for the Customer).
+
+6.8 **Regulated Industries.** In Regulated Industries the AI Receptionist uses stricter settings: it gives no advice of any kind, it never confirms whether a person is a patient or client, and private fields are never read aloud.
+
+### 7. AI providers
+
+The AI Receptionist runs through Vapi, uses an AI model from Anthropic and uses speech providers reached through Vapi, as listed in Annex 3 of the Zella Voice Data Processing Addendum. Customer Data is never used to train AI models.
+
+### 8. Changes
+
+Zella Voice may update this Schedule under section 22 of the Terms.
+
+## Schedule 3. Content and Defamation Complaints Policy
+
+### 1. Purpose and scope
+
+1.1 Businesses that use Zella Voice ("Customers") can send texts and emails, approve replies to online reviews and configure what the AI Receptionist says. This Schedule explains how anyone can complain about such content, and what Zella Voice does. This Schedule forms part of the Zella Voice Terms of Service ("Terms"). Capitalized terms have the meanings given in section 2 of the Terms.
+
+1.2 **Customers are responsible for their content.** Each Customer is responsible for the content it provides, approves or sends in its name (Terms, section 7). Zella Voice provides the technology and does not write, review or endorse that content.
+
+1.3 **Where content appears.** Replies to reviews are published on the review site, for example Google, under the Customer's own account. Zella Voice cannot remove content from a third party site. It can stop further content being sent or published through the Services, and the Customer can edit or remove its own reply on that site.
+
+### 2. How to report content
+
+2.1 Send your complaint to **[CONTENT COMPLAINTS CONTACT]** with:
+
+- your name and contact details, and whether you act for someone else;
+- the business that sent or published the content;
+- where and when the content appeared, with a copy, screenshot or link;
+- why you believe it is unlawful, defamatory, invasive of privacy or otherwise in breach of Schedule 1 (Acceptable Use Policy), identifying the specific statements;
+- a statement that the information in your complaint is accurate to the best of your knowledge.
+
+2.2 For complaints that content infringes copyright, follow section 5 of this Schedule instead.
+
+### 3. What Zella Voice does
+
+3.1 **Acknowledgment.** Zella Voice acknowledges complaints within **[COMPLAINT ACKNOWLEDGMENT PERIOD]**.
+
+3.2 **Review.** Zella Voice reviews the complaint against the Terms and Schedule 1. Zella Voice does not decide whether a statement is true or whether it is defamatory as a matter of law; those are matters for the parties and the courts.
+
+3.3 **Action.** Where Zella Voice reasonably believes content is unlawful, defamatory, invasive of privacy or in breach of the Agreement, it may, under section 7.4 of the Terms: (a) stop the content being sent or published through the Services; (b) remove it from the Services where it is stored there; (c) suspend the related feature for the Customer; and (d) take further action under sections 16 and 17 of the Terms.
+
+3.4 **Notice to the Customer.** Zella Voice normally forwards the complaint, or a summary of it, to the Customer and asks it to respond. Zella Voice may share the complainant's name and contact details with the Customer unless the complainant asks it not to and there is a good reason, such as a risk of harm.
+
+3.5 **Outcome.** Zella Voice tells the complainant and the Customer what it has done.
+
+### 4. Counter notice from the Customer
+
+4.1 If Zella Voice has stopped, removed or restricted a Customer's content, the Customer may send a counter notice to **[CONTENT COMPLAINTS CONTACT]** explaining why it believes the content is lawful and does not breach the Agreement.
+
+4.2 Zella Voice will consider the counter notice and may restore the content or the feature. Zella Voice may keep a restriction in place where a court order, a regulator or a legal risk requires it.
+
+4.3 Nothing in this Schedule limits any right of the complainant or the Customer to go to court.
+
+### 5. Copyright complaints (DMCA)
+
+5.1 **Designated agent.** Zella Voice's designated agent for notices of claimed copyright infringement under the Digital Millennium Copyright Act is: **[DMCA DESIGNATED AGENT NAME, ADDRESS, PHONE AND EMAIL]**. **[REGISTER THE DESIGNATED AGENT WITH THE US COPYRIGHT OFFICE]**
+
+5.2 **Notice.** A notice must include, as 17 U.S.C. 512(c)(3) requires: a physical or electronic signature of the person authorized to act for the copyright owner; identification of the copyrighted work; identification of the material claimed to be infringing and information reasonably sufficient to locate it; the complainant's contact information; a statement of good faith belief that the use is not authorized by the copyright owner, its agent or the law; and a statement, under penalty of perjury, that the information is accurate and that the complainant is authorized to act for the copyright owner.
+
+5.3 **Counter notification.** A Customer whose material was removed may send a counter notification that meets 17 U.S.C. 512(g)(3). Zella Voice may then restore the material in accordance with 17 U.S.C. 512(g)(2).
+
+5.4 **Repeat infringers.** Zella Voice will terminate, in appropriate circumstances, the accounts of Customers who are repeat infringers.
+
+### 6. Misuse of this process
+
+Knowingly false complaints or counter notices may create legal liability. Zella Voice may disregard complaints that are abusive or made in bad faith.
+
+## Schedule 4. Service Level and Support Policy
+
+### 1. Scope
+
+This Schedule describes support, service status and service credits for the Services. This Schedule forms part of the Zella Voice Terms of Service ("Terms"). Capitalized terms have the meanings given in section 2 of the Terms.
+
+### 2. Support
+
+2.1 **Channels.** Owners, admins and managers can open and answer support requests in the Services under Settings, Help and support. Customers can also contact **[SUPPORT CONTACT EMAIL]**.
+
+2.2 **Hours.** Support is staffed **[SUPPORT HOURS AND TIME ZONE]**, excluding **[SUPPORT HOLIDAYS]**.
+
+2.3 **Response target.** Zella Voice aims to give a first response to every support request within 4 business hours. This is a target, not a guarantee.
+
+2.4 **Urgent requests.** Requests marked urgent, and requests about cancellation or plan changes, alert the Zella Voice team immediately.
+
+2.5 **Onboarding.** Zella Voice guides every Customer through onboarding.
+
+### 3. Service availability
+
+3.1 **No uptime commitment.** Zella Voice does not commit to a particular uptime percentage. **[PLACEHOLDER FOR OWNER DECISION: WHETHER TO PUBLISH AN UPTIME TARGET, AND IF SO WHICH]**
+
+3.2 **Status.** The status page at /status shows the status of each part of the Services and public incidents. It says that everything is working only when every part has been checked and is working.
+
+3.3 **Fallback Number.** Whenever the AI Receptionist is paused or unavailable, calls go to the Customer's Fallback Number where the telephone network allows it.
+
+### 4. Service credits
+
+4.1 **Eligibility.** If AI answering is unavailable for more than 4 hours in a calendar day because of Zella Voice or one of its providers, Customer may request a service credit of one day's Fee (the monthly Fee divided by 30) for each affected day. **[CONFIRM THE CALENDAR DAY TIME ZONE AND HOW UNAVAILABILITY IS MEASURED]**
+
+4.2 **Request.** Customer must request the credit through support within 30 days after the affected day.
+
+4.3 **Limits.** Credits apply to Customer's next invoices, have no cash value, and are capped at one month's Fee in total for any billing period. **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
+
+4.4 **Exclusions.** No credit applies to unavailability caused by: (a) Customer, its Authorized Users, its equipment, its telephone carrier or its call forwarding; (b) suspension under section 16 of the Terms; (c) Beta Features or Live Features that are switched off; (d) events beyond Zella Voice's reasonable control under section 28.3 of the Terms; or (e) scheduled maintenance announced in advance on the status page.
+
+4.5 **Sole remedy.** Service credits are Customer's sole and exclusive remedy for unavailability of the Services, as stated in section 11 of the Terms.
+
+### 5. Changes
+
+Zella Voice may update this Schedule under section 22 of the Terms.
+
+## Before publishing
+
+This section is for the owner and counsel. Remove it before publishing. The full notes, open decisions and judgment calls are in the cover memo, "Zella Voice legal document set: drafting notes for counsel".
+
+Placeholders in this document:
+
+<!-- PLACEHOLDERS START -->
+
+- **[EFFECTIVE DATE]**
+- **[LAST UPDATED DATE]**
+- **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
-- **[SUPPORT CONTACT EMAIL]** (draft 0.1 proposed support@zellavoice.com, marked "owner to confirm")
-- **[LEGAL NOTICES EMAIL OR ADDRESS]**
-- **[DATA PROCESSING ADDENDUM LOCATION]**
-- **[GOVERNING LAW AND COURTS]**
-- **[DISPUTE RESOLUTION METHOD, FOR EXAMPLE THE COURTS OF A NAMED STATE OR ARBITRATION]**
-- **[NOTICE PERIOD FOR CHANGES]**
-- **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
+- **[LEGAL DOCUMENTS LOCATION]**
+- **[SUPPORT CONTACT EMAIL]**
+- **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
-- **[COUNSEL TO CONFIRM THE LIABILITY CAP AND ANY CARVE OUTS]**
-- **[COUNSEL TO CONFIRM WHETHER ZELLA VOICE GIVES A MUTUAL INDEMNITY, FOR EXAMPLE FOR INTELLECTUAL PROPERTY CLAIMS]**
+- **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
+- **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
+- **[FLOOR AMOUNT]**
+- **[COUNSEL TO CONFIRM THE LIABILITY CAP, THE FLOOR AMOUNT, THE CARVE OUTS AND WHETHER A SEPARATE CAP FOR DATA PROTECTION CLAIMS IS NEEDED]**
+- **[GOVERNING LAW AND COURTS]**
+- **[DISPUTE RESOLUTION METHOD, FOR EXAMPLE THE COURTS OF A NAMED STATE OR ARBITRATION]**
+- **[INFORMAL RESOLUTION PERIOD]**
+- **[TIME LIMIT FOR CLAIMS]**
+- **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES FOR THE CHOSEN LAW]**
+- **[END OF OPTIONAL CLAUSE]**
+- **[NOTICE PERIOD FOR CHANGES]**
+- **[LEGAL NOTICES EMAIL OR ADDRESS]**
+- **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
+- **[CONTENT COMPLAINTS CONTACT]**
+- **[MAXIMUM CALL LENGTH]**
+- **[COMPLAINT ACKNOWLEDGMENT PERIOD]**
+- **[DMCA DESIGNATED AGENT NAME, ADDRESS, PHONE AND EMAIL]**
+- **[REGISTER THE DESIGNATED AGENT WITH THE US COPYRIGHT OFFICE]**
+- **[SUPPORT HOURS AND TIME ZONE]**
+- **[SUPPORT HOLIDAYS]**
+- **[PLACEHOLDER FOR OWNER DECISION: WHETHER TO PUBLISH AN UPTIME TARGET, AND IF SO WHICH]**
+- **[CONFIRM THE CALENDAR DAY TIME ZONE AND HOW UNAVAILABILITY IS MEASURED]**
+- **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
 
-### 25.2 Facts to confirm before these terms go live
-
-- Payments are not switched on yet: Stripe Checkout, trials with a saved card, renewals, packs, auto reload, refunds and cancellation syncing are built but off, and pay as you go charging is not built. Sections 9 and 10 describe the policy in the architecture; publish them only once billing works as described.
-- The trial (5 days, 20 minutes, 5 texts, 5 emails) is offered only when the Zella Voice team switches it on for a business; confirm the wording.
-- Usage limits that act at 100% are built but switched off; the per call limit is 20 minutes in the policy, while the live setting is 10 minutes today.
-- Call recording, the 90 day automatic deletion and the deletion of copies at Vapi are built but switched off; see the notes in the Zella Voice Privacy Policy.
-- The healthcare (HIPAA) add on is offered only after business associate agreements are in place with every provider that would handle the data; these terms make no compliance claim.
-- Messaging terms and opt in disclosures required for carrier registration, an acceptable use policy and the data processing addendum are separate documents still to be written.
+<!-- PLACEHOLDERS END -->
