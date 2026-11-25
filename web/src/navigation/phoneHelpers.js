@@ -199,12 +199,25 @@ export function createPendingStore() {
   // methods refer to `store`, never `this`, so they work when passed around on their own
   let nextToken = 0;
   const pending = new Map();   // id -> { change, view, token }: at most one waiting change per row
-  // id -> Map(field -> { value, token }): each field a sent change set, with the change it came from, so consecutive
-  // changes to one row (assigned, then resolved) all stay shown until a read that works acknowledges each of them
+  // id -> Map(field -> { value, token, acked }): each field a sent change set, with the change it came from, so
+  // consecutive changes to one row (assigned, then resolved) all stay shown until a read that works acknowledges
+  // each of them. Acknowledgement is per page (Today and Tasks both show tasks): a page's read that works hides the
+  // field for that page only (acked); the field leaves the store once every page showing rows has acknowledged it,
+  // or no page shows rows any more.
   const settled = new Map();
+  const pages = new Map();   // page -> how many mounted copies show rows now
+  const prune = () => {
+    const showing = [...pages.keys()];
+    let n = 0;
+    for (const [id, fields] of settled) {
+      for (const [k, f] of fields) if (showing.every((p) => f.acked.has(p))) { fields.delete(k); n++; }
+      if (!fields.size) settled.delete(id);
+    }
+    return n;
+  };
   const subs = new Set();
   const emit = (event) => subs.forEach((f) => f(event));
-  const settledView = (fields) => Object.fromEntries([...fields].map(([k, f]) => [k, f.value]));
+  const settledView = (fields, page) => Object.fromEntries([...fields].filter(([, f]) => !f.acked.has(page)).map(([k, f]) => [k, f.value]));
   const store = {
     has: (id) => pending.has(id),
     change: (id) => pending.get(id)?.change ?? null,
@@ -215,7 +228,7 @@ export function createPendingStore() {
       pending.delete(id);
       if (e) {
         const fields = settled.get(id) ?? new Map();
-        for (const [k, value] of Object.entries(e.view ?? {})) fields.set(k, { value, token: e.token });
+        for (const [k, value] of Object.entries(e.view ?? {})) fields.set(k, { value, token: e.token, acked: new Set() });
         settled.set(id, fields);
       }
       emit({ type: "sent", id });
@@ -228,12 +241,28 @@ export function createPendingStore() {
     clearSettled(id) { if (settled.delete(id)) emit({ type: "settled", id }); },
     // a page that has just read its list fresh: what was sent is in it now
     clearAllSettled() { if (settled.size) { settled.clear(); emit({ type: "settled" }); } },
-    // what each row shows: its settled fields, then its waiting change's fields on top
-    views() {
+    // what each row shows on a page: its settled fields that page hasn't acknowledged, then its waiting change's
+    // fields on top
+    views(page = "page") {
       const out = new Map();
-      for (const [id, fields] of settled) out.set(id, settledView(fields));
+      for (const [id, fields] of settled) {
+        const v = settledView(fields, page);
+        if (Object.keys(v).length) out.set(id, v);
+      }
       for (const [id, e] of pending) out.set(id, { ...(out.get(id) ?? {}), ...e.view });
       return out;
+    },
+    // a page that shows rows comes and goes (mounted copies are counted)
+    register(page = "page") {
+      pages.set(page, (pages.get(page) ?? 0) + 1);
+      let gone = false;
+      return () => {
+        if (gone) return;
+        gone = true;
+        const n = (pages.get(page) ?? 1) - 1;
+        if (n > 0) pages.set(page, n); else pages.delete(page);
+        if (prune()) emit({ type: "settled" });
+      };
     },
     changes() { return [...pending.values()].map((e) => e.change); },
     waiting() { return [...pending.values()].filter((e) => e.change.state === "waiting").length; },
@@ -243,14 +272,15 @@ export function createPendingStore() {
     // it has put fresh data on screen. A field settled while it ran, or set again by a newer change since (an older
     // read finishing late), is left alone.
     settledSnapshot() { return [...settled].flatMap(([id, fields]) => [...fields].map(([k, f]) => [id, k, f.token])); },
-    clearSettledSnapshot(snapshot) {
+    // a read on `page` that worked: that page stops showing these fields; a field nobody still shows leaves the store
+    clearSettledSnapshot(snapshot, page = "page") {
       let n = 0;
       for (const [id, k, token] of snapshot ?? []) {
-        const fields = settled.get(id);
-        if (fields?.get(k)?.token !== token) continue;
-        fields.delete(k); n++;
-        if (!fields.size) settled.delete(id);
+        const f = settled.get(id)?.get(k);
+        if (!f || f.token !== token || f.acked.has(page)) continue;
+        f.acked.add(page); n++;
       }
+      prune();
       if (n) emit({ type: "settled" });
     },
     // back from the back/forward cache: only the changes that went out as keepalive requests while the page was
@@ -323,4 +353,25 @@ export function createToastStore(timers = TIMERS) {
 export function panelReplacesPending(view, payload = {}) {
   if (!view) return false;
   return ("status" in view && "status" in payload) || ("assigned_to" in view && "assignedTo" in payload);
+}
+
+// The keepalive sender, with everything it touches passed in, so it can be tested: the client address and key, the
+// current access token, whether the development preview is on, the placeholder business id and fetch. In the preview,
+// or for a request about the placeholder business, nothing is sent and fetch is never called (the same rule as the
+// client's own preview handling), and the change falls back to the ordinary send.
+export function createKeepaliveSender({ getConfig, getToken, isPreview = () => false, placeholderId = null, fetchImpl }) {
+  const blocked = (body) => isPreview() || (placeholderId && JSON.stringify(body ?? {}).includes(placeholderId));
+  return {
+    ready() {
+      const c = getConfig();
+      return !isPreview() && Boolean(c?.url && c?.key && getToken() && typeof fetchImpl() === "function");
+    },
+    send(kind, name, body) {
+      if (blocked(body)) return false;
+      const req = keepaliveRequest({ ...getConfig(), token: getToken() }, kind, name, body);
+      const f = fetchImpl();
+      if (!req || typeof f !== "function") return false;
+      try { Promise.resolve(f(req.url, req.init)).catch(() => {}); return true; } catch { return false; }
+    },
+  };
 }

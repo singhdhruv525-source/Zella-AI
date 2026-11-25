@@ -362,7 +362,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       const missedOpen = (rows) => rows.filter((c) => c.status === "missed" && !c.metadata?.followed_up_at).length;
 
       if (request !== loadSeq.current) return;
-      store.clearSettledSnapshot(settledBefore);
+      store.clearSettledSnapshot(settledBefore, "today");
       setData({
         appts: appts.map((a) => ({ ...withPerson(a), forTitle: forTitle[a.record_id] })),
         prev: {
@@ -422,7 +422,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   }
   const setStatus = (a, status, done) => act(`appt-${a.id}`, () => changed(supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id)), done);
   const checkIn = (a) => act(`appt-${a.id}`, () => setCheckIn(a.id, !a.checked_in_at), a.checked_in_at ? "Undone." : `${personName(a.customer) ?? a.title}: ${cfg.arrived.toLowerCase()}.`);
-  const views = usePendingViews(store, () => { load(); });
+  const views = usePendingViews(store, () => { load(); }, "today");
   const completeTask = (t) => {
     if (!(ui.phone && ui.pending)) {
       return act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.").then((ok) => { if (ok) onTaskDone?.(); });

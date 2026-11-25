@@ -7,6 +7,7 @@ import { Pill } from "./OwnerOverview";
 import { formatDateTime, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import { businessHoursText } from "./adminAccess";
+import { readTickets } from "./admin/ticketsRead";
 import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
@@ -68,10 +69,11 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
     setLoading(true);
     setError("");
     try {
-      const next = await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {});
+      // an answer without a ticket list throws here: the catch keeps the earlier list and nothing settled is cleared
+      const next = readTickets(await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {}));
       if (mine !== request.current) return false;
       setData({ ...next, overdueOnly: overdueTab });
-      store.clearSettledSnapshot(settledBefore);
+      store.clearSettledSnapshot(settledBefore, "support");
       return true;
     } catch (err) {
       if (mine === request.current) setError(friendlyError(err));
@@ -91,7 +93,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
   useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
   // a quick change sent while this page is open: read the list again, then its shown values give way to the real ones
   // (load clears the settled values itself, only after a read that worked: a failed read keeps them)
-  const pendingViews = usePendingViews(store, () => { loadRef.current(); });
+  const pendingViews = usePendingViews(store, () => { loadRef.current(); }, "support");
   // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
   // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.
   const createRefresh = useRef(false);

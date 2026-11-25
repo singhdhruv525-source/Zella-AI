@@ -578,7 +578,8 @@ export default function OwnerDashboard({ onSignOut }) {
           )} />
       )}
       {phone && <Toast toast={toaster.toast} onDismiss={toaster.dismiss} />}
-      {phone && sheetRow && (
+      {/* fail closed: only for a signed in admin who may see businesses */}
+      {phone && authorized && can("businesses.view") && sheetRow && (
         <BusinessSheet b={sheetRow} canManage={can("businesses.manage")} onClose={() => setBizSheet(null)}
           onOpen={(id, tab) => navigate(tab ? `/businesses/${id}/${tab}` : `/businesses/${id}`)} onSetup={(id) => setWizard({ businessId: id })} />
       )}

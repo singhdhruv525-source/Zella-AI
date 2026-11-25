@@ -210,10 +210,10 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   const store = ui.pending ?? ownStore;
   // a task sent while this page is open stays hidden until the list has been read fresh: a failed refresh would
   // otherwise bring the completed or dismissed task back next to the error
-  const views = usePendingViews(store, () => { reload(); });
+  const views = usePendingViews(store, () => { reload(); }, "tasks");
   // useLoad only puts data on screen from a read that worked and wasn't overtaken: that read's snapshot is acknowledged
   // (a failed read leaves the data, and so the settled tasks, as they were)
-  useEffect(() => { if (data?.settledBefore) store.clearSettledSnapshot(data.settledBefore); }, [data, store]);
+  useEffect(() => { if (data?.settledBefore) store.clearSettledSnapshot(data.settledBefore, "tasks"); }, [data, store]);
   useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [rowMenu, setRowMenu] = useState(null);
   // done, or dismissed (cancel): both leave the list at once with Undo and are sent after the Undo window

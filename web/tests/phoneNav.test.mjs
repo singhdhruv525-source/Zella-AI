@@ -6,7 +6,7 @@ import { createScrollLock } from "../src/navigation/bodyScrollLock.js";
 import assert from "node:assert/strict";
 import { buildNavigation, flatten } from "../src/navigation/navConfig.js";
 import { MORE_TAB, PHONE_QUERY, adminTabs, badgeText, crmTabs, selectedTab, tabName } from "../src/navigation/phoneTabs.js";
-import { SIGNAL_START, adminStripFor, createPendingStore, createToastStore, keepaliveRequest, panelReplacesPending, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
+import { SIGNAL_START, adminStripFor, createKeepaliveSender, createPendingStore, createToastStore, keepaliveRequest, panelReplacesPending, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
 import {
   adminStrip, createTabMemory, crmStrip, deferChange, keyboardOpen, needsNowRows, panelDrag, panelReleaseCloses,
   pullDistance, pullReleaseRefreshes, rowDrag, rowReleaseOpens, sheetRelease, waitLabel,
@@ -500,4 +500,26 @@ test("a note or a reply never calls off a waiting Resolve or Assign; the same fi
   assert.equal(panelReplacesPending(assign, { assignedTo: "u2" }), true);
   assert.equal(panelReplacesPending(assign, { priority: "high" }), false);
   assert.equal(panelReplacesPending(null, { status: "open" }), false);
+});
+
+test("keepalive: the preview and the placeholder business never send anything; a real session does", () => {
+  const PLACEHOLDER = "00000000-0000-0000-0000-000000000000";
+  const calls = [];
+  const fetchImpl = () => (url, init) => { calls.push(url); return Promise.resolve({ ok: true, init }); };
+  const make = (preview) => createKeepaliveSender({
+    getConfig: () => ({ url: "https://example.supabase.co", key: "publishable-key" }), getToken: () => "user-token",
+    isPreview: () => preview, placeholderId: PLACEHOLDER, fetchImpl,
+  });
+  const preview = make(true);
+  assert.equal(preview.ready(), false, "the preview is never ready, so the browser asks instead");
+  assert.equal(preview.send("rpc", "zella_complete_task", { p_task_id: "t1" }), false);
+  const live = make(false);
+  assert.equal(live.send("function", "owner-provision-business", { action: "ticket_update", business_id: PLACEHOLDER }), false, "about the placeholder business");
+  assert.deepEqual(calls, [], "fetch was never called");
+  assert.equal(live.ready(), true);
+  assert.equal(live.send("rpc", "zella_complete_task", { p_task_id: "t1" }), true);
+  assert.deepEqual(calls, ["https://example.supabase.co/rest/v1/rpc/zella_complete_task"]);
+  const noToken = createKeepaliveSender({ getConfig: () => ({ url: "https://example.supabase.co", key: "k" }), getToken: () => null, fetchImpl });
+  assert.equal(noToken.ready(), false);
+  assert.equal(noToken.send("rpc", "x", {}), false);
 });

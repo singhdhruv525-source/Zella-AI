@@ -264,6 +264,7 @@ test("a numeric string too large to be a number is not a count", () => {
 test("a read that works clears only the changes settled when it started; a back/forward cache return settles sent ones", async () => {
   const timers = fakeTimers();
   const store = createPendingStore();
+  store.register();                                         // one page shows these rows
   const make = (id) => deferChange({ commit: async () => store.succeed(id), revert: () => store.drop(id), timers });
   store.add("t1", make("t1"), { status: "resolved" });
   await timers.run();                                   // t1 sent and settled
@@ -320,6 +321,7 @@ test("back from the back/forward cache: only keepalive sends settle; a normal se
 test("an older read never clears a newer settled change for the same row", async () => {
   const timers = fakeTimers();
   const store = createPendingStore();
+  store.register();                                         // one page shows these rows
   const send = (id, view) => { const c = deferChange({ commit: async () => store.succeed(id), revert: () => store.drop(id), timers }); store.add(id, c, view); return c; };
   send("st1", { status: "resolved" });
   await timers.run();
@@ -366,6 +368,7 @@ test("while any source hasn't read yet, nothing is called quiet", () => {
 test("consecutive quick changes on one row: every settled field stays shown until a read acknowledges it", async () => {
   const timers = fakeTimers();
   const store = createPendingStore();
+  store.register();                                         // one page shows these rows
   const send = (id, view) => { const c = deferChange({ commit: async () => store.succeed(id), revert: () => store.rollback(id), timers }); store.add(id, c, view); return c; };
   send("st1", { assigned_to: "u1", assignee: "me@zella.test" });
   await timers.run();                                       // assigned and sent
@@ -384,4 +387,30 @@ test("consecutive quick changes on one row: every settled field stays shown unti
   send("st2", { status: "closed" }); await timers.run();
   store.clearSettledSnapshot(old);
   assert.deepEqual(store.views().get("st2"), { status: "closed" });
+});
+
+test("acknowledgement is per page: Today's read can't clear what Tasks still shows after its read failed", async () => {
+  const timers = fakeTimers();
+  const store = createPendingStore();
+  const leaveToday = store.register("today");
+  store.register("tasks");
+  const c = deferChange({ commit: async () => store.succeed("t1"), revert: () => store.rollback("t1"), timers });
+  store.add("t1", c, { hidden: true });
+  await timers.run();                                      // sent: settled
+  const todayRead = store.settledSnapshot(), tasksRead = store.settledSnapshot();
+  store.clearSettledSnapshot(todayRead, "today");           // Today's read worked
+  // Tasks' read failed: nothing acknowledged for Tasks
+  assert.equal(store.views("today").has("t1"), false, "Today shows its fresh data");
+  assert.equal(store.views("tasks").get("t1").hidden, true, "Tasks still hides the task");
+  store.clearSettledSnapshot(tasksRead, "tasks");           // a later Tasks read works
+  assert.equal(store.views("tasks").has("t1"), false);
+  assert.deepEqual(store.settledSnapshot(), [], "acknowledged by every page showing it: gone from the store");
+  // a page that leaves without acknowledging doesn't keep an entry alive for good
+  const d = deferChange({ commit: async () => store.succeed("t2"), timers });
+  store.add("t2", d, { hidden: true });
+  await timers.run();
+  store.clearSettledSnapshot(store.settledSnapshot(), "tasks");
+  assert.equal(store.views("today").get("t2").hidden, true, "Today hasn't read yet");
+  leaveToday();
+  assert.deepEqual(store.settledSnapshot(), [], "nobody else shows it any more");
 });

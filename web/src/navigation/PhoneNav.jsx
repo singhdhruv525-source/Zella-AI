@@ -339,7 +339,8 @@ export async function sendWaitingChanges(store) {
 }
 
 // A page's view of the store: redrawn on every change; `onSent(id)` runs for a change sent while the page is open.
-export function usePendingViews(store, onSent) {
+// page: which page this is ("today", "tasks", "support"); its reads acknowledge settled changes for it only.
+export function usePendingViews(store, onSent, page = "page") {
   const [, setVersion] = useState(0);
   const latest = useRef(onSent);
   useLayoutEffect(() => { latest.current = onSent; });
@@ -347,5 +348,6 @@ export function usePendingViews(store, onSent) {
     setVersion((n) => n + 1);
     if (event.type === "sent") latest.current?.(event.id);
   }), [store]);
-  return store ? store.views() : new Map();
+  useEffect(() => store?.register(page), [store, page]);
+  return store ? store.views(page) : new Map();
 }
