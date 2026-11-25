@@ -14,6 +14,17 @@ Approved by the owner on 25 Nov 2026 (A41, C33, C36, C39, C45). Details: the adm
 | Admin Settings, Reporting configuration, empty answer | the page crashed | "Couldn't load this: The server didn't answer." with Try again | S62 |
 | Settings, Billing, Auto reload, a resource with no packs | the page crashed when the list was missing | "No packs of texts are on offer right now, so there is nothing to reload with. Ask Zella Voice support." (per resource) | CRM audit, section 4 |
 
+## 25 November 2026: admin pages polish
+
+Admin dashboard only (owner approved, `docs/DESIGN_SYSTEM.md` "Admin pages polish").
+
+| Where | Before | After | Why |
+|---|---|---|---|
+| Admin buttons (Refresh, New ticket, New offer, Add admin, Back, Close, wizard Back and Continue, ticks) | "↻ Refresh", "＋ New ticket", "← Businesses", "×", "✓", "Save & continue →" | Same words with real icons | Typed symbols replaced by the icon set |
+| Business, Phone & integrations | "Fallback number, where calls go when the AI receptionist can't take them: not set." under the card | "Fallback number: Not set" as the Phone numbers card's last row, with "Where calls go when the AI receptionist can't take them" under it | One place for the numbers |
+| Audit logs, an opened entry | The raw before and after records | What changed, in words (field, before, after; "No field changed in this entry." when nothing did), the raw record under "Show raw record" | Readable first |
+| Integrations, requests table | "✓ Website" | "Website" with a green dot | No typed ticks |
+
 ## 25 November 2026: admin dashboard polish
 
 Admin dashboard only (owner approved, `docs/DESIGN_SYSTEM.md` "Admin polish"). No words added or removed.

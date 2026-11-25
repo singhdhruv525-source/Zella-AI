@@ -2218,6 +2218,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
 | Admin dashboard polish (25 Nov) | 21 admin dashboard design changes approved: polish only, Glass and the brand kept, admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin polish" |
+| Admin pages polish (25 Nov) | Every admin page except Overview ("yes to all A and C", items A1 to A59 without the phone items): real icons, the approved weights, no text under 12px, neutral notes, number colours as a small dot, corner steps, calm wizard motion, quiet row danger buttons, readable audit changes. Polish only: features, sections and their order stay; admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin pages polish" |
 
 ### 23.3 Rulebook alignment
 

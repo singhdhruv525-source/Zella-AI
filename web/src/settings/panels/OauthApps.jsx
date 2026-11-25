@@ -1,4 +1,5 @@
 import { callOwnerFunction } from "../../CreateBusinessWizard";
+import { Icon } from "../../BusinessUI";
 import { Card, LoadState, Needs, Pill, useAsync } from "../SettingsKit";
 
 // Settings, OAuth applications (SET-OAUTH-CHECKS): whether the Google and Microsoft calendar app keys are set as server
@@ -23,7 +24,7 @@ export default function OauthApps() {
               const ok = set.get(id) && set.get(secret);
               return (
                 <li key={name} className={ok ? "ok" : ""} data-oauth-app={name}>
-                  <span className="zs-check-marker" aria-hidden="true">{ok ? "✓" : ""}</span>
+                  <span className="zs-check-marker" aria-hidden="true">{ok && <Icon name="check" size="sm" />}</span>
                   <span title={`Secrets ${id} and ${secret}`}><strong>{name}</strong>
                     <small>{ok ? "Client ID and secret are set" : set.get(id) || set.get(secret) ? `${set.get(id) ? "Client secret" : "Client ID"} is missing` : "Not set up: businesses can't connect this calendar yet"}</small></span>
                   <Pill tone={ok ? "success" : "warning"}>{ok ? "Set" : "Not set"}</Pill>
@@ -31,7 +32,7 @@ export default function OauthApps() {
               );
             })}
             <li className="ok" data-oauth-app="redirect">
-              <span className="zs-check-marker" aria-hidden="true">✓</span>
+              <span className="zs-check-marker" aria-hidden="true"><Icon name="check" size="sm" /></span>
               <span title="Secret CALENDAR_REDIRECT_URL"><strong>Return address after sign in</strong>
                 <small>{set.get("CALENDAR_REDIRECT_URL") ? "Set to a custom address" : "Not set, so the calendar connect function's own address is used"}</small></span>
               <Pill tone="success">{set.get("CALENDAR_REDIRECT_URL") ? "Custom" : "Default"}</Pill>

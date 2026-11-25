@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Icon } from "./BusinessUI";
 import { useDialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
@@ -7,6 +8,7 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate, formatDateTime, timeAgo } from "./ownerFormat";
 import { humanize } from "./copy/labels";
+import { statValueClass } from "./admin/adminOps";
 
 // Offers & Promotions. Every rule (eligibility, limits, approvals, start and end) is enforced in the
 // database; this page only asks for changes and shows what the database decided.
@@ -134,7 +136,7 @@ function Overlay({ title, onClose, busy, children, footer, wide }) {
       <div ref={dialogRef} tabIndex={-1} className={`owner-modal of-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="owner-modal-header of-modal-head">
           <h2>{title}</h2>
-          <button type="button" className="owner-modal-close" aria-label="Close" onClick={onClose} disabled={busy}>×</button>
+          <button type="button" className="owner-modal-close" aria-label="Close" onClick={onClose} disabled={busy}><Icon name="close" size="sm" /></button>
         </div>
         <div className="owner-modal-body">{children}</div>
         {footer && <div className="owner-modal-footer">{footer}</div>}
@@ -199,7 +201,7 @@ export default function OffersPage({ onOpenBusiness }) {
           <p>Create offers for Small, Medium and Large businesses, schedule them, and see who claimed what.</p>
         </div>
         {tab === "Offers" && (
-          <button type="button" className="owner-primary-button" onClick={() => setEditing({})}>＋ New offer</button>
+          <button type="button" className="owner-primary-button" onClick={() => setEditing({})}><Icon name="add" size="sm" />New offer</button>
         )}
       </div>
 
@@ -1148,7 +1150,7 @@ function Stat({ label, value, note }) {
   return (
     <div className="owner-stat-card">
       <div className="owner-stat-label">{label}</div>
-      <div className="owner-stat-value">{value}</div>
+      <div className={statValueClass(value)}>{value}</div>
       <div className="owner-stat-note">{note}</div>
     </div>
   );

@@ -124,7 +124,7 @@ export default function UsersAccess() {
         </div>
         {isOwner && (
           <button type="button" className="owner-primary-button" onClick={() => setInviting(true)} disabled={busy}>
-            ＋ Add admin
+            <Icon name="add" size="sm" />Add admin
           </button>
         )}
       </div>

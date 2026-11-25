@@ -140,7 +140,7 @@ export default function IndustryRecords({ industryId, industryName }) {
                           <button type="button" className="wiz-link-danger" onClick={() => setType(i, { fields: t.fields.filter((_, n) => n !== j), columns: t.columns.filter((c) => c !== (f.key || keyFrom(f.label))) })}>Remove</button>
                         </div>
                       ))}
-                      <button type="button" className="owner-secondary-button" onClick={() => setType(i, { fields: [...t.fields, { key: "", label: "", type: "text", optionsText: "" }] })}>＋ Add field</button>
+                      <button type="button" className="owner-secondary-button" onClick={() => setType(i, { fields: [...t.fields, { key: "", label: "", type: "text", optionsText: "" }] })}><Icon name="add" size="sm" />Add field</button>
                     </div>
 
                     <h4 className="ir-sub">Statuses</h4>
@@ -157,7 +157,7 @@ export default function IndustryRecords({ industryId, industryName }) {
                           <button type="button" className="wiz-link-danger" disabled={t.statuses.length < 2} onClick={() => setType(i, { statuses: t.statuses.filter((_, n) => n !== j) })}>Remove</button>
                         </div>
                       ))}
-                      <button type="button" className="owner-secondary-button" onClick={() => setType(i, { statuses: [...t.statuses, { key: "", label: "", tone: "" }] })}>＋ Add status</button>
+                      <button type="button" className="owner-secondary-button" onClick={() => setType(i, { statuses: [...t.statuses, { key: "", label: "", tone: "" }] })}><Icon name="add" size="sm" />Add status</button>
                     </div>
 
                     <div className="ir-type-foot">
@@ -174,7 +174,7 @@ export default function IndustryRecords({ industryId, industryName }) {
           </div>
 
           <div className="ir-actions">
-            <button type="button" className="owner-secondary-button" disabled={types.length >= 12} onClick={() => { setTypes([...types, blankType()]); setOpen(types.length); }}>＋ Add record type</button>
+            <button type="button" className="owner-secondary-button" disabled={types.length >= 12} onClick={() => { setTypes([...types, blankType()]); setOpen(types.length); }}><Icon name="add" size="sm" />Add record type</button>
             <span className="ir-grow" />
             <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setTypes(withEditState(data.types))}>Discard</button>
             <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save record types"}</button>

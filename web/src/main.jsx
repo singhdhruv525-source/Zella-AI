@@ -12,6 +12,8 @@ import './styles/brand.css'
 // Motion for every page in both apps: buttons, cards, tabs, rows and popups (off with reduced motion).
 import './styles/motion.css'
 import './styles/motion.js'
+// Admin pages polish (owner approved 25 Nov 2026): admin only, loaded last so it wins ties.
+import './styles/admin-polish.css'
 import { startAppearance } from './appearance'
 import { ErrorBoundary } from './BusinessUI'
 

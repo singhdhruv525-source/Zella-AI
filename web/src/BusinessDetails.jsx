@@ -100,7 +100,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
   if (error && !data) {
     return (
       <section className="owner-page">
-        <button type="button" className="op-back" onClick={onBack}>← Businesses</button>
+        <button type="button" className="op-back" onClick={onBack}><Icon name="arrow_back" size="sm" />Businesses</button>
         <div className="owner-form-error">Could not load this business: {error}</div>
         <button type="button" className="owner-secondary-button op-gap-top" onClick={load}>Try again</button>
       </section>
@@ -199,7 +199,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
 
   return (
     <section className="owner-page">
-      <button type="button" className="op-back" onClick={onBack}>← Businesses</button>
+      <button type="button" className="op-back" onClick={onBack}><Icon name="arrow_back" size="sm" />Businesses</button>
 
       <div className="owner-page-heading">
         <div>
@@ -213,7 +213,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
         </div>
         <div className="op-heading-actions">
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : "↻ Refresh"}
+            {loading ? "Loading..." : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
           {!isCancelled && canManage && (
             // BIZ-06: setup can't be finished while suspended (the server refuses too). COM-04 option B: on a live

@@ -26,7 +26,8 @@ const plural = (n, word) => `${countText(n) || 0} ${word}${Number(n) === 1 ? "" 
 // The phone and voice checks come from the connection state: when it isn't available they are unknown, not missing.
 const CONNECTION_CHECKS = new Set(["phone", "voice"]);
 
-// "3 of 5 set" with a five segment meter, and what is missing on one muted line (the full list is in the title).
+// "3 of 5 set" and what is missing on a muted line that wraps (the full list is in the title). The words alone carry it:
+// the row of dots was removed (owner approved 25 Nov 2026).
 function SetupCell({ checks, available = true }) {
   const known = CHECKS.filter(([key]) => available || !CONNECTION_CHECKS.has(key));
   const done = known.filter(([key]) => checks?.[key]);
@@ -37,12 +38,8 @@ function SetupCell({ checks, available = true }) {
     <div className="ag-setup" title={detail}>
       <div className="ag-setup-top">
         <span className="ag-setup-count">{done.length} of {CHECKS.length} set</span>
-        <span className="ag-meter" role="meter" aria-valuemin={0} aria-valuemax={CHECKS.length} aria-valuenow={done.length}
-          aria-label={`${done.length} of ${CHECKS.length} setup checks done`}>
-          {CHECKS.map(([key], i) => <span key={key} className={i < done.length ? "on" : ""} />)}
-        </span>
       </div>
-      <span className="ag-line">
+      <span className="ag-line ag-setup-missing">
         {missing.length ? `Missing: ${missing.map(([, word]) => word).join(", ")}` : unknown ? "Everything else set" : "Everything set"}
         {unknown ? `${missing.length ? "; " : ". "}phone and voice not available` : ""}
       </span>

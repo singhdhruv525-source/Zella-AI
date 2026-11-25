@@ -171,6 +171,12 @@ most often needed:
   ripple), which supersedes the 6 Nov lively motion rule for the admin only. Details in `docs/DESIGN_SYSTEM.md`
   "Admin polish"; architecture §23.1d.
 
+- **Admin pages polish (owner, 25 Nov 2026):** the owner approved the admin items for every page except Overview
+  ("yes to all A and C"). Built in one pull request: A1, A6 to A13, A22 to A24, A33, A35, A37, A39, A44 to A49, A51,
+  A54, A55, A57, A59 (`web/src/styles/admin-polish.css`, loaded last and scoped to `.owner-app`, so the CRM does not
+  change). The admin phone items (A27 to A30, A32, A53) wait for the phone navigation pull request (#122). Details in
+  `docs/DESIGN_SYSTEM.md` "Admin pages polish"; architecture §23.1d.
+
 - **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
   chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:
   - **No notification preferences page (28 Oct 2026):** pop ups, desktop notifications and urgent texts are on by

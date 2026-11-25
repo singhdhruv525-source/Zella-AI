@@ -146,13 +146,24 @@ export function Tabs({ tabs, current, onChange }) {
   );
 }
 
+// A stat card's value class: "Not available" (no trustworthy number) is shown in the small note size, never as a
+// 32px figure (owner approved 25 Nov 2026, A10).
+export const statValueClass = (value) => ["owner-stat-value", value === "Not available" ? "is-na" : ""].join(" ").trim();
+
+// One quiet status in words with a small coloured dot before it (owner approved 25 Nov 2026): the word carries the
+// meaning, the dot backs it up. Tones: success, warning, danger, info, neutral.
+export function DotText({ tone = "neutral", children, className = "" }) {
+  return <span className={`ao-dot-text ${className}`.trim()}><span className={`ao-dot ${tone}`} aria-hidden="true" />{children}</span>;
+}
+
 // One KPI card: label, value, one line of note. A card that filters the list is a real button (onClick), with a
-// chevron, a hover border and the focus ring; `pressed` marks the filter it applies as on.
+// chevron, a hover border and the focus ring; `pressed` marks the filter it applies as on. A warning or danger tone
+// puts a small coloured dot before the label; the figure keeps the text colour.
 export function Metric({ label, value, note, tone, onClick, pressed }) {
   const body = (
     <>
       <div className="owner-stat-top"><span>{label}</span>{onClick && <Icon name="chevron_right" size="sm" className="owner-stat-chev" />}</div>
-      <div className="owner-stat-value">{value}</div>
+      <div className={statValueClass(value)}>{value}</div>
       {note && <div className="owner-stat-note" title={typeof note === "string" ? note : undefined}>{note}</div>}
     </>
   );

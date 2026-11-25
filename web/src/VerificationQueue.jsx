@@ -143,7 +143,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
           <p>Documents that prove each business is real and that the person who registered it may act for it.</p>
         </div>
         <div className="op-heading-actions">
-          <button type="button" className="owner-secondary-button" onClick={() => { setRefreshes((n) => n + 1); load(); }} disabled={loading}>{loading ? "Loading..." : "↻ Refresh"}</button>
+          <button type="button" className="owner-secondary-button" onClick={() => { setRefreshes((n) => n + 1); load(); }} disabled={loading}>{loading ? "Loading..." : <><Icon name="refresh" size="sm" />Refresh</>}</button>
         </div>
       </div>
 
