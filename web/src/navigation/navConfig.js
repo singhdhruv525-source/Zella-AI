@@ -34,7 +34,7 @@ export const NAV_GROUPS = [
   { id: "crm", label: "CRM" },
   { id: "operations", label: null }, // named by the industry configuration
   { id: "communications", label: "Communications" },
-  { id: "ai", label: "AI & automation" },
+  { id: "ai", label: "AI and automation" },
   { id: "growth", label: "Business growth" },
   { id: "management", label: "Management" },
 ];
@@ -49,7 +49,7 @@ export const NAV_ITEMS = [
   { id: "recurring", group: "workspace", order: 28, label: "Recurring visits", icon: "event_repeat", page: "recurring", capability: "scheduling" },
   { id: "checkins", group: "workspace", order: 30, label: "Check ins", icon: "how_to_reg", page: "checkins", capability: "checkins" },
   { id: "waitlist", group: "workspace", order: 40, label: "Waitlist", icon: "hourglass_top", page: "waitlist", module: "calendar", capability: "waitlist" },
-  { id: "tasks", group: "workspace", order: 50, label: "Tasks & follow ups", icon: "task_alt", page: "tasks" },
+  { id: "tasks", group: "workspace", order: 50, label: "Tasks and follow ups", icon: "task_alt", page: "tasks" },
   // Release 3 (sql/zella_record_workflows.sql): approvals waiting, dates coming up and problems holding work up, on any record
   { id: "follow", group: "workspace", order: 52, label: "Follow through", icon: "fact_check", page: "follow" },
 
@@ -58,7 +58,7 @@ export const NAV_ITEMS = [
   { id: "money", group: "crm", order: 30, label: "Money", icon: "payments", page: "money", capability: "money", capabilityRequired: true, roles: WORK_ROLES },
 
   {
-    id: "calls-messages", group: "communications", order: 10, label: "Calls & messages", icon: "forum", badge: "attention",
+    id: "calls-messages", group: "communications", order: 10, label: "Calls and messages", icon: "forum", badge: "attention",
     children: [
       { id: "attention", label: "Needs attention", icon: "support_agent", page: "attention", badge: "attention" },
       { id: "inbox", label: "Inbox", icon: "inbox", page: "inbox" },
@@ -72,7 +72,7 @@ export const NAV_ITEMS = [
   },
 
   {
-    id: "ai-receptionist", group: "ai", order: 10, label: "AI Receptionist", icon: "record_voice_over", module: "ai-receptionist",
+    id: "ai-receptionist", group: "ai", order: 10, label: "AI receptionist", icon: "record_voice_over", module: "ai-receptionist",
     children: [
       { id: "receptionist", label: "Voice and setup", icon: "settings_voice", page: "receptionist" },
       { id: "transcripts", label: "Transcripts", icon: "insights", page: "transcripts", module: "calls" },
@@ -84,10 +84,10 @@ export const NAV_ITEMS = [
 
   { id: "lead-sources", group: "growth", order: 10, label: "Lead sources", icon: "hub", page: "lead-sources" },
   { id: "reviews", group: "growth", order: 15, label: "Reviews", icon: "rate_review", page: "reviews", roles: LEAD_ROLES },
-  { id: "reports", group: "growth", order: 20, label: "Reports & analytics", icon: "monitoring", page: "reports" },
+  { id: "reports", group: "growth", order: 20, label: "Reports and analytics", icon: "monitoring", page: "reports" },
 
   {
-    id: "team-staff", group: "management", order: 10, label: "Team & staff", icon: "badge",
+    id: "team-staff", group: "management", order: 10, label: "Team and staff", icon: "badge",
     children: [
       { id: "team", label: (term) => term("staff_plural"), icon: "groups", page: "team" },
       { id: "scorecards", label: "Scorecards", icon: "leaderboard", page: "scorecards" },

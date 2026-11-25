@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Icon } from "./BusinessUI";
 import { useDialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
@@ -6,7 +7,9 @@ import { supabase } from "./supabase";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Pill } from "./OwnerOverview";
 import { formatDate, formatDateTime, timeAgo } from "./ownerFormat";
+import { formatWallTime } from "./lib/format";
 import { humanize } from "./copy/labels";
+import { statValueClass } from "./admin/adminOps";
 
 // Offers & Promotions. Every rule (eligibility, limits, approvals, start and end) is enforced in the
 // database; this page only asks for changes and shows what the database decided.
@@ -95,7 +98,7 @@ const ERRORS = {
 function friendly(error) {
   const msg = String(error?.message ?? error ?? "");
   const key = Object.keys(ERRORS).find((k) => msg.includes(k));
-  return key ? ERRORS[key] : msg || "Something went wrong. Please try again.";
+  return key ? ERRORS[key] : msg || "That didn't work. Check your connection and try again.";
 }
 
 async function rpc(fn, args) {
@@ -134,7 +137,7 @@ function Overlay({ title, onClose, busy, children, footer, wide }) {
       <div ref={dialogRef} tabIndex={-1} className={`owner-modal of-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="owner-modal-header of-modal-head">
           <h2>{title}</h2>
-          <button type="button" className="owner-modal-close" aria-label="Close" onClick={onClose} disabled={busy}>×</button>
+          <button type="button" className="owner-modal-close" aria-label="Close" onClick={onClose} disabled={busy}><Icon name="close" size="sm" /></button>
         </div>
         <div className="owner-modal-body">{children}</div>
         {footer && <div className="owner-modal-footer">{footer}</div>}
@@ -199,16 +202,14 @@ export default function OffersPage({ onOpenBusiness }) {
           <p>Create offers for Small, Medium and Large businesses, schedule them, and see who claimed what.</p>
         </div>
         {tab === "Offers" && (
-          <button type="button" className="owner-primary-button" onClick={() => setEditing({})}>＋ New offer</button>
+          <button type="button" className="owner-primary-button" onClick={() => setEditing({})}><Icon name="add" size="sm" />New offer</button>
         )}
       </div>
 
       {list?.capabilities && !caps.billing && (
         <div className="wiz-note op-gap">
-          <strong>No payment provider connected yet.</strong> Businesses can claim offers, and each claim waits as
-          "Waiting for payment". It becomes "Paid" only when a real payment arrives from the payment provider, and
-          an unpaid claim is released after the hold period. Checkout, renewal pricing, referrals, win back and
-          promotional emails show as unavailable until their connections exist.
+          No payment provider is connected yet, so claims wait as "Waiting for payment" until a real payment arrives.
+          Checkout, renewal pricing, referrals, win back and promotional emails switch on once their connections exist.
         </div>
       )}
 
@@ -234,7 +235,7 @@ export default function OffersPage({ onOpenBusiness }) {
           </div>
 
           {list === null ? (
-            <div className="owner-loading op-gap">Loading offers...</div>
+            <div className="owner-loading op-gap">Loading offers…</div>
           ) : list.failed ? (
             <div className="owner-empty-state op-gap">
               <strong>Offers couldn't be loaded.</strong>
@@ -242,8 +243,9 @@ export default function OffersPage({ onOpenBusiness }) {
             </div>
           ) : offers.length === 0 ? (
             <div className="owner-empty-state op-gap">
-              <strong>No offers here.</strong>
+              <strong>{filter === "all" ? "No offers yet." : "No offers here."}</strong>
               <p>Create an offer to reward a group of businesses, or apply a negotiated deal to one business.</p>
+              <div><button type="button" className="owner-secondary-button op-small" onClick={() => setEditing({})}>New offer</button></div>
             </div>
           ) : (
             <div className="owner-table-wrap op-gap" tabIndex={0}>
@@ -341,7 +343,7 @@ function OfferEditor({ offerId, caps, lookups, onClose, onSaved }) {
   }, [offerId]);
 
   if (!f) {
-    return <Overlay title="Edit offer" onClose={onClose}><p className="op-muted">{error || "Loading..."}</p></Overlay>;
+    return <Overlay title="Edit offer" onClose={onClose}><p className="op-muted">{error || "Loading…"}</p></Overlay>;
   }
 
   function buildPayload() {
@@ -385,7 +387,7 @@ function OfferEditor({ offerId, caps, lookups, onClose, onSaved }) {
   const footer = (
     <>
       <button type="button" className="owner-secondary-button" onClick={onClose} disabled={busy}>Cancel</button>
-      <button type="submit" form="offer-form" className="owner-primary-button" disabled={busy || !f.name.trim()}>{busy ? "Saving..." : "Save"}</button>
+      <button type="submit" form="offer-form" className="owner-primary-button" disabled={busy || !f.name.trim()}>{busy ? "Saving…" : "Save"}</button>
     </>
   );
 
@@ -594,7 +596,7 @@ function EligibilityEditor({ match, rules, lookups, onChange }) {
         if (!field) return;
         onChange(match, [...rules, field === "first_purchase" || field === "never_redeemed" ? { field, value: true } : { field, values: [] }]);
       }}>
-        <option value="">＋ Add a rule...</option>
+        <option value="">Add a rule</option>
         {Object.entries(RULE_FIELDS).filter(([k]) => !used.has(k)).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
       </select>
     </div>
@@ -694,7 +696,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
     }
   }
 
-  if (!data) return <Overlay title="Offer" onClose={onClose}><p className="op-muted">{error || "Loading..."}</p></Overlay>;
+  if (!data) return <Overlay title="Offer" onClose={onClose}><p className="op-muted">{error || "Loading…"}</p></Overlay>;
   const o = data.offer;
   const s = o.status;
   const canApprove = isOwner && s === "pending_approval";
@@ -721,7 +723,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
         {o.description && <p>{o.description}</p>}
 
         <dl className="op-facts">
-          <div><dt>Runs</dt><dd>{o.start_local ? `${o.start_local.replace("T", " ")} → ${o.end_local.replace("T", " ")} (${o.timezone})` : "Not scheduled"}</dd></div>
+          <div><dt>Runs</dt><dd>{o.start_local ? `${formatWallTime(o.start_local)} to ${formatWallTime(o.end_local)} (${o.timezone})` : "Not scheduled"}</dd></div>
           <div><dt>Limits</dt><dd>{o.max_redemptions ? `${o.max_redemptions} claims in total` : "No total limit"}, {o.max_per_business} per business{o.stackable ? ", can be combined" : ""}</dd></div>
           <div><dt>Who can get it</dt><dd>{describeEligibility(o.eligibility, lookups)}</dd></div>
           <div><dt>Where</dt><dd>{(o.channels ?? []).map((c) => CHANNELS.find((x) => x[0] === c)?.[1] ?? c).join(", ")}</dd></div>
@@ -773,7 +775,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={() => { setAsk(null); setNote(""); }} disabled={busy}>Go back</button>
               <button type="button" className={ask.danger ? "bd-danger-button" : "owner-primary-button"} disabled={busy || (ask.needsNote && !note.trim())}
-                onClick={() => act(ask.action, note)}>{busy ? "Working..." : ask.label}</button>
+                onClick={() => act(ask.action, note)}>{busy ? "Working…" : ask.label}</button>
             </div>
           </div>
         )}
@@ -786,7 +788,7 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
               <label className="owner-field">
                 <span>Business</span>
                 <select value={applyTo} onChange={(e) => setApplyTo(e.target.value)}>
-                  <option value="">Choose...</option>
+                  <option value="">Choose</option>
                   {lookups.businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </label>
@@ -934,7 +936,7 @@ export function RulesTab({ onChanged }) {
     }
   }
 
-  if (!data) return <div className="owner-loading op-gap">{error || "Loading rules..."}</div>;
+  if (!data) return <div className="owner-loading op-gap">{error || "Loading rules…"}</div>;
 
   return (
     <div className="op-gap">
@@ -942,7 +944,7 @@ export function RulesTab({ onChanged }) {
         {data.scheduler_on
           ? `The schedule runs every 5 minutes. Last run ${data.last_run ? timeAgo(data.last_run.started_at) : "not yet"}.`
           : "The automatic schedule isn't switched on yet (it starts at go live). Until then, offers go live and end when you press Run now, when an admin changes an offer, or when someone tries to claim one after it has ended."}
-        {" "}<button type="button" className="op-link" onClick={runNow} disabled={busy === "run"}>{busy === "run" ? "Running..." : "Run now"}</button>
+        {" "}<button type="button" className="op-link" onClick={runNow} disabled={busy === "run"}>{busy === "run" ? "Running…" : "Run now"}</button>
       </div>
       {!data.is_owner && <p className="op-muted">Only a Zella Voice owner can change these rules.</p>}
       {error && <div className="owner-form-error" role="alert">{error}</div>}
@@ -1021,10 +1023,10 @@ export function MonitorTab({ onOpenOffer }) {
         {[["all", "All runs"], ["failed", "Failed"], ["succeeded", "Succeeded"], ["retried", "Retried"], ["pending", "Running"]].map(([k, l]) => (
           <button key={k} type="button" className={`of-chip ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
         ))}
-        <button type="button" className="owner-secondary-button op-small" onClick={retry} disabled={busy}>{busy ? "Retrying..." : "Retry now"}</button>
+        <button type="button" className="owner-secondary-button op-small" onClick={retry} disabled={busy}>{busy ? "Trying again…" : "Try again now"}</button>
       </div>
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
-      {!data ? <div className="owner-loading op-gap">Loading...</div> : (
+      {!data ? <div className="owner-loading op-gap">Loading…</div> : (
         <>
           {data.failures.length > 0 && (
             <div className="owner-panel op-gap of-pad">
@@ -1148,7 +1150,7 @@ function Stat({ label, value, note }) {
   return (
     <div className="owner-stat-card">
       <div className="owner-stat-label">{label}</div>
-      <div className="owner-stat-value">{value}</div>
+      <div className={statValueClass(value)}>{value}</div>
       <div className="owner-stat-note">{note}</div>
     </div>
   );

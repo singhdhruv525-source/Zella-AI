@@ -131,9 +131,9 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
 
   return (
     <>
-      <PageHead crumb="Service" title="Tables" sub={data ? `${data.today ? "Now" : "Planned"} · ${tables.length} table${tables.length === 1 ? "" : "s"}` : "Live seating"}>
+      <PageHead crumb="Workspace / Tables" title="Tables" sub={data ? `${data.today ? "Now" : "Planned"}, ${tables.length} table${tables.length === 1 ? "" : "s"}` : "Live seating"}>
         {canEdit && <button type="button" className="ba-btn" onClick={() => onBook?.()}><Icon name="event" size="sm" />Reservation</button>}
-        {canEdit && data?.today && <button type="button" className="ba-btn primary" onClick={() => setModal({ kind: "walk_in" })}><Icon name="directions_walk" size="sm" />walk in</button>}
+        {canEdit && data?.today && <button type="button" className="ba-btn primary" onClick={() => setModal({ kind: "walk_in" })}><Icon name="directions_walk" size="sm" />Walk in</button>}
       </PageHead>
 
       <div className="tb-filters" role="group" aria-label="Filters">
@@ -161,7 +161,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
       {board.loading && !data ? <div className="tb-loading" aria-busy="true">Loading tables…</div> : !data ? null : !(data.tables ?? []).length ? (
         <Empty title="No tables yet" icon="table_restaurant">
           {["owner", "admin", "manager"].includes(workspace.role)
-            ? <>Add your tables in Settings → Tables and seating. Until then reservations work as before.</>
+            ? <>Add your tables in Settings, Tables and seating. Until then reservations work as before.</>
             : <>An owner or manager adds the tables in Settings.</>}
         </Empty>
       ) : (
@@ -369,8 +369,8 @@ function WaitlistPanel({ entries, canEdit, working, onAdd, onSeat, onRemove }) {
   return (
     <section className="ba-panel tb-wait" aria-label="Waitlist">
       <div className="ba-panel-head"><div><h2>Waitlist</h2><p>{entries.length} waiting</p></div>
-        {canEdit && <button type="button" className="ba-btn sm" onClick={onAdd}><Icon name="add" size="sm" />Add</button>}</div>
-      {!entries.length ? <Empty title="Nobody is waiting" icon="hourglass_empty" /> : (
+        {canEdit && <button type="button" className="ba-btn sm" onClick={onAdd}><Icon name="playlist_add" size="sm" />Add to waitlist</button>}</div>
+      {!entries.length ? <Empty title="Nobody is waiting" icon="hourglass_empty">{canEdit && <div className="ba-empty-actions"><button type="button" className="ba-btn sm" onClick={onAdd}><Icon name="playlist_add" size="sm" />Add to waitlist</button></div>}</Empty> : (
         <ul className="tb-mini">
           {entries.map((w) => (
             <li key={w.id}>
@@ -605,12 +605,12 @@ export function TableSetup({ workspace, onNotice }) {
       </section>
 
       <section className="ba-panel">
-        <div className="ba-panel-head"><div><h2>Seating rules</h2><p>Set in Receptionist → Booking rules, which the AI and the CRM both follow.</p></div></div>
+        <div className="ba-panel-head"><div><h2>Seating rules</h2><p>Set in AI receptionist, Appointment booking, which the AI and the CRM both follow.</p></div></div>
         <ul className="tb-mini">
           <li>Table time: {data.duration_minutes} minutes (the usual reservation length)</li>
           <li>Reset between parties: {data.buffer_minutes} minutes (the gap between bookings)</li>
           <li>Largest party the AI books itself: {data.max_party_ai || "none yet"}; larger parties go to the team</li>
-          <li>Opening hours and holidays: Settings → Hours and holidays</li>
+          <li>Opening hours and holidays: Settings, Business hours</li>
         </ul>
       </section>
     </div>

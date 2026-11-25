@@ -15,6 +15,7 @@ import RecordingPolicy from "./panels/RecordingPolicy";
 import DataRetention from "./panels/DataRetention";
 import { NO_ANSWER, figureRows, readWeeklyReports, reportError, scheduleFacts, weekLabel } from "./weeklyReport";
 
+
 // Admin Settings content. Every panel reads and writes through the
 // owner-provision-business function, which checks the admin's role and
 // permission first; buttons the role can't use are hidden, and the server
@@ -69,10 +70,10 @@ export function Branding({ me }) {
     <>
       <LoadState state={state}>{(d) => <BrandingForm initial={d.branding} canEdit={can(me, "platform.configure")} />}</LoadState>
       <Needs title="Themes, accent color, typography, density and dashboard layout aren't adjustable yet"
-        have="Zella Voice uses one fixed theme (Oat & Slate). Making it adjustable needs a theme layer that reads saved settings instead of fixed CSS. Each business's branding stays its own either way.">
-        These would change the look for every admin and business, so they need that theme layer first.
+        have="Each admin picks Zella Voice, Classic or Glass for themselves under Appearance. A platform wide theme needs its own setting first.">
+        These would change the look for every admin and business. Each business's branding stays its own either way.
       </Needs>
-      <Needs title="Email branding isn't adjustable yet" have="Emails are plain text with a simple layout (sql/zella_owner_emails.sql).">
+      <Needs title="Email branding isn't adjustable yet" have="Emails are plain text with a simple layout.">
         Branded emails need an HTML template that reads the platform logo and colors.
       </Needs>
     </>
@@ -87,7 +88,7 @@ function BrandingForm({ initial, canEdit }) {
       {!canEdit && <Banner tone="warn">{ROLE_NOTE}</Banner>}
       <div className="zs-cols">
         <div>
-          <Field label="sign in page headline" hint="Optional. Shown under the logo."><input value={form.values.login_headline} onChange={form.set("login_headline")} maxLength={120} disabled={!canEdit} /></Field>
+          <Field label="Sign in page headline" hint="Optional. Shown under the logo."><input value={form.values.login_headline} onChange={form.set("login_headline")} maxLength={120} disabled={!canEdit} /></Field>
           {canEdit && (
             <p style={{ marginTop: 12 }}>
               <label className="zs-btn sm">{upload.busy ? "Uploading…" : form.values.logo_url ? "Replace logo" : "Upload logo"}
@@ -219,7 +220,7 @@ export function AllBusinesses({ openBusiness }) {
               ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
               ["Industry", (b) => b.industry ?? "None"],
               ["Status", (b) => { const [t, tone] = businessState(b); return <Pill tone={tone}>{t}</Pill>; }],
-              ["Plan", (b) => (r.subscriptionLookupFailed ? "Unavailable" : b.subscription ? `${b.subscription.plan ?? "Plan"} · ${words(b.subscription.status)}` : "None")],
+              ["Plan", (b) => (r.subscriptionLookupFailed ? "Unavailable" : b.subscription ? `${b.subscription.plan ?? "Plan"}, ${words(b.subscription.status).toLowerCase()}` : "None")],
               ["Team", (b) => b.members],
               ["Apps", (b) => (b.integrations.total ? `${b.integrations.total}${b.integrations.failing ? ` · ${b.integrations.failing} failing` : ""}` : "None")],
               ["Created", (b) => (b.created_at ? <span title={when(b.created_at)} style={{ whiteSpace: "nowrap" }}>{new Date(b.created_at).toLocaleDateString([], { dateStyle: "medium" })}</span> : "None")],
@@ -380,7 +381,7 @@ export function Administrators({ onNavigate }) {
           <Table rowKey={(a) => a.user_id} rows={d.admins.filter((a) => `${a.email} ${a.roleLabel}`.toLowerCase().includes(q.toLowerCase()))} columns={[
             ["Admin", (a) => a.email ?? a.user_id], ["Role", (a) => a.roleLabel], ["Access", (a) => (a.is_active ? <Pill tone="success">Active</Pill> : <Pill>Off</Pill>)],
             ["Two step sign in", (a) => (a.mfa ? <Pill tone="success">On</Pill> : <Pill tone="warning">Off</Pill>)],
-            ["Last sign in", (a) => when(a.last_sign_in_at)], ["Last admin action", (a) => (a.lastAction ? `${words(a.lastAction.action.replace(/\./g, " "))} · ${when(a.lastAction.created_at)}` : "None")],
+            ["Last sign in", (a) => when(a.last_sign_in_at)], ["Last admin action", (a) => (a.lastAction ? `${words(a.lastAction.action.replace(/\./g, " "))}, ${when(a.lastAction.created_at)}` : "None")],
           ]} />
         )}</LoadState>
       </Card>
@@ -451,7 +452,7 @@ export function AuthPolicies() {
           <Facts rows={[["Password rules (Zella Voice screens)", "At least 8 characters with upper and lower case letters and a number"],
             ["Two step sign in", "Authenticator apps. Admins who turn it on must use it; the server checks"],
             ["Admins without two step sign in", `${s.adminsWithoutMfa} of ${s.adminCount}`],
-            ["sign in options", "Email and password; Google, Microsoft, Apple and Okta buttons work once switched on in Supabase"],
+            ["Sign in options", "Email and password; Google, Microsoft, Apple and Okta buttons work once switched on in Supabase"],
             ["Account recovery", "Email reset link (one use)"]]} />
         )}</LoadState>
       </Card>
@@ -828,7 +829,7 @@ export function PhoneNumbers({ me }) {
     <LoadState state={state}>{([n, t]) => (
       <>
         <Card title="Phone numbers" actions={manage && <button type="button" className="zs-btn sm primary" onClick={() => setEdit({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button>}>
-          <Table rows={n.rows} empty="No numbers assigned yet." columns={[
+          <Table rows={n.rows} empty={<>No numbers yet.{manage && <> <button type="button" className="zs-btn sm" onClick={() => setEdit({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button></>}</>} columns={[
             ["Number", (r) => r.e164], ["Business", (r) => r.business_name ?? "None"], ["Label", (r) => r.label ?? "None"], ["Provider id", (r) => r.vapi_phone_number_id ? <code>{r.vapi_phone_number_id}</code> : "None"],
             ["Status", (r) => <Pill tone={r.status === "active" ? "success" : ""}>{words(r.status)}</Pill>], ["Added", (r) => when(r.created_at)],
             ["", (r) => manage && <span className="zs-actions">
@@ -1116,7 +1117,7 @@ export function Webhooks() {
   return (
     <>
       <Card title="Inbound webhooks" sub="From the n8n workflow files and edge functions in the repository. Each business's events are tied to that business on arrival.">
-        <Table rowKey={(w) => w[0]} rows={WEBHOOKS} columns={[["Endpoint", (w) => <code>{w[0]}</code>], ["Used by", (w) => w[1]], ["How it's verified", (w) => w[2]]]} />
+        <Table rowKey={(w) => w[0]} rows={WEBHOOKS} columns={[["Endpoint", (w) => <span className="zs-key">{w[0]}</span>], ["Used by", (w) => w[1]], ["How it's verified", (w) => w[2]]]} />
       </Card>
       <Needs title="Webhook delivery logs and outbound webhooks for businesses aren't built" have="Incoming events are stored once each, with failures and retries under Platform operations.">Outbound webhooks need endpoint registration, signing keys per business and a delivery log.</Needs>
     </>

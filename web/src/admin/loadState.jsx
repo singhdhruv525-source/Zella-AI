@@ -34,7 +34,7 @@ export function LoadNotice({ r, what }) {
     return (
       <div className="owner-form-error op-gap" role="alert" data-load="failed">
         Could not load {what}: {r.error}{" "}
-        <button type="button" className="op-link" onClick={r.reload} disabled={r.loading}>{r.loading ? "Retrying..." : "Retry"}</button>
+        <button type="button" className="op-link" onClick={r.reload} disabled={r.loading}>{r.loading ? "Trying again…" : "Try again"}</button>
       </div>
     );
   }
@@ -42,7 +42,7 @@ export function LoadNotice({ r, what }) {
     return (
       <div className="ic-warning op-gap op-stale" role="status" data-load="stale">
         <span>The latest refresh failed ({r.error}). Showing {what} from {clock(r.lastOk)}; it may be out of date.</span>
-        <div><button type="button" className="owner-secondary-button op-small" onClick={r.reload} disabled={r.loading}>{r.loading ? "Retrying..." : "Retry"}</button></div>
+        <div><button type="button" className="owner-secondary-button op-small" onClick={r.reload} disabled={r.loading}>{r.loading ? "Trying again…" : "Try again"}</button></div>
       </div>
     );
   }

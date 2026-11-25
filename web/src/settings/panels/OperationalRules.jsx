@@ -4,7 +4,7 @@ import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Icon } from "../../BusinessUI";
 import { Banner, Card, LoadState, Pill, useAsync, useForm, when } from "../SettingsKit";
 
-// Operational rules (Settings, General platform settings): timings and thresholds the scheduled checks read from
+// Operational rules (Settings, Platform): timings and thresholds the scheduled checks read from
 // platform_settings. Saved by a Zella Voice owner; the admin function checks each value before it is stored, and the
 // jobs pick it up on their next run. One row per setting (label and help on the left, the value on the right), one
 // save bar per section that appears only with unsaved changes, and the setting keys in a Technical details disclosure.

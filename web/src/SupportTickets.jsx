@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Icon } from "./BusinessUI";
 import "./OwnerPages.css";
 import "./SupportTickets.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -172,16 +173,16 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
     <section className="owner-page st-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">Support</div>
+          <div className="owner-eyebrow">Operations</div>
           <h1>Support tickets</h1>
           <p>Issues raised for client businesses, who's handling them and where they stand.</p>
         </div>
         <div className="op-heading-actions">
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : "↻ Refresh"}
+            {loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
           <button type="button" className="owner-primary-button" onClick={() => { setCreating(true); selectTicket(null); }}>
-            ＋ New ticket
+            <Icon name="add" size="sm" />New ticket
           </button>
         </div>
       </div>
@@ -263,7 +264,9 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
                   );
                 })}
                 {!tickets.length && (
-                  <tr><td colSpan={detailOpen ? 3 : 5}><div className="op-empty">{overdueUnknown ? "Overdue tracking is unavailable until reply times are recorded (a database update is needed)." : emptyIsCurrent ? "No tickets here." : loading ? "Loading tickets..." : "Couldn't load this list. Try again with Refresh, or reload the page."}</div></td></tr>
+                  <tr><td colSpan={detailOpen ? 3 : 5}><div className="op-empty">{overdueUnknown ? "Overdue tracking starts once reply times are recorded." : emptyIsCurrent ? (
+                    statusFilter === "active" ? <>No open tickets. <button type="button" className="owner-secondary-button op-small" onClick={() => { setCreating(true); selectTicket(null); }}>New ticket</button></> : "No tickets here."
+                  ) : loading ? "Loading tickets…" : <>Tickets didn't load. <button type="button" className="owner-secondary-button op-small" onClick={load} disabled={loading}>Try again</button></>}</div></td></tr>
                 )}
               </tbody>
             </table>
@@ -303,7 +306,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
             </div>
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={() => setCreating(false)} disabled={busy}>Cancel</button>
-              <button type="submit" className="owner-primary-button" disabled={busy}>{busy ? "Creating..." : "Create ticket"}</button>
+              <button type="submit" className="owner-primary-button" disabled={busy}>{busy ? "Creating…" : "Create ticket"}</button>
             </div>
           </form>
         )}
@@ -319,7 +322,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
                   {selected.creator && <> by <span className="owner-cell-truncate st-creator" title={selected.creator}>{selected.creator}</span></>}
                 </p>
               </div>
-              <button type="button" className="owner-modal-close" aria-label="Close ticket" onClick={() => selectTicket(null)}>×</button>
+              <button type="button" className="owner-modal-close" aria-label="Close ticket" onClick={() => selectTicket(null)}><Icon name="close" size="sm" /></button>
             </div>
 
             {selected.description && <p className="st-description">{selected.description}</p>}
@@ -371,7 +374,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
                 <>
                   <textarea className="wiz-textarea" aria-label="Reply to the business" value={reply} maxLength={4000} placeholder="Write a reply the business will see" onChange={(e) => setReply(e.target.value)} />
                   <button type="button" className="owner-primary-button op-gap-top" disabled={busy || !reply.trim() || reply.length > 4000} onClick={() => update({ reply })}>
-                    {busy ? "Sending..." : "Send reply"}
+                    {busy ? "Sending…" : "Send reply"}
                   </button>
                 </>
               )}
@@ -391,7 +394,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
               ) : <p className="op-muted">No notes yet. Only Zella Voice admins can see these.</p>}
               <textarea className="wiz-textarea" value={note} placeholder="Add a note for the Zella Voice team" onChange={(e) => setNote(e.target.value)} />
               <button type="button" className="owner-secondary-button op-gap-top" disabled={busy || !note.trim()} onClick={() => update({ note })}>
-                {busy ? "Saving..." : "Add note"}
+                {busy ? "Saving…" : "Add note"}
               </button>
             </div>
           </aside>

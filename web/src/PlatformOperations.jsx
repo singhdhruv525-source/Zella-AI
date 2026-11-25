@@ -7,7 +7,7 @@ import { formatDateTime } from "./ownerFormat";
 import PlatformMonitoring from "./PlatformMonitoring";
 import { LoadNotice, UpdatedAt, useRefreshable } from "./admin/loadState";
 import { isCount, metric } from "./admin/loadStatus";
-import { rpc, useLoad } from "./admin/adminOps";
+import { rpc, statValueClass, useLoad } from "./admin/adminOps";
 import ScheduledJobs from "./admin/ScheduledJobs";
 import GoLiveChecklist from "./admin/GoLiveChecklist";
 
@@ -72,7 +72,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
         <div className="op-heading-actions">
           <UpdatedAt r={r} />
           <button type="button" className="owner-secondary-button po-refresh" onClick={load} disabled={loading}>
-            {loading ? "Checking..." : "Refresh"}
+            {loading ? "Checking…" : "Refresh"}
           </button>
         </div>
       </div>
@@ -87,10 +87,10 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
       )}
 
       <div className="owner-stat-grid">
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Businesses</span></div><div className="owner-stat-value">{metric(h?.businesses, r)}</div><div className="owner-stat-note">{metric(h?.activeIndustries, r)} industries active</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Calls (24 h)</span></div><div className="owner-stat-value">{metric(h?.callsLast24h, r)}</div><div className="owner-stat-note">Across all businesses</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Admin actions (24 h)</span></div><div className="owner-stat-value">{metric(h?.auditLast24h, r)}</div><div className="owner-stat-note">From the audit log</div></div>
-        <div className="owner-stat-card"><div className="owner-stat-top"><span>Open problems</span></div><div className="owner-stat-value">{metric(problems, r)}</div><div className="owner-stat-note">See below</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Businesses</span></div><div className={statValueClass(metric(h?.businesses, r))}>{metric(h?.businesses, r)}</div><div className="owner-stat-note">{metric(h?.activeIndustries, r)} industries active</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Calls (24 h)</span></div><div className={statValueClass(metric(h?.callsLast24h, r))}>{metric(h?.callsLast24h, r)}</div><div className="owner-stat-note">Across all businesses</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Admin actions (24 h)</span></div><div className={statValueClass(metric(h?.auditLast24h, r))}>{metric(h?.auditLast24h, r)}</div><div className="owner-stat-note">From the audit log</div></div>
+        <div className="owner-stat-card"><div className="owner-stat-top"><span>Open problems</span></div><div className={statValueClass(metric(problems, r))}>{metric(problems, r)}</div><div className="owner-stat-note">See below</div></div>
       </div>
 
       <section className="owner-panel op-card">
@@ -109,7 +109,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
               </div>
             </li>
           ))}
-          {!rows.length && <li><span className="op-muted">{r.status === "loading" ? "Checking..." : "Not checked: the health check didn't return results."}</span></li>}
+          {!rows.length && <li><span className="op-muted">{r.status === "loading" ? "Checking…" : "Not checked: the health check didn't return results."}</span></li>}
         </ul>
       </section>
 

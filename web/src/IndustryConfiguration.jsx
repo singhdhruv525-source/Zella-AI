@@ -289,7 +289,7 @@ export default function IndustryConfiguration() {
           }}
           disabled={saving}
         >
-          ＋ New industry
+          <Icon name="add" size="sm" />New industry
         </button>
       </div>
 
@@ -307,7 +307,7 @@ export default function IndustryConfiguration() {
             />
           </div>
           {loading && !industries.length ? (
-            <div className="op-empty">Loading industries...</div>
+            <div className="op-empty">Loading industries…</div>
           ) : loadFailed && !loading ? (
             <div className="op-empty" role="alert">
               Industries didn't load.{" "}
@@ -332,7 +332,9 @@ export default function IndustryConfiguration() {
               ))}
             </ul>
           ) : (
-            <div className="op-empty">{industries.length ? "No matching industries." : "No industries yet."}</div>
+            <div className="op-empty">{industries.length ? "No matching industries." : (
+              <>No industries yet.{" "}<button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={() => { setCreating(true); setNotice(""); setError(""); }}>New industry</button></>
+            )}</div>
           )}
         </aside>
 
@@ -392,12 +394,12 @@ export default function IndustryConfiguration() {
                   Cancel
                 </button>
                 <button type="submit" className="owner-primary-button" disabled={saving || !newIndustry.name.trim()}>
-                  {saving ? "Creating..." : "Create industry"}
+                  {saving ? "Creating…" : "Create industry"}
                 </button>
               </div>
             </form>
           ) : !selected || !draft ? (
-            (loadFailed && !loading ? null : <div className="owner-panel"><div className="op-empty">{loading ? "Loading..." : "Select an industry."}</div></div>)
+            (loadFailed && !loading ? null : <div className="owner-panel"><div className="op-empty">{loading ? "Loading…" : "Select an industry."}</div></div>)
           ) : (
             <>
               <header className="ic-detail-head">
@@ -575,7 +577,7 @@ export default function IndustryConfiguration() {
                   className="owner-secondary-button op-gap-top"
                   onClick={() => setDraft({ ...draft, modules: [...draft.modules, { name: "", description: "", isActive: true }] })}
                 >
-                  ＋ Add module
+                  <Icon name="add" size="sm" />Add module
                 </button>
               </section>
 
@@ -626,7 +628,7 @@ export default function IndustryConfiguration() {
                     Discard
                   </button>
                   <button type="button" className="owner-primary-button" onClick={save} disabled={!dirty || saving}>
-                    {saving ? "Saving..." : "Save changes"}
+                    {saving ? "Saving…" : "Save changes"}
                   </button>
                 </div>
               </div>

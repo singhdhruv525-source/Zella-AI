@@ -69,7 +69,7 @@ export function HealthPanel() {
       <div className="owner-panel-heading"><div><h2>Providers and alerts</h2><p>From the scheduled provider checks and open platform alerts.</p></div></div>
       {error && <div className="owner-form-error op-gap-top">{error}</div>}
       <ul className="op-list">
-        {loading && !data && <li><span className="op-muted">Checking...</span></li>}
+        {loading && !data && <li><span className="op-muted">Checking…</span></li>}
         {data && <li><div><strong>Open alerts</strong><span>Urgent {count("urgent")} · Warning {count("warning")} · Info {count("info")}</span></div>
           <Pill tone={!counted ? "neutral" : alerts.urgent ? "danger" : alerts.warning ? "warning" : "success"}>{!counted ? "Unknown" : alerts.urgent || alerts.warning ? "Needs a look" : "Clear"}</Pill></li>}
         {data && <li><div><strong>Failed events, last 24 hours</strong><span>Automation events that failed for good</span></div><Pill tone={data.failed_events_24h ? "danger" : "success"}>{data.failed_events_24h || "No failures"}</Pill></li>}
@@ -106,7 +106,7 @@ export function FailedEventsPanel({ onOpenBusiness }) {
       {error && <div className="owner-form-error op-gap-top">{error}</div>}
       {notice && <div className="owner-form-success op-gap-top" role="status">{notice}</div>}
       <ul className="op-list">
-        {loading && !data && <li><span className="op-muted">Loading...</span></li>}
+        {loading && !data && <li><span className="op-muted">Loading…</span></li>}
         {data && !events.length && <li className="inc-empty"><Icon name="check_circle" size="sm" /><span>No failed events.</span></li>}
         {events.map((e) => (
           <li key={e.id}>
@@ -209,7 +209,7 @@ function IncidentTimeline({ incident, busy, post, onDraft, onPost }) {
           {/* read only while posting, so the text that is cleared afterwards is always the text that was posted */}
           <input className="owner-input" placeholder="What's happening now (for the Zella Voice team)" value={post.text} maxLength={1000} readOnly={post.posting} onChange={(e) => onDraft({ text: e.target.value })} aria-label={`Update for ${incident.title}`} />
           <label className="inc-check"><input type="checkbox" checked={post.notify} disabled={post.posting} onChange={(e) => onDraft({ notify: e.target.checked })} /> Tell all active businesses</label>
-          <button type="button" className="owner-secondary-button inc-sm" disabled={busy || post.posting || post.text.trim().length < 3} onClick={onPost}>{post.posting ? "Posting..." : "Post update"}</button>
+          <button type="button" className="owner-secondary-button inc-sm" disabled={busy || post.posting || post.text.trim().length < 3} onClick={onPost}>{post.posting ? "Posting…" : "Post update"}</button>
         </span>
       )}
     </div>
@@ -349,7 +349,7 @@ export function IncidentsPanel() {
         </button>
       </form>
       <ul className="op-list inc-list">
-        {loading && !data && <li><span className="op-muted">Loading...</span></li>}
+        {loading && !data && <li><span className="op-muted">Loading…</span></li>}
         {data && !data.length && !error && <li className="inc-empty"><Icon name="check_circle" size="sm" /><span>No incidents. Everything is running normally.</span></li>}
         {(data ?? []).map((i) => (
           <li key={i.id} className={`inc-row${i.status === "open" ? " is-open" : ""}`}>
@@ -408,7 +408,7 @@ export function IncidentsPanel() {
       {data && data.length > 0 && (
         <div className="inc-foot">
           <span>{list.more ? `Showing the newest ${data.length.toLocaleString()}` : `${data.length.toLocaleString()} shown`}{openCount ? `, ${openCount} open` : ""}</span>
-          {list.more && <button type="button" className="owner-secondary-button inc-sm" disabled={loading} onClick={() => reload(true)}>{loading ? "Loading..." : "Load more"}</button>}
+          {list.more && <button type="button" className="owner-secondary-button inc-sm" disabled={loading} onClick={() => reload(true)}>{loading ? "Loading…" : "Load more"}</button>}
         </div>
       )}
 

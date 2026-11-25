@@ -65,18 +65,18 @@ function Overview({ onTab }) {
       )}
       {o && (
         <div className="owner-stat-grid ao-stats">
-          <Metric label="Automations" value={num(o.automations.total)} note={`${numText(o.automations.active)} active · ${numText(o.automations.paused)} paused · ${numText(o.automations.disabled)} archived`} />
+          <Metric label="Automations" value={num(o.automations.total)} note={`${numText(o.automations.active)} active, ${numText(o.automations.paused)} paused, ${numText(o.automations.disabled)} archived`} />
           <Metric label="Workflow runs succeeded" value={num(o.workflows.succeeded)} note={`Success rate ${pct(o.success_rate)}`} />
           <Metric label="Workflow runs failed" value={num(o.workflows.failed)} tone={o.workflows.failed ? "danger" : null} />
           <Metric label="Running now" value={num(o.workflows.running + o.runs.running)} />
           <Metric label="Average run time" value={duration(o.workflows.avg_seconds)} />
           <Metric label="Need a person" value={num(o.workflows.needs_manual)} tone={o.workflows.needs_manual ? "warning" : null} />
-          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${numText(o.waiting.reminders)} reminders · ${numText(o.waiting.followups)} follow ups · ${numText(o.waiting.events)} events`} />
+          <Metric label="Waiting in queue" value={num(o.waiting.followups + o.waiting.reminders + o.waiting.events)} note={`${numText(o.waiting.reminders)} reminders, ${numText(o.waiting.followups)} follow ups, ${numText(o.waiting.events)} events`} />
           <Metric label="Unresolved dead letters" value={num(o.dead_letters_open)} tone={o.dead_letters_open ? "warning" : null} />
         </div>
       )}
       {o?.latest_failure && (
-        <NotAvailable title={`Latest failure: ${o.latest_failure.workflow} at ${whenText(o.latest_failure.at)}`}>{o.latest_failure.error ?? "No error message recorded."}</NotAvailable>
+        <NotAvailable title={`Latest failure: ${o.latest_failure.workflow}, ${whenText(o.latest_failure.at)}`}>{o.latest_failure.error ?? "No error message recorded."}</NotAvailable>
       )}
       <div className="ao-two">
         <Panel title="Needs attention"><ErrorNote error={health.error} onRetry={health.reload} /><AlertList error={health.error} alerts={alerts} onOpen={(a) => onTab(a.link)} /></Panel>

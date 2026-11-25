@@ -80,14 +80,14 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     const v = await statValues(p); const t = await txt(p);
     check(v.every((x) => x.includes("Not available")), `B2-01 initial failure: no metric values (${v.join(",")})`);
     check(!/Nothing needs attention|No setups in progress|No activity recorded|No businesses yet/.test(t) && !(await p.isVisible("text=Create your first business")), "B2-01 initial failure: no empty-state success messages");
-    check(await p.isVisible("[data-load=failed] >> text=Retry"), "B2-01 initial failure shows an error with Retry");
+    check(await p.isVisible("[data-load=failed] >> button:has-text('Try again')"), "B2-01 initial failure shows an error with Try again");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { overview_data: (_b, n) => (n === 2 ? FAIL500 : { json: OVERVIEW_SOME }) });
     await p.goto(BASE + "/"); await p.waitForSelector("text=Fresh Fixtures Co");
     await refresh(p); await p.waitForSelector("[data-load=stale]");
     check((await statValues(p))[0] === "12" && await p.isVisible("text=Fresh Fixtures Co"), "B2-01 failed refresh keeps the last result");
     check(/may be out of date/.test(await txt(p, "[data-load=stale]")) && await p.isVisible("text=Last updated"), "B2-01 failed refresh marks the data stale with its time");
-    await p.click("[data-load=stale] >> text=Retry"); await p.waitForSelector("[data-load=stale]", { state: "detached" });
+    await p.click("[data-load=stale] >> button:has-text('Try again')"); await p.waitForSelector("[data-load=stale]", { state: "detached" });
     check(!(await p.isVisible("[data-load]")), "B2-01 successful retry clears the warning");
     await ctx.close(); }
 
@@ -113,7 +113,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.goto(BASE + "/operations"); await p.waitForSelector("[data-health=failed]");
     const t = await txt(p);
     check(!/None found|No issues found/.test(t) && (await statValues(p)).every((x) => x === "Not available"), "B2-02 failed request: no zero problems, no metrics");
-    check(await p.isVisible("[data-load=failed] >> text=Retry"), "B2-02 failed request: error with Retry");
+    check(await p.isVisible("[data-load=failed] >> button:has-text('Try again')"), "B2-02 failed request: error with Try again");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { platform_status: () => status(), automation_overview: () => AUTO(false) });
     await p.goto(BASE + "/operations"); await p.waitForSelector("[data-service=N8N_WEBHOOK_URL]");
@@ -137,11 +137,11 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     const { ctx, p } = await open(b, { integrations_overview: (_b, n) => (n === 1 ? FAIL500 : n === 2 ? { json: { connections: [CONN], requests: [] } } : n === 3 ? FAIL500 : { json: { connections: [CONN, { ...CONN, id: "c2", status: "error" }], requests: [] } }) });
     await p.goto(BASE + "/integrations"); await p.waitForSelector("[data-load=failed]");
     check((await statValues(p)).every((x) => x === "Not available") && !(await p.isVisible("text=Nothing connected yet")) && /Not available/.test(await txt(p)), "B2-03 API failure: error state, not zero connections");
-    await p.click("[data-load=failed] >> text=Retry"); await p.waitForSelector("text=Pipes Ltd");
+    await p.click("[data-load=failed] >> button:has-text('Try again')"); await p.waitForSelector("text=Pipes Ltd");
     check((await statValues(p))[0] === "1", "B2-03 retry after failure loads the data");
     await refresh(p); await p.waitForSelector("[data-load=stale]");
     check(await p.isVisible("text=Pipes Ltd") && await p.isVisible("text=Last updated"), "B2-03 failed refresh: stale warning, previous rows kept, last refresh time shown");
-    await p.click("[data-load=stale] >> text=Retry"); await p.waitForSelector("[data-load=stale]", { state: "detached" });
+    await p.click("[data-load=stale] >> button:has-text('Try again')"); await p.waitForSelector("[data-load=stale]", { state: "detached" });
     check((await statValues(p))[0] === "2" && (await statValues(p))[2] === "1", "B2-03 successful retry restores current data");
     await ctx.close(); }
 
@@ -176,8 +176,8 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.goto(BASE + "/modules"); await p.waitForSelector("[data-load=failed]");
     check(!(await p.isVisible("text=No modules configured yet.")) && /Not available/.test(await txt(p)), "B2-05 API failure isn't shown as an empty catalog");
     const loads = await p.evaluate(() => performance.getEntriesByType("navigation").length);
-    await p.click("[data-load=failed] >> text=Retry"); await p.waitForSelector("text=Calls");
-    check(await p.evaluate(() => performance.getEntriesByType("navigation").length) === loads && !(await p.isVisible("[data-load]")), "B2-05 Retry succeeds without a page reload");
+    await p.click("[data-load=failed] >> button:has-text('Try again')"); await p.waitForSelector("text=Calls");
+    check(await p.evaluate(() => performance.getEntriesByType("navigation").length) === loads && !(await p.isVisible("[data-load]")), "B2-05 Try again succeeds without a page reload");
     check(await p.isVisible("text=Edit in Industry configuration"), "B2-05 link to Industry configuration kept");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { modules_overview: () => ({ json: { modules: [], industries: 28 } }) });
@@ -300,15 +300,15 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     industries: [{ id: "i1", name: "Plumbing" }], stats: { totalBusinesses: 1, activeWorkspaces: 1, pendingInvitations: 0, provisioningIssues: 0 } });
   const UNKNOWN = { status: 400, json: { error: "Unknown action" } };
   { const { ctx, p } = await open(b, { businesses_list: () => FAIL500 });
-    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Unable to load businesses");
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Businesses didn't load");
     check((await statValues(p)).every((x) => x === "Not available"), "B2-08 initial failure: no statistics");
     await ctx.close(); }
   { const { ctx, p, log } = await open(b, { businesses_list: () => FAIL500, dashboard_data: () => ({ json: OLD_BIZ("Should Not Show") }) });
-    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Unable to load businesses");
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Businesses didn't load");
     check(!log.n.dashboard_data && !(await p.isVisible("text=Should Not Show")), "B2-08 a server error never falls back to the older list");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { businesses_list: () => ({ json: {} }) });
-    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Unable to load businesses");
+    await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Businesses didn't load");
     check(!(await p.isVisible("text=No businesses yet")), "B2-08 an answer without rows is an error, not an empty list");
     await ctx.close(); }
   { const { ctx, p, log } = await open(b, { businesses_list: () => UNKNOWN, dashboard_data: () => ({ json: OLD_BIZ("Older Server Plumbing") }) });
@@ -349,8 +349,8 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=Old Name Plumbing");
     await p.click(".owner-page-heading button:has-text('Refresh')"); await p.waitForSelector("[data-load=stale]");
     check(await p.isVisible("text=Old Name Plumbing") && /may be out of date/.test(await txt(p, "[data-load=stale]")) && (await statValues(p))[0] === "1", "B2-08 failed refresh keeps the list, labelled stale");
-    await p.click("[data-load=stale] >> text=Retry"); await p.waitForSelector("text=New Name Plumbing");
-    check(!(await p.isVisible("[data-load=stale]")), "B2-08 Retry updates the list and clears the warning");
+    await p.click("[data-load=stale] >> button:has-text('Try again')"); await p.waitForSelector("text=New Name Plumbing");
+    check(!(await p.isVisible("[data-load=stale]")), "B2-08 Try again updates the list and clears the warning");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { businesses_list: (_b, _n, sub) => (sub === OTHER.id ? { delay: 2500, json: BIZ("Second Account Biz") } : { json: BIZ("First Account Biz") }) });
     await p.goto(BASE + "/businesses"); await p.waitForSelector("text=First Account Biz");
@@ -384,7 +384,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
   }
 
   // The setup wizard opens only once the industry list is here (it fills industry defaults from it), and a failed list
-  // says so with Retry instead of opening the wizard with no industries.
+  // says so with Try again instead of opening the wizard with no industries.
   { const { ctx, p } = await open(b, { dashboard_data: (_b, n) => (n === 1 ? { delay: 1500, json: OLD_BIZ("x") } : { json: OLD_BIZ("x") }) });
     await p.goto(BASE + "/businesses/new"); await p.waitForSelector("[data-wizard=industries-loading]");
     check(!(await p.isVisible("h1:has-text('Create a business')")), "B2-08 the wizard waits for the industry list");
@@ -394,8 +394,8 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
   { const { ctx, p, log } = await open(b, { dashboard_data: (_b, n) => (n === 1 ? FAIL500 : { json: OLD_BIZ("x") }) });
     await p.goto(BASE + "/businesses/new"); await p.waitForSelector("[data-wizard=industries-failed]");
     check(!(await p.isVisible("h1:has-text('Create a business')")) && log.n.dashboard_data === 1, "B2-08 a failed industry list shows the failure, not the wizard");
-    await p.click("[data-wizard=industries-failed] button:has-text('Retry')"); await p.waitForSelector("h1:has-text('Create a business')");
-    check(log.n.dashboard_data === 2, "B2-08 Retry loads the list and opens the wizard");
+    await p.click("[data-wizard=industries-failed] button:has-text('Try again')"); await p.waitForSelector("h1:has-text('Create a business')");
+    check(log.n.dashboard_data === 2, "B2-08 Try again loads the list and opens the wizard");
     await ctx.close(); }
   { const { ctx, p } = await open(b, { dashboard_data: () => ({ json: { businesses: [] } }) });
     await p.goto(BASE + "/businesses/new"); await p.waitForSelector("[data-wizard=industries-failed]");

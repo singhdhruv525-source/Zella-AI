@@ -49,7 +49,9 @@ In the Zella Voice look only page headings (`h1`) use Inter Tight with `-0.02em`
 stay Inter at normal tracking, because tight tracking closes word spaces at 16 to 18px.
 
 Shape: inputs 8px (10px in Zella Voice), small cards and banners 10px, cards, panels and modals 14px (16px in Zella
-Voice). Buttons are pills in the Zella Voice look and 8px in Classic. Shadows stay minimal.
+Voice). Buttons are pills in the Zella Voice look and 8px in Classic. Shadows stay minimal. The admin dashboard uses its own corner steps
+in every look (see "Admin pages polish"): `--zella-radius-panel` 16, `--zella-radius-card` 12, `--zella-radius-note` 8
+and `--zella-radius-nested` 4.
 
 ## Buttons
 
@@ -120,6 +122,13 @@ are not changed by this.
     roundup, setup, Ecommerce.
   - Phone numbers use spaces: (555) 010 2040.
   - Code is not text: class names, routes, keys, stored values, file names, web addresses and locale tags keep theirs.
+  - Wording pass (owner, 25 Nov 2026), both apps: labels are sentence case, never spaced capitals; "still working" is
+    one ellipsis character ("Loading…", "Trying again…"), and choices have no dots ("Choose"); a failed load says what
+    didn't load and offers "Try again" (one name for that action); an empty list offers the page's own add button
+    (`.ba-empty-actions` in the CRM); a figure that didn't load is a small note (`.ba-kpi-missing`), never a big
+    "Not available"; a line joining facts reads as a sentence with commas, not middle dots. The CRM writes "and", not
+    "&". Admin screens never show file names or database talk: a missing setup note says what isn't switched on, with
+    any file name in the note's hover tip.
 - `npm run lint` runs `web/scripts/check-dashes.mjs`, which fails on any dash or hyphen in the app's text
   (`npm run check:writing` lists them).
 
@@ -156,7 +165,7 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 
 | Component | What it does |
 | --- | --- |
-| `PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh })` | The eyebrow is the sidebar group (Businesses, Configuration, AI and communications, Operations); the H1 is the sidebar label. "Updated 2:44 PM" and a small Refresh button sit in the header actions, left of the single primary button. Cards don't carry their own Refresh. |
+| `PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh })` | The eyebrow is the sidebar group (Businesses, Configuration, AI & communications, Operations, Administration); the H1 is the sidebar label. "Updated 2:44 PM" and a small Refresh button sit in the header actions, left of the single primary button. Cards don't carry their own Refresh. |
 | `Metric({ label, value, note, onClick })` and `.owner-stat-card` | One KPI card: label 13px secondary, value 32px medium (500) with tabular figures and a thousands comma, one line of note 12px (ellipsis; two lines on a phone), a fixed minimum height, no coloured icon tiles. A card that filters the list is a real button (`onClick`) with a chevron, hover border and focus ring. |
 | `DataTable({ columns, rows, cards, selected })` | Columns are `[header, cell, className, label]`. Use `num` for numbers (right aligned, tabular) and `col-actions` for the action cell. With `cards`, each row becomes a card under 600px, labelled from `data-label`. Tables that stay tables on a phone fade at the right edge. |
 | `Pager` | The one table footer (`.owner-table-foot`): "Showing 1 to 25 of 96" (or "3 shown") on the left, Previous and Next small buttons on the right, chevrons only under 600px. |
@@ -165,7 +174,7 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 | `Tabs` | Page tabs in one line that scrolls sideways. The selected tab (and selected filter chip) is the soft tint with a hairline, never a midnight fill. |
 | Badges: `Pill` (`.op-pill`, `.owner-badge`), `statusTone(word)` | One 22px pill. Tones come from the status tokens; neutral is `--zella-subtle`. |
 | `EmptyValue({ label })` | The word for a missing value, in faint text. See Writing. |
-| Banners: `.banner-info`, `.owner-info-banner`, `.banner-warning` | An `info` icon (20px), the lead phrase in the tone colour at 600, the rest in body text at 400. Two lines at most; more goes in a disclosure. `.banner-warning` is for inline notices next to a table ("1 job is not in the state recorded for it"). |
+| Banners: `.banner-info`, `.owner-info-banner`, `.banner-warning` | An `info` icon (20px), the lead phrase in the tone colour at 600, the rest in body text at 400. In the admin an information note is neutral (see "Admin pages polish"). Two lines at most; more goes in a disclosure. `.banner-warning` is for inline notices next to a table ("1 job is not in the state recorded for it"). |
 | Settings: `SettingRow`, `SectionSaveBar`, `MissingSettings` (`web/src/settings/SettingsKit.jsx`) | A compact row: label and help on the left (40%), the control on the right (numbers at most 240px wide), the setting key in a "Technical details" disclosure. One sticky save bar per section ("2 unsaved changes", Discard, Save) that only appears once something changed. Settings the database doesn't have yet collapse into one info banner at the top, and their rows show a neutral "Not available yet" badge. |
 | Format helpers (`web/src/lib/format.js`, re-exported from `ownerFormat.js`) | `formatCount` ("1,203"), `formatRelative` ("5 days ago", "Yesterday"; the exact time goes in a `title`), `formatDateTime` ("Nov 16, 2026 at 2:49 PM"), `formatPhone` ("(555) 123 0001"), `formatTimeZone` ("Eastern Time (New York)"), `formatDuration`. `when`, `num`, `duration` and `ago` in `adminOps.jsx` use them. |
 
@@ -215,6 +224,48 @@ change). Design pass guided by unslop by heydamir (CC BY 4.0).
   popups, the 350ms page rise. Buttons only change colour: no lift, glow, sheen, ripple or icon grow. Cards, panels
   and menu rows don't move or grow shadows under the pointer; no bounce or overshoot anywhere.
 - **Copy:** panel captions have no full stop; the search box says "Search businesses".
+
+## Admin pages polish (owner, 25 Nov 2026)
+
+The owner approved the admin items for every page except Overview on 25 Nov 2026 ("yes to all A and C"). Polish only:
+features, sections and their order stay; Glass, the dock, the picture palette, Classic and the Zella Voice look stay.
+The rules live in `web/src/styles/admin-polish.css`, loaded last and scoped to `.owner-app` (or `html:has(.owner-app)`
+for dialogs that open outside it), so the CRM does not change. A shared component change (the KPI card, the stat
+"Not available", the icons) also reaches the Overview.
+
+- **Corner and shadow steps (A22):** panels and dialogs 16 (`--zella-radius-panel`), stat cards 12
+  (`--zella-radius-card`), notes and small boxes 8 (`--zella-radius-note`), and an item nested inside a panel or note
+  takes the outer radius minus its padding, never under 4 (`--zella-radius-nested`; every admin panel pads 12 or more,
+  so nested items such as module rows, alerts and provider boxes are 4). Panels and stat cards keep
+  `--zella-shadow-sm`; notes and nested items have no shadow. On a phone a dialog keeps its sheet corners.
+- **Neutral notes (A8, A57):** an information note is a light grey surface (`--zella-subtle`), a hairline border, a
+  small grey `info` icon (18px) and text in `--zella-text`; the lead phrase is the text colour too. Warnings, errors
+  and successes keep their tone. A "Not built yet" note (`Needs`) has a grey side bar and its title in the text
+  colour; "What works today" is unchanged.
+- **Number colours with a dot (A9, A33, A51):** a warning or danger figure on a stat card keeps the text colour; an
+  8px dot before its label carries the tone (amber warning, red danger). States in a table are plain text with the
+  same dot (`DotText` in `admin/adminOps.jsx`: green connected or accepted, grey not yet, red failed), never a
+  coloured pill or a typed tick.
+- **Not available (A10):** a stat card with no trustworthy number says "Not available" at 13px in faint text, not as a
+  32px figure (`statValueClass`).
+- **Weights and sizes (A6, A7):** emphasis is 600 and figures, badges and billing prices are 500; no admin text is
+  bold (700). No admin text is under 12px (status labels, wizard step numbers, file lines, Settings badges and table
+  heads, code lines, small notes).
+- **Icons (A1):** Refresh, New, Add, Back, Continue, Close and every tick are Material Symbols (`refresh`, `add`,
+  `arrow_back`, `arrow_forward`, `close`, `check`, `priority_high`), never typed symbols; the words stay.
+- **Stat icons and the selected card (A11, A39):** stat icons are plain grey at 22px with no coloured tile; the
+  selected count card is the soft tint with a hairline, like the selected tab.
+- **Danger (A12, A13):** a danger action on a row or card is a quiet button with red text (36px, border
+  `--zella-border-strong`); only the confirm button in its dialog is full red, and the dialog keeps its normal border.
+- **Motion (A23, A24):** the setup wizard uses the one admin curve with no bounce on the current step, no shake on an
+  error and no shadow on hover; with reduced motion the sidebar "More below" cue is shown or hidden, never faded.
+- **Pages:** switched on modules keep the normal border (A35); the fallback number is the Phone numbers card's last
+  row (A37); the offer form's Save and Cancel stay at the bottom while it scrolls (A44); the AI receptionists table
+  fits at 1440 and Setup is "3 of 5 set" and its missing list in words, with no dots (A45, A46); Voice & numbers
+  groups its nine equal tiles under Calls and Numbers (A47); a choice in a filter row is as wide as its longest option
+  (A48); go live bars are grey and turn green when full (A49); every Audit logs filter control has the focus ring
+  (A54); an opened audit entry lists what changed (field, before, after) with the raw record under "Show raw record"
+  (A55); Reassign and Pause sit side by side (A59).
 
 ## Rules of use
 

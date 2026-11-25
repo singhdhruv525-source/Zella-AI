@@ -35,6 +35,6 @@ test("countOf: only when the list is really there", () => {
 test("emptyText: 'nothing here' only after a successful load", () => {
   assert.equal(emptyText(r("ok"), "No modules configured yet."), "No modules configured yet.");
   assert.equal(emptyText(r("stale"), "No modules."), "No modules.");
-  assert.equal(emptyText(r("loading"), "x"), "Loading...");
+  assert.equal(emptyText(r("loading"), "x"), "Loading…");
   assert.match(emptyText(r("failed"), "No modules configured yet.", "the module catalog"), /^Not available: the module catalog couldn't be loaded/);
 });

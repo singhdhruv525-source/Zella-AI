@@ -2,6 +2,7 @@
 // what it worked out from business_detail.
 import { Pill } from "../OwnerOverview";
 import { formatDateTime } from "../ownerFormat";
+import { humanize } from "../copy/labels";
 import { NumbersCard } from "./OverviewCards";
 import { Card, Facts, Empty, label } from "./shared";
 
@@ -25,8 +26,9 @@ export default function PhoneTab({ data, setupData, phone, esc, can, businessId 
         ) : <Empty>Phone & integrations step not completed yet.</Empty>}
       </Card>
 
-      <NumbersCard numbers={data.numbers} canAssign={can?.("telephony.manage")} businessId={businessId} />
-      {esc && <p className="op-muted">Fallback number, where calls go when the AI receptionist can't take them: {esc.fallback_number || "not set"}.</p>}
+      {/* the fallback number is the Phone numbers card's last row; without the card (an older server) it stays a line */}
+      <NumbersCard numbers={data.numbers} canAssign={can?.("telephony.manage")} businessId={businessId} fallback={esc ? esc.fallback_number ?? "" : undefined} />
+      {esc && !data.numbers && <p className="op-muted">Fallback number, where calls go when the AI receptionist can't take them: {esc.fallback_number || "not set"}.</p>}
       <Card title="Connection records" description="Provider connections recorded for this business. Phone numbers above are what calls use; most connections aren't recorded here yet.">
         {data.integrations.length ? (
           <div className="owner-table-wrap" tabIndex={0}>
@@ -36,7 +38,7 @@ export default function PhoneTab({ data, setupData, phone, esc, can, businessId 
                 {data.integrations.map((i) => (
                   <tr key={i.id}>
                     <td className="op-cap">{i.provider}</td>
-                    <td>{i.integration_type}</td>
+                    <td>{humanize(i.integration_type)}</td>
                     <td><Pill tone={i.status === "active" ? "success" : i.status === "error" ? "danger" : "neutral"}>{i.status}</Pill></td>
                     <td>{i.account_email || <span className="op-muted">Not shown</span>}</td>
                     <td>{formatDateTime(i.last_synced_at)}</td>

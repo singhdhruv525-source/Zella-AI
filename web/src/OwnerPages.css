@@ -57,6 +57,9 @@
 }
 
 .op-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 14px;
   color: var(--text-secondary);
   font-size: 12px;

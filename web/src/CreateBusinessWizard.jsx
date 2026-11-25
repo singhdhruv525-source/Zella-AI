@@ -25,7 +25,7 @@ import { defaultVoiceName, languagesOf, unusedVoiceNote, voiceLabel, voiceSummar
 // ---------------------------------------------------------------------------
 
 export async function callOwnerFunction(action, payload = {}) {
-  const fallback = "Something went wrong. Please try again.";
+  const fallback = "That didn't work. Check your connection and try again.";
   const { data, error } = await supabase.functions.invoke(
     "owner-provision-business",
     { body: { action, ...payload } }
@@ -731,7 +731,7 @@ function ListEditor({ items, onChange, fields, addLabel, emptyText }) {
         className="owner-secondary-button"
         onClick={() => onChange([...items, Object.fromEntries(fields.map((f) => [f.key, ""]))])}
       >
-        ＋ {addLabel}
+        <Icon name="add" size="sm" />{addLabel}
       </button>
     </div>
   );
@@ -808,7 +808,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
           <div className="wiz-chip-row wiz-prompts">
             <span className="wiz-hint">Often asked:</span>
             {prompts.map((q) => (
-              <button key={q} type="button" className="wiz-chip" onClick={() => onChange({ ...value, faqs: [...value.faqs, { question: q, answer: "" }] })}>＋ {q}</button>
+              <button key={q} type="button" className="wiz-chip" onClick={() => onChange({ ...value, faqs: [...value.faqs, { question: q, answer: "" }] })}><Icon name="add" size="sm" />{q}</button>
             ))}
           </div>
         )}
@@ -1549,7 +1549,7 @@ function TeamStep({ value, onChange, config, terminology, showErrors }) {
           </div>
         ))}
         <button type="button" className="owner-secondary-button" disabled={value.length >= 50} onClick={() => { if (value.length < 50) onChange([...value, { id: "", name: "", title: "", phone: "", email: "" }]); }}>
-          ＋ Add {staffWord.toLowerCase()}
+          <Icon name="add" size="sm" />Add {staffWord.toLowerCase()}
         </button>
       </div>
       {value.length >= 50 && <p role="alert">The team limit is 50 members. {value.length > 50 ? "All existing members are shown. Remove members explicitly to save this list." : "Remove a member before adding another."}</p>}
@@ -1791,7 +1791,7 @@ function Readiness({ businessId }) {
     <Section title="Readiness" description="Read from the business's real records. A step is reached only when every check before it passes.">
       <ol className="wiz-ladder" aria-label="Readiness">
         {RUNGS.map(([k, label], i) => (
-          <li key={k} className={i <= at ? "done" : ""} aria-current={i === at ? "step" : undefined}>{i <= at ? "✓ " : ""}{label}</li>
+          <li key={k} className={i <= at ? "done" : ""} aria-current={i === at ? "step" : undefined}>{i <= at && <Icon name="check" size="sm" />}{label}</li>
         ))}
       </ol>
       <div className="wiz-review">
@@ -1818,7 +1818,7 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, on
           {rows.map((row) => (
             <div key={row.title} className="wiz-review-row">
               <span className={`wiz-review-dot ${row.ok ? "ok" : row.required ? "missing" : "later"}`}>
-                {(row.ok || row.required) && <span aria-hidden="true">{row.ok ? "✓" : "!"}</span>}
+                {(row.ok || row.required) && <Icon name={row.ok ? "check" : "priority_high"} size="sm" />}
                 <span className="zs-sr-only">{row.ok ? "Done" : row.required ? "To finish" : "Optional, not set yet"}</span>
               </span>
               <div>
@@ -1832,7 +1832,7 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, on
       </Section>
       {setup.planStatus?.state === "error" && (
         <div className="owner-form-error" role="alert">
-          The saved plan couldn't be checked, so the owner can't be invited yet. <button type="button" className="owner-secondary-button" onClick={onRetryPlan}>Retry</button>
+          The saved plan couldn't be checked, so the owner can't be invited yet. <button type="button" className="owner-secondary-button" onClick={onRetryPlan}>Try again</button>
         </div>
       )}
       <Readiness businessId={businessId} />
@@ -2242,7 +2242,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   if (loading) {
     return (
       <section className="wiz">
-        <div className="owner-empty-state"><strong>Loading business setup...</strong></div>
+        <div className="owner-empty-state"><strong>Loading business setup…</strong></div>
       </section>
     );
   }
@@ -2256,7 +2256,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     return (
       <section className="wiz">
         <div className="wiz-done" role="status">
-          <div className={`wiz-done-icon ${completed && sent ? "" : "warn"}`}>{completed && sent ? "✓" : "!"}</div>
+          <div className={`wiz-done-icon ${completed && sent ? "" : "warn"}`}><Icon name={completed && sent ? "check" : "priority_high"} /></div>
           <h2>{completed ? `${setup.business.name} is set up` : `${setup.business.name} isn't finished yet`}</h2>
           <p>{completed
             ? "The workspace is active. The AI receptionist stays off until its phone number and voice agent are connected."
@@ -2273,7 +2273,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           <div className="wiz-done-actions">
             {!sent && (
               <button type="button" className="owner-secondary-button" onClick={finish} disabled={saving}>
-                {saving ? "Trying again..." : completed ? "Retry invitation" : "Try again"}
+                {saving ? "Trying again…" : completed ? "Retry invitation" : "Try again"}
               </button>
             )}
             <button type="button" className="owner-primary-button" onClick={() => onClose(true)}>
@@ -2297,7 +2297,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     <section className="wiz" ref={top}>
       <div className="wiz-header">
         <div>
-          <div className="owner-eyebrow">{businessId ? "BUSINESS SETUP" : "NEW BUSINESS"}</div>
+          <div className="owner-eyebrow">{businessId ? "Business setup" : "New business"}</div>
           <h1>{setup.business.name || "Create a business"}</h1>
           <p>Set up the CRM, AI receptionist, integrations and automations for this client.</p>
         </div>
@@ -2307,11 +2307,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       </div>
 
       {industryError && <div className="owner-form-error" role="alert">
-        {industryError} <button type="button" className="owner-secondary-button" onClick={onRetryIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Loading..." : "Retry"}</button>
+        {industryError} <button type="button" className="owner-secondary-button" onClick={onRetryIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Trying again…" : "Try again"}</button>
       </div>}
       <div className="wiz-progress" role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
         <span style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
-        <small>Step {step + 1} of {STEPS.length} · {STEPS[step].label}</small>
+        <small>Step {step + 1} of {STEPS.length}: {STEPS[step].label}</small>
       </div>
 
       <ol className="wiz-stepper">
@@ -2328,7 +2328,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
                 aria-current={index === step ? "step" : undefined}
                 aria-label={`${item.label}: ${said}`}
               >
-                <span className="wiz-step-num" aria-hidden="true">{state === "done" ? "✓" : index + 1}</span>
+                <span className="wiz-step-num" aria-hidden="true">{state === "done" ? <Icon name="check" size="sm" /> : index + 1}</span>
                 <span className="wiz-step-label">{item.label}</span>
               </button>
             </li>
@@ -2363,7 +2363,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         )}
         {STEPS[step].key === "crm" && <CrmSetupStep businessId={businessId} terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
         {STEPS[step].key === "plan" && (planError
-          ? <div className="owner-form-error" role="alert">The plan couldn't be loaded: {planError} <button type="button" className="owner-secondary-button" onClick={reloadPlan}>Retry</button></div>
+          ? <div className="owner-form-error" role="alert">The plan couldn't be loaded: {planError} <button type="button" className="owner-secondary-button" onClick={reloadPlan}>Try again</button></div>
           : <PlanStep key={planInfo?.plan?.version ?? "new"} businessId={businessId} info={planInfo} onSaved={reloadPlan} onDirty={setPlanDirty} Section={Section} Badge={Badge} Toggle={Toggle} />)}
         {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} onRetryPlan={reloadPlan} voice={voiceInfo} />}
       </div>
@@ -2405,7 +2405,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       <div className="wiz-footer">
         {/* Step 1 has nothing before it: Back stays disabled and is hidden there, keeping the footer's layout (UI-30). */}
         <button type="button" className={`owner-secondary-button${step === 0 ? " wiz-back-first" : ""}`} onClick={() => request(step - 1)} disabled={saving || step === 0}>
-          ← Back
+          <Icon name="arrow_back" size="sm" />Back
         </button>
         <div className="wiz-footer-right">
           {!isLast && businessId && (
@@ -2420,11 +2420,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
               onClick={finish}
               disabled={saving || !persisted.owner.email || !docsReady || dirty || !(planStatus?.state === "ok" && planStatus.saved)}
             >
-              {saving ? "Finishing..." : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
+              {saving ? "Finishing…" : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
             </button>
           ) : (
             <button type="button" className="owner-primary-button" disabled={saving} onClick={() => run(() => setStep(step + 1))}>
-              {saving ? "Saving..." : step === 0 && !businessId ? "Create draft & continue →" : "Save & continue →"}
+              {saving ? "Saving…" : <>{step === 0 && !businessId ? "Create draft & continue" : "Save & continue"}<Icon name="arrow_forward" size="sm" /></>}
             </button>
           )}
         </div>

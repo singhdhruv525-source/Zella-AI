@@ -1,6 +1,8 @@
 // Date helpers that work in the business's own time zone, so "today"
 // for a Chicago clinic is Chicago's today, whoever is looking.
 
+import { formatRelative } from "./lib/format.js";
+
 function zonedParts(date, timeZone) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -71,14 +73,16 @@ export function greeting(timeZone, now = new Date()) {
   return "Good evening";
 }
 
+// "13 minutes ago", "2 hours ago", "yesterday", "5 days ago", in full words (lib/format.js formatRelative), written to
+// sit inside a sentence ("added yesterday"). timeAgoLabel is the same on its own, as in a table cell ("Yesterday").
 export function timeAgo(value) {
+  const text = timeAgoLabel(value);
+  return /^(Just now|Yesterday)$/.test(text) ? text.toLowerCase() : text;
+}
+
+export function timeAgoLabel(value) {
   if (!value) return "None";
-  const minutes = Math.round((Date.now() - new Date(value).getTime()) / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  return `${Math.round(hours / 24)} d ago`;
+  return formatRelative(value) || "None";
 }
 
 // "2026-10-30" + "14:00" in the business's zone → the exact instant.

@@ -42,10 +42,10 @@ export function friendlyError(error) {
     const detail = rest.join(":").trim();
     return code.trim() === "UNKNOWN_VARIABLES" ? `These variables aren't available for this message: ${detail}` : detail;
   }
-  if (/could not find the function|PGRST202/i.test(raw)) return "This page needs a database update (sql/zella_admin_ops.sql).";
+  if (/could not find the function|PGRST202/i.test(raw)) return "This page needs the latest Zella Voice update.";
   if (/failed to fetch|network/i.test(raw)) return "Couldn't reach the server. Check your connection and try again.";
   if (/^[A-Z][A-Z0-9_]{2,}$/.test(raw.trim())) return `That didn't work (code ${raw.trim()}). Try again, or check the audit log.`;
-  return raw || "Something went wrong. Try again.";
+  return raw || "That didn't work. Check your connection and try again.";
 }
 
 export async function rpc(name, args = {}) {
@@ -106,7 +106,7 @@ export function statusTone(word) {
 export const PERIODS = [[1, "Last 24 hours"], [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]];
 export const since = (days) => new Date(Date.now() - days * 86400000).toISOString();
 
-// The one page header. The eyebrow is the sidebar group (Businesses, Configuration, AI and communications,
+// The one page header. The eyebrow is the sidebar group (Businesses, Configuration, AI & communications,
 // Operations), the title is the sidebar label. "Updated 2:44 PM" and Refresh sit in the actions, left of the single
 // primary button, so no card carries its own Refresh.
 export function PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh, refreshing }) {
@@ -146,13 +146,24 @@ export function Tabs({ tabs, current, onChange }) {
   );
 }
 
+// A stat card's value class: "Not available" (no trustworthy number) is shown in the small note size, never as a
+// 32px figure (owner approved 25 Nov 2026, A10).
+export const statValueClass = (value) => ["owner-stat-value", value === "Not available" ? "is-na" : ""].join(" ").trim();
+
+// One quiet status in words with a small coloured dot before it (owner approved 25 Nov 2026): the word carries the
+// meaning, the dot backs it up. Tones: success, warning, danger, info, neutral.
+export function DotText({ tone = "neutral", children, className = "" }) {
+  return <span className={`ao-dot-text ${className}`.trim()}><span className={`ao-dot ${tone}`} aria-hidden="true" />{children}</span>;
+}
+
 // One KPI card: label, value, one line of note. A card that filters the list is a real button (onClick), with a
-// chevron, a hover border and the focus ring; `pressed` marks the filter it applies as on.
+// chevron, a hover border and the focus ring; `pressed` marks the filter it applies as on. A warning or danger tone
+// puts a small coloured dot before the label; the figure keeps the text colour.
 export function Metric({ label, value, note, tone, onClick, pressed }) {
   const body = (
     <>
       <div className="owner-stat-top"><span>{label}</span>{onClick && <Icon name="chevron_right" size="sm" className="owner-stat-chev" />}</div>
-      <div className="owner-stat-value">{value}</div>
+      <div className={statValueClass(value)}>{value}</div>
       {note && <div className="owner-stat-note" title={typeof note === "string" ? note : undefined}>{note}</div>}
     </>
   );
