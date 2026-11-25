@@ -136,7 +136,9 @@ export function createTabMemory() {
 const TIMERS = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (t) => clearTimeout(t) };
 //   beacon()  optional: sends the change in a way that survives the tab closing (fetch keepalive); returns true when
 //             it could start the send. Used only when the page is going away (unload()).
-export function deferChange({ apply, commit, revert, onError, beacon, ms = 5000, timers = TIMERS }) {
+//   beaconReady()  optional, no side effects: whether beacon() could send right now (config, a current access token,
+//             fetch). A change whose beacon isn't ready counts as one the browser must ask about before closing.
+export function deferChange({ apply, commit, revert, onError, beacon, beaconReady, ms = 5000, timers = TIMERS }) {
   let state = "waiting";
   let sending = null;   // the send in progress: a later flush() returns it, so signing out waits for it
   apply?.();
@@ -173,7 +175,7 @@ export function deferChange({ apply, commit, revert, onError, beacon, ms = 5000,
       send();
       return false;
     },
-    get canBeacon() { return Boolean(beacon); },
+    get canBeacon() { return Boolean(beacon) && (beaconReady ? Boolean(beaconReady()) : true); },
     get state() { return state; },
   };
 }

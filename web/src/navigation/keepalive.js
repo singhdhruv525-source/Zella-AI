@@ -8,6 +8,11 @@ let token = null;
 supabase.auth.getSession().then(({ data }) => { token = data?.session?.access_token ?? null; }, () => {});
 supabase.auth.onAuthStateChange((_event, session) => { token = session?.access_token ?? null; });
 
+// Whether a keepalive send could start now: the address and key, a current access token, and fetch. No side effects.
+export function keepaliveReady() {
+  return Boolean(supabaseConfig.url && supabaseConfig.key && token && typeof fetch === "function");
+}
+
 export function sendKeepalive(kind, name, body) {
   const req = keepaliveRequest({ ...supabaseConfig, token }, kind, name, body);
   if (!req || typeof fetch !== "function") return false;
