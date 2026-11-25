@@ -53,3 +53,15 @@ test("an empty or broken industries answer is a load failure, not a code error (
   assert.deepEqual(r.industries[1].modules, []);
   assert.equal(r.industryData, true);
 });
+
+test("industry rows without a string name, and module entries that aren't objects, are left out (A41)", async () => {
+  const { readIndustriesAnswer } = await import("../src/industryModules.js");
+  const r = readIndustriesAnswer({ industries: [
+    { id: "a", name: "Dental", modules: [{ id: "m1", name: "Calls" }, null, "calls", 7, ["x"], { id: "m2", name: "Email" }] },
+    { id: "b" }, { id: "c", name: null }, { id: "d", name: 42 }, ["e"], { id: "f", name: "" },
+  ] });
+  assert.deepEqual(r.industries.map((i) => i.id), ["a", "f"]);
+  assert.deepEqual(r.industries[0].modules.map((m) => m.id), ["m1", "m2"]);
+  assert.deepEqual(r.industries[1].modules, []);
+  assert.deepEqual(readIndustriesAnswer({ industries: [] }).industries, []);   // no industries yet is still valid
+});

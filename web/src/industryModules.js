@@ -32,11 +32,12 @@ export function moduleName(slug) {
 }
 
 // The industries_list answer, checked. Returns null when the server sent nothing usable (no answer, or no list),
-// so the page shows "Industries didn't load." with Try again instead of a code error. Each industry keeps a modules list.
+// so the page shows "Industries didn't load." with Try again instead of a code error. Rows the page can't render (no id,
+// no string name) are left out, and so are module entries that aren't objects. An empty list is a valid answer.
 export function readIndustriesAnswer(data) {
   if (!data || typeof data !== "object" || !Array.isArray(data.industries)) return null;
   const industries = data.industries
-    .filter((i) => i && typeof i === "object" && i.id)
-    .map((i) => (Array.isArray(i.modules) ? i : { ...i, modules: [] }));
+    .filter((i) => i && typeof i === "object" && !Array.isArray(i) && i.id && typeof i.name === "string")
+    .map((i) => ({ ...i, modules: (Array.isArray(i.modules) ? i.modules : []).filter((m) => m && typeof m === "object" && !Array.isArray(m)) }));
   return { industries, industryData: Boolean(data.industryData) };
 }
