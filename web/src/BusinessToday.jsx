@@ -268,7 +268,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       if (live) setTableNames(error ? "failed" : Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
     });
     return () => { live = false; };
-  }, [tablesOn, workspace.id]);
+  }, [tablesOn, workspace.id, refresh]);   // a refresh also reloads the table names (a table added since Today opened)
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
   const cfg = todayConfig(industry);
