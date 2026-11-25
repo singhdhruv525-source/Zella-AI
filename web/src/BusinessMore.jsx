@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
@@ -299,6 +299,18 @@ export function ReportsPage({ workspace, refreshKey }) {
     };
   }, [data, tz]);
 
+  // The chart's last bar is today only until the business's midnight. Then the figures reload; until they have, the
+  // bar is named by its own date, never "Today".
+  const lastDay = r?.perDay.at(-1)?.day;
+  useEffect(() => {
+    if (!lastDay) return undefined;
+    const wait = dayRange(tz, 1).start.getTime() - Date.now() + 1000;
+    const timer = setTimeout(reload, Math.max(1000, Math.min(wait, 2147483647)));
+    return () => clearTimeout(timer);
+  }, [lastDay, tz, reload]);
+  const lastIsToday = Boolean(lastDay) && lastDay.getTime() === dayRange(tz, 0).start.getTime();
+  const lastName = lastIsToday ? "Today" : shortDay(lastDay, tz);
+
   const pct = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : "None");
   const peak = Math.max(1, ...(r?.perDay ?? []).map((d) => d.n));
   return (
@@ -325,7 +337,7 @@ export function ReportsPage({ workspace, refreshKey }) {
           </div>
           <section className="ba-panel ba-gap">
             <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Calls per day</h2><p>Last {Math.min(Number(range), 30)} days</p></div></div></div>
-            <div className="ba-bars" role="img" aria-label={`Calls per day, ${formatDay(r.perDay[0]?.day, tz)} to today. Today: ${r.perDay.at(-1)?.n ?? 0}`}>
+            <div className="ba-bars" role="img" aria-label={`Calls per day, ${formatDay(r.perDay[0]?.day, tz)} to ${lastIsToday ? "today" : formatDay(lastDay, tz)}. ${lastIsToday ? "Today" : formatDay(lastDay, tz)}: ${r.perDay.at(-1)?.n ?? 0}`}>
               {r.perDay.map((d, i) => (
                 <span key={d.day.toISOString()} className={i === r.perDay.length - 1 ? "on" : ""} title={`${formatDay(d.day, tz)}: ${d.n}`}><i style={{ height: `${Math.max(3, (d.n / peak) * 100)}%` }} /></span>
               ))}
@@ -334,7 +346,7 @@ export function ReportsPage({ workspace, refreshKey }) {
             <div className="ba-bars-axis" aria-hidden="true">
               {r.perDay.map((d, i) => {
                 const mark = i === 0 || i === r.perDay.length - 1 || i === Math.floor((r.perDay.length - 1) / 2);
-                return <span key={d.day.toISOString()}>{mark ? (i === r.perDay.length - 1 ? "Today" : shortDay(d.day, tz)) : ""}</span>;
+                return <span key={d.day.toISOString()}>{mark ? (i === r.perDay.length - 1 ? lastName : shortDay(d.day, tz)) : ""}</span>;
               })}
             </div>
           </section>

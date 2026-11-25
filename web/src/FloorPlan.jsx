@@ -61,7 +61,10 @@ export function FloorPlan({ tables, selectedId, onSelect, compact = false, edita
   useLayoutEffect(() => {
     if (!fitting || !box.current) return undefined;
     const measure = () => setFrame((f) => {
-      const width = Math.round(box.current?.clientWidth ?? 0), maxHeight = fitMaxHeight();
+      // the box's width without its borders, measured outside any scrollbar: a scrollbar the plan adds never changes
+      // the width the plan is fitted to, so the plan settles in one state for a given box width
+      const el = box.current;
+      const width = el ? Math.round(el.offsetWidth - el.clientLeft * 2) : 0, maxHeight = fitMaxHeight();
       return f.width === width && f.maxHeight === maxHeight ? f : { width, maxHeight };
     });
     measure();

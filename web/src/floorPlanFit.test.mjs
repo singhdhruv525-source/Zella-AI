@@ -55,3 +55,16 @@ test("eight tables are never drawn larger than life; three may be", () => {
   const three = [box(30, 45), box(50, 45), box(70, 45)];
   assert.ok(fitPlan(three, 744, 360, fitOptions(3)).scale > 1);
 });
+
+test("at the height cap the result depends only on the width given, so it settles in one state", () => {
+  // a plan near the 480px cap at the scale floor: the same width always gives the same answer
+  const many = Array.from({ length: 24 }, (_, i) => box(8 + (i % 6) * 16.8, 12 + Math.floor(i / 6) * 25, 96, 96));
+  for (const width of [743, 760]) {
+    const a = fitPlan(many, width, 480, fitOptions(24));
+    const b = fitPlan(many, width, 480, fitOptions(24));
+    assert.deepEqual(a, b);
+    assert.ok(a.boxHeight <= 480);
+    // scrolling is decided against the box the plan was given, never against itself
+    assert.equal(a.scrolls, a.width * a.scale + 2 * FIT.pad > width + 0.5 || a.height * a.scale + 2 * FIT.pad > a.boxHeight + 0.5);
+  }
+});

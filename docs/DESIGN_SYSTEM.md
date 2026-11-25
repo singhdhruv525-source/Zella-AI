@@ -313,13 +313,14 @@ Classic and the Zella Voice theme stay; no feature, section or order changed.
   secondary text; red (`.bad`) stays only for failed or missed.
 - **Charts:** soft grey bars (the text colour at 50%) with the latest day or today in the accent: Spam protection's
   "Incidents per day" (square topped bars) and Reports' "Calls per day" (the rounded voice bars, 14px wide, with
-  date marks under the first, middle and last bar; the last reads "Today").
+  date marks under the first, middle and last bar; the last reads "Today" while it is today, and the figures reload
+  at the business's midnight; until they have, that bar shows its own date).
 - **Calendar:** today's column has no fill; a 3px accent bar sits on top of its day name.
 - **Reports figures:** each group is one row of compact cards (`.rp-kpis`: at least 150px each, 28px figures), so
   five calls figures never leave a hole; two per row on a phone.
 - **Notifications:** see Notifications above.
 - **Glass:** names on the filled floor plan tables (seated, reserved, clearing, blocked) use the dark glass base
-  colour, because Glass makes those fills light; the note under the Integrations cards sits in a quiet glass panel.
+  colour, because Glass makes those fills light (not on Today's compact plan card, which keeps white names); the note under the Integrations cards sits in a quiet glass panel.
 - **Stars:** review stars are gold `#B7791F` on the light looks (3.6:1 against a white card, WCAG 1.4.11 asks 3:1)
   and keep `#E0A21B` on Glass.
 - **Voice carousel:** in the CRM the chosen card keeps its accent border and a 1px ring, without the glow.

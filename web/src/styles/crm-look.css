@@ -27,8 +27,9 @@ html:root:has(.ba-root) .ba-thread-icon.bad { background: var(--ba-danger-bg); c
 html:root:not([data-zella-theme="glass"]):has(.ba-root) .ba-toast { background: var(--ba-surface); }
 html:root:has(.ba-root) .ba-btn.icon.ringing .ba-icon { animation: none; }
 
-/* ---------- C17. Glass floor plan: names on the light filled tables in a dark colour, so they read ---------- */
-html[data-zella-theme="glass"]:root:has(.ba-root) .fp-table:is(.st-seated, .st-reserved, .st-needs_clearing, .st-unavailable) {
+/* ---------- C17. Glass floor plan: names on the light filled tables in a dark colour, so they read. Not on Today's
+   compact plan card, which keeps its white names (Today is outside these items). ---------- */
+html[data-zella-theme="glass"]:root:has(.ba-root) .fp:not(.compact) .fp-table:is(.st-seated, .st-reserved, .st-needs_clearing, .st-unavailable) {
   color: var(--zella-glass-base, #1b1613);
 }
 
