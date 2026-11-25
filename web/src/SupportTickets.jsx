@@ -63,14 +63,14 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
     const mine = ++request.current;
     // quick changes already settled when this read starts: once it puts fresh tickets on screen they are in it, so
     // their shown values give way (any read that works, not only the one after the send; never a change settled later)
-    const settledBefore = store.settledIds();
+    const settledBefore = store.settledSnapshot();
     setLoading(true);
     setError("");
     try {
       const next = await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {});
       if (mine !== request.current) return false;
       setData({ ...next, overdueOnly: overdueTab });
-      store.clearSettledIds(settledBefore);
+      store.clearSettledSnapshot(settledBefore);
       return true;
     } catch (err) {
       if (mine === request.current) setError(friendlyError(err));

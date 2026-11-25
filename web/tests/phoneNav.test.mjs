@@ -403,7 +403,7 @@ test("closing the tab: waiting changes go out as keepalive requests where they c
   store.unloadAll();
   await Promise.resolve();
   assert.deepEqual(beacons.sort(), ["fallback send", "keepalive"]);
-  assert.equal(withBeacon.state, "sent");
+  assert.equal(withBeacon.state, "beaconed", "handed to the browser as a keepalive request");
   await timers.run();
   assert.equal(beacons.length, 2, "nothing is sent twice when the timers would have fired");
   // a beacon that couldn't start (no session): the usual send instead

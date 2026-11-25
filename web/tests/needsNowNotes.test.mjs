@@ -267,13 +267,13 @@ test("a read that works clears only the changes settled when it started; a back/
   const make = (id) => deferChange({ commit: async () => store.succeed(id), revert: () => store.drop(id), timers });
   store.add("t1", make("t1"), { status: "resolved" });
   await timers.run();                                   // t1 sent and settled
-  const before = store.settledIds();                    // a read starts now
+  const before = store.settledSnapshot();               // a read starts now
   store.add("t2", make("t2"), { status: "resolved" });
   await timers.run();                                   // t2 settles while that read runs
-  store.clearSettledIds(before);                        // the read worked
+  store.clearSettledSnapshot(before);                   // the read worked
   assert.deepEqual([...store.views().keys()], ["t2"], "only t1 cleared; t2 waits for the next read");
   // a later read that works clears t2 too (any successful read, not only the one right after the send)
-  store.clearSettledIds(store.settledIds());
+  store.clearSettledSnapshot(store.settledSnapshot());
   assert.equal(store.views().size, 0);
   // sent as a keepalive request while the page was hidden, then restored from the back/forward cache
   const events = [];
@@ -286,4 +286,49 @@ test("a read that works clears only the changes settled when it started; a back/
   settleSent();
   assert.equal(store.has("t3"), false);
   assert.ok(events.includes("sent"), "open pages read their lists again");
+});
+
+test("back from the back/forward cache: only keepalive sends settle; a normal send that then fails brings the task back", async () => {
+  const timers = fakeTimers();
+  const store = createPendingStore();
+  let reject;
+  const c = deferChange({ commit: () => new Promise((_, r) => { reject = r; }), revert: () => store.drop("t1"), timers });
+  store.add("t1", c, { hidden: true });
+  const sending = c.flush();                              // the normal send is in flight
+  assert.equal(c.state, "sent");
+  store.settleSent();                                     // pageshow (persisted) while it is in flight
+  assert.equal(store.has("t1"), true, "a normal send in flight is not settled by the restore");
+  // the refresh after the restore fails (nothing is acknowledged), then the send is refused
+  const snapshot = store.settledSnapshot();
+  assert.deepEqual(snapshot, []);
+  reject(new Error("refused"));
+  await sending;
+  assert.equal(store.views().has("t1"), false, "the task comes back");
+  // a keepalive send is settled by the restore
+  const k = deferChange({ commit: async () => {}, beacon: () => true, timers });
+  store.add("t2", k, { hidden: true });
+  k.unload();
+  assert.equal(k.state, "beaconed");
+  store.settleSent();
+  assert.equal(store.has("t2"), false);
+  assert.equal(store.views().get("t2").hidden, true, "settled until a read that works");
+  // and a failure reported for a row that had already settled removes it too
+  store.drop("t2");
+  assert.equal(store.views().has("t2"), false);
+});
+
+test("an older read never clears a newer settled change for the same row", async () => {
+  const timers = fakeTimers();
+  const store = createPendingStore();
+  const send = (id, view) => { const c = deferChange({ commit: async () => store.succeed(id), revert: () => store.drop(id), timers }); store.add(id, c, view); return c; };
+  send("st1", { status: "resolved" });
+  await timers.run();
+  const olderRead = store.settledSnapshot();             // a read starts (for example on a page then left)
+  store.clearSettledSnapshot(store.settledSnapshot());   // another read worked meanwhile
+  send("st1", { assigned_to: "me" });                     // a newer change for the same ticket settles
+  await timers.run();
+  store.clearSettledSnapshot(olderRead);                  // the older read finishes late
+  assert.deepEqual(store.views().get("st1"), { assigned_to: "me" }, "the newer settled value stays");
+  store.clearSettledSnapshot(store.settledSnapshot());
+  assert.equal(store.views().has("st1"), false);
 });

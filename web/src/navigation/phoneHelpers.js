@@ -143,7 +143,7 @@ export function deferChange({ apply, commit, revert, onError, beacon, beaconRead
   let sending = null;   // the send in progress: a later flush() returns it, so signing out waits for it
   apply?.();
   const send = () => {
-    if (state === "sent") return sending ?? Promise.resolve();
+    if (state === "sent" || state === "beaconed") return sending ?? Promise.resolve();
     if (state !== "waiting") return Promise.resolve();   // undone: nothing to send
     state = "sent";
     sending = (async () => {
@@ -171,7 +171,8 @@ export function deferChange({ apply, commit, revert, onError, beacon, beaconRead
     unload() {
       if (state !== "waiting") return false;
       timers.clearTimeout(timer);
-      if (beacon && beacon()) { state = "sent"; sending = Promise.resolve(); return true; }
+      // "beaconed": handed to the browser as a keepalive request; its outcome is never seen here (settleSent)
+      if (beacon && beacon()) { state = "beaconed"; sending = Promise.resolve(); return true; }
       send();
       return false;
     },
@@ -196,33 +197,40 @@ export const pendingToastText = (text, waiting) => (waiting > 1 ? `${waiting} ch
 // "settled" until the page has read the list again, so the row never flickers back.
 export function createPendingStore() {
   // methods refer to `store`, never `this`, so they work when passed around on their own
-  const pending = new Map();   // id -> { change, view }
-  const settled = new Map();   // id -> view
+  let nextToken = 0;
+  const pending = new Map();   // id -> { change, view, token }
+  const settled = new Map();   // id -> { view, token }: the token says which change it came from
   const subs = new Set();
   const emit = (event) => subs.forEach((f) => f(event));
   const store = {
     has: (id) => pending.has(id),
     change: (id) => pending.get(id)?.change ?? null,
-    add(id, change, view) { pending.set(id, { change, view }); emit({ type: "add", id }); },
-    // sent: the page reads its list again, then calls clearSettled(id)
-    succeed(id) { const e = pending.get(id); pending.delete(id); if (e) settled.set(id, e.view); emit({ type: "sent", id }); },
-    // undone, or the send failed: the view goes, the row is back as it was
-    drop(id) { if (pending.delete(id)) emit({ type: "drop", id }); },
+    add(id, change, view) { pending.set(id, { change, view, token: ++nextToken }); emit({ type: "add", id }); },
+    // sent: the page reads its list again, and a read that works clears the settled view (clearSettledSnapshot)
+    succeed(id) { const e = pending.get(id); pending.delete(id); if (e) settled.set(id, { view: e.view, token: e.token }); emit({ type: "sent", id }); },
+    // undone, or the send failed: the view goes (pending or already settled), the row is back as it was
+    drop(id) { const a = pending.delete(id); const b = settled.delete(id); if (a || b) emit({ type: "drop", id }); },
     clearSettled(id) { if (settled.delete(id)) emit({ type: "settled", id }); },
     // a page that has just read its list fresh: what was sent is in it now
     clearAllSettled() { if (settled.size) { settled.clear(); emit({ type: "settled" }); } },
-    views() { return new Map([...settled, ...[...pending].map(([id, e]) => [id, e.view])]); },
+    views() { return new Map([...[...settled].map(([id, e]) => [id, e.view]), ...[...pending].map(([id, e]) => [id, e.view])]); },
     changes() { return [...pending.values()].map((e) => e.change); },
     waiting() { return [...pending.values()].filter((e) => e.change.state === "waiting").length; },
     subscribe(f) { subs.add(f); return () => subs.delete(f); },
     flushAll() { return Promise.all([...pending.values()].map((e) => e.change.flush())); },
-    // the ids settled now: a read that starts now may clear exactly these once it has put fresh data on screen (a
-    // change settled while it was running is left for the next read)
-    settledIds() { return [...settled.keys()]; },
-    clearSettledIds(ids) { let n = 0; for (const id of ids) if (settled.delete(id)) n++; if (n) emit({ type: "settled" }); },
-    // back from the back/forward cache: changes sent as keepalive requests while the page was hidden are finished;
-    // they settle like any sent change, so open pages read their lists again (showing the real outcome)
-    settleSent() { [...pending].forEach(([id, e]) => { if (e.change.state === "sent") store.succeed(id); }); },
+    // the settled entries now, each with the change it came from: a read that starts now may clear exactly these
+    // once it has put fresh data on screen. A change settled while it ran, or a newer change settled for the same
+    // row since (an older read finishing late), is left alone.
+    settledSnapshot() { return [...settled].map(([id, e]) => [id, e.token]); },
+    clearSettledSnapshot(snapshot) {
+      let n = 0;
+      for (const [id, token] of snapshot ?? []) if (settled.get(id)?.token === token) { settled.delete(id); n++; }
+      if (n) emit({ type: "settled" });
+    },
+    // back from the back/forward cache: only the changes that went out as keepalive requests while the page was
+    // hidden are settled (open pages read their lists again, showing the real outcome); a normal send still in flight
+    // settles itself when it finishes, or drops on failure
+    settleSent() { [...pending].forEach(([id, e]) => { if (e.change.state === "beaconed") store.succeed(id); }); },
     // the tab is closing: each waiting change goes out as a keepalive request where it can
     unloadAll() { [...pending.values()].forEach((e) => e.change.unload?.()); },
     // changes still waiting that can't be sent that way (the browser is asked to confirm leaving while there are any)

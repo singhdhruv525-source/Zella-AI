@@ -195,7 +195,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   const { data, error, loading, reload } = useLoad(async () => {
     // every read (opening, Refresh, pull to refresh, a refresh key, a reload after a change) notes the quick changes
     // already settled when it starts; once its data is on screen (the effect below), exactly those give way
-    const settledBefore = store.settledIds();
+    const settledBefore = store.settledSnapshot();
     const tasks = orThrow(await supabase.from("crm_tasks").select("*").eq("business_id", workspace.id).order("due_at", { ascending: true, nullsFirst: false }).limit(300));
     const dups = orThrow(await supabase.from("duplicate_reviews").select("*").eq("business_id", workspace.id).eq("status", "open").order("created_at", { ascending: false }).limit(50));
     return { tasks, dups, people: await loadPeople([...tasks.map((t) => t.customer_id), ...dups.map((d) => d.customer_id)]), settledBefore };
@@ -213,7 +213,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   const views = usePendingViews(store, () => { reload(); });
   // useLoad only puts data on screen from a read that worked and wasn't overtaken: that read's snapshot is acknowledged
   // (a failed read leaves the data, and so the settled tasks, as they were)
-  useEffect(() => { if (data?.settledBefore) store.clearSettledIds(data.settledBefore); }, [data, store]);
+  useEffect(() => { if (data?.settledBefore) store.clearSettledSnapshot(data.settledBefore); }, [data, store]);
   useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [rowMenu, setRowMenu] = useState(null);
   // done, or dismissed (cancel): both leave the list at once with Undo and are sent after the Undo window
