@@ -428,9 +428,11 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
     <>
       <div className="ba-page-head td-head">
         <div>
-          {/* The page or the day as the title, then the date and the business (approved 25 Nov 2026, changes 1 and 2) */}
+          {/* The page or the day as the title, then the date, then the business on a quieter line
+              (approved 25 Nov 2026, changes 1 and 2; no "A · B" meta line, owner 25 Nov 2026) */}
           <h1>{isToday ? "Today" : dayLabel}</h1>
-          <p>{isToday ? `${formatLongDate(dayBounds(day, tz).start, tz)} · ${workspace.name}` : workspace.name}</p>
+          {isToday && <p>{formatLongDate(dayBounds(day, tz).start, tz)}</p>}
+          <p className="td-head-biz">{workspace.name}</p>
         </div>
         <div className="ba-page-actions">
           <label className="td-date">

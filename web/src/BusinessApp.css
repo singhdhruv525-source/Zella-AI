@@ -1621,6 +1621,8 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
 .ba-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .td-head { align-items: center; }
 .td-head h1 { font-size: 28px; }
+/* the business name: a second, quieter line under the date */
+.td-head p.td-head-biz { margin-top: 4px; color: var(--zella-text-faint); font-size: 13px; }
 .td-date { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--ba-border-strong); border-radius: var(--ba-radius-sm); background: var(--ba-surface); color: var(--ba-muted); }
 .td-date input { border: 0; outline: none; background: transparent; color: var(--ba-text); font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; }
 .td-date:focus-within { border-color: var(--ba-primary); box-shadow: 0 0 0 3px var(--ba-primary-ring); }
