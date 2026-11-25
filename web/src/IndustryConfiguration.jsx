@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./OwnerPages.css";
 import "./IndustryConfiguration.css";
 import { Icon } from "./BusinessUI";
@@ -99,8 +99,9 @@ export default function IndustryConfiguration() {
   const [industries, setIndustries] = useState([]);
   const [loadFailed, setLoadFailed] = useState(false);   // the list didn't load: not the same as "no industries"
   const [selectedId, setSelectedId] = useState(null);
-  const [draft, setDraft] = useState(null);
+  const [draft, setDraftState] = useState(null);
   const [pendingId, setPendingId] = useState(null);
+  const [pendingReload, setPendingReload] = useState(false);   // Try again would replace unsaved changes: ask first
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -121,7 +122,18 @@ export default function IndustryConfiguration() {
 
   const selected = industries.find((i) => i.id === selectedId) || null;
 
+  // Counts what the person does in the editor (edits and switching industry), so a list answer that arrives after
+  // they changed something never replaces their work.
+  const changesRef = useRef(0);
+  const selectedRef = useRef(null);
+  useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
+  const setDraft = (value) => {
+    changesRef.current += 1;
+    setDraftState(value);
+  };
+
   const load = useCallback(async (keepId) => {
+    const changesAtStart = changesRef.current;
     setLoading(true);
     setError("");
     try {
@@ -130,9 +142,11 @@ export default function IndustryConfiguration() {
       setIndustries(data.industries);
       setIndustryData(data.industryData);
       setLoadFailed(false);
+      // Changed while this was loading: keep the open industry and its draft as they are, if it is still in the list.
+      if (changesRef.current !== changesAtStart && data.industries.some((i) => i.id === selectedRef.current)) return;
       const next = data.industries.find((i) => i.id === keepId) || data.industries[0] || null;
       setSelectedId(next?.id ?? null);
-      setDraft(next ? toDraft(next) : null);
+      setDraftState(next ? toDraft(next) : null);
     } catch {
       // One plain message with Try again in the list (A40, A41), never the raw error text.
       setLoadFailed(true);
@@ -167,12 +181,14 @@ export default function IndustryConfiguration() {
   function select(id) {
     if (id === selectedId) return;
     if (dirty) {
+      setPendingReload(false);
       setPendingId(id);
       return;
     }
     const industry = industries.find((i) => i.id === id);
+    changesRef.current += 1;
     setSelectedId(id);
-    setDraft(toDraft(industry));
+    setDraftState(toDraft(industry));
     setNotice("");
     setError("");
     setCreating(false);
@@ -180,10 +196,27 @@ export default function IndustryConfiguration() {
 
   function discardAndSwitch() {
     const industry = industries.find((i) => i.id === pendingId);
+    changesRef.current += 1;
     setSelectedId(pendingId);
-    setDraft(toDraft(industry));
+    setDraftState(toDraft(industry));
     setPendingId(null);
     setNotice("");
+  }
+
+  // Try again after a failed refresh: a successful answer replaces the open draft, so unsaved changes are confirmed first.
+  function retry() {
+    if (dirty) {
+      setPendingId(null);
+      setPendingReload(true);
+      return;
+    }
+    load(selectedId);
+  }
+
+  function discardAndReload() {
+    setPendingReload(false);
+    setNotice("");
+    load(selectedId);
   }
 
   const setTerm = (key, value) =>
@@ -311,7 +344,7 @@ export default function IndustryConfiguration() {
           ) : loadFailed && !loading ? (
             <div className="op-empty" role="alert">
               Industries didn't load.{" "}
-              <button type="button" className="owner-secondary-button" onClick={() => load(selectedId)}>Try again</button>
+              <button type="button" className="owner-secondary-button" onClick={retry}>Try again</button>
             </div>
           ) : visible.length ? (
             <ul>
@@ -348,6 +381,20 @@ export default function IndustryConfiguration() {
                 </button>
                 <button type="button" className="owner-primary-button op-small" onClick={discardAndSwitch}>
                   Discard and switch
+                </button>
+              </div>
+            </div>
+          )}
+
+          {pendingReload && dirty && (
+            <div className="ic-warning">
+              <span>You have unsaved changes to {selected?.name}. Loading the list again replaces them.</span>
+              <div>
+                <button type="button" className="owner-secondary-button op-small" onClick={() => setPendingReload(false)}>
+                  Keep editing
+                </button>
+                <button type="button" className="owner-primary-button op-small" onClick={discardAndReload}>
+                  Discard and reload
                 </button>
               </div>
             </div>

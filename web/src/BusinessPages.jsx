@@ -15,7 +15,7 @@ import { ReceptionistEditor } from "./BusinessReceptionist";
 import { BookingPanel } from "./BookingPanel";
 import { todayConfig } from "./todayConfig";
 import { humanize } from "./copy/labels";
-import { formatPhone, formatTimeZone } from "./lib/format";
+import { formatPhone, formatTimeZone, phoneMatches } from "./lib/format";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -55,7 +55,8 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
       }
       if (source !== "all" && (p.source || "other") !== source) return false;
       if (!q) return true;
-      return [personName(p), p.phone, p.email, p.company_name].some((v) => v && v.toLowerCase().includes(q));
+      if ([personName(p), p.phone, p.email, p.company_name].some((v) => v && v.toLowerCase().includes(q))) return true;
+      return phoneMatches(p.phone, q);
     });
   }, [data, filter, source, query, isLeads]);
 
@@ -291,19 +292,19 @@ const matchesStatus = (x, f) => f === "all" || (f === "awaiting" ? awaiting(x) &
 function CalendarSummary({ appts, staff, cfg, term, period, loading }) {
   const live = appts.filter((x) => x.status !== "cancelled" && x.status !== "no_show");
   const cards = [
-    ["event", "rose", `${term("appointments")} ${period}`, live.length],
-    ["check_circle", "green", "Confirmed", appts.filter((x) => x.status === "confirmed").length],
-    ["pending", "amber", "Awaiting confirmation", appts.filter((x) => awaiting(x) && x.status !== "cancelled").length],
-    ["event_busy", "", "Canceled", appts.filter((x) => x.status === "cancelled" || x.status === "no_show").length],
+    ["event", `${term("appointments")} ${period}`, live.length],
+    ["check_circle", "Confirmed", appts.filter((x) => x.status === "confirmed").length],
+    ["pending", "Awaiting confirmation", appts.filter((x) => awaiting(x) && x.status !== "cancelled").length],
+    ["event_busy", "Canceled", appts.filter((x) => x.status === "cancelled" || x.status === "no_show").length],
   ];
-  if (cfg.guests) cards.push(["groups", "indigo", `Expected ${term("customers").toLowerCase()}`, live.reduce((n, x) => n + (x.party_size ?? 0), 0)]);
-  else if (cfg.arrived === "On site" && staff.length) cards.push(["person_alert", "blue", "Unassigned", live.filter((x) => !x.staff_id).length]);
+  if (cfg.guests) cards.push(["groups", `Expected ${term("customers").toLowerCase()}`, live.reduce((n, x) => n + (x.party_size ?? 0), 0)]);
+  else if (cfg.arrived === "On site" && staff.length) cards.push(["person_alert", "Unassigned", live.filter((x) => !x.staff_id).length]);
+  // a small grey icon next to each label, no coloured tile (owner approved, 25 Nov 2026)
   return (
     <div className="cal-summary">
-      {cards.map(([icon, tone, label, value]) => (
+      {cards.map(([icon, label, value]) => (
         <div key={label} className="ba-kpi cal-stat">
-          <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} size="sm" /></span>
-          <div><span>{label}</span><strong>{loading ? "…" : value}</strong></div>
+          <div><span className="crm-kpi-label"><Icon name={icon} size="sm" className="crm-kpi-glyph" />{label}</span><strong>{loading ? "…" : value}</strong></div>
         </div>
       ))}
     </div>

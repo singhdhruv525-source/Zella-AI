@@ -114,15 +114,18 @@ function MessageResults({ workspace, days, refreshKey }) {
   );
 }
 
-export function MoreReports({ workspace, days, refreshKey }) {
+// dayKey: Reports bumps it at the business's midnight, so the rolling window panels (reply speed, follow ups) rerun;
+// the connections panel is not about a window and keeps to refreshKey.
+export function MoreReports({ workspace, days, refreshKey, dayKey = 0 }) {
+  const windowKey = `${refreshKey}:${dayKey}`;
   const managers = ["owner", "admin", "manager"].includes(workspace.role);
   return (
     <>
       <div className="ba-grid-2" style={{ marginTop: 16 }}>
         <IntegrationHealth workspace={workspace} refreshKey={refreshKey} />
-        {managers && <ResponseTimes workspace={workspace} days={days} refreshKey={refreshKey} />}
+        {managers && <ResponseTimes workspace={workspace} days={days} refreshKey={windowKey} />}
       </div>
-      <div style={{ marginTop: 16 }}><MessageResults workspace={workspace} days={days} refreshKey={refreshKey} /></div>
+      <div style={{ marginTop: 16 }}><MessageResults workspace={workspace} days={days} refreshKey={windowKey} /></div>
     </>
   );
 }

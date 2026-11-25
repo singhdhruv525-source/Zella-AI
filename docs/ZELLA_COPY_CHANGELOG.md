@@ -154,7 +154,7 @@ Owner approved, 25 Nov 2026 (architecture §23.1d). Frontend wording only.
 | Today, card | "Reviews & feedback" | "Reviews and feedback" | 4 |
 | Header search, placeholder | "Search guests (press Enter)" | "Search guests" (the industry's word) | 5 |
 | Today, bookings table, empty Table or staff cell | "None" | "Not set" | 6 |
-| Today, bookings table, empty Guests cell | "None" | left blank | 6 |
+| Today, bookings table, empty Guests cell | "None" | "None" in faint text (first shipped blank; corrected 25 Nov 2026 by the full review, since an empty count is never blank) | 6 |
 | Sidebar section names | "WORKSPACE", "CRM", "RESTAURANT OPERATIONS" (spaced capitals by style) | "Workspace", "CRM", "Restaurant operations" (sentence case) | 19 |
 
 Change 2 was revised by the owner on 25 Nov 2026, before merge: the first version read "Wednesday, November 25 · The
@@ -174,6 +174,15 @@ Approved by the owner on 25 Nov 2026 (A41, C33, C36, C39, C45). Details: the adm
 | Admin, Industry configuration, failed or empty load | "Cannot read properties of undefined (reading '0')", "Couldn't load the industries. Reload the page to try again." and "Industries didn't load." | "Industries didn't load." with a Try again button | A41 (A40 wording) |
 | Admin Settings, Reporting configuration, empty answer | the page crashed | "Couldn't load this: The server didn't answer." with Try again | S62 |
 | Settings, Billing, Auto reload, a resource with no packs | the page crashed when the list was missing | "No packs of texts are on offer right now, so there is nothing to reload with. Ask Zella Voice support." (per resource) | CRM audit, section 4 |
+
+## 25 November 2026: CRM look
+
+CRM only (owner approved, `docs/DESIGN_SYSTEM.md` "CRM look"). One wording change; the chart gains date marks.
+
+| Where | Before | After | Item |
+|---|---|---|---|
+| Tables, a table's details panel | "Block…" | "Block table" | C29 |
+| Reports, Calls per day | no dates under the bars | "Oct 27", the middle day ("Nov 10") and "Today" under the first, middle and last bar | C41 |
 
 ## 25 November 2026: admin pages polish
 
