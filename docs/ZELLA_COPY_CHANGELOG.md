@@ -25,6 +25,20 @@ New words on phones only (under 768 wide); tablets and desktops show nothing new
 | Pull to refresh | Pull to refresh, Let go to refresh, Refreshing | P17 |
 | Placeholders (screen readers) | Loading the page, Loading tasks, Loading callbacks, Loading tickets, Checking your access | P18 |
 
+## 25 November 2026: admin dashboard polish
+
+Admin dashboard only (owner approved, `docs/DESIGN_SYSTEM.md` "Admin polish"). No words added or removed.
+
+| Where | Before | After | Why |
+|---|---|---|---|
+| Admin sidebar group labels | BUSINESSES, CONFIGURATION, AI & COMMUNICATIONS, OPERATIONS, ADMINISTRATION (spaced capitals) | Businesses, Configuration, AI & communications, Operations, Administration | Sentence case, as written |
+| Line above the page title | PLATFORM CONTROL CENTER (and every admin page's eyebrow) | Platform control center | Sentence case |
+| Admin sidebar scroll cue | MORE BELOW | More below | Sentence case |
+| Overview panel captions | "Problems that block a client from going live." and the four others | No full stop at the end | A caption is a label, not a sentence; empty state sentences keep theirs |
+| Top bar search hint | "Search businesses..." | "Search businesses" | No trailing dots |
+| Overview counts | 3182, 2847 handled by AI | 3,182, 2,847 handled by AI | Thousands separator |
+| Overview buttons | "↻ Refresh", "＋ Create business", "＋ Create your first business" | Same words with real icons | Typed symbols replaced by the icon set |
+
 ## 30 October 2026: product language pass
 
 Frontend wording only (`web/src`). Internal values, routes, permissions and backend behavior are unchanged, except

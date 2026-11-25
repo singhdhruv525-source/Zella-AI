@@ -2219,6 +2219,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | Limits and caps (25 Nov) | Zella Voice admins set every plan limit and cap at Create Business and can change them later; the owner may choose a lower monthly spending limit and what happens at the limit, never above the plan | REQ-BIL-01, REQ-BIL-23, REQ-BIL-32, D-44 |
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
+| Admin dashboard polish (25 Nov) | 21 admin dashboard design changes approved: polish only, Glass and the brand kept, admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin polish" |
 | Phone navigation (25 Nov) | All of P1 to P29 of the phone navigation proposal are approved for **both** apps ("Yes to all"): a bottom bar with five tabs, the side panel, bottom sheets, a sticky main action, skeletons, pull to refresh, swipe rows with visible buttons, toasts with Undo and a live strip. The admin gets the full version too | REQ-MOB-02, REQ-MOB-04 to REQ-MOB-11 |
 | Phone menu button (25 Nov) | On phones the header menu button is removed; More opens the side panel | REQ-MOB-05 |
 | Phone tabs by industry (25 Nov) | Restaurant: Today, Calendar, Tables, Inbox, More. Salon: Today, Calendar, Clients, Inbox, More. The work tab says "Calendar" for every industry | REQ-MOB-04 |

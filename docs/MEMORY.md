@@ -178,6 +178,10 @@ most often needed:
     task (D-57). The live strip shows only callers waiting for a person (CRM) and open incidents (admin).
   - Undo never needs a reverse call: a quick change (task done, ticket assigned or resolved) is only sent once its
     5 second Undo window has passed (`deferChange` in `web/src/navigation/phoneHelpers.js`).
+- **Admin dashboard polish (owner, 25 Nov 2026):** 21 admin dashboard changes approved ("yes to all"): polish only,
+  Glass and the brand kept, admin only; the CRM does not change. The admin's motion is now calm (no lift, sheen or
+  ripple), which supersedes the 6 Nov lively motion rule for the admin only. Details in `docs/DESIGN_SYSTEM.md`
+  "Admin polish"; architecture §23.1d.
 
 - **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
   chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:

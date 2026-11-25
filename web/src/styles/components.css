@@ -1268,3 +1268,46 @@
 @media (max-width: 600px) {
   .owner-sidebar-col { border-right: 0; background: none; }
 }
+
+/* =========================================================
+   Admin polish (owner approved 25 Nov 2026, docs/DESIGN_SYSTEM.md "Admin polish"): sentence case labels, one
+   emphasis weight, smaller icons. Admin only (.owner-app): the CRM keeps its look.
+   ========================================================= */
+.owner-app .owner-nav-label {
+  color: var(--zella-text-faint);
+  font-size: var(--zella-text-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.owner-app .owner-eyebrow {
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Panel titles keep 600 as the one emphasis; the page title, figures, buttons, links, pills and list names are 500 */
+.owner-app .owner-page-heading h1,
+.owner-app .owner-stat-card .owner-stat-value,
+.owner-app :is(.owner-button, .owner-primary-button, .owner-secondary-button, .owner-link-button, .op-link, .op-name, .op-back, .op-pill, .owner-badge, .owner-status, .op-list strong) {
+  font-weight: 500;
+}
+
+/* Menu and top bar icons at 18px, one step under the text they sit beside */
+.owner-app .owner-nav-item { gap: 10px; }
+.owner-app .owner-nav-icon { width: 18px; }
+.owner-app :is(.owner-nav-icon .ba-icon, .owner-topbar .ba-icon:not(.sm)) { font-size: 18px; }
+
+/* Phone: a stat note wraps to a second line instead of being cut off */
+@media (max-width: 600px) {
+  .owner-app .owner-stat-card .owner-stat-note {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+  }
+}
