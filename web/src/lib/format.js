@@ -81,6 +81,9 @@ export function formatRelative(value, now = Date.now()) {
 export function formatPhone(value) {
   if (empty(value)) return "";
   const raw = String(value).trim();
+  // anything beyond digits and the usual separators (an extension such as "ext 45", "x45" or "#45") keeps its own text,
+  // so its digits never merge into the number
+  if (/[^\d\s+().\-/]/.test(raw)) return raw;
   const digits = raw.replace(/\D/g, "");
   const nanp = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits.length === 10 && !raw.startsWith("+") ? digits : null;
   if (nanp) return `(${nanp.slice(0, 3)}) ${nanp.slice(3, 6)} ${nanp.slice(6)}`;
@@ -92,6 +95,18 @@ export function formatPhone(value) {
   const national = digits.slice(cc.length);
   const head = national.slice(0, -7);
   return `${cc ? `+${cc} ` : ""}${head ? `${head} ` : ""}${national.slice(-7, -4)} ${national.slice(-4)}`;
+}
+
+// A search finds a phone number whether it is typed raw ("+12025550123") or as shown ("(202) 555 0123"): digits only,
+// at least 3 of them, matched with and without the leading 1 of a US or Canadian number.
+export function phoneMatches(phone, query) {
+  // only a phone shaped query (digits and the usual separators) is compared by digits; an email or name never is
+  if (!/^[\d\s+().\-/]+$/.test(String(query ?? "").trim())) return false;
+  const want = String(query ?? "").replace(/\D/g, "");
+  if (want.length < 3 || empty(phone)) return false;
+  const have = String(phone).replace(/\D/g, "");
+  const national = (d) => (d.length === 11 && d.startsWith("1") ? d.slice(1) : d);
+  return have.includes(want) || national(have).includes(national(want));
 }
 
 const TWO_DIGIT_CODES = new Set(["20", "27", "30", "31", "32", "33", "34", "36", "39", "40", "41", "43", "44", "45", "46", "47",

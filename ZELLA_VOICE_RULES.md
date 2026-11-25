@@ -78,7 +78,8 @@ flowchart LR
 4. `NN-4` **Production is changed only with the owner's explicit approval, one change at a time**, with a backup before and proof after.
 5. `NN-5` **Nobody pushes to `main`.** All work goes through a branch and a reviewed pull request. The owner merges it, or
    tells an AI agent to merge it once the automated review is clean and the required checks pass (owner's standing
-   permission, 12 Nov 2026).
+   permission, 12 Nov 2026). The last review before a merge is a full review of the final head, not an incremental one
+   (owner, 25 Nov 2026).
 6. `NN-6` **The database is the single source of truth and the single enforcer of rules.** The UI, edge functions and workflows never decide; they ask.
 7. `NN-7` **The AI receptionist never invents a fact.** If it doesn't know, it says so and takes a message.
 8. `NN-8` **Opt-out always wins.** STOP, "don't call me" and do-not-contact are honoured instantly and permanently, for the business the person opted out of: STOP stops that business's texts, "don't call me" its calls, do-not-contact everything from it. A separate platform legal block list, when used, applies to every business (§6.6).

@@ -128,7 +128,7 @@ Owner approved, 25 Nov 2026 (architecture §23.1d). Frontend wording only.
 | Today, card | "Reviews & feedback" | "Reviews and feedback" | 4 |
 | Header search, placeholder | "Search guests (press Enter)" | "Search guests" (the industry's word) | 5 |
 | Today, bookings table, empty Table or staff cell | "None" | "Not set" | 6 |
-| Today, bookings table, empty Guests cell | "None" | left blank | 6 |
+| Today, bookings table, empty Guests cell | "None" | "None" in faint text (first shipped blank; corrected 25 Nov 2026 by the full review, since an empty count is never blank) | 6 |
 | Sidebar section names | "WORKSPACE", "CRM", "RESTAURANT OPERATIONS" (spaced capitals by style) | "Workspace", "CRM", "Restaurant operations" (sentence case) | 19 |
 
 Change 2 was revised by the owner on 25 Nov 2026, before merge: the first version read "Wednesday, November 25 · The
