@@ -305,9 +305,10 @@ export function ReportsPage({ workspace, refreshKey }) {
   // The review covers a rolling window too, so it reloads with the figures.
   const lastDay = r?.perDay.at(-1)?.day;
   const reloadReview = review.reload;
+  const [dayKey, setDayKey] = useState(0);   // tells the panels below to rerun their rolling windows
   useEffect(() => {
     let timer;
-    const arm = () => { timer = setTimeout(() => { reload(); reloadReview(); arm(); }, msUntilNextDay(tz)); };
+    const arm = () => { timer = setTimeout(() => { reload(); reloadReview(); setDayKey((k) => k + 1); arm(); }, msUntilNextDay(tz)); };
     arm();
     return () => clearTimeout(timer);
   }, [tz, reload, reloadReview]);
@@ -324,7 +325,16 @@ export function ReportsPage({ workspace, refreshKey }) {
       <Notice error={error} onRetry={reload} />
       {loading && !r ? <p className="ba-muted">Loading…</p> : r && (
         <>
-          {review.data && (
+          {/* a review that couldn't be read (first time or a refresh) never shows the all clear or an old list, nor
+              does one being read again: an old answer waits for the new one */}
+          {review.error ? (
+            <section className="ba-panel ba-gap" role="status">
+              <div className="ba-panel-head">
+                <div className="ba-panel-title"><div><h2>Zella Voice's review</h2><p>Couldn't load the review. The figures below are still your own records.</p></div></div>
+                <button type="button" className="ba-btn sm" disabled={review.loading} onClick={reloadReview}>Try again</button>
+              </div>
+            </section>
+          ) : review.data && !review.loading && (
             <section className="ba-panel ba-gap">
               <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Zella Voice's review</h2><p>{review.data.issues?.length ? "Things worth a look" : "Nothing needs attention"}</p></div></div></div>
               {review.data.issues?.length > 0 && <ul className="ba-checklist">{review.data.issues.map((t) => <li key={t}>{t}</li>)}</ul>}
@@ -362,7 +372,7 @@ export function ReportsPage({ workspace, refreshKey }) {
           </div>
         </>
       )}
-      <MoreReports workspace={workspace} days={Number(range)} refreshKey={refreshKey} />
+      <MoreReports workspace={workspace} days={Number(range)} refreshKey={refreshKey} dayKey={dayKey} />
     </>
   );
 }
