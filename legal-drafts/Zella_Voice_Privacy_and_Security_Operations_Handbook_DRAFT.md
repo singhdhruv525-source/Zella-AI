@@ -64,7 +64,7 @@ Each incident is recorded with: an identifier; the time detected and by whom; th
 
 ### B1. Two kinds of request
 
-B1.1 **End Users (Customer Personal Data).** The Customer is the controller. Zella Voice forwards the request to the Customer promptly and does not answer it, except to direct the person to the Customer (DPA section 9.2).
+B1.1 **End Users (Customer Personal Data).** The Customer is the controller. Zella Voice forwards the request to the Customer promptly and does not answer it except to direct the person to the Customer, unless the Customer instructs Zella Voice in writing to respond, or the law requires Zella Voice to respond (DPA section 9.2). Any such response is recorded in the request log.
 
 B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the controller and answers the request itself, within 30 days or sooner if the law requires.
 

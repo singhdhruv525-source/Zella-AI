@@ -196,7 +196,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 12.6 **Export.** The Owner may export customers and call history as CSV files at any time, and may request a whole business export of Customer Data.
 
-12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call; after cancellation, Customer Data remains available for export for 30 days and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request.
+12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call; after cancellation, Customer Data remains available for export for 30 days **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request.
 
 12.8 **Telephone numbers.** Customer may port telephone numbers into or out of the Services at no charge. Porting time depends on the carrier. Numbers provided by Zella Voice are released 30 days after cancellation unless ported out before then.
 
@@ -612,6 +612,7 @@ Placeholders in this document:
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
+- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
 - **[FLOOR AMOUNT]**

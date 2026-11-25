@@ -53,7 +53,7 @@ Last updated: **[LAST UPDATED DATE]**
 | Customer Data is never used to train AI models | Live |
 | Export and erasure tools for each business | Live |
 | Automatic deletion of recordings and transcripts after 90 days, and deletion of copies at the voice provider | Built, going live |
-| Deletion 30 days after cancellation, and account deletion after a 30 day grace period | Built, going live |
+| Deletion 30 days after cancellation **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**, and account deletion after a 30 day grace period | Built, going live |
 | Backups with point in time recovery | **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** |
 
 ## 6. Application and AI security
@@ -161,6 +161,7 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
+- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SECURITY CONTACT]**

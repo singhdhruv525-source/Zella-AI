@@ -84,8 +84,8 @@ Inbound voicemail prompt (designed in the architecture; the voicemail feature is
 | Field | Entry |
 |---|---|
 | Use case | Mixed: customer care and account notifications (appointment confirmations and reminders, booking changes, missed call follow up, replies to enquiries). Add marketing only if the Customer collects marketing consent under section 2.2 |
-| Description | {business} uses the Zella Voice platform to send appointment confirmations and reminders, booking change confirmations, waitlist openings, a text after a missed call, and replies and follow ups about a customer's own enquiry. Messages go only to people who gave their number to {business} and agreed to receive texts. Message frequency varies. |
-| Opt in flow | Customers opt in by ticking an unticked consent box on {business}'s website or lead form (wording in section 2.1), by agreeing during a call with {business}'s AI receptionist before any confirmation text is sent, or by texting {business} first. Consent is recorded with the time, the text shown and the source. **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]** |
+| Description | {business} uses the Zella Voice platform to send appointment confirmations and reminders, booking change confirmations, waitlist openings, replies and follow ups about a customer's own enquiry, and one text after a missed call. Messages go to people who gave their number to {business} and agreed to receive texts, and, for the single missed call text, to a caller whose call {business} missed, in response to that call. Message frequency varies. **[COUNSEL TO CONFIRM THE MISSED CALL BASIS BEFORE REGISTRATION; IF NOT CONFIRMED, REMOVE THE MISSED CALL TEXT FROM THIS CAMPAIGN]** |
+| Opt in flow | Customers opt in by ticking an unticked consent box on {business}'s website or lead form (wording in section 2.1), by agreeing during a call with {business}'s AI receptionist before any confirmation text is sent, or by texting {business} first. Separately, a caller whose call to {business} was missed may receive one text in response to that call, which identifies {business} and says how to opt out; this basis relies on the caller's own call and is subject to counsel's confirmation (section 2.4). Consent is recorded with the time, the source and the evidence in section 2.4. **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]** |
 | Opt out | STOP, STOPALL, UNSUBSCRIBE, CANCEL, END and QUIT stop all texts from {business} immediately |
 | Help | HELP returns the help reply in section 5.4 |
 | Embedded links | Yes: private reschedule and waitlist offer links on the business's own domain **[CONFIRM LINK DOMAIN]** |
@@ -112,7 +112,7 @@ Inbound voicemail prompt (designed in the architecture; the voicemail feature is
 ### 5.5 Other mismatches to resolve
 
 - One reminder template still says "Reply C to confirm or R to reschedule", but C and R are no longer treated as keywords; customers change a time with the reschedule link. **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- Reminders are sent between 7 a.m. and 9 p.m. in the recipient's time zone (product document); an older messaging policy note said reminders had no quiet window. **[CONFIRM CURRENT BEHAVIOR]**
+- Sending hours: the text sender blocks only marketing texts, before 8 a.m. and from 9 p.m. in the Business's time zone; automated follow ups are scheduled by default between 9 a.m. and 7 p.m. in the Business's time zone; reminders are timed from the appointment with no quiet window in the sender. The product document's target (reminders 7 a.m. to 9 p.m., other messages 9 a.m. to 7 p.m., in the recipient's time zone) is not what the sender does today. The Messaging Terms describe current behavior. **[OWNER AND COUNSEL: DECIDE WHETHER TO TIGHTEN THE PRODUCT]**
 
 - The cancellation template uses British spelling ("cancelled"), quoted exactly above; the rulebook asks for American English. **[UPDATE THE TEMPLATE SPELLING]**
 
@@ -136,6 +136,7 @@ Placeholders in this document:
 - **[CUSTOMER EIN]**
 - **[CUSTOMER WEBSITE]**
 - **[CUSTOMER INDUSTRY VERTICAL]**
+- **[COUNSEL TO CONFIRM THE MISSED CALL BASIS BEFORE REGISTRATION; IF NOT CONFIRMED, REMOVE THE MISSED CALL TEXT FROM THIS CAMPAIGN]**
 - **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]**
 - **[CONFIRM LINK DOMAIN]**
 - **[YES OR NO]**
@@ -143,7 +144,7 @@ Placeholders in this document:
 - **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
 - **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
 - **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- **[CONFIRM CURRENT BEHAVIOR]**
+- **[OWNER AND COUNSEL: DECIDE WHETHER TO TIGHTEN THE PRODUCT]**
 - **[UPDATE THE TEMPLATE SPELLING]**
 
 <!-- PLACEHOLDERS END -->

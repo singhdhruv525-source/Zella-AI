@@ -92,7 +92,7 @@ File in the US Copyright Office's online DMCA Designated Agent Directory:
 
 | Coverage | Why | Limit |
 |---|---|---|
-| Cyber liability, including breach response (forensics, notification, credit monitoring, regulatory defense and fines where insurable) | Zella Voice holds call transcripts, messages and customer records for many businesses | **[CYBER LIMIT]** |
+| Cyber liability, including breach response (forensics, notification, credit monitoring, regulatory defense and fines where insurable) | Once launched, Zella Voice will hold call transcripts, messages and customer records for many businesses | **[CYBER LIMIT]** |
 | Technology errors and omissions | Claims that the AI Receptionist or the Services failed or caused loss | **[TECHNOLOGY E AND O LIMIT]** |
 | General liability | Standard business liability | **[GENERAL LIABILITY LIMIT]** |
 | Media liability (optional) | Content and defamation claims about messages or review replies | **[MEDIA LIABILITY LIMIT OR NOT REQUIRED]** |
@@ -108,12 +108,12 @@ Enterprise customers may require certificates of insurance naming them as certif
 | Annual revenue, current and projected | **[REVENUE]** |
 | Customers | Not launched to real customers; the production system holds demo businesses only (project memory, 15 November 2026). **[UPDATE AT APPLICATION]** |
 | Number of personal records held | **[RECORD COUNT]** |
-| Sensitive data | Call transcripts; recordings only if enabled (off by default); Regulated Industry data only after legal review; no card numbers |
-| Multi factor authentication | Required for Zella Voice administrators (built, going live); Owners at onboarding (built, going live) |
-| Encryption | In transit; at rest **[CONFIRM WITH THE HOSTING PROVIDER]** |
+| Sensitive data | Call transcripts. Call recording is intended to be off by default; the live Vapi recording setting is not yet confirmed **[OWNER TO CONFIRM THE LIVE VAPI RECORDING SETTING BEFORE ANSWERING]**. Regulated Industry data is intended only after legal review. Card numbers are designed never to enter Zella Voice (payments through Stripe, which is not yet switched on) |
+| Multi factor authentication | Built but not yet live for Zella Voice administrators and for Owners at onboarding. **[CONFIRM WHAT IS LIVE AT THE DATE OF THE APPLICATION]** |
+| Encryption | In transit (connections to the database service use HTTPS); at rest **[CONFIRM WITH THE HOSTING PROVIDER]** |
 | Backups | **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** |
-| Incident response plan | Drafted (Operations Handbook, Part A) |
-| Vendor management | Subprocessor list (DPA Annex 3); agreements per section 4 of this pack |
+| Incident response plan | Drafted for review (Operations Handbook, Part A); not yet adopted or tested **[CONFIRM STATUS AT THE DATE OF THE APPLICATION]** |
+| Vendor management | Provider list drafted (DPA Annex 3); vendor data processing agreements not yet signed or confirmed (section 4 of this pack) **[CONFIRM STATUS AT THE DATE OF THE APPLICATION]** |
 | Prior incidents or claims | **[PRIOR INCIDENTS OR CLAIMS]** |
 
 ## 4. Vendor agreements checklist
@@ -211,8 +211,11 @@ Placeholders in this document:
 - **[REVENUE]**
 - **[UPDATE AT APPLICATION]**
 - **[RECORD COUNT]**
+- **[OWNER TO CONFIRM THE LIVE VAPI RECORDING SETTING BEFORE ANSWERING]**
+- **[CONFIRM WHAT IS LIVE AT THE DATE OF THE APPLICATION]**
 - **[CONFIRM WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
+- **[CONFIRM STATUS AT THE DATE OF THE APPLICATION]**
 - **[PRIOR INCIDENTS OR CLAIMS]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**

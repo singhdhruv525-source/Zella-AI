@@ -105,7 +105,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 ## 7. Messages, consent and opting out
 
-7.1 Before every message, the Services check consent for that channel and purpose (service or marketing), opt outs, contact hours in the recipient's time zone, frequency limits and duplicates. Consent is recorded with when and how it was given.
+7.1 Before every message, the Services check consent for that channel and purpose (service or marketing), opt outs, the hours in which messages may be sent (Zella Voice Messaging Terms, section 4.2), frequency limits and duplicates. Consent is recorded with when and how it was given.
 
 7.2 Reply **STOP** to a text to stop texts from that Customer, use the unsubscribe link in a marketing email, or say "don't call me" to stop calls. Opt outs take effect immediately for that Customer. We keep the opt out record after other data is erased so that it keeps working. The Zella Voice Messaging Terms give more detail.
 
@@ -152,7 +152,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
 | Other Customer Data and Account Data | While the account is active |
-| After a Customer cancels | Available for export for 30 days, then deleted; backups cleared within 90 days |
+| After a Customer cancels | Available for export for 30 days, then deleted **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**; backups cleared within 90 days |
 | Telephone numbers of a canceled Customer | Released 30 days after cancellation unless ported out |
 | Consent and opt out records | Kept after erasure so that opt outs continue to work |
 
@@ -172,7 +172,7 @@ Please contact the Customer you dealt with. The Customer handles your request in
 
 ### 12.2 Authorized Users and visitors
 
-You can see and correct most Account Data in Settings. To request access, correction, export or deletion, write to **[PRIVACY CONTACT EMAIL]**. We respond within 30 days, or sooner if the law requires, may need to verify your identity, and may keep data the law requires us to keep. If you have an account, we verify you through your sign in. If you do not (for example as a visitor to our public pages or a former user), we verify you by a one time code sent to an email address on record and by asking for details we already hold, never for new sensitive information.
+You can see and correct most Account Data in Settings. To request access, correction, export or deletion, write to **[PRIVACY CONTACT EMAIL]**. We respond within 30 days, or sooner if the law requires, may need to verify your identity, and may keep data the law requires us to keep. If you have an account, we verify you through your sign in. If you do not (for example as a visitor to our public pages or a former user), we send a one time code or link to the email address we hold for you, or to the email address you gave when the data was collected, and ask for matching details we already hold. If we hold no email address for you, we use another reasonable method that matches details we already hold. **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]** We never ask for new sensitive information to verify you. If we cannot verify you, we tell you why and what we need, and we record the outcome.
 
 ### 12.3 European Economic Area, United Kingdom and Switzerland
 
@@ -278,7 +278,9 @@ Placeholders in this document:
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
+- **[PENDING RESOLUTION: 30 DAYS AFTER CANCELLATION, OR 90 DAYS (THE DATABASE FALLBACK)]**
 - **[PRIVACY CONTACT EMAIL]**
+- **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
 - **[UK REPRESENTATIVE, IF REQUIRED]**
 - **[GRIEVANCE OFFICER NAME AND CONTACT]**
