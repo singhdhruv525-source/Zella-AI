@@ -152,7 +152,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
         await callOwnerFunction("ticket_update", { ticketId: t.id, ...sent });
         store.succeed(t.id);
       },
-      revert: () => store.drop(t.id),
+      revert: () => store.rollback(t.id),   // this change only: an earlier settled one stays until a read acknowledges it
       beacon: () => sendKeepalive("function", "owner-provision-business", { action: "ticket_update", ticketId: t.id, ...sent }),
       beaconReady: keepaliveReady,
       onError: (err) => ui.toast(`Couldn't save that change, so it's back as it was. ${friendlyError(err)}`),

@@ -77,6 +77,7 @@ export function signalsFrom(sources = SOURCES_START, at = null) {
     },
     status: { waiting: sources.waiting.status, overdue: sources.overdue.status, spam: sources.spam.status },
     ready: statuses.every((s) => s === "ok"),          // every source read now: read keys may be pruned
+    loading: statuses.some((s) => s === "loading"),    // a source hasn't read yet: nothing can be called quiet
     unavailable: statuses.some((s) => s === "failed" || s === "stale"),
     at,
   };

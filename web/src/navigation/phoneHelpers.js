@@ -210,6 +210,9 @@ export function createPendingStore() {
     succeed(id) { const e = pending.get(id); pending.delete(id); if (e) settled.set(id, { view: e.view, token: e.token }); emit({ type: "sent", id }); },
     // undone, or the send failed: the view goes (pending or already settled), the row is back as it was
     drop(id) { const a = pending.delete(id); const b = settled.delete(id); if (a || b) emit({ type: "drop", id }); },
+    // Undo, or this change's send failed: only this waiting change goes; an earlier change for the same row that has
+    // already been sent keeps its settled view until a read that works acknowledges it (its token)
+    rollback(id) { if (pending.delete(id)) emit({ type: "drop", id }); },
     clearSettled(id) { if (settled.delete(id)) emit({ type: "settled", id }); },
     // a page that has just read its list fresh: what was sent is in it now
     clearAllSettled() { if (settled.size) { settled.clear(); emit({ type: "settled" }); } },

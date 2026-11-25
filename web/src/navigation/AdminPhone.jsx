@@ -16,6 +16,7 @@ import { countValue } from "../crm/needsNowSignals.js";
 // and a later failure marks the last good value as possibly out of date. Without businesses.view nothing is read and
 // nothing earlier is returned; without support.manage there is no ticket count.
 const EMPTY = { alerts: SIGNAL_START, incidents: SIGNAL_START, tickets: SIGNAL_START };
+const NOT_AVAILABLE = { status: "failed", value: null };   // can't be read for this role
 export function useAdminSignals({ enabled, can }) {
   const [signals, setSignals] = useState(EMPTY);
   const view = enabled && can("businesses.view");
@@ -59,9 +60,11 @@ export function useAdminSignals({ enabled, can }) {
     const timer = setInterval(read, 5 * 60000);
     return () => { live = false; clearInterval(timer); };
   }, [support]);
-  // what a person may no longer see is never handed on, even for the moment before the next read
-  if (!view) return EMPTY;
-  return support ? signals : { ...signals, tickets: SIGNAL_START };
+  // what a person may no longer see is never handed on, even for the moment before the next read. The open ticket
+  // count comes from the overview (businesses.view): a Support admin without it gets "count not available", never 0.
+  const ticketsFor = (s) => (support ? s.tickets : enabled && can("support.manage") ? NOT_AVAILABLE : SIGNAL_START);
+  if (!view) return { ...EMPTY, tickets: ticketsFor(EMPTY) };
+  return { ...signals, tickets: ticketsFor(signals) };
 }
 
 // A business from the list, as a sheet: where it stands, and the ways on (P12).

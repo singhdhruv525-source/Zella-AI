@@ -112,13 +112,15 @@ export function usePullToRefresh({ enabled, onRefresh }) {
     };
     window.addEventListener("touchstart", start, { passive: true });
     window.addEventListener("touchmove", move, { passive: true });
+    // the browser took the touch over: the pull is forgotten, nothing is refreshed
+    const cancel = () => { startY = null; distance = 0; setState((s) => (s.distance === 0 ? s : { ...s, distance: 0 })); };
     window.addEventListener("touchend", end);
-    window.addEventListener("touchcancel", end);
+    window.addEventListener("touchcancel", cancel);
     return () => {
       window.removeEventListener("touchstart", start);
       window.removeEventListener("touchmove", move);
       window.removeEventListener("touchend", end);
-      window.removeEventListener("touchcancel", end);
+      window.removeEventListener("touchcancel", cancel);
     };
   }, [enabled]);
   // also callable directly (the tests and the keyboard have no pull)

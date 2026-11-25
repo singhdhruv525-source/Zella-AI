@@ -226,7 +226,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
         store.succeed(t.id);
         onChanged?.();
       },
-      revert: () => store.drop(t.id),
+      revert: () => store.rollback(t.id),   // this change only: an earlier settled one stays until a read acknowledges it
       beacon: () => sendKeepalive("rpc", "zella_complete_task", cancel ? { p_task_id: t.id, p_cancel: true } : { p_task_id: t.id }),
       beaconReady: keepaliveReady,
       onError: (err) => ui.toast(`Couldn't ${cancel ? "dismiss it" : "mark it done"}, so it's back on the list. ${explain(err)}`),
@@ -244,9 +244,10 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
 
   return (
     <>
-      <PageHead crumb="Workspace / Tasks and follow ups" title="Tasks and follow ups" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella Voice adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
+      {/* counts and "nothing waiting" only from a read that worked: before it, or after a failed first read, no count */}
+      <PageHead crumb="Workspace / Tasks and follow ups" title="Tasks and follow ups" sub={!data ? undefined : open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella Voice adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_task" size="sm" />Add task</button>
-        <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", `To do (${open.length})`], ["done", "Done"]]} />
+        <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", data ? `To do (${open.length})` : "To do"], ["done", "Done"]]} />
       </PageHead>
       <Notice error={error || actionError} onRetry={reload} />
 
@@ -273,7 +274,9 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
         </section>
       )}
 
-      {loading && !data ? (ui.phone ? <Skeleton label="Loading tasks" /> : <p className="ba-muted">Loading…</p>) : !shown.length ? (
+      {loading && !data ? (ui.phone ? <Skeleton label="Loading tasks" /> : <p className="ba-muted">Loading…</p>)
+        // a failed first read: only the error and its Try again above, never "All caught up"
+        : !data ? null : !shown.length ? (
         <Empty title={filter === "open" ? "All caught up" : "Nothing done yet"}>{filter === "open" ? "New tasks show up here." : "Finished tasks are kept here."}</Empty>
       ) : ui.phone ? (
         <>
@@ -499,6 +502,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
   const [rows, setRows] = useState([]);
   const [missing, setMissing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);   // a read of the notifications has worked
   const [toasts, setToasts] = useState([]);
   const [quiet] = useState(() => pickQuiet());
   const seen = useRef(null);
@@ -511,7 +515,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
       else setFailed(true);
       return;
     }
-    setMissing(false); setFailed(false);
+    setMissing(false); setFailed(false); setLoaded(true);
     const list = data ?? [];
     // Anything new since the last look (not on the first load) announces itself.
     if (seen.current) {
@@ -595,7 +599,9 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
           {failed && <p className="ba-muted pad" role="status">Notifications couldn't be checked just now. Zella Voice will try again shortly.</p>}
           {needsNow?.unavailable && <p className="ba-muted pad" role="status">Some of what needs you now couldn't be checked just now. Zella Voice will try again shortly.</p>}
-          {!shown.length ? (!failed && !needsNow?.unavailable && <p className="ba-muted pad">{quiet}</p>) : (
+          {/* quiet only once every source has read and found nothing; "checking" while any is still reading */}
+          {!shown.length && (!loaded || needsNow?.loading) && !failed && !needsNow?.unavailable && <p className="ba-muted pad" role="status">Checking what needs you now…</p>}
+          {!shown.length ? (loaded && !failed && !needsNow?.unavailable && !needsNow?.loading && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
               {shown.map((n) => {
                 const style = noteStyle(n);

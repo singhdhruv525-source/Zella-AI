@@ -332,3 +332,33 @@ test("an older read never clears a newer settled change for the same row", async
   store.clearSettledSnapshot(store.settledSnapshot());
   assert.equal(store.views().has("st1"), false);
 });
+
+test("Undo or a failed send of a newer change keeps an earlier settled change for the same row", async () => {
+  const timers = fakeTimers();
+  const store = createPendingStore();
+  const send = (id, view, fail = false) => {
+    const c = deferChange({ commit: async () => { if (fail) throw new Error("refused"); store.succeed(id); }, revert: () => store.rollback(id), timers });
+    store.add(id, c, view);
+    return c;
+  };
+  send("st1", { status: "resolved" });
+  await timers.run();                                      // resolved and sent: settled
+  const assign = send("st1", { assigned_to: "me" });       // a newer change for the same ticket
+  assign.undo();                                           // Undo
+  assert.deepEqual(store.views().get("st1"), { status: "resolved" }, "the earlier settled value stays");
+  send("st1", { assigned_to: "me" }, true);                // a newer change whose send fails
+  await timers.run();
+  assert.deepEqual(store.views().get("st1"), { status: "resolved" }, "still there after a failed send");
+  store.clearSettledSnapshot(store.settledSnapshot());     // a read that works acknowledges it
+  assert.equal(store.views().has("st1"), false);
+});
+
+test("while any source hasn't read yet, nothing is called quiet", () => {
+  const s = signalsFrom(SOURCES_START, null);
+  assert.equal(s.loading, true);
+  assert.equal(s.ready, false);
+  const all = signalsFrom(nextSources(SOURCES_START, { waiting: listRead(ok([], 0)), overdue: listRead(ok([], 0)), spam: spamRead({ data: { unreviewed: 0 } }) }), ago(0));
+  assert.deepEqual([all.loading, all.ready, all.unavailable], [false, true, false], "quiet only after every source read empty");
+  const partly = signalsFrom(nextSources(SOURCES_START, { waiting: listRead(ok([], 0)) }), ago(0));
+  assert.equal(partly.loading, true);
+});
