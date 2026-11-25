@@ -314,7 +314,8 @@ export function pendingStoreFor(scope) {
     if (typeof window !== "undefined") {
       // closing the tab: each waiting change goes out as a keepalive request the browser lets finish (best effort)
       window.addEventListener("pagehide", () => { STORES[scope].unloadAll(); });
-      // a waiting change that can't be sent that way: the browser asks before the tab closes
+      // a waiting change that can't be sent that way right now (no beacon, or no session token): the browser asks
+      // before the tab closes
       window.addEventListener("beforeunload", (e) => {
         if (!STORES[scope].waitingWithoutBeacon()) return;
         e.preventDefault();

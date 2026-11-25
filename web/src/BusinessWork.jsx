@@ -12,7 +12,7 @@ import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
 import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
-import { sendKeepalive } from "./navigation/keepalive";
+import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
 import { loadRead, mergeBellNotes, needsNowNotes, pruneRead, saveRead } from "./crm/needsNowNotes";
 
 /* ------------------------------------------------------------------ */
@@ -223,6 +223,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
       },
       revert: () => store.drop(t.id),
       beacon: () => sendKeepalive("rpc", "zella_complete_task", cancel ? { p_task_id: t.id, p_cancel: true } : { p_task_id: t.id }),
+      beaconReady: keepaliveReady,
       onError: (err) => ui.toast(`Couldn't ${cancel ? "dismiss it" : "mark it done"}, so it's back on the list. ${explain(err)}`),
     });
     store.add(t.id, change, { hidden: true });

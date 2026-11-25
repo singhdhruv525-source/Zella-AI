@@ -11,7 +11,7 @@ import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
 import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
-import { sendKeepalive } from "./navigation/keepalive";
+import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
 const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]];
@@ -149,6 +149,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
       },
       revert: () => store.drop(t.id),
       beacon: () => sendKeepalive("function", "owner-provision-business", { action: "ticket_update", ticketId: t.id, ...sent }),
+      beaconReady: keepaliveReady,
       onError: (err) => ui.toast(`Couldn't save that change, so it's back as it was. ${friendlyError(err)}`),
     });
     store.add(t.id, change, shown);

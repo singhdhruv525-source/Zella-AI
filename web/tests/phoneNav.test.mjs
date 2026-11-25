@@ -429,3 +429,23 @@ test("the keepalive request: same endpoint and headers as the client, never with
   assert.equal(keepaliveRequest({ ...cfg, key: "" }, "rpc", "x", {}), null);
   assert.equal(keepaliveRequest(cfg, "other", "x", {}), null);
 });
+
+test("a beacon that isn't ready (no token, no config, no fetch) still makes the browser ask before closing", async () => {
+  const timers = fakeTimers();
+  let ready = false;
+  const sent = [];
+  const store = createPendingStore();
+  const c = deferChange({ commit: async () => sent.push("send"), beacon: () => { sent.push("keepalive"); return true; }, beaconReady: () => ready, timers });
+  store.add("a", c, {});
+  assert.equal(c.canBeacon, false);
+  assert.equal(store.waitingWithoutBeacon(), 1, "the prompt is kept");
+  assert.deepEqual(sent, [], "checking readiness sends nothing");
+  ready = true;
+  assert.equal(store.waitingWithoutBeacon(), 0, "ready: no prompt needed");
+  ready = false;
+  // not ready when the tab closes: the beacon itself reports it can't send, and the ordinary send runs instead
+  const d = deferChange({ commit: async () => sent.push("send"), beacon: () => false, beaconReady: () => false, timers });
+  d.unload();
+  await Promise.resolve();
+  assert.deepEqual(sent, ["send"]);
+});
