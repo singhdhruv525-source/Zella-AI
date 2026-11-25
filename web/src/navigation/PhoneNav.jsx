@@ -303,14 +303,22 @@ export const scrollToTop = () => window.scrollTo({ top: 0, behavior: prefersRedu
 
 // The app's store of quick changes waiting for their Undo window (phoneHelpers createPendingStore). Each change still
 // goes out when its own window ends; closing the page sends what is waiting, and so does leaving the app.
-export function usePendingStore() {
-  const [store] = useState(createPendingStore);
-  useEffect(() => {
-    const send = () => { store.flushAll(); };
-    window.addEventListener("pagehide", send);
-    return () => { window.removeEventListener("pagehide", send); send(); };
-  }, [store]);
-  return store;
+// One store per app ("crm", "admin"), kept for the life of the browser tab: switching business remounts the
+// workspace, and a change waiting then still has its full window and is sent by its own timer (never early). Only
+// closing the tab (pagehide) sends what is waiting at once; signing out sends it first, on purpose, so nothing is lost
+// (see sendWaitingChanges).
+const STORES = {};
+export function pendingStoreFor(scope) {
+  if (!STORES[scope]) {
+    STORES[scope] = createPendingStore();
+    if (typeof window !== "undefined") window.addEventListener("pagehide", () => { STORES[scope].flushAll(); });
+  }
+  return STORES[scope];
+}
+export const usePendingStore = (scope) => pendingStoreFor(scope);
+// Before signing out: send what is still waiting while the session is still valid.
+export async function sendWaitingChanges(store) {
+  try { await store.flushAll(); } catch { /* each change reports its own failure */ }
 }
 
 // A page's view of the store: redrawn on every change; `onSent(id)` runs for a change sent while the page is open.

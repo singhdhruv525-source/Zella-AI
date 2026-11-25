@@ -586,7 +586,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
           {failed && <p className="ba-muted pad" role="status">Notifications couldn't be checked just now. Zella Voice will try again shortly.</p>}
           {needsNow?.unavailable && <p className="ba-muted pad" role="status">Some of what needs you now couldn't be checked just now. Zella Voice will try again shortly.</p>}
-          {!shown.length ? (!failed && <p className="ba-muted pad">{quiet}</p>) : (
+          {!shown.length ? (!failed && !needsNow?.unavailable && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
               {shown.map((n) => {
                 const style = noteStyle(n);

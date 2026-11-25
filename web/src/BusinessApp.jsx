@@ -51,7 +51,7 @@ import { BusinessSwitcher, ProfileMenu, ReceptionistCard, SidebarNav, SidebarSta
 import { crmTabs, selectedTab } from "./navigation/phoneTabs";
 import { createTabMemory, crmStrip } from "./navigation/phoneHelpers";
 import { useKeyboardOpen, usePhoneLayout, usePhoneRoot, usePullToRefresh, useRootFlag } from "./navigation/usePhoneLayout";
-import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, usePendingStore, useTabScroll, useToast } from "./navigation/PhoneNav";
+import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, sendWaitingChanges, usePendingStore, useTabScroll, useToast } from "./navigation/PhoneNav";
 import { useSheetEnhancer } from "./navigation/BottomSheet";
 import { PhoneUi, TodayTop } from "./navigation/phoneContext";
 import { BusinessButton, NeedsYouNow, QuickActionsSheet, SwitcherSheet, useCrmSignals } from "./navigation/CrmPhone";
@@ -256,7 +256,9 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   useKeyboardOpen(phone);
   useSheetEnhancer(phone);
   const toaster = useToast();
-  const pendingStore = usePendingStore();   // quick changes waiting for their Undo window, kept across pages
+  const pendingStore = usePendingStore("crm");   // quick changes waiting for their Undo window, kept across pages
+  // signing out sends the changes still waiting first (on purpose: a task marked done is never lost by signing out)
+  const signOut = async () => { await sendWaitingChanges(pendingStore); return onSignOut(); };
   const [tabMemory] = useState(createTabMemory);
   const [phoneSheet, setPhoneSheet] = useState(null);   // "switcher" | "quick"
   const [searchOpen, setSearchOpen] = useState(false);
@@ -370,7 +372,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       {key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
       {key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
       {key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-      {key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={onSignOut} signOutError={signOutError} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
+      {key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={signOut} signOutError={signOutError} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
     </>
   );
 
@@ -407,7 +409,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               { label: "My profile", icon: "person", onClick: () => { setNavOpenAt(null); navigate(`${base}/settings/me/profile`); } },
               { label: "Password and security", icon: "lock", onClick: () => { setNavOpenAt(null); navigate(`${base}/settings/me/security`); } },
               { label: "Appearance and theme", icon: "palette", onClick: () => { setNavOpenAt(null); navigate(`${base}/settings/me/appearance`); } },
-              { label: "Sign out", icon: "logout", onClick: () => { setNavOpenAt(null); onSignOut(); } },
+              { label: "Sign out", icon: "logout", onClick: () => { setNavOpenAt(null); signOut(); } },
             ]} />
         </SidePanel>
       )}
@@ -474,7 +476,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             {canBook && <button type="button" className="ba-btn" onClick={() => openBooking()} title={`New ${term("appointment").toLowerCase()}`}>
               <Icon name="event" /><span>New {term("appointment").toLowerCase()}</span>
             </button>}
-            <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={onSignOut} />
+            <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={signOut} />
           </div>
         </header>}
 

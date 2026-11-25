@@ -35,7 +35,7 @@ import { friendlyError } from "./admin/adminOps";
 import { adminTabs, selectedTab } from "./navigation/phoneTabs";
 import { adminStripFor, createTabMemory, signalCount } from "./navigation/phoneHelpers";
 import { useKeyboardOpen, usePhoneLayout, usePhoneRoot, usePullToRefresh, useRootFlag, useScrolledPast } from "./navigation/usePhoneLayout";
-import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, usePendingStore, useTabScroll, useToast } from "./navigation/PhoneNav";
+import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, sendWaitingChanges, usePendingStore, useTabScroll, useToast } from "./navigation/PhoneNav";
 import { useSheetEnhancer } from "./navigation/BottomSheet";
 import { PhoneUi } from "./navigation/phoneContext";
 import { BusinessSheet, useAdminSignals } from "./navigation/AdminPhone";
@@ -245,7 +245,9 @@ export default function OwnerDashboard({ onSignOut }) {
   useKeyboardOpen(phone);
   useSheetEnhancer(phone);
   const toaster = useToast();
-  const pendingStore = usePendingStore();   // quick changes waiting for their Undo window, kept across pages
+  const pendingStore = usePendingStore("admin");   // quick changes waiting for their Undo window, kept across pages
+  // signing out sends the changes still waiting first (on purpose: nothing chosen is lost by signing out)
+  const signOut = async () => { await sendWaitingChanges(pendingStore); return onSignOut(); };
   const [tabMemory] = useState(createTabMemory);
   const [searchOpen, setSearchOpen] = useState(false);
   const [bizSheet, setBizSheet] = useState(null);
@@ -348,7 +350,7 @@ export default function OwnerDashboard({ onSignOut }) {
               { label: "My profile", icon: "person", onClick: () => { setNavOpenAt(null); navigate("/settings/profile/me"); } },
               { label: "Password and security", icon: "lock", onClick: () => { setNavOpenAt(null); navigate("/settings/profile/security"); } },
               { label: "Appearance and theme", icon: "palette", onClick: () => { setNavOpenAt(null); navigate("/settings/profile/appearance"); } },
-              { label: "Sign out", icon: "logout", onClick: () => { setNavOpenAt(null); onSignOut(); } },
+              { label: "Sign out", icon: "logout", onClick: () => { setNavOpenAt(null); signOut(); } },
             ]} />
         </SidePanel>
       )}
@@ -417,7 +419,7 @@ export default function OwnerDashboard({ onSignOut }) {
             <div className="owner-avatar" title={[email, me?.roleLabel].filter(Boolean).join(" · ") || "Platform admin"}>
               {(email || "A").slice(0, 1).toUpperCase()}
             </div>
-            <button className="owner-signout" type="button" onClick={onSignOut}>
+            <button className="owner-signout" type="button" onClick={signOut}>
               Sign out
             </button>
           </div>
@@ -447,7 +449,7 @@ export default function OwnerDashboard({ onSignOut }) {
               <strong>No admin access</strong>
               <p>{access.reason === "MFA_REQUIRED" ? "Enter the code from your authenticator app: sign out and sign in again."
                 : "This account isn't allowed to use the Zella Voice admin, or its access has changed. Sign out and sign in with an admin account, or ask a Zella Voice owner."}</p>
-              <button type="button" className="owner-primary-button" onClick={onSignOut}>Sign out</button>
+              <button type="button" className="owner-primary-button" onClick={signOut}>Sign out</button>
             </div>
           ) : blocked ? (
             <div className="owner-empty-state" role="status" data-access="denied">
@@ -529,7 +531,7 @@ export default function OwnerDashboard({ onSignOut }) {
           ) : activePage === "Automations" ? (
             <AutomationsPage me={me} sub={sub} onOpenBusiness={setDetailId} />
           ) : activePage === "Settings" ? (
-            <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={onSignOut}
+            <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={signOut}
               onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : isBusinesses ? (
             <BusinessesPage

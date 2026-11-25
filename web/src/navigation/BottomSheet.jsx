@@ -158,7 +158,11 @@ export function useSheetEnhancer(enabled) {
         el.style.removeProperty("height");
       });
     };
-    const scan = () => document.querySelectorAll(ENHANCED).forEach(attach);
+    // dialogs that have left the page are let go of (their listeners and the entry), so nothing is kept for them
+    const scan = () => {
+      attached.forEach((dispose, el) => { if (!el.isConnected) { dispose(); attached.delete(el); } });
+      document.querySelectorAll(ENHANCED).forEach(attach);
+    };
     scan();
     const mo = new MutationObserver(scan);
     mo.observe(document.body, { childList: true, subtree: true });
