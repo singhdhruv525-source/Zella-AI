@@ -5,6 +5,7 @@ import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
 import { Empty, Notice, PageHead, friendly, loadPeople, orThrow } from "./BusinessShared";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
+import { formatMonthDay } from "./lib/format";
 import { useRoster } from "./BusinessLeads";
 
 // Spam protection: one inbox for suspicious calls, texts, emails and bookings, with the reasons each was flagged,
@@ -130,9 +131,9 @@ function Overview({ data, loading, channels }) {
           {data?.daily?.length ? (
             <div className="sp-bars">
               {data.daily.map((d) => (
-                <div key={d.day} className="sp-bar" title={`${d.day}: ${d.count}`}>
+                <div key={d.day} className="sp-bar" title={`${formatMonthDay(d.day)}: ${d.count}`}>
                   <span style={{ height: `${Math.max(6, (d.count / max) * 100)}%` }} />
-                  <small>{d.day.slice(5)}</small>
+                  <small>{formatMonthDay(d.day)}</small>
                 </div>
               ))}
             </div>

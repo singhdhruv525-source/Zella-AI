@@ -14,3 +14,29 @@ export function modulesLosingUsers(saved, draftModules, usage) {
 export function switchesOff(saved, draftModules) {
   return draftModules.some((m) => m.id && !m.isActive && saved.some((s) => s.id === m.id && s.is_active));
 }
+
+// A module's name as people read it, from its slug (the names in sql/zella_industries_seed.sql).
+// An unknown slug is spelled out in words, with "AI" kept in capitals: never "Ai-receptionist".
+const MODULE_NAMES = {
+  calls: "Calls", sms: "Text messages", email: "Email", calendar: "Calendar", automations: "Automations",
+  "ai-receptionist": "AI receptionist", "ai-appointments": "AI appointments", "ai-follow-up": "AI follow up",
+  "ai-sales": "AI sales", "ai-support": "AI support",
+};
+
+export function moduleName(slug) {
+  const key = String(slug ?? "").trim();
+  if (!key) return "";
+  if (MODULE_NAMES[key]) return MODULE_NAMES[key];
+  const text = key.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase().replace(/\bai\b/g, "AI");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// The industries_list answer, checked. Returns null when the server sent nothing usable (no answer, or no list),
+// so the page shows "Industries didn't load." with Try again instead of a code error. Each industry keeps a modules list.
+export function readIndustriesAnswer(data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.industries)) return null;
+  const industries = data.industries
+    .filter((i) => i && typeof i === "object" && i.id)
+    .map((i) => (Array.isArray(i.modules) ? i : { ...i, modules: [] }));
+  return { industries, industryData: Boolean(data.industryData) };
+}

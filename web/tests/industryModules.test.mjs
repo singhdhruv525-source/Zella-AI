@@ -32,3 +32,24 @@ test("business counts read in words", () => {
   assert.equal(businessWord(1), "1 business");
   assert.equal(businessWord(1101), "1,101 businesses");
 });
+
+test("module slugs read as their real names on the Industry profile (C45)", async () => {
+  const { moduleName } = await import("../src/industryModules.js");
+  assert.equal(moduleName("ai-receptionist"), "AI receptionist");
+  assert.deepEqual(["ai-receptionist", "automations", "calendar", "calls"].map(moduleName), ["AI receptionist", "Automations", "Calendar", "Calls"]);
+  assert.equal(moduleName("sms"), "Text messages");
+  assert.equal(moduleName("ai-follow-up"), "AI follow up");
+  assert.equal(moduleName("ai-new_thing"), "AI new thing");   // unknown slugs: words, AI in capitals, no hyphens
+  assert.equal(moduleName(""), "");
+  assert.equal(moduleName(null), "");
+});
+
+test("an empty or broken industries answer is a load failure, not a code error (A41)", async () => {
+  const { readIndustriesAnswer } = await import("../src/industryModules.js");
+  for (const bad of [undefined, null, "", {}, { industries: null }, { industries: "x" }]) assert.equal(readIndustriesAnswer(bad), null);
+  assert.deepEqual(readIndustriesAnswer({ industries: [] }), { industries: [], industryData: false });
+  const r = readIndustriesAnswer({ industries: [{ id: "a", name: "Dental", modules: [{ id: "m" }] }, { id: "b", name: "Spa" }, null, { name: "no id" }], industryData: true });
+  assert.deepEqual(r.industries.map((i) => i.id), ["a", "b"]);
+  assert.deepEqual(r.industries[1].modules, []);
+  assert.equal(r.industryData, true);
+});

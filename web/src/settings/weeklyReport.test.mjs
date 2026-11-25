@@ -52,3 +52,13 @@ test("no dash or hyphen in anything a person reads", () => {
     reportError("NOT_ALLOWED"), weekLabel("2026-11-02", "2026-11-08")].join(" ");
   assert.doesNotMatch(text, /[-‐-―]/);
 });
+
+test("an empty server answer is a plain load error, and a missing list is no report yet (S62)", async () => {
+  const { readWeeklyReports } = await import("./weeklyReport.js");
+  for (const bad of [null, undefined, "", [], 0]) assert.equal(readWeeklyReports(bad), null);
+  assert.deepEqual(readWeeklyReports({}), { schedule: {}, reports: [] });
+  assert.deepEqual(readWeeklyReports({ reports: null, schedule: null }), { schedule: {}, reports: [] });
+  const r = readWeeklyReports({ schedule: { job_on: true }, reports: [{ id: 1 }, null, "x"] });
+  assert.deepEqual(r.reports, [{ id: 1 }]);
+  assert.equal(r.schedule.job_on, true);
+});
