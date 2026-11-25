@@ -125,8 +125,8 @@ export function useSheetEnhancer(enabled) {
       const down = (e) => {
         if (!el.dataset.pnSheet) return;   // back on a wider screen: a normal dialog again
         if (e.target.closest("button, a, input, select, textarea")) return;
-        const rect = el.getBoundingClientRect();
-        if (!(e.clientY - rect.top < 32 || head(e.target))) return;
+        // the drag areas: the dialog's own drag strip (SheetGrip) and its heading, both touch-action: none
+        if (!(e.target.closest(".pn-sheet-grip") || head(e.target))) return;
         start = { y: e.clientY, id: e.pointerId }; dy = 0;
         el.setPointerCapture?.(e.pointerId);
       };

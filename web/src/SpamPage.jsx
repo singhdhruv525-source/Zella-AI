@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { DialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
@@ -332,6 +333,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
   const box = (
     <DialogFocus onClose={onClose} busy={busy || Boolean(confirming)}><div className="bp-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && !confirming && onClose()}>
       <aside className="bp-panel" role="dialog" aria-modal="true" aria-label={`Incident ${ref(inc.id)}`} tabIndex={-1}>
+        <SheetGrip />
         <header className="bp-head">
           <div>
             <small><Icon name={CHANNELS[inc.channel]?.[0] ?? "help"} size="sm" /> {CHANNELS[inc.channel]?.[1]} incident {ref(inc.id)}</small>

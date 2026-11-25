@@ -1,4 +1,5 @@
 import { DialogFocus } from "./useDialogFocus";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
@@ -276,6 +277,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
           onMouseDown={(event) => event.target === event.currentTarget && !busy && (setPending(null), setReason(""))}
         >
           <div className={`bd-confirm owner-modal ${action.danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-label={action.title}>
+            <SheetGrip />
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name={action.danger ? "warning" : "task_alt"} /></span>
               <h3>{action.title}</h3>

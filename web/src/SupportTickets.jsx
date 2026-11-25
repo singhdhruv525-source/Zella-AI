@@ -90,7 +90,6 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   // a quick change sent while this page is open: read the list again, then its shown values give way to the real ones
   // (load clears the settled values itself, only after a read that worked: a failed read keeps them)
   const pendingViews = usePendingViews(store, () => { loadRef.current(); });
-  useEffect(() => { store.clearAllSettled(); }, [store]);   // a fresh read on opening already has what was sent
   // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
   // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.
   const createRefresh = useRef(false);

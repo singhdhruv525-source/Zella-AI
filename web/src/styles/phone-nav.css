@@ -268,12 +268,17 @@ html[data-zella-theme="glass"] .pn-sheet-actions :is(button, a) { background: rg
 html.pn-phone .bp-backdrop { align-items: flex-end; justify-content: stretch; }
 html.pn-phone [data-pn-sheet] {
   position: relative; width: 100% !important; max-width: none !important; height: 92dvh; max-height: calc(100dvh - 24px) !important; margin: 0;
-  border-radius: 20px 20px 0 0 !important; padding-top: 28px; overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 20px 20px 0 0 !important; padding-top: 0 !important; overflow-y: auto; overscroll-behavior: contain;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-html.pn-phone [data-pn-sheet]::before {
-  content: ""; position: absolute; top: 12px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: var(--zella-border-strong);
+/* the drag strip each sheet dialog carries (SheetGrip.jsx): 32px at the top, staying in place while the content
+   scrolls, taking vertical drags itself (touch-action: none); the content below scrolls as usual */
+.pn-sheet-grip { display: none; }
+html.pn-phone [data-pn-sheet] > .pn-sheet-grip {
+  position: sticky; top: 0; z-index: 2; display: grid; place-items: center; height: 32px; margin: 0 0 0;
+  background: inherit; touch-action: none; cursor: grab;
 }
+html.pn-phone [data-pn-sheet] > .pn-sheet-grip::before { content: ""; width: 36px; height: 5px; border-radius: 3px; background: var(--zella-border-strong); }
 html.pn-phone [data-pn-sheet] { transform: translateY(max(0px, var(--pn-drag, 0px))); transition: transform 300ms var(--pn-ease), height 300ms var(--pn-ease); }
 html.pn-phone [data-pn-sheet="half"] { height: 52dvh; }
 html.pn-phone [data-pn-sheet="fit"] { height: auto; }

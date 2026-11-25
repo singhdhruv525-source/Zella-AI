@@ -1,6 +1,7 @@
 // A confirm dialog for one support action on a business's page: a title, what will happen, an optional reason (with
 // its length rule), optional extra fields, and the action itself. Errors stay in the dialog.
 import { useState } from "react";
+import { SheetGrip } from "../navigation/SheetGrip";
 import { createPortal } from "react-dom";
 import { DialogFocus } from "../useDialogFocus";
 import { Icon } from "../BusinessUI";
@@ -28,6 +29,7 @@ export default function ActionDialog({ title, body, button, danger, reason, chil
     <DialogFocus onClose={onClose} busy={busy}>
       <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
         <div className={`bd-confirm owner-modal ${danger ? "danger" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+          <SheetGrip />
           <div className="zs-dialog-head">
             <span className="zs-dialog-icon"><Icon name={danger ? "warning" : "task_alt"} /></span>
             <h3>{title}</h3>

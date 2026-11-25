@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { supabase } from "./supabase";
 import { friendlyError } from "./admin/adminOps";
 import "./billing.css";
@@ -307,6 +308,7 @@ function ReviewDialog({ review, setReview, onConfirm, onClose, error }) {
   return (
     <div className="owner-modal-overlay">
       <div className="owner-modal wiz-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="plan-review-title" ref={ref}>
+        <SheetGrip />
         <h3 id="plan-review-title">Review the plan</h3>
         <p>Confirming saves a new version with an audit record of who confirmed it, the values and every warning with its reason.</p>
         <div className="wiz-review">{rows.map(([k, val]) => <PlanRow key={k} label={k} value={val} />)}</div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, personName } from "./BusinessUI";
@@ -194,6 +195,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
   const box = (
     <div className="bp-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <aside className="bp-panel" role="dialog" aria-modal="true" aria-label={`${oneWord} details`} tabIndex={-1} ref={panel}>
+        <SheetGrip />
         <header className="bp-head">
           <div>
             <small>{oneWord} #{ref(appt.id)}{code && <> · Confirmation code <strong className="bp-code">{code}</strong></>}{code === false && <> · Confirmation code couldn't be loaded</>}{code === null && <> · No confirmation code</>}</small>

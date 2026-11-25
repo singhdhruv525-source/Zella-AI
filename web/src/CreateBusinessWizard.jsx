@@ -1,4 +1,5 @@
 import { automationDefaultsFor, emptyAutomations } from "./industryAutomations";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { CATALOG, NOTIFY_OPTIONS, isPreferred, orderTypes } from "./automationCatalog";
 import { EmailField, PhoneField, TimeZoneSelect, UrlField } from "./formFields";
 import { checkEmail, checkUrl, countryList, validatePhone } from "./formValidation";
@@ -1870,6 +1871,7 @@ function UnsavedDialog({ stepLabel, closing, onSave, onDiscard, onStay }) {
   return (
     <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onStay()}>
       <div className="owner-modal wiz-unsaved-dialog" role="dialog" aria-modal="true" aria-labelledby="wiz-unsaved-title" aria-describedby="wiz-unsaved-body" ref={box}>
+        <SheetGrip />
         <h3 id="wiz-unsaved-title">Save changes to {stepLabel}?</h3>
         <p id="wiz-unsaved-body">You changed this step but haven't saved it. {closing ? "Closing" : "Moving to another step"} without saving loses those changes.</p>
         <div className="owner-modal-actions">
