@@ -503,7 +503,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
                           {note && <small className="td-sub td-folded td-folded-note">{note}</small>}
                           <span className="td-folded td-folded-status"><Pill tone={tone}>{stageLabel}</Pill>
                             {a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</span></td>
-                        {showGuests && <td className="td-wide">{a.party_size ?? ""}</td>}
+                        {showGuests && <td className="td-wide">{a.party_size ?? <span className="op-muted">None</span>}</td>}
                         {tablesOn && <td className="td-wide">{tableName}</td>}
                         {showStaff && <td className="td-wide">{staffName}</td>}
                         <td className="td-wide"><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>

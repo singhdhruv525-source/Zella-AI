@@ -304,7 +304,7 @@ export default function UsersAccess() {
           </table>
         </div>
         <div className="owner-panel-footer">
-          <span>{data ? `${data.admins?.filter((a) => a.is_active).length ?? 0} active admins` : "Admins didn't load. Try again"}</span>
+          <span>{data ? `${data.admins?.filter((a) => a.is_active).length ?? 0} active admins` : loading ? "Loading admins…" : "Admins didn't load. Try again"}</span>
           <span>Zella Voice always keeps at least one active owner, and nobody can change their own access.</span>
         </div>
       </section>

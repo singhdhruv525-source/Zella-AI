@@ -26,7 +26,10 @@ history.
   review is clean and the tests pass ("if it needs to be merged you can merge"; `NN-5`). **Claude fixes every CodeRabbit finding
   itself** (owner, 25 Nov 2026), resolves the fixed threads, requests a new review, and merges only when every merge
   condition holds: CodeRabbit's check a success on the final head, no new comments, no unresolved threads, a clean merge
-  state. Nobody needs to tick "Fix comments".
+  state. Nobody needs to tick "Fix comments". **The last review before a merge is a full review** ("@coderabbitai full
+  review", owner, 25 Nov 2026: "make sure coderabbit review everything"): an incremental review only reads commits it
+  hasn't seen, so after merges of main it can cover a few files of a large pull request. The owner has two CodeRabbit
+  seats, so up to two reviews run at once.
 - **Keep the owner posted:** while waiting on reviews or agents, check about every 10 minutes and give the owner an
   update (owner, 17 Nov 2026).
 - **Write the owner's decisions down** (`AGT-9`, owner, 24 Nov 2026): a rule or decision given in chat goes into
@@ -536,6 +539,12 @@ Waiting on the owner:
   trial setup (REQ-BIL-12) instead of a first payment.
 
 ## 6. Lessons learnt (don't repeat these)
+
+- **An incremental review is not a review of the whole pull request (25 Nov 2026):** #120 and #123 merged after
+  incremental reviews whose last rounds read 2 of 12 and 12 of 93 files. A review only pull request (#126) gave both a
+  full review afterwards and found five real issues (a blank count, an empty later page read as an empty list, an
+  extension merged into a phone number, a shown phone number that search couldn't find, a load failure shown while
+  still loading), fixed in one follow up pull request. Merge only after a full review of the final head.
 
 - **Write the owner's rule into the source of truth, or the build follows the old one (24 Nov 2026):** `docs/ARCHITECTURE.md` REQ-CRM-17 listed languages as editable by the owner, so the build followed it and Settings >
   Languages let owners change them, against the owner's rule that only Zella Voice admins do, within the plan. The rule

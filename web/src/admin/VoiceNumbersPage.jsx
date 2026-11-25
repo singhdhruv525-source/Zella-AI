@@ -143,7 +143,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={setOpen}
-        empty={f.q || f.status || f.business ? "No numbers match these filters." : <>No numbers yet.{manage && <> <button type="button" className="owner-secondary-button op-small" onClick={() => onAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button></>}</>}
+        empty={f.offset > 0 ? "Nothing on this page. Go back a page to see the other numbers." : f.q || f.status || f.business ? "No numbers match these filters." : <>No numbers yet.{manage && <> <button type="button" className="owner-secondary-button op-small" onClick={() => onAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button></>}</>}
         columns={[
           ["Number", (r) => <strong>{phone(r.e164)}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? <EmptyValue label="Not set" />],
           ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">No receptionist</Pill>],

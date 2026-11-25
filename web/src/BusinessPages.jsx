@@ -15,7 +15,7 @@ import { ReceptionistEditor } from "./BusinessReceptionist";
 import { BookingPanel } from "./BookingPanel";
 import { todayConfig } from "./todayConfig";
 import { humanize } from "./copy/labels";
-import { formatPhone, formatTimeZone } from "./lib/format";
+import { formatPhone, formatTimeZone, phoneMatches } from "./lib/format";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -55,7 +55,8 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
       }
       if (source !== "all" && (p.source || "other") !== source) return false;
       if (!q) return true;
-      return [personName(p), p.phone, p.email, p.company_name].some((v) => v && v.toLowerCase().includes(q));
+      if ([personName(p), p.phone, p.email, p.company_name].some((v) => v && v.toLowerCase().includes(q))) return true;
+      return phoneMatches(p.phone, q);
     });
   }, [data, filter, source, query, isLeads]);
 
