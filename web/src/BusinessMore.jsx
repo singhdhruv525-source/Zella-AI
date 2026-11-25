@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm } from "./businessWorkspace";
-import { dayRange, formatDay, formatTime, timeAgo } from "./businessTime";
+import { dayRange, formatDay, formatTime, msUntilNextDay, timeAgo } from "./businessTime";
 import { APPT_LABEL, APPT_TONE, Empty, Notice, PageHead, Segment, SOURCE_LABELS, clock, friendly, loadPeople, noShowNotice, explain, orThrow, plural, setCheckIn, sourceLabel, useLoad, isAnswered } from "./BusinessShared";
 import { CallCard, isOpenEscalation } from "./BusinessProfile";
 import { RescheduleModal } from "./BusinessForms";
@@ -300,14 +300,15 @@ export function ReportsPage({ workspace, refreshKey }) {
   }, [data, tz]);
 
   // The chart's last bar is today only until the business's midnight. Then the figures reload; until they have, the
-  // bar is named by its own date, never "Today".
+  // bar is named by its own date, never "Today". Each midnight's timer arms the next one itself, so a reload that
+  // fails never stops later midnights from refreshing; it is cleared when the business or the page changes.
   const lastDay = r?.perDay.at(-1)?.day;
   useEffect(() => {
-    if (!lastDay) return undefined;
-    const wait = dayRange(tz, 1).start.getTime() - Date.now() + 1000;
-    const timer = setTimeout(reload, Math.max(1000, Math.min(wait, 2147483647)));
+    let timer;
+    const arm = () => { timer = setTimeout(() => { reload(); arm(); }, msUntilNextDay(tz)); };
+    arm();
     return () => clearTimeout(timer);
-  }, [lastDay, tz, reload]);
+  }, [tz, reload]);
   const lastIsToday = Boolean(lastDay) && lastDay.getTime() === dayRange(tz, 0).start.getTime();
   const lastName = lastIsToday ? "Today" : shortDay(lastDay, tz);
 

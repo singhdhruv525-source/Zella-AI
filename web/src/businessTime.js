@@ -48,6 +48,13 @@ export function dayRange(timeZone, offsetDays = 0, now = new Date()) {
   return { start, end };
 }
 
+// Milliseconds from now until a moment after the business's next midnight (one second past it), kept within what a
+// browser timer accepts. Reports schedules its day rollover refresh with it.
+export function msUntilNextDay(timeZone, now = new Date()) {
+  const wait = dayRange(timeZone, 1, now).start.getTime() - now.getTime() + 1000;
+  return Math.max(1000, Math.min(wait, 2147483647));
+}
+
 export function formatTime(value, timeZone) {
   if (!value) return "None";
   return new Date(value).toLocaleTimeString("en-US", { timeZone, hour: "numeric", minute: "2-digit" });
