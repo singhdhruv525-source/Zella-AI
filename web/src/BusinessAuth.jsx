@@ -137,7 +137,7 @@ function SocialSignIn({ email, setError, disabled }) {
         {SOCIAL.map((option) => (
           <button key={option.id} type="button" className="ba-btn ba-social-btn" disabled={disabled || Boolean(working)} onClick={() => go(option)}>
             <ProviderLogo id={option.id} />
-            <span>{working === option.id ? "Opening..." : option.label}</span>
+            <span>{working === option.id ? "Opening…" : option.label}</span>
           </button>
         ))}
       </div>
@@ -170,7 +170,7 @@ export function MfaCodeCard({ email, onDone }) {
           <input inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} autoFocus required />
         </label>
         {error && <div className="ba-error">{error}</div>}
-        <button type="submit" className="ba-btn primary block" disabled={busy}>{busy ? "Checking..." : "Verify and continue"}</button>
+        <button type="submit" className="ba-btn primary block" disabled={busy}>{busy ? "Checking…" : "Verify and continue"}</button>
         <button type="button" className="ba-link ba-center" onClick={() => supabase.auth.signOut()}>Use a different account</button>
       </form>
     </AuthCard>
@@ -234,7 +234,7 @@ export function BusinessSignIn() {
           {notice && <div className="ba-notice">{notice}</div>}
           {error && <div className="ba-error">{error}</div>}
           <button type="submit" className="ba-btn primary block" disabled={busy || !email.trim()}>
-            {busy ? "Sending..." : "Send reset link"}
+            {busy ? "Sending…" : "Send reset link"}
           </button>
           <button type="button" className="ba-link ba-center" onClick={() => { setMode("signin"); setNotice(""); setError(""); }}>
             ← Back to sign in
@@ -257,7 +257,7 @@ export function BusinessSignIn() {
         </label>
         {error && <div className="ba-error">{error}</div>}
         <button type="submit" className="ba-btn primary block" disabled={busy}>
-          {busy ? "Signing in..." : "Sign in"}
+          {busy ? "Signing in…" : "Sign in"}
         </button>
         <button type="button" className="ba-link ba-center" onClick={() => { setMode("reset"); setError(""); }}>
           Forgot your password?
@@ -382,7 +382,7 @@ export function Welcome() {
   }
 
   if (state === "checking") {
-    return <AuthCard title="One moment..." description="Checking your link." />;
+    return <AuthCard title="One moment…" description="Checking your link." />;
   }
 
   if (state === "confirm") {
@@ -398,7 +398,7 @@ export function Welcome() {
       >
         {error && <div className="ba-error">{error}</div>}
         <button type="button" className="ba-btn primary block" onClick={confirmLink} disabled={busy}>
-          {busy ? "Checking your link..." : "Continue"}
+          {busy ? "Checking your link…" : "Continue"}
         </button>
       </AuthCard>
     );
@@ -432,7 +432,7 @@ export function Welcome() {
         </div>
         {error && <div className="ba-error">{error}</div>}
         <button type="submit" className="ba-btn primary block" disabled={busy}>
-          {busy ? "Saving..." : "Save password and continue"}
+          {busy ? "Saving…" : "Save password and continue"}
         </button>
       </form>
     </AuthCard>

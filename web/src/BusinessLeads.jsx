@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
-import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { formatDay, formatTime, timeAgo, timeAgoLabel, todayInput, zonedDateTime } from "./businessTime";
 import { makeTerm } from "./businessWorkspace";
 import { Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, clock, explain, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { useServerPages, useSettled } from "./crm/paging";
+import { formatPhone } from "./lib/format";
 
 /* The lead pipeline: a board by status, or a list, with who owns each lead and
    when the next follow-up is due. Details open in a panel so this page stays calm. */
@@ -178,12 +179,12 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
                   const col = COLUMNS.find((c) => c.stages.includes(stage)) ?? COLUMNS[0];
                   return (
                     <tr key={p.id} tabIndex={0} onClick={() => setOpenId(p.id)} onKeyDown={(e) => e.key === "Enter" && setOpenId(p.id)}>
-                      <td><div className="ba-person"><div className="ba-avatar sm">{initials(name)}</div><div><strong>{name}</strong><small>{p.phone ?? p.email ?? ""}</small></div></div></td>
+                      <td><div className="ba-person"><div className="ba-avatar sm">{initials(name)}</div><div><strong>{name}</strong><small>{p.phone ? formatPhone(p.phone) : p.email ?? ""}</small></div></div></td>
                       <td><Pill tone={stage === "won" ? "success" : stage === "lost" || stage === "unqualified" ? "danger" : "warning"}>{stage === "unqualified" ? "Not a fit" : col.label}</Pill></td>
                       <td>{sourceName(p.source)}</td>
                       <td><Assignee id={p.assigned_to} nameOf={roster.nameOf} /></td>
                       <td>{isOverdue(p) ? <span className="ba-flag">Overdue{p.next_follow_up_at ? ` · ${formatDay(p.next_follow_up_at, tz)}` : ""}</span> : p.next_follow_up_at ? when(p.next_follow_up_at, tz) : "None"}</td>
-                      <td>{p.last_contacted_at ? timeAgo(p.last_contacted_at) : <span className="ba-flag">Not yet</span>}</td>
+                      <td>{p.last_contacted_at ? timeAgoLabel(p.last_contacted_at) : <span className="ba-flag">Not yet</span>}</td>
                       <td>{p.priority && p.priority !== "normal" ? <Pill tone={PRIORITY_TONE[p.priority]}>{PRIORITY_LABEL[p.priority]}</Pill> : "Normal"}</td>
                     </tr>
                   );
@@ -297,7 +298,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
         <div className="ba-kn-head">
           <Pill tone={stage === "won" ? "success" : stage === "lost" || stage === "unqualified" ? "danger" : "warning"}>{stage === "unqualified" ? "Not a fit" : col.label}</Pill>
           {isOverdue(person) && <span className="ba-flag"><Icon name="schedule" size="sm" />follow up overdue</span>}
-          {person.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />{person.phone}</a>}
+          {person.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />{formatPhone(person.phone)}</a>}
           <button type="button" className="ba-btn sm" onClick={() => onOpenProfile(person.id)}>Full profile</button>
         </div>
         {stage === "lost" && person.lost_reason && <p className="ba-item-text">Lost: {person.lost_reason}</p>}

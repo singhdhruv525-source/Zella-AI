@@ -201,7 +201,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
 
   return (
     <>
-      <PageHead crumb="Workspace / Tasks & follow-ups" title="Tasks" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella Voice adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
+      <PageHead crumb="Workspace / Tasks and follow ups" title="Tasks and follow ups" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella Voice adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_task" size="sm" />Add task</button>
         <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", `To do (${open.length})`], ["done", "Done"]]} />
       </PageHead>
@@ -332,7 +332,7 @@ export function WaitlistPage({ workspace, term, refreshKey, onNotice, onOpenPers
       </PageHead>
       <Notice error={error || actionError} onRetry={reload} />
       {loading && !data ? <p className="ba-muted">Loading…</p> : !shown.length ? (
-        <Empty title={filter === "active" ? "Nobody is waiting" : "Nothing here yet"}>{filter === "active" ? `Add ${term("customers").toLowerCase()} who'd take an earlier time.` : "Booked and removed entries are kept here."}</Empty>
+        <Empty title={filter === "active" ? "Nobody is waiting" : "Nothing here yet"}>{filter === "active" ? <>Add {term("customers").toLowerCase()} who'd take an earlier time.<div className="ba-empty-actions"><button type="button" className="ba-btn sm" onClick={() => setAdding(true)}><Icon name="playlist_add" size="sm" />Add to waitlist</button></div></> : "Booked and removed entries are kept here."}</Empty>
       ) : (
         <div className="ba-stack">
           {shown.map((w) => {

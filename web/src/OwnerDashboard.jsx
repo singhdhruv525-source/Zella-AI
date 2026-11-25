@@ -130,14 +130,14 @@ export default function OwnerDashboard({ onSignOut }) {
       const data = await callOwnerFunction("dashboard_data");
       if (epoch !== industryEpoch.current || request !== industryRequest.current) return;
       // an answer without an industry list can't be read: never treat it as "no industries" (an empty list is real)
-      if (!Array.isArray(data?.industries)) throw new Error("The industry list couldn't be read. Try again.");
+      if (!Array.isArray(data?.industries)) throw new Error("The industry list didn't load.");
       setIndustries(data.industries);
       setIndustryError("");
       setIndustriesLoaded(true);
     } catch (error) {
       if (epoch !== industryEpoch.current || request !== industryRequest.current) return;
       console.error("Industry list loading failed:", error);
-      setIndustryError(friendlyError(error) || "Could not load industries. Please try again.");
+      setIndustryError(friendlyError(error) || "Industries didn't load.");
     } finally {
       if (epoch === industryEpoch.current && request === industryRequest.current) setLoadingIndustries(false);
     }
@@ -309,7 +309,7 @@ export default function OwnerDashboard({ onSignOut }) {
             <div className="owner-empty-state" role="alert" data-access="failed">
               <strong>Your admin permissions couldn't be loaded</strong>
               <p>Nothing is shown until they are. Check your connection and try again.</p>
-              <button type="button" className="owner-primary-button" onClick={retryAccess}>Retry</button>
+              <button type="button" className="owner-primary-button" onClick={retryAccess}>Try again</button>
             </div>
           ) : access.state === ACCESS.UNAUTHORIZED ? (
             <div className="owner-empty-state" role="alert" data-access="unauthorized">
@@ -328,9 +328,9 @@ export default function OwnerDashboard({ onSignOut }) {
             // business, so it opens only once the list is here; a failed load says so instead of guessing.
             industryError ? (
               <div className="owner-empty-state" role="alert" data-wizard="industries-failed">
-                <strong>The industry list couldn't be loaded</strong>
-                <p>{industryError}</p>
-                <div><button type="button" className="owner-secondary-button op-small" onClick={loadIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Retrying..." : "Retry"}</button></div>
+                <strong>Industries didn't load</strong>
+                <p>Setup needs the industry list.</p>
+                <div><button type="button" className="owner-secondary-button op-small" onClick={loadIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Trying again…" : "Try again"}</button></div>
               </div>
             ) : (
               <div className="owner-empty-state" role="status" aria-busy="true" data-wizard="industries-loading">
@@ -419,7 +419,7 @@ export default function OwnerDashboard({ onSignOut }) {
               </p>
               <div className="owner-panel owner-overview-panel">
                 <button type="button" className="owner-primary-button" onClick={() => goTo("Overview")}>
-                  Go to Overview <span>→</span>
+                  Go to Overview
                 </button>
               </div>
             </section>

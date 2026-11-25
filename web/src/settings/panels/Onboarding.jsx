@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Icon } from "../../BusinessUI";
 import { createPortal } from "react-dom";
 import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, LoadState, Needs, Pill, Table, useAsync, words } from "../SettingsKit";
@@ -54,7 +55,7 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
             ["Business", (b) => <button type="button" className="zs-link" onClick={() => openBusiness(b.id)}>{b.name}</button>],
             ["Step", (b) => words(b.onboarding_status)],
             ["Last change", (b) => <>{since(b.last_activity_at)}{b.abandoned && <> <Pill tone="danger">Abandoned</Pill></>}</>],
-            ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success">✓</Pill> : <Pill tone="warning">Missing</Pill>)]),
+            ...CHECKS.map(([key, label]) => [label, (b) => (b.checks[key] ? <Pill tone="success"><Icon name="check" size="sm" /><span className="zs-sr-only">Done</span></Pill> : <Pill tone="warning">Missing</Pill>)]),
             ["Failed steps", (b) => (b.failed_steps.length ? b.failed_steps.map((f) => {
               const act = retryAction(f.step);
               return (

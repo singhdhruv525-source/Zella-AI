@@ -6,7 +6,7 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Icon } from "./BusinessUI";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
-import { friendlyError, Metric, Select, num } from "./admin/adminOps";
+import { DotText, friendlyError, Metric, Select, num, statValueClass } from "./admin/adminOps";
 import { isCount } from "./admin/loadStatus";
 import { useSettled } from "./crm/paging";
 import {
@@ -74,7 +74,7 @@ export function useBusinessList({ active, authorized, search }) {
     } catch (err) {
       if (mine !== epoch.current || req !== request.current) return;
       console.error("Businesses loading failed:", err);
-      setError(friendlyError(err) || "Could not load businesses. Please try again.");
+      setError(friendlyError(err) || "Businesses didn't load. Try again.");
     } finally {
       if (mine === epoch.current && req === request.current) setLoading(false);
     }
@@ -116,7 +116,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
   const stats = list?.stats;
   const filtering = hasFilters(search, filters);   // what is typed or chosen now
   const filtered = list ? list.filtered : filtering;   // what the rows on screen were asked for
-  const statValue = (v) => (!loadedAt ? (loading ? "..." : "Not available") : isCount(v) ? num(v) : "Not available");
+  const statValue = (v) => (!loadedAt ? (loading ? "…" : "Not available") : isCount(v) ? num(v) : "Not available");
   const refresh = () => reload({ fresh: true });
   const clearAll = () => { clearFilters(); onSearch(""); };
   // How many filters (not the search) are chosen: the count on the phone's Filters button.
@@ -134,7 +134,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
         <div className="op-heading-actions bl-heading-actions">
           {loadedAt && <span className="op-muted op-updated" data-load-updated>{stale ? "Last updated" : "Updated"} {clock(loadedAt)}</span>}
           <button className="owner-secondary-button sm bl-btn-sm" type="button" onClick={refresh} disabled={loading}>
-            <Icon name="refresh" size="sm" /> {loading ? "Loading..." : "Refresh"}
+            <Icon name="refresh" size="sm" /> {loading ? "Loading…" : "Refresh"}
           </button>
           {canManage && (
             <button className="owner-primary-button" type="button" onClick={onCreate}>
@@ -147,7 +147,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
       {stale && (
         <div className="ic-warning op-gap" role="status" data-load="stale">
           <span>The latest refresh failed ({error}). Showing businesses from {clock(loadedAt)}; they may be out of date.</span>
-          <div><button type="button" className="owner-secondary-button op-small" onClick={refresh} disabled={loading}>{loading ? "Retrying..." : "Retry"}</button></div>
+          <div><button type="button" className="owner-secondary-button op-small" onClick={refresh} disabled={loading}>{loading ? "Trying again…" : "Try again"}</button></div>
         </div>
       )}
 
@@ -161,7 +161,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
           <button type="button" className="owner-stat-card bl-stat-link" aria-pressed={Boolean(filters.problem)}
             onClick={() => setFilters(filters.problem ? { problem: false } : { problem: true, sort: "problems" })}>
             <div className="owner-stat-top"><span>Need attention</span><Icon name="chevron_right" size="sm" /></div>
-            <div className="owner-stat-value">{statValue(stats.withProblems)}</div>
+            <div className={statValueClass(statValue(stats.withProblems))}>{statValue(stats.withProblems)}</div>
             <div className="owner-stat-note">{filters.problem ? "Showing only these" : "With an open problem"}</div>
           </button>
         ) : (
@@ -241,7 +241,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
               {error && !loadedAt ? (
                 <tr className="bl-message"><td colSpan={7}>
                   <div className="owner-empty-state" role="alert">
-                    <strong>Unable to load businesses</strong>
+                    <strong>Businesses didn't load</strong>
                     <p>{error}</p>
                     <button type="button" className="owner-primary-button" onClick={refresh} disabled={loading}>Try again</button>
                   </div>
@@ -249,7 +249,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
               ) : !loadedAt ? (
                 <tr className="bl-message"><td colSpan={7}>
                   <div className="owner-empty-state" role="status" aria-busy="true">
-                    <strong>Loading businesses...</strong>
+                    <strong>Loading businesses…</strong>
                     <p>This takes a moment.</p>
                   </div>
                 </td></tr>
@@ -293,8 +293,8 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
 
 // "Showing 1 to 25 of 96" and "3 shown"; filtered: "2 businesses match, of 96", "Showing 1 to 25 of 40 matches, of 96".
 function footerText({ list, loading, loadedAt, filtered, stats, stale }) {
-  if (loading && !loadedAt) return "Loading businesses...";
-  if (!loadedAt) return "Businesses not loaded";
+  if (loading && !loadedAt) return "Loading businesses…";
+  if (!loadedAt) return "Not loaded yet";
   const total = list.total;
   const all = filtered && isCount(stats?.totalBusinesses) ? `, of ${num(stats.totalBusinesses)}` : "";
   const earlier = stale ? " (earlier result)" : "";
@@ -335,7 +335,7 @@ function BusinessRow({ b, canManage, onOpen, onSetup }) {
           : <EmptyValue label="No owner invited yet" />}
         {owner.sub && <span className="owner-table-secondary owner-cell-truncate" title={owner.sub}>{owner.sub}</span>}
         {owner.status && owner.status !== "accepted" && (
-          <span className="bl-badge-line"><Pill tone={INVITE_TONE[owner.status] ?? "neutral"}>{`Invitation ${owner.status === "sent" ? "sent" : owner.status}`}</Pill></span>
+          <DotText className="bl-invite" tone={INVITE_TONE[owner.status] ?? "neutral"}>{`Invitation ${owner.status === "sent" ? "sent" : owner.status}`}</DotText>
         )}
       </td>
       <td className="col-plan" data-label="Plan">

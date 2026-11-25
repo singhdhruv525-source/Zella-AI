@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
-import { formatDay, formatTime, timeAgo, zonedDateTime } from "./businessTime";
+import { formatDay, formatTime, timeAgo, timeAgoLabel, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PAGE_SIZE, PageHead, Pager, explain, orThrow, useLoad } from "./BusinessShared";
 import { PersonPicker } from "./BusinessWork";
 import { useRoster } from "./BusinessLeads";
@@ -212,7 +212,7 @@ function RecordFiles({ workspace, record }) {
               <button type="button" className="ba-file" onClick={() => open(f)} title={`Open ${f.file_name}`}>
                 {f.thumb ? <img src={f.thumb} alt={f.caption || f.file_name} loading="lazy" /> : <Icon name={f.kind === "photo" ? "image" : "description"} />}
               </button>
-              <div><strong>{f.caption || f.file_name}</strong><small>{timeAgo(f.created_at)}{f.private ? " · private" : ""}</small></div>
+              <div><strong>{f.caption || f.file_name}</strong><small>{timeAgoLabel(f.created_at)}{f.private ? " · private" : ""}</small></div>
               {(canRemoveAny || (f.uploaded_by === me.data && Date.now() - new Date(f.created_at).getTime() < 864e5)) && (
                 <button type="button" className="ba-btn ghost sm" onClick={() => remove(f)} aria-label={`Remove ${f.file_name}`}><Icon name="delete" size="sm" /></button>
               )}
@@ -398,7 +398,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
           {(events.data ?? []).length === 0 ? <p className="ba-muted">Nothing yet.</p> : (
             <ul className="ba-history">
               {events.data.map((e) => (
-                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked", file_added: "File added", file_removed: "File removed", ...WORKFLOW_EVENT_LABELS }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgo(e.created_at)}</small></li>
+                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked", file_added: "File added", file_removed: "File removed", ...WORKFLOW_EVENT_LABELS }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgoLabel(e.created_at)}</small></li>
               ))}
             </ul>
           )}
@@ -417,7 +417,10 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
  * Resolve linked titles for visible rows in batches, with distinct lookup failure states.
  * Failed list refreshes retain the last results with a retry notice.
  */
-export function RecordsPage({ workspace, type, query, refreshKey, canManage, onNotice, onOpenPerson, onBook }) {
+export function RecordsPage({ workspace, type, query, refreshKey, canManage, onNotice, onOpenPerson, onBook, operationsLabel }) {
+  // The line above the title names the sidebar group the page sits in: the business's own operations label when the
+  // app passes it, else the same default the sidebar falls back to (navigation/useWorkspaceNavigation.js).
+  const groupLabel = operationsLabel || (workspace.industry ? `${workspace.industry} operations` : "Business operations");
   const tz = workspace.timezone;
   const [filter, setFilter] = useState("open");
   const [modal, setModal] = useState(null); // {record} or {new:true}
@@ -463,13 +466,13 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
 
   return (
     <>
-      <PageHead crumb={`Records / ${type.plural}`} title={type.plural} sub={type.notice ?? `Everything your team tracks as ${type.plural.toLowerCase()}.`}>
+      <PageHead crumb={`${groupLabel} / ${type.plural}`} title={type.plural} sub={type.notice ?? `Everything your team tracks as ${type.plural.toLowerCase()}.`}>
         <button type="button" className="ba-btn primary" onClick={() => setModal({ new: true })}><Icon name="add" size="sm" /> Add {type.singular.toLowerCase()}</button>
       </PageHead>
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         <div className="ba-toolbar">
-          <span className="ba-muted">Use the search box at the top to find one.</span>
+          <span className="ba-muted">Search in the top bar to find one.</span>
           <label className="ba-select">
             <span>Show</span>
             <select value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -498,7 +501,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
                       <td><Pill tone={statusOf(r.status).tone}>{statusOf(r.status).label}</Pill></td>
                       {cols.map((c) => <td key={c.key}>{showValue(c, r.data?.[c.key], tz, titles)}</td>)}
                       {type.link_person && <td>{personName(r.customers) ?? "None"}</td>}
-                      <td>{timeAgo(r.updated_at)}</td>
+                      <td>{timeAgoLabel(r.updated_at)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -650,21 +653,22 @@ function TypeEditor({ workspace, type, types = [], onClose, onSaved, onWorkflowS
   );
 }
 
-export function RecordSettingsPage({ workspace, types, loaded = true, canManage, onNotice, onChanged, loadError }) {
+export function RecordSettingsPage({ workspace, types, loaded = true, canManage, onNotice, onChanged, loadError, operationsLabel }) {
+  const groupLabel = operationsLabel || (workspace.industry ? `${workspace.industry} operations` : "Business operations");
   const [editing, setEditing] = useState(null); // type, or "new"
   // the open editor follows the latest loaded copy of its type, so a reload after a save reaches it
   const editingType = editing && editing !== "new" ? (types.find((t) => t.id === editing.id) ?? editing) : null;
   if (!canManage) {
     return (
       <>
-        <PageHead crumb="Business operations / Customize records" title="Customize records" sub="Only owners and managers can change how records look." />
+        <PageHead crumb={`${groupLabel} / Customize records`} title="Customize records" sub="Only owners and managers can change how records look." />
         <Empty title="Ask an owner or manager">They can rename records, change statuses and add fields.</Empty>
       </>
     );
   }
   return (
     <>
-      <PageHead crumb="Business operations / Customize records" title="Customize records" sub="Rename what you track, change its statuses, and add the fields your team needs. Other businesses are not affected.">
+      <PageHead crumb={`${groupLabel} / Customize records`} title="Customize records" sub="Rename what you track, change its statuses, and add the fields your team needs. Other businesses are not affected.">
         <button type="button" className="ba-btn primary" onClick={() => setEditing("new")}><Icon name="add" size="sm" /> Add a type of record</button>
       </PageHead>
       <section className="ba-panel">

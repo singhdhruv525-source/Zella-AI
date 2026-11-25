@@ -1,4 +1,5 @@
 // Pieces every tab of one business's page uses (BusinessDetails.jsx and business/*Tab.jsx).
+import { Icon } from "../BusinessUI";
 export const TERM_ROWS = [
   ["customer", "customers", "Customers"],
   ["staff", "staff_plural", "Staff"],
@@ -89,7 +90,7 @@ export function Check({ ok, later, title, detail }) {
   return (
     <li className="op-check">
       <span className={`op-check-dot ${ok ? "ok" : later ? "later" : "missing"}`} role="img"
-        aria-label={ok ? "Done" : later ? "Not yet, can wait" : "Needed"}>{ok ? "✓" : later ? "…" : "!"}</span>
+        aria-label={ok ? "Done" : later ? "Not yet, can wait" : "Needed"}><Icon name={ok ? "check" : later ? "more_horiz" : "priority_high"} size="sm" /></span>
       <div>
         <strong>{title}</strong>
         <span>{detail}</span>

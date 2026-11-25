@@ -91,7 +91,7 @@ export default function ContinuePlan() {
           <span>Zella <span className="cp-ai">Voice</span></span>
         </div>
 
-        {state.status === "loading" && <p className="op-muted">Checking your link...</p>}
+        {state.status === "loading" && <p className="op-muted">Checking your link…</p>}
 
         {state.status === "error" && (
           <>
@@ -110,7 +110,7 @@ export default function ContinuePlan() {
             </p>
             {error && <div className="owner-form-error">{error}</div>}
             <button type="button" className="owner-primary-button cp-button" onClick={confirm} disabled={working}>
-              {working ? "Saving..." : "Continue my plan"}
+              {working ? "Saving…" : "Continue my plan"}
             </button>
             <p className="cp-small">Don't want to continue? You don't need to do anything. Your plan ends on the date above.</p>
           </>

@@ -37,7 +37,7 @@ export default function AiTesting({ me, onOpenBusiness, refresh = 0 }) {
   const valid = !loading && state.data && Number.isFinite(Number(state.data.total)) && Array.isArray(state.data.businesses);
   // rows of the page asked for only: while the next page loads the previous one is not shown under its range
   const rows = valid ? state.data.businesses : [];
-  const emptyText = loading ? "Loading..."
+  const emptyText = loading ? "Loading…"
     : !valid ? "Couldn't load AI testing."
       : Number(state.data.total) === 0 ? "No business has test questions yet. A business adds them in its settings, under AI receptionist."
         : "Nothing on this page. Go back a page to see the businesses.";

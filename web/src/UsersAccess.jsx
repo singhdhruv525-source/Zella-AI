@@ -118,13 +118,13 @@ export default function UsersAccess() {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">Access</div>
+          <div className="owner-eyebrow">Administration</div>
           <h1>Users & access</h1>
           <p>People who can use this Zella Voice admin dashboard. Business owners and staff are managed inside each business.</p>
         </div>
         {isOwner && (
           <button type="button" className="owner-primary-button" onClick={() => setInviting(true)} disabled={busy}>
-            ＋ Add admin
+            <Icon name="add" size="sm" />Add admin
           </button>
         )}
       </div>
@@ -177,7 +177,7 @@ export default function UsersAccess() {
           <div className="ic-actions">
             <button type="button" className="owner-secondary-button" onClick={() => setInviting(false)} disabled={busy}>Cancel</button>
             <button type="submit" className="owner-primary-button" disabled={busy || !invite.email.trim()}>
-              {busy ? "Adding..." : "Add admin"}
+              {busy ? "Adding…" : "Add admin"}
             </button>
           </div>
         </form>
@@ -208,7 +208,7 @@ export default function UsersAccess() {
             </label>
             <button type="button" className="owner-secondary-button op-small" onClick={() => setFresh(null)} disabled={busy}>Cancel</button>
             <button type="submit" className="owner-primary-button op-small" disabled={busy || fresh.code.length !== 6}>
-              {busy ? "Checking..." : "Confirm"}
+              {busy ? "Checking…" : "Confirm"}
             </button>
           </div>
         </form>
@@ -220,7 +220,7 @@ export default function UsersAccess() {
           <div>
             <button type="button" className="owner-secondary-button op-small" onClick={() => setConfirm(null)} disabled={busy}>Cancel</button>
             <button type="button" className="owner-primary-button op-small" onClick={confirm.run} disabled={busy}>
-              {busy ? "Saving..." : confirm.label}
+              {busy ? "Saving…" : confirm.label}
             </button>
           </div>
         </div>
@@ -298,13 +298,13 @@ export default function UsersAccess() {
                 </tr>
               ))}
               {!data?.admins?.length && (
-                <tr><td colSpan={6}><div className="op-empty">{loading ? "Loading admins..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No platform admins found."}</div></td></tr>
+                <tr><td colSpan={6}><div className="op-empty">{loading ? "Loading admins…" : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No platform admins found."}</div></td></tr>
               )}
             </tbody>
           </table>
         </div>
         <div className="owner-panel-footer">
-          <span>{data ? `${data.admins?.filter((a) => a.is_active).length ?? 0} active admins` : "Admins not loaded"}</span>
+          <span>{data ? `${data.admins?.filter((a) => a.is_active).length ?? 0} active admins` : "Admins didn't load. Try again"}</span>
           <span>Zella Voice always keeps at least one active owner, and nobody can change their own access.</span>
         </div>
       </section>

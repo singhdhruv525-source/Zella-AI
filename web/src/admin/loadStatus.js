@@ -21,7 +21,7 @@ export const countOf = (list, filter) => (Array.isArray(list) ? (filter ? list.f
 
 // What an empty list says: only "nothing here" after a successful load.
 export function emptyText(r, whenEmpty, what = "this list") {
-  if (r.status === "loading") return "Loading...";
+  if (r.status === "loading") return "Loading…";
   if (r.status === "failed") return `Not available: ${what} couldn't be loaded.`;
   return whenEmpty;
 }

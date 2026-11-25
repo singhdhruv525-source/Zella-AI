@@ -1,0 +1,290 @@
+/* =========================================================
+   Admin pages polish (owner approved 25 Nov 2026, "yes to all A and C"; docs/DESIGN_SYSTEM.md "Admin pages
+   polish"). Polish only: features, sections and their order stay; Glass, the dock, the picture palette, Classic and
+   the Zella Voice look stay. Admin only: every rule is scoped to .owner-app, or to html:has(.owner-app) for dialogs
+   that open in a portal outside it, so the CRM (.ba-root) never changes. Loaded last (main.jsx), so it wins ties.
+   Item numbers (A6, A7, ...) are the owner's approved list.
+   ========================================================= */
+
+/* ---------- A22: corner and shadow steps ----------
+   Panels 16, stat cards 12, notes and small boxes 8, items nested inside a panel or note take the outer radius minus
+   its padding, never under 4 (every admin panel pads 12 or more, so nested items are 4). */
+.owner-app :is(.owner-panel, .zs-card, .ao-panel, .sa-panel) { border-radius: var(--zella-radius-panel); }
+/* dialogs too, except on a phone, where they open as a sheet with only its top corners rounded */
+@media (min-width: 601px) {
+  html:has(.owner-app) :is(.owner-modal, .bd-confirm, .zs-dialog, .sa-drawer) { border-radius: var(--zella-radius-panel); }
+}
+.owner-app :is(.owner-panel, .zs-card) { box-shadow: var(--zella-shadow-sm); }
+
+.owner-app :is(.owner-stat-card, .vq-stat, .bp-tile, .ao-tile) { border-radius: var(--zella-radius-card); }
+
+.owner-app :is(.owner-notice, .owner-provisioning-note, .wiz-note, .ic-notice, .ic-warning, .owner-info-banner,
+  .banner-info, .banner-warning, .zs-banner, .zs-needs, .ao-unavailable, .owner-form-error, .owner-form-success,
+  .vq-notice, .zs-empty-box, .wiz-doc),
+html:has(.owner-app) :is(.owner-modal, .bd-confirm, .zs-dialog) :is(.owner-form-error, .owner-form-success, .wiz-note) {
+  border-radius: var(--zella-radius-note);
+  box-shadow: none;
+}
+
+.owner-app :is(.bac-row, .ao-alert, .ao-provider, .op-json-grid pre, .al-changes),
+.owner-app :is(.owner-panel, .zs-card) :is(.zs-empty-box, .ao-unavailable, .wiz-doc) {
+  border-radius: var(--zella-radius-nested);
+  box-shadow: none;
+}
+
+/* ---------- A6: the last bold (700) text uses the approved weights ----------
+   Emphasis is 600 (panel titles, names in lists); figures and badges are 500. :where keeps this at zero specificity,
+   so it only replaces the browser's own bold and never a weight a component already chose. */
+:where(.owner-app) :where(strong, b, th),
+:where(html:has(.owner-app)) :where(.owner-modal, .bd-confirm, .zs-dialog) :where(strong, b) { font-weight: 600; }
+.owner-app :is(.owner-profile-name, .owner-workspace-copy strong, .owner-avatar, .ir-chevron) { font-weight: 600; }
+.owner-app :is(.bp-price strong, .bp-margin strong, .bp-tile-value, .sa-big, .vq-stat strong) { font-weight: 500; }
+.owner-app :is(.owner-status, .op-pill, .wiz-badge, .zs-check-marker, .wiz-advanced > summary) { font-weight: 500; }
+.owner-app .wiz-advanced > summary::before { font-weight: 500; }
+
+/* ---------- A7: no text under 12px ---------- */
+.owner-app :is(.owner-brand-caption, .zv-brand-caption, .owner-profile-role, .owner-workspace-copy span,
+  .owner-sidebar-bottom span, .owner-search kbd, .owner-stat-note, .owner-table th, .owner-table-secondary,
+  .owner-status, .owner-field small, .owner-feature-row p, .owner-panel-footer, .owner-business-cell span, .op-pill,
+  .op-tag-list li, .op-json-grid h4, .op-json-grid pre, .op-detail-row p, .ic-list li span, .ic-module-side, .mo-sub,
+  .in-need, .st-notes h4, .st-notes li span, .ao-tab-count, .wiz-stepper button, .wiz-step-num, .wiz-hint, .wiz-badge,
+  .wiz-choice span, .wiz-term-head, .wiz-term-row small, .wiz-preview-label, .wiz-module small, .wiz-chip,
+  .wiz-done-grid span:first-child, .zs-pill, .zs-table th, .zs-table code) {
+  font-size: var(--zella-text-xs);
+}
+/* <small> notes (provider roles, alert times) were the browser's "smaller", under 12px */
+.owner-app :is(small.op-muted, .owner-when) { font-size: var(--zella-text-xs); }
+.owner-app .wiz-step-num .ba-icon { font-size: 14px; }
+
+/* ---------- A8: information notes are neutral ----------
+   A light grey surface, a small info icon and normal text colour; warnings, errors and successes keep their tone. */
+.owner-app :is(.owner-notice, .owner-provisioning-note, .wiz-note, .ic-notice, .zs-banner:not(.error):not(.success):not(.warn)),
+html:has(.owner-app) :is(.owner-modal, .bd-confirm, .zs-dialog) .wiz-note {
+  position: relative;
+  padding: var(--zella-space-3) var(--zella-space-4) var(--zella-space-3) calc(var(--zella-space-4) + 26px);
+  border: 1px solid var(--zella-border);
+  background: var(--zella-subtle);
+  color: var(--zella-text);
+  font-size: var(--zella-text-sm);
+  line-height: var(--zella-leading);
+}
+.owner-app :is(.owner-notice, .owner-provisioning-note, .wiz-note, .ic-notice, .zs-banner:not(.error):not(.success):not(.warn))::before,
+html:has(.owner-app) :is(.owner-modal, .bd-confirm, .zs-dialog) .wiz-note::before {
+  content: "info" / "";
+  position: absolute;
+  left: var(--zella-space-4);
+  top: calc(var(--zella-space-3) + 1px);
+  color: var(--zella-text-secondary);
+  font-family: "Material Symbols Outlined";
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1;
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+.owner-app :is(.owner-info-banner, .banner-info, .pp-banner, .or-banner, .ic-apply, .us-fresh) { border-color: var(--zella-border); background: var(--zella-subtle); color: var(--zella-text); }
+html:has(.owner-app) .pp-drawer .pp-banner { border-color: var(--zella-border); background: var(--zella-subtle); color: var(--zella-text); }
+.owner-app :is(.owner-info-banner, .banner-info, .pp-banner, .or-banner, .us-fresh) > .ba-icon,
+.owner-app .ic-apply .ic-apply-icon,
+html:has(.owner-app) .pp-drawer .pp-banner > .ba-icon { color: var(--zella-text-secondary); font-size: 18px; }
+.owner-app :is(.owner-info-banner, .banner-info, .pp-banner, .or-banner, .ic-apply, .us-fresh) :is(strong, p),
+html:has(.owner-app) .pp-drawer .pp-banner :is(strong, p) { color: var(--zella-text); }
+.owner-app .owner-info-symbol { background: var(--zella-text-secondary); }
+
+/* ---------- A57: "not built yet" notes are neutral: a grey side bar, the title in the text colour ---------- */
+.owner-app .zs-needs { border-left-color: var(--zella-border-strong); }
+.owner-app .zs-needs > strong { color: var(--zella-text); }
+
+/* ---------- A9: warning and danger figures keep the text colour, with a small coloured dot before the label ---------- */
+.ao-dot { display: inline-block; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--zella-text-faint); }
+.ao-dot.success { background: var(--zella-success); }
+.ao-dot.warning { background: var(--zella-warning); }
+.ao-dot.danger { background: var(--zella-danger); }
+.ao-dot.info { background: var(--zella-info); }
+.ao-dot-text { white-space: nowrap; }
+.ao-dot-text > .ao-dot { margin-right: var(--zella-space-2); vertical-align: 0.05em; }
+
+.owner-app :is(.ao-stat-warning, .ao-stat-danger) .owner-stat-value { color: var(--zella-text); }
+.owner-app :is(.ao-stat-warning, .ao-stat-danger) .owner-stat-top > span:first-child { display: inline-flex; align-items: center; gap: var(--zella-space-2); }
+.owner-app :is(.ao-stat-warning, .ao-stat-danger) .owner-stat-top > span:first-child::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--zella-warning);
+}
+.owner-app .ao-stat-danger .owner-stat-top > span:first-child::before { background: var(--zella-danger); }
+
+/* ---------- A10: "Not available" in the note size, never as a 32px figure ---------- */
+.owner-app .owner-stat-value.is-na {
+  display: flex;
+  align-items: center;
+  min-height: 35px;
+  color: var(--zella-text-faint);
+  font-size: var(--zella-text-sm);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* ---------- A11: stat icons are plain grey, a little smaller (Verification, Security & abuse) ---------- */
+.owner-app .vq-stat-icon,
+.owner-app .vq-stat-icon:is(.warning, .success, .danger) {
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  background: none;
+  color: var(--zella-text-secondary);
+}
+.owner-app .vq-stat-icon .ba-icon { font-size: 22px; }
+
+/* ---------- A39: the selected count card is quiet, like the selected tab ---------- */
+.owner-app .vq-stat { border-color: var(--zella-border); box-shadow: var(--zella-shadow-sm); }
+.owner-app .vq-stat:not(.sa-stat):hover { border-color: var(--zella-border-strong); box-shadow: var(--zella-shadow-sm); }
+.owner-app .vq-stat.active,
+.owner-app .vq-stat.active:hover {
+  border-color: var(--zella-primary-border);
+  background: var(--zella-primary-soft);
+  box-shadow: inset 0 0 0 1px var(--zella-primary-border);
+}
+.owner-app .vq-stat strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+
+/* ---------- A12: danger actions on a row are quiet buttons with red text; full red only on the confirm button ---------- */
+.owner-app :is(.bd-danger-button, .wiz-link-danger.bd-inline):not(:is(.owner-modal, .bd-confirm, [role="dialog"]) *),
+.owner-app .bd-row-actions .wiz-link-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  margin-top: 0;
+  padding: 7px 14px;
+  border: 1px solid var(--zella-border-strong);
+  border-radius: var(--zella-radius-sm);
+  background: var(--zella-card);
+  color: var(--zella-danger);
+  font-size: var(--zella-text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.owner-app :is(.bd-danger-button, .wiz-link-danger.bd-inline):not(:is(.owner-modal, .bd-confirm, [role="dialog"]) *):hover:not(:disabled),
+.owner-app .bd-row-actions .wiz-link-danger:hover:not(:disabled) {
+  border-color: var(--zella-danger-border);
+  background: var(--zella-danger-bg);
+  color: var(--zella-danger);
+}
+.owner-app .bd-row-actions { display: flex; align-items: center; gap: var(--zella-space-2); }
+html[data-zella-theme="zella"] .owner-app :is(.wiz-link-danger.bd-inline, .bd-row-actions .wiz-link-danger) { border-radius: 999px; }
+
+/* ---------- A13: the confirm box for a dangerous action keeps its normal border; only its button is red ---------- */
+html:has(.owner-app) .bd-confirm.danger { border-color: var(--zella-border); }
+
+/* ---------- A23: the setup wizard moves calmly ----------
+   No bounce on the current step number, no shake on errors, no shadow growth on hover; the one admin curve. */
+.owner-app .wiz-stepper button.current .wiz-step-num,
+.owner-app .wiz-error { animation: none; }
+.owner-app :is(.wiz-module, .wiz-doc, .wiz-section):hover { box-shadow: none; }
+.owner-app :is(.wiz-module, .wiz-doc, .wiz-section) { transition: border-color 150ms var(--owner-ease), background-color 150ms var(--owner-ease); }
+.owner-app .wiz-progress span { transition-timing-function: var(--owner-ease); }
+@media (prefers-reduced-motion: no-preference) {
+  .owner-app :is(.wiz-body > *, .wiz-done, .wiz-advanced[open] > :not(summary)) { animation-timing-function: var(--owner-ease); }
+  .owner-app .wiz-done-icon { animation: ba-fade 200ms var(--owner-ease) both; }
+}
+
+/* ---------- A24: with reduced motion the sidebar "More below" cue doesn't fade; it is shown or not ---------- */
+@media (prefers-reduced-motion: reduce) {
+  @supports (animation-timeline: --owner-nav) and (timeline-scope: --owner-nav) {
+    .owner-app .owner-sidebar .owner-sidebar-bottom::before { animation-name: owner-nav-more-still; }
+  }
+}
+@keyframes owner-nav-more-still { 0%, 92% { opacity: 1; } 92.01%, 100% { opacity: 0; } }
+
+/* ---------- A33 and A51: states in words with a small dot ---------- */
+.owner-app .bl-invite { margin-top: 2px; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); }
+.owner-app .in-need {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--zella-text);
+  font-size: var(--zella-text-sm);
+  font-weight: 400;
+}
+.owner-app .in-need-state { color: var(--zella-text-secondary); white-space: nowrap; }
+/* the requests table fits its card: a long request wraps under its dot instead of sliding the table sideways */
+.owner-app .in-page .in-need { display: inline-block; padding-left: 16px; text-indent: -16px; white-space: normal; }
+.owner-app .in-needs { flex-direction: column; gap: 2px; }
+
+/* ---------- A35: switched on modules keep the normal border; the switch says on or off ---------- */
+.owner-app .bac-row.on { border-color: var(--zella-border); }
+
+/* ---------- A37: the fallback number is the Phone numbers card's last row ---------- */
+.owner-app .op-fallback-row strong { font-weight: 500; }
+
+/* ---------- A44: the offer form's Save and Cancel stay at the bottom of the window while it scrolls ---------- */
+html:has(.owner-app) .owner-modal.of-modal .owner-modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--glass-solid, var(--zella-alt));
+}
+/* Glass: the footer is solid (the glass colour over the picture's base), so the fields never show through the buttons */
+html[data-zella-theme="glass"]:has(.owner-app) .owner-modal.of-modal .owner-modal-footer {
+  background: linear-gradient(var(--glass-solid), var(--glass-solid)), var(--zella-glass-base, #1b1613);
+}
+
+/* ---------- A45 and A46: the AI receptionists table fits at 1440 ---------- */
+.owner-app .ag-page .ag-setup-missing { max-width: 22ch; overflow: visible; white-space: normal; text-overflow: clip; }
+.owner-app .ag-page :is(td[data-label="Status"], td[data-label="Calls served, last 7 days"]) .ag-line { max-width: 26ch; overflow: visible; white-space: normal; text-overflow: clip; }
+.owner-app .ag-page .ag-table :is(th, td) { padding-left: 10px; padding-right: 10px; }
+.owner-app .ag-page .ag-table :is(th, td):first-child { padding-left: var(--zella-space-5); }
+.owner-app .ag-page .ag-table .col-actions { padding-right: var(--zella-space-5); }
+
+/* ---------- A48: a period choice is only as wide as its longest option ---------- */
+.owner-app .ao-filters .ao-filter:not(.ao-search):has(> select) { justify-self: start; max-width: 100%; }
+.owner-app .ao-filters .ao-filter:not(.ao-search) > select { width: auto; max-width: 100%; padding-right: 32px; }
+/* a filter row without a search box packs its controls from the left, so Refresh sits beside the choice */
+.owner-app .ao-filters:not(:has(.ao-search)) { display: flex; flex-wrap: wrap; align-items: flex-end; }
+
+/* ---------- A49: go live progress bars are grey; a full bar is green ---------- */
+.owner-app .gl-meter > span { background: color-mix(in srgb, var(--zella-text) 28%, transparent); }
+.owner-app .gl-meter.done > span { background: var(--zella-success); }
+
+/* ---------- A54: the Audit logs filter row's text button gets the same focus ring as the fields ---------- */
+.owner-app .al-text-button:focus-visible,
+.owner-app .bl-stat-link:focus-visible { outline: none; box-shadow: var(--zella-focus); }
+
+/* ---------- A55: an opened audit entry lists what changed; the raw record is one click away ---------- */
+.owner-app .al-changes {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) minmax(0, 1fr);
+  gap: var(--zella-space-2) var(--zella-space-6);
+  margin: 0 0 var(--zella-space-3);
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border: 1px solid var(--zella-border);
+  background: var(--zella-card);
+}
+.owner-app .al-change { display: contents; }
+.owner-app .al-changes dt { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.owner-app .al-changes dd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--zella-space-2); margin: 0; color: var(--zella-text); font-size: var(--zella-text-sm); overflow-wrap: anywhere; }
+.owner-app .al-changes dd .ba-icon { color: var(--zella-text-faint); }
+.owner-app .al-before { color: var(--zella-text-secondary); }
+.owner-app .al-changes-none { margin: 0 0 var(--zella-space-3); }
+.owner-app .al-raw { margin: 0 0 var(--zella-space-2); }
+.owner-app .al-raw > summary { width: max-content; color: var(--zella-text); font-size: var(--zella-text-sm); font-weight: 500; cursor: pointer; }
+.owner-app .al-raw > summary:focus-visible { outline: none; border-radius: var(--zella-radius-nested); box-shadow: var(--zella-focus); }
+.owner-app .al-raw[open] > summary { margin-bottom: var(--zella-space-3); }
+
+/* ---------- A59: Reassign and Pause sit side by side as small buttons ---------- */
+.owner-app .zs-table .zs-actions { flex-wrap: nowrap; justify-content: flex-end; }
+.owner-app .zs-table td:has(> .zs-actions) { width: 1%; white-space: nowrap; }
+
+/* ---------- A1: real icons in buttons (the back link and close buttons) ---------- */
+.owner-app .op-back { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
+.owner-app .wiz-ladder li { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
+.owner-app .wiz-chip { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
+.owner-app :is(.op-check-dot, .wiz-review-dot, .zs-check-marker) .ba-icon { font-size: 14px; }
+.owner-app .wiz-done-icon .ba-icon { font-size: 28px; }
+.owner-app .zs-pill .ba-icon,
+.owner-app .ba-pill .ba-icon { font-size: 14px; }
+html:has(.owner-app) .owner-modal-close .ba-icon { font-size: 18px; }

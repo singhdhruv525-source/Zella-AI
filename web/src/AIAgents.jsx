@@ -12,6 +12,9 @@ import { answeringText, countText, livePill, missingForLive, outcomePill, relati
 import AgentDeliveries from "./AgentDeliveries";
 import AiTesting from "./AiTesting";
 
+// "Setup complete" -> "setup complete", for a word that continues a sentence
+const firstLower = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
 // The five setup checks, in the order an admin fixes them. The second word is how a missing one reads.
 const CHECKS = [
   ["knowledge", "knowledge", "Services or FAQs added"],
@@ -26,7 +29,8 @@ const plural = (n, word) => `${countText(n) || 0} ${word}${Number(n) === 1 ? "" 
 // The phone and voice checks come from the connection state: when it isn't available they are unknown, not missing.
 const CONNECTION_CHECKS = new Set(["phone", "voice"]);
 
-// "3 of 5 set" with a five segment meter, and what is missing on one muted line (the full list is in the title).
+// "3 of 5 set" and what is missing on a muted line that wraps (the full list is in the title). The words alone carry it:
+// the row of dots was removed (owner approved 25 Nov 2026).
 function SetupCell({ checks, available = true }) {
   const known = CHECKS.filter(([key]) => available || !CONNECTION_CHECKS.has(key));
   const done = known.filter(([key]) => checks?.[key]);
@@ -37,12 +41,8 @@ function SetupCell({ checks, available = true }) {
     <div className="ag-setup" title={detail}>
       <div className="ag-setup-top">
         <span className="ag-setup-count">{done.length} of {CHECKS.length} set</span>
-        <span className="ag-meter" role="meter" aria-valuemin={0} aria-valuemax={CHECKS.length} aria-valuenow={done.length}
-          aria-label={`${done.length} of ${CHECKS.length} setup checks done`}>
-          {CHECKS.map(([key], i) => <span key={key} className={i < done.length ? "on" : ""} />)}
-        </span>
       </div>
-      <span className="ag-line">
+      <span className="ag-line ag-setup-missing">
         {missing.length ? `Missing: ${missing.map(([, word]) => word).join(", ")}` : unknown ? "Everything else set" : "Everything set"}
         {unknown ? `${missing.length ? "; " : ". "}phone and voice not available` : ""}
       </span>
@@ -105,14 +105,14 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
     <section className="owner-page ag-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">AI and communications</div>
+          <div className="owner-eyebrow">AI & communications</div>
           <h1>AI receptionists</h1>
           <p>Every client's receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
           <button type="button" className="owner-secondary-button ag-refresh" onClick={() => { load(); setTestingRefresh((n) => n + 1); }} disabled={loading}>
-            <Icon name="refresh" size="sm" />{loading ? "Loading..." : "Refresh"}
+            <Icon name="refresh" size="sm" />{loading ? "Loading…" : "Refresh"}
           </button>
         </div>
       </div>
@@ -190,7 +190,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                         <button type="button" className="op-name ag-name" title={a.businessName} onClick={() => onOpenBusiness(a.businessId)}>
                           {a.businessName}
                         </button>
-                        <span className="ag-line">{a.industry} · {a.stage === "active" ? "Setup finished" : stageLabel(a.stage)}</span>
+                        <span className="ag-line">{a.industry}, {a.stage === "active" ? "setup finished" : firstLower(stageLabel(a.stage))}</span>
                       </div>
                     </td>
                     <td data-label="Receptionist">
