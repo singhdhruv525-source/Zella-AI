@@ -89,3 +89,7 @@ html:root:has(.ba-root) .tb-cards { gap: 12px; }
 html:root:has(.ba-root) .tb-count { min-width: 0; padding: 12px 16px; }
 html:root:has(.ba-root) .tb-count .ba-kpi-value { margin-top: 4px; font-size: 28px; line-height: 1.1; }
 html:root:has(.ba-root) .tb-count .ba-kpi-note { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Reports: Zella Voice's review keeps its last good answer while it is read again, dimmed until the new one arrives */
+html:root:has(.ba-root) .rp-review.is-refreshing { opacity: 0.6; }
+@media (prefers-reduced-motion: no-preference) { html:root:has(.ba-root) .rp-review { transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1); } }

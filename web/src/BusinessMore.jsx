@@ -325,8 +325,8 @@ export function ReportsPage({ workspace, refreshKey }) {
       <Notice error={error} onRetry={reload} />
       {loading && !r ? <p className="ba-muted">Loading…</p> : r && (
         <>
-          {/* a review that couldn't be read (first time or a refresh) never shows the all clear or an old list, nor
-              does one being read again: an old answer waits for the new one */}
+          {/* a review that couldn't be read (first time or a refresh) never shows the all clear or an old list; while it
+              is being read again the last good answer stays, dimmed */}
           {review.error ? (
             <section className="ba-panel ba-gap" role="status">
               <div className="ba-panel-head">
@@ -334,8 +334,8 @@ export function ReportsPage({ workspace, refreshKey }) {
                 <button type="button" className="ba-btn sm" disabled={review.loading} onClick={reloadReview}>Try again</button>
               </div>
             </section>
-          ) : review.data && !review.loading && (
-            <section className="ba-panel ba-gap">
+          ) : review.data && (
+            <section className={`ba-panel ba-gap rp-review ${review.loading ? "is-refreshing" : ""}`} aria-busy={review.loading}>
               <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Zella Voice's review</h2><p>{review.data.issues?.length ? "Things worth a look" : "Nothing needs attention"}</p></div></div></div>
               {review.data.issues?.length > 0 && <ul className="ba-checklist">{review.data.issues.map((t) => <li key={t}>{t}</li>)}</ul>}
             </section>
