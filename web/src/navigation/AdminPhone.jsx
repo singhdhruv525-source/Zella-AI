@@ -6,6 +6,7 @@ import { Pill } from "../OwnerOverview";
 import { lastCallLabel, ownerCell, planCell, problemSummary, rowActions, stageCell } from "../businessList";
 import { BottomSheet } from "./BottomSheet";
 import { SIGNAL_START, signalReduce } from "./phoneHelpers.js";
+import { countValue } from "../crm/needsNowSignals.js";
 
 // The admin's phone parts (approved 25 Nov 2026): the counts on Support and Operations (P5), the open incidents for
 // the live strip (P13), and a business as a bottom sheet (P12). Platform alerts and incidents are readable by Zella
@@ -43,8 +44,8 @@ export function useAdminSignals({ enabled, can }) {
     let live = true;
     apply("tickets", { type: "reset" });
     const read = () => callOwnerFunction("overview_data").then((d) => {
-      const n = Number(d?.stats?.openTickets);
-      if (live) apply("tickets", Number.isFinite(n) ? { type: "ok", value: n } : { type: "fail" });
+      const n = countValue(d?.stats?.openTickets);   // null, "" or anything not a count is a failed read, a real 0 is not
+      if (live) apply("tickets", n === null ? { type: "fail" } : { type: "ok", value: n });
     }, () => { if (live) apply("tickets", { type: "fail" }); });
     read();
     const timer = setInterval(read, 5 * 60000);

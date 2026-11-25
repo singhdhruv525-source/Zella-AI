@@ -74,6 +74,8 @@ export function Notice({ error, onRetry, plain = false }) {
  * Only the latest request can publish a result; cleanup discards pending results.
  * New requests retain prior data and clear errors. Loader failures become friendly
  * error text with prior data retained, rather than rejecting the reload promise.
+ * reload() resolves to true when that read put fresh data on screen, and to false when it failed or a newer read
+ * overtook it (callers that ignore the result are unaffected).
  */
 export function useLoad(loader, deps) {
   const [state, setState] = useState({ data: null, error: "", loading: true });
@@ -83,11 +85,13 @@ export function useLoad(loader, deps) {
     setState((s) => ({ ...s, loading: true, error: "" }));
     try {
       const data = await loader();
-      if (request !== sequence.current) return;
+      if (request !== sequence.current) return false;
       setState({ data, error: "", loading: false });
+      return true;
     } catch (err) {
-      if (request !== sequence.current) return;
+      if (request !== sequence.current) return false;
       setState((s) => ({ ...s, error: friendly(err), loading: false }));
+      return false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

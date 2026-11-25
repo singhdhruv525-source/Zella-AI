@@ -109,3 +109,21 @@ for (const outcome of ["resolve", "reject"]) {
     assert.equal(h.state(), before);
   });
 }
+
+test("reload() says whether it put fresh data on screen: true, false on a failure, false when overtaken", async () => {
+  let fail = false;
+  const h = mount(async () => { if (fail) throw new Error("offline"); return "rows"; }, []);
+  await flush();
+  const reload = h.render().reload;
+  assert.equal(await reload(), true);
+  fail = true;
+  assert.equal(await reload(), false, "a failed read keeps the old data and reports it");
+  assert.equal(h.state().data, "rows");
+  const first = deferred(), second = deferred();
+  let calls = 0;
+  const h2 = mount(() => (++calls === 1 ? first.promise : second.promise), []);
+  const r = h2.render().reload;
+  const a = r(); const b = r();
+  first.resolve("stale"); second.resolve("latest");
+  assert.deepEqual([await a, await b], [false, true]);
+});

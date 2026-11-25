@@ -57,15 +57,19 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   // Waiting too long asks the server for the overdue tickets themselves (every waiting ticket is judged there), not
   // a filter of the newest tickets loaded for the other tabs
   const overdueTab = statusFilter === "overdue";
+  // resolves true only when this read put fresh tickets on screen (a failed or overtaken read resolves false)
   const load = useCallback(async () => {
     const mine = ++request.current;
     setLoading(true);
     setError("");
     try {
       const next = await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {});
-      if (mine === request.current) setData({ ...next, overdueOnly: overdueTab });
+      if (mine !== request.current) return false;
+      setData({ ...next, overdueOnly: overdueTab });
+      return true;
     } catch (err) {
       if (mine === request.current) setError(friendlyError(err));
+      return false;
     } finally {
       if (mine === request.current) setLoading(false);
     }
@@ -79,7 +83,8 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   const overdueRef = useRef(overdueTab);
   useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
   // a quick change sent while this page is open: read the list again, then its shown values give way to the real ones
-  const pendingViews = usePendingViews(store, (id) => { Promise.resolve(loadRef.current()).then(() => store.clearSettled(id)); });
+  // (only once fresh tickets are on screen: after a failed read the shown values stay, never the old ones)
+  const pendingViews = usePendingViews(store, (id) => { Promise.resolve(loadRef.current()).then((fresh) => { if (fresh) store.clearSettled(id); }); });
   useEffect(() => { store.clearAllSettled(); }, [store]);   // a fresh read on opening already has what was sent
   // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
   // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.

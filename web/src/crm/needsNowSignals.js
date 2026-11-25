@@ -28,8 +28,16 @@ export function listRead(res) {
 export function spamRead(res, allowed = true) {
   if (!allowed) return { type: "ok", value: 0 };
   if (!res || res.error || !res.data) return { type: "fail" };
-  const n = Number(res.data.unreviewed);
-  return Number.isFinite(n) ? { type: "ok", value: n } : { type: "fail" };
+  const n = countValue(res.data.unreviewed);
+  return n === null ? { type: "fail" } : { type: "ok", value: n };
+}
+
+// A count from a server answer: a finite number of zero or more, or a string holding one ("3"). Anything else
+// (missing, null, "", true, "a few", NaN, negative) is not a count, and the read counts as failed, never as 0.
+export function countValue(v) {
+  if (typeof v === "number") return Number.isFinite(v) && v >= 0 ? v : null;
+  if (typeof v === "string" && /^\s*\d+(\.\d+)?\s*$/.test(v)) return Number(v);
+  return null;
 }
 
 // The next state of all three sources after one round of reads.

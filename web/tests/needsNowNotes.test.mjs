@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { COVERED_KINDS, mergeBellNotes, needsNowNotes, pruneRead } from "../src/crm/needsNowNotes.js";
 import { createPendingStore, deferChange, needsNowRows, undoAll } from "../src/navigation/phoneHelpers.js";
-import { SOURCES_START, listRead, nextSources, signalsFrom, spamRead } from "../src/crm/needsNowSignals.js";
+import { SOURCES_START, countValue, listRead, nextSources, signalsFrom, spamRead } from "../src/crm/needsNowSignals.js";
 
 const NOW = Date.parse("2026-11-25T18:00:00Z");
 const ago = (min) => new Date(NOW - min * 60000).toISOString();
@@ -238,4 +238,18 @@ test("quick changes kept by the app: leaving the page keeps the window and the U
   store.add("t3", c3, { hidden: true });
   await store.flushAll();
   assert.deepEqual(sent, ["t2", "t3"]);
+});
+
+test("a count from the server must be a real count: anything else is a failed read, never 0", () => {
+  for (const bad of [null, undefined, "", " ", true, false, "a few", NaN, Infinity, -1, {}, []]) {
+    assert.equal(countValue(bad), null, `${JSON.stringify(bad)} is not a count`);
+    assert.deepEqual(spamRead({ data: { unreviewed: bad } }), { type: "fail" });
+  }
+  assert.equal(countValue(0), 0, "a real 0 is a count");
+  assert.equal(countValue(5), 5);
+  assert.equal(countValue("3"), 3, "a numeric string from the server");
+  assert.deepEqual(spamRead({ data: { unreviewed: 0 } }), { type: "ok", value: 0 });
+  assert.deepEqual(spamRead({ data: { unreviewed: "2" } }), { type: "ok", value: 2 });
+  // the admin's open ticket count reads the same way (navigation/AdminPhone.jsx)
+  assert.equal(countValue({ openTickets: null }.openTickets), null);
 });
