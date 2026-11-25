@@ -102,6 +102,8 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) .owner-topbar { backgro
 /* Entrance animations that keep their end state ("both") leave an effect on the element, and the browser then blurs
    only what is inside it, so the picture showed through sharp. Here they hold only their start state, then let go. */
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.ba-content > *, .bp-section, .ba-banner) { animation-fill-mode: backwards; }
+/* The admin pages too (owner approved 25 Nov 2026), so their cards and panels really frost. */
+html[data-zella-theme="glass"]:has(.owner-app) .owner-app :is(.owner-page > *, .owner-content > :not(.owner-page)) { animation-fill-mode: backwards; }
 
 /* menus, dialogs and the notification panel sit over other content: nearly solid */
 html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(.owner-modal, .ba-modal, .zs-dialog, .ba-bell-panel, .ba-toast, .owner-bell-panel, .ba-menu, .ba-picklist, .zs-mobile, .ba-modal-head) {
@@ -177,6 +179,14 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) :is(table th) { backgro
     border-color: var(--zella-border-strong);
     box-shadow: var(--glass-edge), 0 18px 40px -16px rgba(0, 0, 0, 0.6);
   }
+  /* The admin's cards stay put (owner approved 25 Nov 2026): a card you can press gets a border step, nothing else. */
+  html[data-zella-theme="glass"]:has(.owner-app) .owner-app .owner-stat-card { transition: border-color 150ms var(--owner-ease); }
+  html[data-zella-theme="glass"]:has(.owner-app) .owner-app .owner-stat-card:hover {
+    transform: none;
+    border-color: var(--zella-border);
+    box-shadow: var(--glass-edge), var(--zella-shadow-md);
+  }
+  html[data-zella-theme="glass"]:has(.owner-app) .owner-app .owner-stat-card--action:hover { border-color: var(--zella-border-strong); }
 }
 
 /* ---------- 6. Accessibility ---------- */

@@ -1198,7 +1198,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  margin-bottom: 25px;
+  margin-bottom: 24px;
 }
 
 .owner-stat-top > span:first-child {
@@ -1213,7 +1213,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 19px 21px;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -1545,9 +1545,8 @@
     background: linear-gradient(to bottom, transparent, var(--zella-sidebar) 55%);
     color: var(--zella-text-secondary);
     font-size: var(--zella-text-xs);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    font-weight: 500;
+    letter-spacing: 0;
     pointer-events: none;
     opacity: 0;
     animation: owner-nav-more linear both;
@@ -1561,8 +1560,13 @@
 }
 @keyframes owner-nav-more { 0%, 88% { opacity: 1; } 97%, 100% { opacity: 0; } }
 .owner-nav-group { display: flex; flex-direction: column; gap: 2px; }
-.owner-nav-group .owner-nav-label { padding: 6px 11px 4px; }
-.owner-nav-group .owner-nav-item { min-height: 38px; }
+/* A group label sits closer to its own pages than to the group above (16 above, 8 below), so each group reads as one
+   block; the first label keeps a small top. */
+.owner-nav-group .owner-nav-label { padding: 16px 12px 8px; }
+/* the topmost label (after the ungrouped Overview row, or first in the list) keeps a small top */
+.owner-nav-group:first-child .owner-nav-label,
+.owner-nav-group:first-child:not(:has(.owner-nav-label)) + .owner-nav-group .owner-nav-label { padding-top: 8px; }
+.owner-nav-group .owner-nav-item { min-height: 36px; }
 
 /* Admin bell: platform alerts */
 .owner-bell { position: relative; }
@@ -1572,7 +1576,7 @@
 .owner-bell-count.urgent { background: var(--status-danger); }
 .owner-bell-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(400px, calc(100vw - 32px)); max-height: 70vh; overflow: auto;
   border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--bg-surface); box-shadow: var(--shadow-card, 0 12px 32px rgba(0,0,0,.14));
-  animation: owner-bell-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1) both; transform-origin: top right; }
+  animation: owner-bell-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top right; }
 @keyframes owner-bell-in { from { opacity: 0; transform: scale(0.97) translateY(-4px); } to { opacity: 1; transform: none; } }
 .owner-bell-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
 .owner-bell-head span { color: var(--text-muted); font-size: 12.5px; }
