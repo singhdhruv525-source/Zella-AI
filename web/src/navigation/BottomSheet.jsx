@@ -57,6 +57,13 @@ export function BottomSheet({ title, description, onClose, busy = false, size = 
     const next = sheetRelease(current, dy);
     if (next === "close") requestClose(); else setCurrent(next);
   };
+  // the browser took the gesture over (a scroll, a system gesture): forget the drag, never resize or close
+  const onPointerCancel = (e) => {
+    const d = dragging.current;
+    if (!d || d.id !== e.pointerId) return;
+    dragging.current = null;
+    setDrag(0);
+  };
   // the handle is a button too: Enter or Space switch between half and full height (a pointer tap is handled above)
   const toggle = () => setCurrent((c) => (c === "fit" ? c : c === "full" ? "half" : "full"));
 
@@ -70,7 +77,7 @@ export function BottomSheet({ title, description, onClose, busy = false, size = 
         inert={closing ? true : undefined}
         className={`pn-sheet ${current} ${closing ? "closing" : "open"} ${drag ? "dragging" : ""} ${className}`}
         style={!drag ? undefined : drag < 0 && current === "half" ? { height: `min(92dvh, calc(52dvh + ${-drag}px))` } : { "--pn-drag": `${drag}px` }}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
         {/* a sheet that fits its content has no other height: the handle is only a drag area, not a button */}
         {current === "fit"
           ? <span className="pn-grab" aria-hidden="true" />
@@ -144,13 +151,21 @@ export function useSheetEnhancer(enabled) {
       };
       el.addEventListener("pointerdown", down);
       el.addEventListener("pointermove", move);
+      // cancelled by the browser: the drag is forgotten, the dialog stays as it was
+      const cancel = (e) => {
+        if (!start || start.id !== e.pointerId) return;
+        start = null; dy = 0;
+        delete el.dataset.pnDragging;
+        el.style.removeProperty("--pn-drag");
+        el.style.removeProperty("height");
+      };
       el.addEventListener("pointerup", up);
-      el.addEventListener("pointercancel", up);
+      el.addEventListener("pointercancel", cancel);
       attached.set(el, () => {
         el.removeEventListener("pointerdown", down);
         el.removeEventListener("pointermove", move);
         el.removeEventListener("pointerup", up);
-        el.removeEventListener("pointercancel", up);
+        el.removeEventListener("pointercancel", cancel);
         if (start) { try { el.releasePointerCapture?.(start.id); } catch { /* already released */ } }
         delete el.dataset.pnSheet;
         delete el.dataset.pnDragging;

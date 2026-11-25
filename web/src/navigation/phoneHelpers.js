@@ -195,11 +195,12 @@ export const pendingToastText = (text, waiting) => (waiting > 1 ? `${waiting} ch
 // keeps what the page shows meanwhile (its view: hidden, or the new values); after a successful send the view stays
 // "settled" until the page has read the list again, so the row never flickers back.
 export function createPendingStore() {
+  // methods refer to `store`, never `this`, so they work when passed around on their own
   const pending = new Map();   // id -> { change, view }
   const settled = new Map();   // id -> view
   const subs = new Set();
   const emit = (event) => subs.forEach((f) => f(event));
-  return {
+  const store = {
     has: (id) => pending.has(id),
     change: (id) => pending.get(id)?.change ?? null,
     add(id, change, view) { pending.set(id, { change, view }); emit({ type: "add", id }); },
@@ -215,11 +216,19 @@ export function createPendingStore() {
     waiting() { return [...pending.values()].filter((e) => e.change.state === "waiting").length; },
     subscribe(f) { subs.add(f); return () => subs.delete(f); },
     flushAll() { return Promise.all([...pending.values()].map((e) => e.change.flush())); },
+    // the ids settled now: a read that starts now may clear exactly these once it has put fresh data on screen (a
+    // change settled while it was running is left for the next read)
+    settledIds() { return [...settled.keys()]; },
+    clearSettledIds(ids) { let n = 0; for (const id of ids) if (settled.delete(id)) n++; if (n) emit({ type: "settled" }); },
+    // back from the back/forward cache: changes sent as keepalive requests while the page was hidden are finished;
+    // they settle like any sent change, so open pages read their lists again (showing the real outcome)
+    settleSent() { [...pending].forEach(([id, e]) => { if (e.change.state === "sent") store.succeed(id); }); },
     // the tab is closing: each waiting change goes out as a keepalive request where it can
     unloadAll() { [...pending.values()].forEach((e) => e.change.unload?.()); },
     // changes still waiting that can't be sent that way (the browser is asked to confirm leaving while there are any)
     waitingWithoutBeacon() { return [...pending.values()].filter((e) => e.change.state === "waiting" && !e.change.canBeacon).length; },
   };
+  return store;
 }
 
 // The request for a change sent while the tab closes (fetch with keepalive: true, so the browser lets it finish):

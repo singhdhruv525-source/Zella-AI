@@ -255,7 +255,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   usePhoneRoot(phone, "crm");
   useKeyboardOpen(phone);
   useSheetEnhancer(phone);
-  const toaster = useToast();
+  const toaster = useToast("crm");   // kept across a business switch, with its Undo
   const pendingStore = usePendingStore("crm");   // quick changes waiting for their Undo window, kept across pages
   // signing out sends the changes still waiting first (on purpose: a task marked done is never lost by signing out)
   const signOut = async () => { await sendWaitingChanges(pendingStore); return onSignOut(); };

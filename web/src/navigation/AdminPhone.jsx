@@ -24,15 +24,19 @@ export function useAdminSignals({ enabled, can }) {
   useEffect(() => {
     if (!view) return undefined;
     let live = true;
+    let seq = 0;   // only the newest read may publish: an older one finishing late is dropped
     apply("alerts", { type: "reset" });
     apply("incidents", { type: "reset" });
     const read = async () => {
+      const mine = ++seq;
       const [alerts, incidents] = await Promise.all([
-        Promise.resolve(supabase.from("platform_alerts").select("id, severity").eq("status", "open").limit(200)).catch((error) => ({ data: null, error })),
+        // counted on the server, informational ones left out, so no row limit can cut the count short
+        Promise.resolve(supabase.from("platform_alerts").select("id", { count: "exact", head: true }).eq("status", "open").neq("severity", "info")).catch((error) => ({ data: null, error })),
         Promise.resolve(supabase.from("platform_incidents").select("id, title, status, created_at").eq("status", "open").order("created_at", { ascending: true }).limit(20)).catch((error) => ({ data: null, error })),
       ]);
-      if (!live) return;
-      apply("alerts", alerts.error || !alerts.data ? { type: "fail" } : { type: "ok", value: alerts.data.filter((a) => a.severity !== "info").length });
+      if (!live || mine !== seq) return;
+      const alertCount = alerts.error ? null : countValue(alerts.count);
+      apply("alerts", alertCount === null ? { type: "fail" } : { type: "ok", value: alertCount });
       apply("incidents", incidents.error || !incidents.data ? { type: "fail" } : { type: "ok", value: incidents.data });
     };
     read();
@@ -42,11 +46,15 @@ export function useAdminSignals({ enabled, can }) {
   useEffect(() => {
     if (!support) return undefined;
     let live = true;
+    let seq = 0;
     apply("tickets", { type: "reset" });
-    const read = () => callOwnerFunction("overview_data").then((d) => {
-      const n = countValue(d?.stats?.openTickets);   // null, "" or anything not a count is a failed read, a real 0 is not
-      if (live) apply("tickets", n === null ? { type: "fail" } : { type: "ok", value: n });
-    }, () => { if (live) apply("tickets", { type: "fail" }); });
+    const read = () => {
+      const mine = ++seq;
+      return callOwnerFunction("overview_data").then((d) => {
+        const n = countValue(d?.stats?.openTickets);   // null, "" or anything not a count is a failed read, a real 0 is not
+        if (live && mine === seq) apply("tickets", n === null ? { type: "fail" } : { type: "ok", value: n });
+      }, () => { if (live && mine === seq) apply("tickets", { type: "fail" }); });
+    };
     read();
     const timer = setInterval(read, 5 * 60000);
     return () => { live = false; clearInterval(timer); };

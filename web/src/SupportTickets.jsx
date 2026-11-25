@@ -61,12 +61,16 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   // resolves true only when this read put fresh tickets on screen (a failed or overtaken read resolves false)
   const load = useCallback(async () => {
     const mine = ++request.current;
+    // quick changes already settled when this read starts: once it puts fresh tickets on screen they are in it, so
+    // their shown values give way (any read that works, not only the one after the send; never a change settled later)
+    const settledBefore = store.settledIds();
     setLoading(true);
     setError("");
     try {
       const next = await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {});
       if (mine !== request.current) return false;
       setData({ ...next, overdueOnly: overdueTab });
+      store.clearSettledIds(settledBefore);
       return true;
     } catch (err) {
       if (mine === request.current) setError(friendlyError(err));
@@ -74,7 +78,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
     } finally {
       if (mine === request.current) setLoading(false);
     }
-  }, [overdueTab]);
+  }, [overdueTab, store]);
 
   useEffect(() => {
     load();
@@ -84,8 +88,8 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   const overdueRef = useRef(overdueTab);
   useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
   // a quick change sent while this page is open: read the list again, then its shown values give way to the real ones
-  // (only once fresh tickets are on screen: after a failed read the shown values stay, never the old ones)
-  const pendingViews = usePendingViews(store, (id) => { Promise.resolve(loadRef.current()).then((fresh) => { if (fresh) store.clearSettled(id); }); });
+  // (load clears the settled values itself, only after a read that worked: a failed read keeps them)
+  const pendingViews = usePendingViews(store, () => { loadRef.current(); });
   useEffect(() => { store.clearAllSettled(); }, [store]);   // a fresh read on opening already has what was sent
   // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
   // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.

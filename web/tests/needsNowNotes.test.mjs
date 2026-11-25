@@ -260,3 +260,30 @@ test("a numeric string too large to be a number is not a count", () => {
   assert.equal(countValue("0"), 0);
   assert.equal(countValue("3"), 3);
 });
+
+test("a read that works clears only the changes settled when it started; a back/forward cache return settles sent ones", async () => {
+  const timers = fakeTimers();
+  const store = createPendingStore();
+  const make = (id) => deferChange({ commit: async () => store.succeed(id), revert: () => store.drop(id), timers });
+  store.add("t1", make("t1"), { status: "resolved" });
+  await timers.run();                                   // t1 sent and settled
+  const before = store.settledIds();                    // a read starts now
+  store.add("t2", make("t2"), { status: "resolved" });
+  await timers.run();                                   // t2 settles while that read runs
+  store.clearSettledIds(before);                        // the read worked
+  assert.deepEqual([...store.views().keys()], ["t2"], "only t1 cleared; t2 waits for the next read");
+  // a later read that works clears t2 too (any successful read, not only the one right after the send)
+  store.clearSettledIds(store.settledIds());
+  assert.equal(store.views().size, 0);
+  // sent as a keepalive request while the page was hidden, then restored from the back/forward cache
+  const events = [];
+  store.subscribe((e) => events.push(e.type));
+  const c = deferChange({ commit: async () => {}, beacon: () => true, timers });
+  store.add("t3", c, { hidden: true });
+  c.unload();
+  assert.equal(store.has("t3"), true, "still pending after the page was hidden");
+  const { settleSent } = store;                         // works on its own, without `this`
+  settleSent();
+  assert.equal(store.has("t3"), false);
+  assert.ok(events.includes("sent"), "open pages read their lists again");
+});

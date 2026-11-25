@@ -244,7 +244,7 @@ export default function OwnerDashboard({ onSignOut }) {
   usePhoneRoot(phone, "admin");
   useKeyboardOpen(phone);
   useSheetEnhancer(phone);
-  const toaster = useToast();
+  const toaster = useToast("admin");
   const pendingStore = usePendingStore("admin");   // quick changes waiting for their Undo window, kept across pages
   // signing out sends the changes still waiting first (on purpose: nothing chosen is lost by signing out)
   const signOut = async () => { await sendWaitingChanges(pendingStore); return onSignOut(); };
@@ -443,6 +443,8 @@ export default function OwnerDashboard({ onSignOut }) {
               <strong>Your admin permissions couldn't be loaded</strong>
               <p>Nothing is shown until they are. Check your connection and try again.</p>
               <button type="button" className="owner-primary-button" onClick={retryAccess}>Try again</button>
+              {/* a phone has no top bar Sign out: keep it reachable here (the admin pages stay closed) */}
+              {phone && <button type="button" className="owner-secondary-button" onClick={signOut}>Sign out</button>}
             </div>
           ) : access.state === ACCESS.UNAUTHORIZED ? (
             <div className="owner-empty-state" role="alert" data-access="unauthorized">

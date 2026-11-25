@@ -403,3 +403,5 @@ html[data-zella-theme="glass"] .pn-sheet-actions :is(button, a):first-child { ba
 /* a count that couldn't be read ("!") or may be out of date: quiet grey, never a confident red number */
 .pn-count.failed { background: var(--zella-text-secondary); }
 .pn-count.stale { opacity: 0.6; }
+/* the headings of sheet dialogs are drag areas: vertical drags reach the drag handler, not the browser */
+html.pn-phone [data-pn-sheet] :is(.bp-head, .ao-drawer-head, .owner-modal-header, .wiz-section-head) { touch-action: none; }

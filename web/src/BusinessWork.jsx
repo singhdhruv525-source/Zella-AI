@@ -207,7 +207,10 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   const store = ui.pending ?? ownStore;
   // a task sent while this page is open stays hidden until the list has been read fresh: a failed refresh would
   // otherwise bring the completed or dismissed task back next to the error
-  const views = usePendingViews(store, (id) => { reload().then((fresh) => { if (fresh) store.clearSettled(id); }); });
+  const views = usePendingViews(store, () => {
+    const settledBefore = store.settledIds();   // only what was settled when this read started
+    reload().then((fresh) => { if (fresh) store.clearSettledIds(settledBefore); });
+  });
   useEffect(() => { store.clearAllSettled(); }, [store]);   // a fresh read on opening already has what was sent
   useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [rowMenu, setRowMenu] = useState(null);

@@ -101,8 +101,10 @@ export function SidePanel({ open, onClose, children, head }) {
   };
   return (
     <>
-      <button type="button" className={`pn-scrim panel ${open ? "on" : ""}`} aria-label="Close menu" tabIndex={-1}
-        onClick={onClose} style={drag ? { opacity: Math.max(0, 1 + drag / 320) } : undefined} />
+      {/* pointer only: the panel has its own Close button, so the backdrop is hidden from screen readers and inert
+          while the panel is closed */}
+      <button type="button" className={`pn-scrim panel ${open ? "on" : ""}`} aria-hidden="true" tabIndex={-1}
+        inert={open ? undefined : true} onClick={onClose} style={drag ? { opacity: Math.max(0, 1 + drag / 320) } : undefined} />
       <aside ref={box} id="pn-panel" className={`pn-panel ${open ? "on" : ""} ${drag ? "dragging" : ""}`}
         role="dialog" aria-modal="true" aria-label="Menu" aria-hidden={open ? undefined : true} inert={open ? undefined : true}
         tabIndex={-1} style={drag ? { "--pn-drag": `${drag}px` } : undefined}
@@ -125,6 +127,12 @@ function PanelFocus({ box, onClose }) {
   const ref = useDialogFocus(onClose);
   // the panel element is always in the page; point the hook at it before the hook's own effect starts
   useLayoutEffect(() => { ref.current = box.current; }, [ref, box]);
+  // the page behind doesn't scroll while the panel is open; the earlier value comes back when it closes
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
   // The panel was hidden until this render; the browser can refuse focus until it has drawn it, so check once more
   // on the next frame.
   useEffect(() => {
@@ -155,18 +163,34 @@ export function PanelAccount({ name, detail, initials, rows }) {
 }
 
 // ---------- Toast above the bar (P21), with Undo when the change can be undone (P19) ----------
-export function useToast() {
-  const [toast, setToast] = useState(null);
-  const timer = useRef(null);
-  const show = (text, opts = {}) => {
-    clearTimeout(timer.current);
-    const id = Date.now() + Math.random();
-    setToast({ id, text, undo: opts.undo ?? null, tone: opts.tone ?? "" });
-    timer.current = setTimeout(() => { setToast((t) => (t?.id === id ? null : t)); opts.onExpire?.(); }, opts.ms ?? 5000);
-  };
-  const dismiss = () => { clearTimeout(timer.current); setToast(null); };
-  useEffect(() => () => clearTimeout(timer.current), []);
-  return { toast, show, dismiss };
+// One toast per app ("crm", "admin"), kept outside the workspace like the quick changes it offers to undo: switching
+// business remounts the workspace, and a toast still in its time keeps a working Undo there.
+const TOASTS = {};
+function toastStoreFor(scope) {
+  if (!TOASTS[scope]) {
+    let current = null, timer = null;
+    const subs = new Set();
+    const emit = () => subs.forEach((f) => f(current));
+    TOASTS[scope] = {
+      get: () => current,
+      show(text, opts = {}) {
+        clearTimeout(timer);
+        const id = Date.now() + Math.random();
+        current = { id, text, undo: opts.undo ?? null, tone: opts.tone ?? "" };
+        emit();
+        timer = setTimeout(() => { if (current?.id === id) { current = null; emit(); } opts.onExpire?.(); }, opts.ms ?? 5000);
+      },
+      dismiss() { clearTimeout(timer); current = null; emit(); },
+      subscribe(f) { subs.add(f); return () => subs.delete(f); },
+    };
+  }
+  return TOASTS[scope];
+}
+export function useToast(scope = "app") {
+  const store = toastStoreFor(scope);
+  const [toast, setToast] = useState(store.get);
+  useEffect(() => { setToast(store.get()); return store.subscribe(setToast); }, [store]);
+  return { toast, show: store.show, dismiss: store.dismiss };
 }
 
 export function Toast({ toast, onDismiss }) {
@@ -314,6 +338,8 @@ export function pendingStoreFor(scope) {
     if (typeof window !== "undefined") {
       // closing the tab: each waiting change goes out as a keepalive request the browser lets finish (best effort)
       window.addEventListener("pagehide", () => { STORES[scope].unloadAll(); });
+      // restored from the back/forward cache: what went out while the page was hidden is settled and read again
+      window.addEventListener("pageshow", (e) => { if (e.persisted) STORES[scope].settleSent(); });
       // a waiting change that can't be sent that way right now (no beacon, or no session token): the browser asks
       // before the tab closes
       window.addEventListener("beforeunload", (e) => {
