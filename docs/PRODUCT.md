@@ -264,6 +264,10 @@ Automations, Waitlist, Team access invitations), and a figure that didn't load o
 
 | Page | What it does | Status |
 |---|---|---|
+| **Today** | What needs doing now: calls needing attention, callbacks, today's bookings, follow-ups, alerts, a calls-this-week chart. Cards come from the industry. | Built |
+| **Calendar** | Day, week and staff views of bookings; book, move, cancel, confirm requested bookings; blocked times. Today's column is marked by a thin accent bar over its day name (owner, 25 Nov 2026). | Built |
+| **Tables** (restaurants) | The floor plan: table states (free, seated, needs clearing), blocks, combinations, walk-ins. Restaurants book real tables, not just a seat limit, and the same drawn floor plan shows as a Table layout card on Today (owner, 6 Nov 2026). A table's details panel offers "Block table" (owner, 25 Nov 2026). | Built |
+
 | **Today** | What needs doing now: calls needing attention, callbacks, today's bookings, follow-ups, alerts, a calls-this-week chart. Cards come from the industry. Titled "Today" with the date under it and the business name on a quieter line below (another day shows that date as the title); on a phone the bookings table folds its columns under the name (owner, 25 Nov 2026). | Built |
 | **Calendar** | Day, week and staff views of bookings; book, move, cancel, confirm requested bookings; blocked times. | Built |
 | **Tables** (restaurants) | The floor plan: table states (free, seated, needs clearing), blocks, combinations, walk-ins. Restaurants book real tables, not just a seat limit, and the same drawn floor plan shows as a Table layout card on Today (owner, 6 Nov 2026). | Built |
@@ -319,7 +323,7 @@ catering"), report counts agree with their number ("1 arrival", "1 no show"), th
 |---|---|---|
 | **Lead sources** | Website forms and chat widget (public form key, allowed websites, spam checks), Google Ads lead forms (key shown once), Facebook and Instagram leads, lead rules and questions. | Built (Meta channels: see §10) |
 | **Reviews** | Google reviews and AI reply drafts the owner approves before anything is posted. | Built, off (`reviews_live`, `review_ai_live`) |
-| **Reports and analytics** | Calls, bookings, response times, lead sources, campaigns, usage; scheduled reports. | Built |
+| **Reports and analytics** | Calls, bookings, response times, lead sources, campaigns, usage; scheduled reports. The calls figures sit in one row of five cards and the people figures in one row; "Calls per day" marks its first, middle and last day, with today in the accent (owner, 25 Nov 2026). | Built |
 
 ### 8.6 Management
 

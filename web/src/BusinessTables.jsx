@@ -167,10 +167,10 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
       ) : (
         <>
           <div className="tb-cards" aria-label="Summary">
-            <Count icon="check_circle" tone="green" label="Available" value={counts.available} note={data.today ? "now" : "at the start of service"} />
-            <Count icon="event" tone="blue" label="Reserved" value={counts.reservedLater} note={`${counts.reserved} arriving within 30 min`} />
-            <Count icon="restaurant" tone="indigo" label="Seated" value={counts.seated} note={data.today ? "now" : "None"} />
-            <Count icon="cleaning_services" tone="amber" label="Clearing" value={counts.needs_clearing} note={data.today ? "waiting to be reset" : "None"} />
+            <Count icon="check_circle" label="Available" value={counts.available} note={data.today ? "now" : "at the start of service"} />
+            <Count icon="event" label="Reserved" value={counts.reservedLater} note={`${counts.reserved} arriving within 30 min`} />
+            <Count icon="restaurant" label="Seated" value={counts.seated} note={data.today ? "now" : "None"} />
+            <Count icon="cleaning_services" label="Clearing" value={counts.needs_clearing} note={data.today ? "waiting to be reset" : "None"} />
           </div>
 
           <div className="tb-layout">
@@ -181,7 +181,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
                 return (
                   <>
                     {secs.length > 1 && <div className="fp-tabs"><Segment label="Section" value={show} onChange={setPlanSection} options={secs.map((x) => [x, x])} /></div>}
-                    <FloorPlan tables={tables.filter((t) => t.section === show)} selectedId={selected} onSelect={(id) => setSelected(id === selected ? null : id)}
+                    <FloorPlan fit tables={tables.filter((t) => t.section === show)} selectedId={selected} onSelect={(id) => setSelected(id === selected ? null : id)}
                       label={`${show} floor plan`} tz={tz} formatTime={formatTime} />
                   </>
                 );
@@ -298,10 +298,10 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
   }
 }
 
-function Count({ icon, tone, label, value, note }) {
+function Count({ icon, label, value, note }) {
   return (
     <div className="ba-kpi tb-count">
-      <div className="ba-kpi-top"><span>{label}</span><span className={`ba-kpi-icon ${tone}`}><Icon name={icon} /></span></div>
+      <div className="ba-kpi-top"><span className="crm-kpi-label"><Icon name={icon} size="sm" className="crm-kpi-glyph" />{label}</span></div>
       <div className="ba-kpi-value">{value}</div>
       {note && <div className="ba-kpi-note">{note}</div>}
     </div>
@@ -356,7 +356,7 @@ function TablePanel({ t, tz, today, canEdit, working, reservations, onClose, onS
             {["available", "reserved", "held"].includes(t.state) && next && <button type="button" className="ba-btn sm primary" disabled={working} onClick={() => onSeat(next.id)}>Seat {next.guest ?? "next party"}</button>}
             {t.state === "available" && <button type="button" className="ba-btn sm" disabled={working} onClick={onWalkIn}>Seat a walk in here</button>}
             {t.state === "unavailable" ? <button type="button" className="ba-btn sm" disabled={working} onClick={onUnblock}>Unblock</button>
-              : <button type="button" className="ba-btn sm" disabled={working} onClick={onBlock}>Block…</button>}
+              : <button type="button" className="ba-btn sm" disabled={working} onClick={onBlock}>Block table</button>}
             <button type="button" className="ba-btn sm" disabled={working} onClick={onHistory}>History</button>
           </div>
         )}

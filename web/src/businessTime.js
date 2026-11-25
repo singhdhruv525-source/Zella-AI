@@ -37,6 +37,12 @@ function zonedMidnight(year, month, day, timeZone) {
   let instant = guess - zoneOffset(new Date(guess), timeZone);
   // Second pass corrects for a daylight-saving change between guess and result.
   instant = guess - zoneOffset(new Date(instant), timeZone);
+  // Where the clocks skip midnight (America/Santiago in September jumps from 00:00 to 01:00), that instant is still
+  // the evening before in the zone: move on to the first instant whose local date is the requested day.
+  const p = zonedParts(new Date(instant), timeZone);
+  if (Date.UTC(p.year, p.month - 1, p.day) < guess) {
+    instant += (24 * 3600 - (p.hour * 3600 + p.minute * 60 + p.second)) * 1000;
+  }
   return new Date(instant);
 }
 
@@ -46,6 +52,13 @@ export function dayRange(timeZone, offsetDays = 0, now = new Date()) {
   const start = zonedMidnight(p.year, p.month, p.day + offsetDays, timeZone);
   const end = zonedMidnight(p.year, p.month, p.day + offsetDays + 1, timeZone);
   return { start, end };
+}
+
+// Milliseconds from now until a moment after the business's next midnight (one second past it), kept within what a
+// browser timer accepts. Reports schedules its day rollover refresh with it.
+export function msUntilNextDay(timeZone, now = new Date()) {
+  const wait = dayRange(timeZone, 1, now).start.getTime() - now.getTime() + 1000;
+  return Math.max(1000, Math.min(wait, 2147483647));
 }
 
 export function formatTime(value, timeZone) {

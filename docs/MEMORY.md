@@ -232,6 +232,14 @@ most often needed:
     page audits found: A41 (Industry configuration shows "Industries didn't load." with Try again, never a code
     error), the Reporting configuration and Auto reload crashes on empty or missing data, and C33, C36, C39, C45
     (branch `claude/audit-bugfixes`; wording in `docs/ZELLA_COPY_CHANGELOG.md`).
+  - **CRM look approved (owner, 25 Nov 2026, "yes to all A and C"):** C9, C10, C16, C17, C18, C27, C29, C37, C40,
+    C41, C42 and C51 on every CRM page except Today (architecture §23.1d). Polish only: Glass, the dock, the picture
+    palette, Classic and the Zella Voice theme stay; no feature, section or order changes; the admin dashboard is not
+    changed. Rules in `web/src/styles/crm-look.css`, scoped to the CRM root (branch `claude/crm-look`). The CRM phone
+    items (C20 to C25, C30, C49) wait for the phone navigation pull request.
+  - **Tables page compacted (owner feedback, 25 Nov 2026, same pull request):** "the table layout is showing way too
+    enlarged". The floor plan now fits its tables (saved positions kept, only cropped and scaled, never below
+    readable sizes) and the four counts are compact cards (`docs/DESIGN_SYSTEM.md` "CRM look").
 
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed

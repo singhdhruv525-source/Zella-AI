@@ -95,21 +95,20 @@ function Overview({ data, loading, channels, onRetry }) {
       : `${data.total > data.previous_total ? "Up" : "Down"} from ${data.previous_total} before`
     : null;
   const tiles = [
-    ["gpp_maybe", "rose", "Incidents", v("total"), cmp],
-    ["pending_actions", "amber", "To review", v("unreviewed"), data ? `${data.new} new` : null],
-    ["report", "rose", "Confirmed spam", v("confirmed"), null],
-    ["verified", "green", "Not spam", v("false_positive"), null],
-    ["block", "", "Blocked or screened", v("blocked"), data?.held ? `${data.held} bookings held` : null],
+    ["gpp_maybe", "Incidents", v("total"), cmp],
+    ["pending_actions", "To review", v("unreviewed"), data ? `${data.new} new` : null],
+    ["report", "Confirmed spam", v("confirmed"), null],
+    ["verified", "Not spam", v("false_positive"), null],
+    ["block", "Blocked or screened", v("blocked"), data?.held ? `${data.held} bookings held` : null],
   ];
   const max = Math.max(1, ...(data?.daily ?? []).map((d) => d.count));
   return (
     <>
       <div className="td-kpis sp-kpis">
-        {tiles.map(([icon, tone, label, value, sub]) => (
+        {tiles.map(([icon, label, value, sub]) => (
           <div key={label} className="ba-kpi td-kpi">
-            <span className={`ba-kpi-icon ${tone}`}><Icon name={icon} /></span>
             <div className="td-kpi-body">
-              <span className="td-kpi-label">{label}</span>
+              <span className="td-kpi-label crm-kpi-label"><Icon name={icon} size="sm" className="crm-kpi-glyph" />{label}</span>
               <div className="td-kpi-row"><span className="ba-kpi-value">{value}</span>{sub && <span className="td-trend">{sub}</span>}</div>
             </div>
           </div>

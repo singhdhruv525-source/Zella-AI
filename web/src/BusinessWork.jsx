@@ -385,7 +385,6 @@ function NoteToasts({ toasts, workspace, onOpen, onClose }) {
         const { icon, tone, kicker } = noteStyle(n);
         return (
           <div key={n.id} className={`ba-toast tone-${tone}`} role={n.severity === "urgent" ? "alert" : "status"}>
-            {tone === "good" && <span className="ba-confetti" aria-hidden="true">{Array.from({ length: 10 }, (_, i) => <i key={i} />)}</span>}
             <span className="ba-toast-icon"><Icon name={icon} size="sm" /></span>
             <button type="button" className="ba-toast-main" onClick={() => onOpen(n)}>
               <span className="ba-kicker">{kicker}</span>
