@@ -2218,6 +2218,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
 | Admin dashboard polish (25 Nov) | 21 admin dashboard design changes approved: polish only, Glass and the brand kept, admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin polish" |
+| Admin and CRM page audits (25 Nov) | Every item approved, "yes to all A and C" (admin A1 to A59, CRM C1 to C51), built in batches. The wording batch: labels in sentence case, "and" for "&" in the CRM, the line above each title names its sidebar place, titles match the sidebar, times, phone numbers and time zones in words (`web/src/lib/format.js`), one ellipsis for "still working", failed loads say what didn't load with Try again, empty lists offer their add button, no file names or database talk on admin screens. Frontend wording only | `docs/ZELLA_COPY_CHANGELOG.md`, `docs/PRODUCT.md` §8 and §9, `AGT-9` |
 
 ### 23.3 Rulebook alignment
 

@@ -171,6 +171,13 @@ most often needed:
   ripple), which supersedes the 6 Nov lively motion rule for the admin only. Details in `docs/DESIGN_SYSTEM.md`
   "Admin polish"; architecture §23.1d.
 
+- **Wording pass, admin and CRM (owner, 25 Nov 2026):** the owner approved every item of the admin and CRM page audits,
+  "yes to all A and C" (A1 to A59, C1 to C51). The wording items are built in one pull request (admin A2 to A5, A14 to
+  A21, A34, A36, A38, A42, A43, A50, A52, A56, A58; CRM C1 to C8, C11 to C15, C28, C31, C32, C34, C35, C38, C43, C44,
+  C46 to C48, C50); the visual and phone items follow in later batches. Frontend wording only: no behaviour,
+  permission or data change. Every old and new line is in `docs/ZELLA_COPY_CHANGELOG.md`; architecture §23.1d,
+  `AGT-9`.
+
 - **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
   chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:
   - **No notification preferences page (28 Oct 2026):** pop ups, desktop notifications and urgent texts are on by
