@@ -78,8 +78,9 @@ export function needsNowNotes({ waiting = [], waitingMore = 0, overdue = [], ove
  *             notification about something missing from it is known to be dealt with
  *   at:       when that list was read. Only a server notification older than that read is cleared: one written
  *             after it may be about an item the read hasn't seen yet
- * Returns { rows, unread, stale }: rows (the notes first, then the rest newest first) (each note has read_at set when read here), the unread count,
- * and the ids of server notifications to mark read because what they were about is dealt with.
+ * Returns { rows, unread, stale }: rows (the notes first, then the rest newest first; each note has read_at set when
+ * read here), the unread count, and the ids of unread server notifications to mark read because what they were about
+ * is dealt with (those, read or not, are no longer in rows).
  */
 export function mergeBellNotes(server = [], notes = [], read = new Set(), complete = {}, at = null) {
   const readAt = new Date(at ?? NaN).getTime();
@@ -91,14 +92,17 @@ export function mergeBellNotes(server = [], notes = [], read = new Set(), comple
     if (!group || !r.entity_id) return true;
     if (active[group].has(r.entity_id)) return false;              // the note here takes its place
     const created = new Date(r.created_at ?? NaN).getTime();
-    // dealt with, by a read newer than the notification: mark it read
-    if (complete[group] && !r.read_at && Number.isFinite(readAt) && Number.isFinite(created) && created < readAt) stale.push(r.id);
-    return true;
+    // dealt with, proven by a complete read newer than the notification: it leaves the bell, as the note did (an
+    // unread one is also marked read on the server)
+    if (complete[group] && Number.isFinite(readAt) && Number.isFinite(created) && created < readAt) {
+      if (!r.read_at) stale.push(r.id);
+      return false;
+    }
+    return true;   // not proven dealt with: kept as it is
   });
   const shown = notes.map((n) => ({ ...n, id: n.key, read_at: read.has(n.key) ? "read" : null }));
   const time = (r) => { const t = new Date(r.created_at ?? 0).getTime(); return Number.isFinite(t) ? t : 0; };
-  const staleSet = new Set(stale);
-  const rows = [...shown, ...kept.map((r) => (staleSet.has(r.id) ? { ...r, read_at: r.read_at ?? "read" } : r))]
+  const rows = [...shown, ...kept]
     // the notes first, in the order Today lists them (callers, tasks, spam); then the rest, newest first
     .sort((a, b) => (b.derived ? 1 : 0) - (a.derived ? 1 : 0) || (a.derived ? 0 : time(b) - time(a)));
   return { rows, unread: rows.filter((r) => !r.read_at).length, stale };

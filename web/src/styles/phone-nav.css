@@ -400,3 +400,6 @@ html.pn-phone .pn-list { max-width: 100%; }
 html.pn-phone .ba-root[data-pn-action] .cal-toolbar > .ba-btn.primary { display: none; }
 html[data-zella-theme="glass"] .pn-sheet-actions :is(button, a):first-child { background: var(--zella-primary); color: var(--zella-on-primary); }
 .pn-item .pn-meta.wide { max-width: 150px; }   /* a date and a time (callbacks) */
+/* a count that couldn't be read ("!") or may be out of date: quiet grey, never a confident red number */
+.pn-count.failed { background: var(--zella-text-secondary); }
+.pn-count.stale { opacity: 0.6; }

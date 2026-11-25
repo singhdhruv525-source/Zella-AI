@@ -34,6 +34,31 @@ export function adminStrip(incidents = [], now = Date.now()) {
   return { title: oldest.title || "Incident open", sub: `Incident open for ${waitLabel(oldest.created_at, now)}${more}`, action: "View" };
 }
 
+// ---------- A live reading that can fail (admin counts and incidents) ----------
+// loading: not read yet. ok: the last read worked. stale: an earlier read worked, the latest failed (the value is the
+// earlier one, shown as possibly out of date). failed: no read has worked yet (no value: never shown as "none").
+export const SIGNAL_START = { status: "loading", value: null };
+export function signalReduce(state = SIGNAL_START, event = {}) {
+  if (event.type === "reset") return SIGNAL_START;
+  if (event.type === "ok") return { status: "ok", value: event.value };
+  if (event.type === "fail") return state.status === "ok" || state.status === "stale" ? { status: "stale", value: state.value } : { status: "failed", value: null };
+  return state;
+}
+// A count from such a reading, for a tab: the number only when it was read (stale says so), never 0 for a failure.
+export function signalCount(state) {
+  if (state?.status === "ok" || state?.status === "stale") return { count: state.value, state: state.status };
+  return { count: null, state: state?.status ?? "loading" };
+}
+// The admin live strip from the incidents reading: open incidents as usual; a failed read says so instead of
+// looking calm; an out of date read says that too.
+export function adminStripFor(state, now = Date.now()) {
+  if (!state || state.status === "loading") return null;
+  if (state.status === "failed") return { title: "Incidents couldn't be checked", sub: "Open Platform operations for the latest", action: "View" };
+  const strip = adminStrip(state.value ?? [], now);
+  if (state.status === "ok") return strip;
+  return strip ? { ...strip, sub: `${strip.sub} · may be out of date` } : { title: "Incidents couldn't be refreshed", sub: "Open Platform operations for the latest", action: "View" };
+}
+
 // "Needs you now" at the top of Today (P14): callers waiting, overdue tasks, calls to review in Spam protection.
 // Each row goes straight to the page that deals with it; with nothing to do the section isn't shown (empty list).
 // overdueTotal: how many tasks are overdue in all (the list may be cut off at its limit); defaults to the list's length
@@ -106,6 +131,7 @@ export function createTabMemory() {
 //   apply()   show the change now        commit()  send it (returns a promise; rejects or { error } on failure)
 //   revert()  put it back                ms        the Undo window
 // Returns { undo, flush }: undo() within the window cancels; flush() sends now (leaving the page).
+// Several quick changes can wait at once; one toast offers Undo for all of them (undoAll), so none loses its Undo.
 // (the browser's timers must be called as plain functions, never as methods of another object)
 const TIMERS = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (t) => clearTimeout(t) };
 export function deferChange({ apply, commit, revert, onError, ms = 5000, timers = TIMERS }) {
@@ -133,5 +159,43 @@ export function deferChange({ apply, commit, revert, onError, ms = 5000, timers 
     },
     flush() { timers.clearTimeout(timer); return send(); },
     get state() { return state; },
+  };
+}
+
+// Undo every change still inside its window; returns how many were undone (one already sent is left alone).
+export function undoAll(changes) {
+  let n = 0;
+  for (const c of changes) if (c?.undo?.()) n++;
+  return n;
+}
+// The toast for the latest quick change: its own words, or a count while others are still waiting.
+export const pendingToastText = (text, waiting) => (waiting > 1 ? `${waiting} changes made` : text);
+
+// ---------- Quick changes that outlive the page (P19) ----------
+// The app keeps the changes waiting for their Undo window, so leaving the page neither sends them early nor loses
+// their Undo; each one is sent by its own timer (or when the page is closed, pagehide). For every change the store
+// keeps what the page shows meanwhile (its view: hidden, or the new values); after a successful send the view stays
+// "settled" until the page has read the list again, so the row never flickers back.
+export function createPendingStore() {
+  const pending = new Map();   // id -> { change, view }
+  const settled = new Map();   // id -> view
+  const subs = new Set();
+  const emit = (event) => subs.forEach((f) => f(event));
+  return {
+    has: (id) => pending.has(id),
+    change: (id) => pending.get(id)?.change ?? null,
+    add(id, change, view) { pending.set(id, { change, view }); emit({ type: "add", id }); },
+    // sent: the page reads its list again, then calls clearSettled(id)
+    succeed(id) { const e = pending.get(id); pending.delete(id); if (e) settled.set(id, e.view); emit({ type: "sent", id }); },
+    // undone, or the send failed: the view goes, the row is back as it was
+    drop(id) { if (pending.delete(id)) emit({ type: "drop", id }); },
+    clearSettled(id) { if (settled.delete(id)) emit({ type: "settled", id }); },
+    // a page that has just read its list fresh: what was sent is in it now
+    clearAllSettled() { if (settled.size) { settled.clear(); emit({ type: "settled" }); } },
+    views() { return new Map([...settled, ...[...pending].map(([id, e]) => [id, e.view])]); },
+    changes() { return [...pending.values()].map((e) => e.change); },
+    waiting() { return [...pending.values()].filter((e) => e.change.state === "waiting").length; },
+    subscribe(f) { subs.add(f); return () => subs.delete(f); },
+    flushAll() { return Promise.all([...pending.values()].map((e) => e.change.flush())); },
   };
 }

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
 import { useDialogFocus } from "../useDialogFocus";
 import { MORE_TAB, badgeText, tabName } from "./phoneTabs.js";
-import { panelDrag, panelReleaseCloses, rowDrag, rowReleaseOpens } from "./phoneHelpers.js";
+import { createPendingStore, panelDrag, panelReleaseCloses, rowDrag, rowReleaseOpens } from "./phoneHelpers.js";
 import { prefersReducedMotion } from "./usePhoneLayout.js";
 
 // The phone navigation for both apps (approved 25 Nov 2026, P1 to P29). Only drawn under 768 wide; the desktop
@@ -30,17 +30,17 @@ export function BottomBar({ tabs, selected, onSelect, onMore, moreOpen, moreCoun
       {all.map((t) => {
         const isMore = t.key === MORE_TAB.key;
         const current = selected === t.key;
-        const count = badgeText(t.count);
+        const count = t.countState === "failed" ? "!" : badgeText(t.count);
         return (
           <button key={t.key} type="button" className="pn-tab" data-tab={t.key}
             aria-current={current ? "page" : undefined}
             aria-expanded={isMore ? Boolean(moreOpen) : undefined}
             aria-haspopup={isMore ? "dialog" : undefined}
-            aria-label={tabName(t.label, t.count, t.countNoun)}
+            aria-label={tabName(t.label, t.count, t.countNoun, t.countState)}
             onClick={(e) => (isMore ? onMore(e.currentTarget) : onSelect(t.key))}>
             <span className="pn-ic">
               <Icon name={t.icon} />
-              {count && <span className="pn-count" aria-hidden="true">{count}</span>}
+              {count && <span className={`pn-count ${t.countState === "failed" || t.countState === "stale" ? t.countState : ""}`} aria-hidden="true">{count}</span>}
             </span>
             <span aria-hidden="true">{t.label}</span>
           </button>
@@ -300,3 +300,27 @@ export function useTabScroll(enabled, key, memory, isTab) {
 }
 
 export const scrollToTop = () => window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "instant" : "smooth" });
+
+// The app's store of quick changes waiting for their Undo window (phoneHelpers createPendingStore). Each change still
+// goes out when its own window ends; closing the page sends what is waiting, and so does leaving the app.
+export function usePendingStore() {
+  const [store] = useState(createPendingStore);
+  useEffect(() => {
+    const send = () => { store.flushAll(); };
+    window.addEventListener("pagehide", send);
+    return () => { window.removeEventListener("pagehide", send); send(); };
+  }, [store]);
+  return store;
+}
+
+// A page's view of the store: redrawn on every change; `onSent(id)` runs for a change sent while the page is open.
+export function usePendingViews(store, onSent) {
+  const [, setVersion] = useState(0);
+  const latest = useRef(onSent);
+  useLayoutEffect(() => { latest.current = onSent; });
+  useEffect(() => store?.subscribe((event) => {
+    setVersion((n) => n + 1);
+    if (event.type === "sent") latest.current?.(event.id);
+  }), [store]);
+  return store ? store.views() : new Map();
+}

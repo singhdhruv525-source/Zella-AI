@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { COVERED_KINDS, mergeBellNotes, needsNowNotes, pruneRead } from "../src/crm/needsNowNotes.js";
-import { needsNowRows } from "../src/navigation/phoneHelpers.js";
+import { createPendingStore, deferChange, needsNowRows, undoAll } from "../src/navigation/phoneHelpers.js";
+import { SOURCES_START, listRead, nextSources, signalsFrom, spamRead } from "../src/crm/needsNowSignals.js";
 
 const NOW = Date.parse("2026-11-25T18:00:00Z");
 const ago = (min) => new Date(NOW - min * 60000).toISOString();
@@ -80,8 +81,15 @@ test("once the caller is handled or the task is done, the note leaves and the se
   const { rows, unread, stale } = mergeBellNotes(server, notes, new Set(), { waiting: true, task: true }, ago(0));
   assert.ok(!rows.some((r) => r.key === "waiting:call-1" || r.key === "task:task-1"));
   assert.deepEqual(stale.sort(), ["s1", "s2"]);
-  assert.equal(rows.find((r) => r.id === "s1").read_at, "read");
+  assert.ok(!rows.some((r) => r.id === "s1" || r.id === "s2"), "handled: they leave the bell, as the notes did");
   assert.equal(unread, 2);
+  // already read and handled: it leaves the bell too, but needs no mark read
+  const readOne = mergeBellNotes([{ ...server[0], read_at: ago(0) }], notes, new Set(), { waiting: true }, ago(0));
+  assert.ok(!readOne.rows.some((r) => r.id === "s1"));
+  assert.deepEqual(readOne.stale, []);
+  // not proven handled (the list wasn't read in full): kept, unread
+  const unsure = mergeBellNotes(server, notes, new Set(), { waiting: false, task: false }, ago(0));
+  assert.ok(unsure.rows.some((r) => r.id === "s1") && unsure.rows.some((r) => r.id === "s2"));
   // a list cut off at its limit (or that failed to load) proves nothing: nothing is marked read
   assert.deepEqual(mergeBellNotes(server, notes, new Set(), { waiting: false, task: false }).stale, []);
   // an already read server notification isn't marked again
@@ -144,4 +152,90 @@ test("overdue tasks past the list's limit: the real total on Today, one summary 
   assert.equal(needsNowRows({ overdue: listed.slice(0, 1), overdueTotal: 1, now: NOW })[0].title, "Task 0");
   assert.deepEqual(needsNowRows({ overdue: [], overdueTotal: 0, now: NOW }), []);
   assert.deepEqual(needsNowNotes({ overdue: [], overdueMore: 0 }), []);
+});
+
+
+const ok = (rows, count) => ({ data: rows, count, error: null });
+
+test("a read that fails keeps the last good value, marked as unavailable, and never counts as complete", () => {
+  let src = nextSources(SOURCES_START, { waiting: listRead(ok([{ id: "c1" }], 1)), overdue: listRead(ok([{ id: "t1" }], 1)), spam: spamRead({ data: { unreviewed: 2 } }) });
+  let s = signalsFrom(src, ago(1));
+  assert.deepEqual([s.waiting.length, s.overdue.length, s.spam], [1, 1, 2]);
+  assert.deepEqual(s.complete, { waiting: true, task: true });
+  assert.equal(s.ready, true);
+  assert.equal(s.unavailable, false);
+  // all three fail next time: the items stay, the lists are not complete, read keys must not be pruned
+  src = nextSources(src, { waiting: listRead({ data: null, error: new Error("offline") }), overdue: listRead({ error: {} }), spam: spamRead({ error: {} }) });
+  s = signalsFrom(src, ago(0));
+  assert.deepEqual([s.waiting.length, s.overdue.length, s.spam], [1, 1, 2], "last good values kept");
+  assert.deepEqual(s.status, { waiting: "stale", overdue: "stale", spam: "stale" });
+  assert.deepEqual(s.complete, { waiting: false, task: false });
+  assert.equal(s.ready, false);
+  assert.equal(s.unavailable, true);
+  // so nothing in the bell is marked read on a failed read
+  const server = [{ id: "s1", kind: "escalation_unacknowledged", entity_id: "c9", created_at: ago(5), read_at: null }];
+  assert.deepEqual(mergeBellNotes(server, needsNowNotes({ waiting: s.waiting }), new Set(), s.complete, s.at).stale, []);
+});
+
+test("a first read that fails shows nothing as none: unavailable, not empty and complete", () => {
+  const s = signalsFrom(nextSources(SOURCES_START, { waiting: listRead({ error: {} }), overdue: listRead(ok([], 0)), spam: spamRead({ error: {} }) }), ago(0));
+  assert.deepEqual(s.status, { waiting: "failed", overdue: "ok", spam: "failed" });
+  assert.equal(s.unavailable, true);
+  assert.deepEqual(s.complete, { waiting: false, task: true }, "a successful empty list is complete; a failed one is not");
+  assert.deepEqual(spamRead(null, false), { type: "ok", value: 0 }, "a role that can't see spam: a real none");
+});
+
+test("waiting callers are complete only when one read holds every row its count says exist", () => {
+  // the rows and the count come from the same request: no call can slip between pages
+  assert.equal(listRead(ok([{ id: "a" }, { id: "b" }], 2)).value.complete, true);
+  // a call dealt with and a new one arriving between two separate reads would show as a different count: incomplete
+  const shifted = listRead(ok([{ id: "a" }, { id: "c" }], 3)).value;
+  assert.equal(shifted.complete, false);
+  assert.equal(shifted.more, 1);
+  // past the cap (or a server row limit): the rest are counted in one note, and the list is not complete
+  const capped = listRead(ok(Array.from({ length: 500 }, (_, n) => ({ id: `c${n}` })), 537)).value;
+  assert.deepEqual([capped.complete, capped.more, capped.total], [false, 37, 537]);
+  // no count given: not proven complete
+  assert.equal(listRead({ data: [{ id: "a" }], count: null }).value.complete, false);
+  assert.deepEqual(listRead({ data: "odd" }), { type: "fail" });
+  const s = signalsFrom(nextSources(SOURCES_START, { waiting: listRead(ok([{ id: "a" }], 3)) }), ago(0));
+  assert.equal(s.complete.waiting, false);
+  assert.equal(s.waitingMore, 2);
+});
+
+function fakeTimers() {
+  let queue = [];
+  return { setTimeout: (fn) => { const t = { fn }; queue.push(t); return t; }, clearTimeout: (t) => { queue = queue.filter((q) => q !== t); },
+    run: async () => { const q = queue; queue = []; for (const t of q) await t.fn(); } };
+}
+
+test("quick changes kept by the app: leaving the page keeps the window and the Undo, and the row never flickers back", async () => {
+  const timers = fakeTimers();
+  const store = createPendingStore();
+  const events = [];
+  store.subscribe((e) => events.push(e.type));
+  const sent = [];
+  const change = deferChange({ commit: async () => { sent.push("t1"); store.succeed("t1"); }, revert: () => store.drop("t1"), timers });
+  store.add("t1", change, { hidden: true });
+  assert.equal(store.views().get("t1").hidden, true);
+  assert.equal(store.waiting(), 1);
+  // the page is left: nothing is sent and Undo still works (no page flush any more)
+  assert.equal(undoAll(store.changes()), 1);
+  await timers.run();
+  assert.deepEqual(sent, []);
+  assert.equal(store.views().has("t1"), false, "undone: the row is back");
+  // again, and this time the window passes: sent once, its view stays until the page has read again
+  const c2 = deferChange({ commit: async () => { sent.push("t2"); store.succeed("t2"); }, revert: () => store.drop("t2"), timers });
+  store.add("t2", c2, { hidden: true });
+  await timers.run();
+  assert.deepEqual(sent, ["t2"]);
+  assert.equal(store.views().get("t2").hidden, true, "settled: still hidden until the list is read again");
+  store.clearSettled("t2");
+  assert.equal(store.views().has("t2"), false);
+  assert.deepEqual(events, ["add", "drop", "add", "sent", "settled"]);
+  // closing the page (pagehide) sends what is still waiting
+  const c3 = deferChange({ commit: async () => { sent.push("t3"); }, timers });
+  store.add("t3", c3, { hidden: true });
+  await store.flushAll();
+  assert.deepEqual(sent, ["t2", "t3"]);
 });

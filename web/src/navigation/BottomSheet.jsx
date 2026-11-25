@@ -64,7 +64,10 @@ export function BottomSheet({ title, description, onClose, busy = false, size = 
     <div className={`pn-sheet-layer ${closing ? "closing" : ""}`}>
       <button type="button" className="pn-scrim on sheet" aria-label="Close" tabIndex={-1}
         onClick={() => requestClose()} />
+      {/* once closing starts nothing inside can be used (inert), so a form can't be sent while it slides away and
+          then lose its draft and its error when the close finishes */}
       <section ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label ?? (typeof title === "string" ? title : "Details")}
+        inert={closing ? true : undefined}
         className={`pn-sheet ${current} ${closing ? "closing" : "open"} ${drag ? "dragging" : ""} ${className}`}
         style={!drag ? undefined : drag < 0 && current === "half" ? { height: `min(92dvh, calc(52dvh + ${-drag}px))` } : { "--pn-drag": `${drag}px` }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
@@ -102,10 +105,11 @@ const ENHANCED = ".bp-panel, .owner-modal[role=\"dialog\"], [role=\"dialog\"] .o
 export function useSheetEnhancer(enabled) {
   useEffect(() => {
     if (!enabled || typeof MutationObserver === "undefined") return undefined;
-    const seen = new WeakSet();
+    // one disposer per dialog: cleanup removes exactly the listeners added here, so turning phone mode off and on
+    // again never leaves two sets (two drags, two Escapes)
+    const attached = new Map();
     const attach = (el) => {
-      if (seen.has(el) || el.closest(".pn-sheet")) return;
-      seen.add(el);
+      if (attached.has(el) || el.closest(".pn-sheet")) return;
       const fit = el.classList.contains("bd-confirm");
       let size = fit ? "fit" : "half";
       el.dataset.pnSheet = size;
@@ -142,6 +146,17 @@ export function useSheetEnhancer(enabled) {
       el.addEventListener("pointermove", move);
       el.addEventListener("pointerup", up);
       el.addEventListener("pointercancel", up);
+      attached.set(el, () => {
+        el.removeEventListener("pointerdown", down);
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", up);
+        if (start) { try { el.releasePointerCapture?.(start.id); } catch { /* already released */ } }
+        delete el.dataset.pnSheet;
+        delete el.dataset.pnDragging;
+        el.style.removeProperty("--pn-drag");
+        el.style.removeProperty("height");
+      });
     };
     const scan = () => document.querySelectorAll(ENHANCED).forEach(attach);
     scan();
@@ -149,7 +164,8 @@ export function useSheetEnhancer(enabled) {
     mo.observe(document.body, { childList: true, subtree: true });
     return () => {
       mo.disconnect();
-      document.querySelectorAll("[data-pn-sheet]").forEach((el) => { delete el.dataset.pnSheet; });
+      attached.forEach((dispose) => dispose());
+      attached.clear();
     };
   }, [enabled]);
 }
