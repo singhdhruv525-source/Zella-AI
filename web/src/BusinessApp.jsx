@@ -51,7 +51,7 @@ import { BusinessSwitcher, ProfileMenu, ReceptionistCard, SidebarNav, SidebarSta
 import { crmTabs, selectedTab } from "./navigation/phoneTabs";
 import { createTabMemory, crmStrip } from "./navigation/phoneHelpers";
 import { useKeyboardOpen, usePhoneLayout, usePhoneRoot, usePullToRefresh, useRootFlag } from "./navigation/usePhoneLayout";
-import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, useTabScroll, useToast } from "./navigation/PhoneNav";
+import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, usePendingStore, useTabScroll, useToast } from "./navigation/PhoneNav";
 import { useSheetEnhancer } from "./navigation/BottomSheet";
 import { PhoneUi, TodayTop } from "./navigation/phoneContext";
 import { BusinessButton, NeedsYouNow, QuickActionsSheet, SwitcherSheet, useCrmSignals } from "./navigation/CrmPhone";
@@ -256,6 +256,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   useKeyboardOpen(phone);
   useSheetEnhancer(phone);
   const toaster = useToast();
+  const pendingStore = usePendingStore();   // quick changes waiting for their Undo window, kept across pages
   const [tabMemory] = useState(createTabMemory);
   const [phoneSheet, setPhoneSheet] = useState(null);   // "switcher" | "quick"
   const [searchOpen, setSearchOpen] = useState(false);
@@ -290,6 +291,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const pull = usePullToRefresh({ enabled: pullable, onRefresh: () => {
     const own = current.key === "today" && document.querySelector('.td-head [aria-label="Refresh"]');
     if (own) own.click(); else setRefreshKey((k) => k + 1);
+    signals.refresh();   // the bell and "Needs you now" read again too
     return countAttention();
   } });
   // P15, P16: tap the open tab to go back to the top; each tab keeps its scroll and its search
@@ -305,7 +307,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");
   };
   const inboxKey = tabs.find((t) => ["inbox", "attention", "messages"].includes(t.key))?.key;
-  const phoneUi = { phone, toast: toaster.show };
+  const phoneUi = { phone, toast: toaster.show, pending: pendingStore };
 
   // Every page, by key: drawn once on a desktop; on a phone the tab pages stay drawn (hidden) so they keep their state.
   const pageView = (key) => (

@@ -170,3 +170,32 @@ export function undoAll(changes) {
 }
 // The toast for the latest quick change: its own words, or a count while others are still waiting.
 export const pendingToastText = (text, waiting) => (waiting > 1 ? `${waiting} changes made` : text);
+
+// ---------- Quick changes that outlive the page (P19) ----------
+// The app keeps the changes waiting for their Undo window, so leaving the page neither sends them early nor loses
+// their Undo; each one is sent by its own timer (or when the page is closed, pagehide). For every change the store
+// keeps what the page shows meanwhile (its view: hidden, or the new values); after a successful send the view stays
+// "settled" until the page has read the list again, so the row never flickers back.
+export function createPendingStore() {
+  const pending = new Map();   // id -> { change, view }
+  const settled = new Map();   // id -> view
+  const subs = new Set();
+  const emit = (event) => subs.forEach((f) => f(event));
+  return {
+    has: (id) => pending.has(id),
+    change: (id) => pending.get(id)?.change ?? null,
+    add(id, change, view) { pending.set(id, { change, view }); emit({ type: "add", id }); },
+    // sent: the page reads its list again, then calls clearSettled(id)
+    succeed(id) { const e = pending.get(id); pending.delete(id); if (e) settled.set(id, e.view); emit({ type: "sent", id }); },
+    // undone, or the send failed: the view goes, the row is back as it was
+    drop(id) { if (pending.delete(id)) emit({ type: "drop", id }); },
+    clearSettled(id) { if (settled.delete(id)) emit({ type: "settled", id }); },
+    // a page that has just read its list fresh: what was sent is in it now
+    clearAllSettled() { if (settled.size) { settled.clear(); emit({ type: "settled" }); } },
+    views() { return new Map([...settled, ...[...pending].map(([id, e]) => [id, e.view])]); },
+    changes() { return [...pending.values()].map((e) => e.change); },
+    waiting() { return [...pending.values()].filter((e) => e.change.state === "waiting").length; },
+    subscribe(f) { subs.add(f); return () => subs.delete(f); },
+    flushAll() { return Promise.all([...pending.values()].map((e) => e.change.flush())); },
+  };
+}

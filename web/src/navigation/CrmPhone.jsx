@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { Icon, personName } from "../BusinessUI";
 import { BottomSheet } from "./BottomSheet";
 import { needsNowRows } from "./phoneHelpers.js";
+import { OVERDUE_LIMIT, SOURCES_START, WAITING_CAP, listRead, nextSources, signalsFrom, spamRead } from "../crm/needsNowSignals.js";
 
 // The CRM's phone parts (approved 25 Nov 2026): the "Needs you now" block on Today (P14), the business switcher and
 // Quick actions as sheets (P10, P12), and the data the live strip and the More count read (P5, P13). Everything is
@@ -14,12 +15,10 @@ const DAY = 864e5;
 // Live signals for "Needs you now": the callers waiting for a person, overdue tasks and spam to review. Read on every
 // screen size, because the notification bell shows the same items (owner, 25 Nov 2026, crm/needsNowNotes.js); the
 // phone also uses them for the live strip, Today's block and the More count. Refreshed with the waiting count, on a
-// refresh and every minute.
-const WAITING_PAGE = 100;   // read in pages up to a hard cap; callers past it share one summary note in the bell
-const WAITING_CAP = 500;
-const OVERDUE_LIMIT = 100;
+// refresh and every minute. A source whose read fails keeps its last good value and says so
+// (crm/needsNowSignals.js), never shown as "nothing waiting".
 export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
-  const [signals, setSignals] = useState({ oldest: null, waiting: [], waitingMore: 0, overdue: [], overdueTotal: 0, overdueMore: 0, spam: 0, complete: {}, at: null });
+  const [state, setState] = useState({ sources: SOURCES_START, at: null });
   const [tick, setTick] = useState(0);
   // a page that changes one of these (a task done or dismissed) reads them again at once, not at the next minute
   const refresh = useCallback(() => setTick((n) => n + 1), []);
@@ -33,67 +32,44 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
     let live = true;
     const id = workspace.id;
     const now = new Date();
-    // every waiting call, oldest first, a page at a time up to the cap; the first page also says how many there are
-    const page = (from, count) => supabase.from("calls_view").select("id, customer_id, from_number, summary, escalated_at, created_at", count ? { count: "exact" } : undefined)
+    const spamAllowed = SPAM_ROLES.includes(workspace.role);
+    // the waiting calls, oldest first, in one request with an exact count (crm/needsNowSignals.js listRead)
+    const waiting = supabase.from("calls_view").select("id, customer_id, from_number, summary, escalated_at, created_at", { count: "exact" })
       .eq("business_id", id).eq("needs_human", true).is("escalation_resolved_at", null)
-      .order("escalated_at", { ascending: true, nullsFirst: false }).order("id", { ascending: true }).range(from, from + WAITING_PAGE - 1);
-    const waiting = (async () => {
-      const first = await page(0, true);
-      if (first.error) return first;
-      const rows = [...(first.data ?? [])];
-      const total = Number.isFinite(first.count) ? first.count : null;
-      let last = first.data ?? [];
-      while (last.length === WAITING_PAGE && rows.length < WAITING_CAP) {
-        const next = await page(rows.length, false);
-        if (next.error) return { data: rows, error: next.error, total };
-        last = next.data ?? [];
-        rows.push(...last);
-      }
-      return { data: rows.slice(0, WAITING_CAP), total, error: null };
-    })();
-    // the oldest OVERDUE_LIMIT overdue tasks, with the exact number of overdue tasks (the rest share one bell note)
+      .order("escalated_at", { ascending: true, nullsFirst: false }).order("id", { ascending: true }).range(0, WAITING_CAP - 1);
+    // the oldest overdue tasks, with the exact number of overdue tasks (the rest share one bell note)
     const overdue = supabase.from("crm_tasks").select("id, title, due_at, customer_id", { count: "exact" }).eq("business_id", id).eq("status", "open")
       .lt("due_at", now.toISOString()).order("due_at", { ascending: true }).limit(OVERDUE_LIMIT);
-    const spam = SPAM_ROLES.includes(workspace.role)
+    const spam = spamAllowed
       ? supabase.rpc("zella_spam_overview", { p_business_id: id, p_from: new Date(now.getTime() - 30 * DAY).toISOString(), p_to: now.toISOString() })
       : Promise.resolve({ data: null });
     Promise.all([waiting, overdue, spam].map((p) => Promise.resolve(p).catch((error) => ({ data: null, error })))).then(async ([w, o, s]) => {
-      const calls = w.data ?? [];   // a page that failed part way keeps the ones read (the list is then not complete)
-      const tasks = o.error ? [] : o.data ?? [];
-      const ids = [...new Set([...calls, ...tasks].map((r) => r.customer_id).filter(Boolean))];
+      const events = { waiting: listRead(w), overdue: listRead(o), spam: spamRead(s, spamAllowed) };
+      const rows = [...(events.waiting.value?.rows ?? []), ...(events.overdue.value?.rows ?? [])];
+      const ids = [...new Set(rows.map((r) => r.customer_id).filter(Boolean))];
       const people = ids.length
         ? await Promise.resolve(supabase.from("customers").select("id, first_name, last_name, company_name").in("id", ids)).catch(() => ({ data: [] }))
         : { data: [] };
       const nameOf = Object.fromEntries((people.data ?? []).map((p) => [p.id, personName(p)]));
       if (!live) return;
-      const list = calls.map((c) => ({ id: c.id, name: nameOf[c.customer_id] ?? c.from_number ?? null, since: c.escalated_at ?? c.created_at, summary: c.summary }));
-      setSignals({
-        oldest: list[0] ?? null,
-        waiting: list,
-        // callers past the cap (or a count that moved while reading): one summary note, so the bell counts them all
-        waitingMore: Number.isFinite(w.total) ? Math.max(0, w.total - list.length) : 0,
-        overdue: tasks.map((t) => ({ ...t, who: nameOf[t.customer_id] ?? null })),
-        overdueTotal: Number.isFinite(o.count) ? Math.max(o.count, tasks.length) : tasks.length,
-        overdueMore: Number.isFinite(o.count) ? Math.max(0, o.count - tasks.length) : 0,
-        spam: Number(s.data?.unreviewed) || 0,
-        // a list read in full: anything missing from it has been dealt with
-        complete: { waiting: !w.error && Boolean(w.data) && Number.isFinite(w.total) && calls.length >= w.total, task: !o.error && Boolean(o.data) && Number.isFinite(o.count) && tasks.length >= o.count },
-        at: now.toISOString(),
-      });
+      if (events.waiting.value) events.waiting.value.rows = events.waiting.value.rows.map((c) => ({ id: c.id, name: nameOf[c.customer_id] ?? c.from_number ?? null, since: c.escalated_at ?? c.created_at, summary: c.summary }));
+      if (events.overdue.value) events.overdue.value.rows = events.overdue.value.rows.map((t) => ({ ...t, who: nameOf[t.customer_id] ?? null }));
+      setState((prev) => ({ sources: nextSources(prev.sources, events), at: now.toISOString() }));
     });
     return () => { live = false; };
   }, [enabled, workspace.id, workspace.role, attention, refreshKey, tick]);
-  return useMemo(() => ({ ...signals, refresh }), [signals, refresh]);
+  return useMemo(() => ({ ...signalsFrom(state.sources, state.at), refresh }), [state, refresh]);
 }
 
 // P14: the top of Today. Shown only when something needs the owner.
 export function NeedsYouNow({ attention, signals, onGo }) {
   const rows = needsNowRows({ waiting: attention, oldest: signals.oldest, overdue: signals.overdue, overdueTotal: signals.overdueTotal, spam: signals.spam });
-  if (!rows.length) return null;
+  if (!rows.length && !signals.unavailable) return null;
   return (
     <section aria-labelledby="pn-now-title">
       <h2 id="pn-now-title" className="pn-list-label">Needs you now</h2>
-      <ul className="pn-list">
+      {signals.unavailable && <p className="pn-hint" role="status"><Icon name="info" />Some of this couldn't be checked just now. Zella Voice will try again shortly.</p>}
+      {rows.length > 0 && <ul className="pn-list">
         {rows.map((r) => (
           <li key={r.key}>
             <button type="button" className="pn-item" onClick={() => onGo(r.page)}>
@@ -103,7 +79,7 @@ export function NeedsYouNow({ attention, signals, onGo }) {
             </button>
           </li>
         ))}
-      </ul>
+      </ul>}
     </section>
   );
 }

@@ -9,9 +9,9 @@ import { noteIcon, noteStyle, pickQuiet, voiceTitle } from "./zellaVoice";
 import { chime, desktopAlert, deviceAlerts, tabCount, unlockAlerts } from "./liveAlerts";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
 import { usePhoneUi } from "./navigation/phoneContext";
-import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
+import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
-import { deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
 import { loadRead, mergeBellNotes, needsNowNotes, pruneRead, saveRead } from "./crm/needsNowNotes";
 
 /* ------------------------------------------------------------------ */
@@ -200,30 +200,31 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   // On a phone (approved 25 Nov 2026, P19 and P20): a task marked done leaves the list at once, with Undo. It is only
   // sent once the Undo window has passed, so Undo never needs to reopen anything; if sending fails it comes back.
   const ui = usePhoneUi();
-  const [doneHere, setDoneHere] = useState(() => new Set());
-  const pendingChanges = useRef(new Map());
+  // the app keeps the waiting changes (navigation/PhoneNav.jsx usePendingStore): leaving Tasks neither sends them early
+  // nor loses their Undo; a page outside the app (no store given) keeps its own
+  const [ownStore] = useState(createPendingStore);
+  const store = ui.pending ?? ownStore;
+  const views = usePendingViews(store, (id) => { reload().then(() => store.clearSettled(id)); });
+  useEffect(() => { store.clearAllSettled(); }, [store]);   // a fresh read on opening already has what was sent
+  useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [rowMenu, setRowMenu] = useState(null);
-  useEffect(() => () => { pendingChanges.current.forEach((c) => c.flush()); }, []);
   // done, or dismissed (cancel): both leave the list at once with Undo and are sent after the Undo window
   function quickDone(t, cancel = false) {
-    if (pendingChanges.current.has(t.id)) return;
-    const forget = () => setDoneHere((set) => { const next = new Set(set); next.delete(t.id); return next; });
+    if (store.has(t.id)) return;
     const change = deferChange({
-      apply: () => setDoneHere((set) => new Set(set).add(t.id)),
       commit: async () => {
         const { error: failure } = await supabase.rpc("zella_complete_task", cancel ? { p_task_id: t.id, p_cancel: true } : { p_task_id: t.id });
-        pendingChanges.current.delete(t.id);
         if (failure) throw failure;
-        reload();
+        store.succeed(t.id);
         onChanged?.();
       },
-      revert: () => { pendingChanges.current.delete(t.id); forget(); },
+      revert: () => store.drop(t.id),
       onError: (err) => ui.toast(`Couldn't ${cancel ? "dismiss it" : "mark it done"}, so it's back on the list. ${explain(err)}`),
     });
-    pendingChanges.current.set(t.id, change);
-    const waiting = [...pendingChanges.current.values()].filter((c) => c.state === "waiting").length;
-    ui.toast(pendingToastText(cancel ? "Task dismissed" : "Task marked done", waiting), { undo: () => undoAll([...pendingChanges.current.values()]) });
+    store.add(t.id, change, { hidden: true });
+    ui.toast(pendingToastText(cancel ? "Task dismissed" : "Task marked done", store.waiting()), { undo: () => undoAll(store.changes()) });
   }
+  const doneHere = { has: (id) => Boolean(views.get(id)?.hidden) };
 
   const tasks = data?.tasks ?? [];
   const open = tasks.filter((t) => t.status === "open" && !doneHere.has(t.id));
@@ -537,23 +538,24 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
   useEffect(() => { tabCount(unread.length); }, [unread.length]);
   // forget read notes that have left the bell, and mark read the server notifications whose call or task is dealt with
   useEffect(() => {
-    if (!needsNow?.at) return;
+    // only after a round where every source was read: a source that failed must not make its read notes look gone
+    if (!needsNow?.at || !needsNow.ready) return;
     const kept = pruneRead(readNotes, notes);
     if (kept.size !== readNotes.size) { setReadNotes(kept); saveRead(workspace.id, kept); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes]);
   const staleTried = useRef(new Set());
+  const staleSending = useRef(new Set());
   useEffect(() => {
-    const ids = merged.stale.filter((id) => !staleTried.current.has(id));
+    const ids = merged.stale.filter((id) => !staleTried.current.has(id) && !staleSending.current.has(id));
     if (!ids.length) return;
-    // remembered only once the server has marked them read, so a failed attempt is tried again on a later poll
-    supabase.rpc("zella_mark_notifications_read", { p_ids: ids }).then(({ error }) => {
-      if (error) return;
-      ids.forEach((id) => staleTried.current.add(id));
-      load();
-    }, () => {});
+    // remembered only once the server has marked them read; a failed attempt is tried again on a later poll (this
+    // runs again whenever the notifications or the "Needs you now" signals are read again)
+    ids.forEach((id) => staleSending.current.add(id));
+    const done = (ok) => { ids.forEach((id) => { staleSending.current.delete(id); if (ok) staleTried.current.add(id); }); if (ok) load(); };
+    supabase.rpc("zella_mark_notifications_read", { p_ids: ids }).then(({ error }) => done(!error), () => done(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merged.stale.join(",")]);
+  }, [merged.stale.join(","), rows, needsNow?.at]);
   const readHere = (keys) => setReadNotes((set) => { const next = new Set([...set, ...keys]); saveRead(workspace.id, next); return next; });
   async function markAll() {
     readHere(unread.filter((r) => r.derived).map((r) => r.key));
@@ -583,6 +585,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
         <div className="ba-bell-panel" role="dialog" aria-label="Notifications">
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
           {failed && <p className="ba-muted pad" role="status">Notifications couldn't be checked just now. Zella Voice will try again shortly.</p>}
+          {needsNow?.unavailable && <p className="ba-muted pad" role="status">Some of what needs you now couldn't be checked just now. Zella Voice will try again shortly.</p>}
           {!shown.length ? (!failed && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
               {shown.map((n) => {

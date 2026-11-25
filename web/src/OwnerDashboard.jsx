@@ -35,7 +35,7 @@ import { friendlyError } from "./admin/adminOps";
 import { adminTabs, selectedTab } from "./navigation/phoneTabs";
 import { adminStripFor, createTabMemory, signalCount } from "./navigation/phoneHelpers";
 import { useKeyboardOpen, usePhoneLayout, usePhoneRoot, usePullToRefresh, useRootFlag, useScrolledPast } from "./navigation/usePhoneLayout";
-import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, useTabScroll, useToast } from "./navigation/PhoneNav";
+import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, usePendingStore, useTabScroll, useToast } from "./navigation/PhoneNav";
 import { useSheetEnhancer } from "./navigation/BottomSheet";
 import { PhoneUi } from "./navigation/phoneContext";
 import { BusinessSheet, useAdminSignals } from "./navigation/AdminPhone";
@@ -245,6 +245,7 @@ export default function OwnerDashboard({ onSignOut }) {
   useKeyboardOpen(phone);
   useSheetEnhancer(phone);
   const toaster = useToast();
+  const pendingStore = usePendingStore();   // quick changes waiting for their Undo window, kept across pages
   const [tabMemory] = useState(createTabMemory);
   const [searchOpen, setSearchOpen] = useState(false);
   const [bizSheet, setBizSheet] = useState(null);
@@ -301,7 +302,7 @@ export default function OwnerDashboard({ onSignOut }) {
   const sheetRow = bizSheet ? businessList.list?.rows?.find((r) => r.id === bizSheet) : null;
 
   return (
-    <PhoneUi.Provider value={{ phone, toast: toaster.show }}>
+    <PhoneUi.Provider value={{ phone, toast: toaster.show, pending: pendingStore }}>
     <div className="owner-app" data-pn-action={action ? "" : undefined} data-pn-pull={pullable ? "" : undefined}>
       {!phone && navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
       {/* The column carries the sidebar's background and border down the whole page; only the nav inside is sticky. */}

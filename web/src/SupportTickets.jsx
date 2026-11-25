@@ -8,9 +8,9 @@ import { formatDateTime, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import { businessHoursText } from "./adminAccess";
 import { usePhoneUi } from "./navigation/phoneContext";
-import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
+import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
-import { deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
 const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]];
@@ -31,10 +31,12 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   // On a phone the list is rows you can swipe (approved 25 Nov 2026, P19 and P20): Assign to yourself or Resolve, shown
   // at once with Undo, and only sent once the Undo window has passed (navigation/phoneHelpers.js deferChange).
   const ui = usePhoneUi();
-  const [pending, setPending] = useState({});
-  const pendingChanges = useRef(new Map());
+  // the app keeps the waiting changes (navigation/PhoneNav.jsx usePendingStore), so leaving Support neither sends them
+  // early nor loses their Undo; outside the app (no store given) the page keeps its own
+  const [ownStore] = useState(createPendingStore);
+  const store = ui.pending ?? ownStore;
   const [rowMenu, setRowMenu] = useState(null);
-  useEffect(() => () => { pendingChanges.current.forEach((c) => c.flush()); }, []);
+  useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -76,6 +78,9 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   const loadRef = useRef(load);
   const overdueRef = useRef(overdueTab);
   useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
+  // a quick change sent while this page is open: read the list again, then its shown values give way to the real ones
+  const pendingViews = usePendingViews(store, (id) => { Promise.resolve(loadRef.current()).then(() => store.clearSettled(id)); });
+  useEffect(() => { store.clearAllSettled(); }, [store]);   // a fresh read on opening already has what was sent
   // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
   // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.
   const createRefresh = useRef(false);
@@ -97,7 +102,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   const emptyIsCurrent = listMatches && !loading && !error;
   // without reply times (sql/zella_support_replies.sql not applied) the server can't tell which tickets are overdue
   const overdueUnknown = overdueTab && listMatches && !timesKnown;
-  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).map((t) => (pending[t.id] ? { ...t, ...pending[t.id] } : t)).filter((t) =>
+  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).map((t) => (pendingViews.get(t.id) ? { ...t, ...pendingViews.get(t.id) } : t)).filter((t) =>
     statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue === true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
@@ -106,7 +111,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
 
   async function update(payload) {
     // the admin's last explicit choice wins: a quick change still waiting for this ticket is called off first
-    pendingChanges.current.get(selectedId)?.undo();
+    store.change(selectedId)?.undo();
     setBusy(true);
     setError("");
     try {
@@ -126,27 +131,22 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
 
   // The signed in admin in the list of people a ticket can be assigned to.
   const me = (data?.assignees ?? []).find((a) => a.email && myEmail && a.email.toLowerCase() === myEmail.toLowerCase()) ?? null;
-  const drop = (id) => setPending((m) => { const next = { ...m }; delete next[id]; return next; });
   function quickChange(t, kind) {
-    if (pendingChanges.current.has(t.id)) return;
+    if (store.has(t.id)) return;
     const resolve = kind === "resolve";
     const shown = resolve ? { status: "resolved" } : { assigned_to: me.id, assignee: me.email };
     const sent = resolve ? { status: "resolved" } : { assignedTo: me.id };
     const change = deferChange({
-      apply: () => setPending((m) => ({ ...m, [t.id]: shown })),
       commit: async () => {
         await callOwnerFunction("ticket_update", { ticketId: t.id, ...sent });
-        pendingChanges.current.delete(t.id);
-        await loadRef.current();
-        drop(t.id);
+        store.succeed(t.id);
       },
-      revert: () => { pendingChanges.current.delete(t.id); drop(t.id); },
+      revert: () => store.drop(t.id),
       onError: (err) => ui.toast(`Couldn't save that change, so it's back as it was. ${friendlyError(err)}`),
     });
-    pendingChanges.current.set(t.id, change);
+    store.add(t.id, change, shown);
     // one toast whose Undo calls off every change still waiting, so an earlier one never loses its Undo
-    const waiting = [...pendingChanges.current.values()].filter((c) => c.state === "waiting").length;
-    ui.toast(pendingToastText(resolve ? "Ticket resolved" : "Ticket assigned to you", waiting), { undo: () => undoAll([...pendingChanges.current.values()]) });
+    ui.toast(pendingToastText(resolve ? "Ticket resolved" : "Ticket assigned to you", store.waiting()), { undo: () => undoAll(store.changes()) });
   }
   useEffect(() => {
     if (ui.phone && selectedId) document.querySelector(".st-detail")?.scrollIntoView({ block: "start" });

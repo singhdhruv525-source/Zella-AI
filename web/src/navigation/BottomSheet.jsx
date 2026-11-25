@@ -64,7 +64,10 @@ export function BottomSheet({ title, description, onClose, busy = false, size = 
     <div className={`pn-sheet-layer ${closing ? "closing" : ""}`}>
       <button type="button" className="pn-scrim on sheet" aria-label="Close" tabIndex={-1}
         onClick={() => requestClose()} />
+      {/* once closing starts nothing inside can be used (inert), so a form can't be sent while it slides away and
+          then lose its draft and its error when the close finishes */}
       <section ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label ?? (typeof title === "string" ? title : "Details")}
+        inert={closing ? true : undefined}
         className={`pn-sheet ${current} ${closing ? "closing" : "open"} ${drag ? "dragging" : ""} ${className}`}
         style={!drag ? undefined : drag < 0 && current === "half" ? { height: `min(92dvh, calc(52dvh + ${-drag}px))` } : { "--pn-drag": `${drag}px` }}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
