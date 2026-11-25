@@ -1,6 +1,8 @@
 import { Component, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useDialogFocus } from "./useDialogFocus";
+import { usePhoneLayout } from "./navigation/usePhoneLayout";
+import { BottomSheet } from "./navigation/BottomSheet";
 
 // Shared building blocks for the business app (Stitch design).
 
@@ -48,7 +50,22 @@ export function Pill({ tone, dot, pulse, children }) {
   );
 }
 
-export function Modal({ title, description, onClose, children, footer, busy, wide, icon, tone }) {
+// On a phone (under 768 wide) the same dialog is a bottom sheet (P12, approved 25 Nov 2026): details open at half
+// height, a form or a question with buttons takes the height it needs. `sheet` chooses the size when that guess is
+// wrong ("half", "full" or "fit"). Tablets and desktops keep the centred box.
+export function Modal(props) {
+  const phone = usePhoneLayout();
+  if (!phone) return <CentredModal {...props} />;
+  const { title, description, onClose, children, footer, busy, icon, tone, sheet } = props;
+  return (
+    <BottomSheet title={title} description={description} onClose={onClose} busy={busy} icon={icon} tone={tone}
+      size={sheet ?? (footer ? "fit" : "half")} footer={footer}>
+      {children}
+    </BottomSheet>
+  );
+}
+
+function CentredModal({ title, description, onClose, children, footer, busy, wide, icon, tone }) {
   // focus moves in when it opens, Tab stays inside, Escape closes (unless busy), focus returns to the opener
   const dialogRef = useDialogFocus(onClose, busy);
 

@@ -1,3 +1,4 @@
+import { TodayTopSlot } from "./navigation/phoneContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import UsageLive from "./UsageLive";
 import { supabase } from "./supabase";
@@ -450,6 +451,8 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
 
       {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={load}>Try again</button></div>}
       {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
+      {/* On a phone: "Needs you now" (approved 25 Nov 2026, P14). Nothing on a tablet or desktop. */}
+      <TodayTopSlot />
       {isToday && <UsageLive workspace={workspace} onGo={onGo} />}
 
       <div className="td-kpis">

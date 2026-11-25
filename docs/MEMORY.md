@@ -166,6 +166,23 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Phone navigation (owner, 25 Nov 2026, "Yes to all"; `docs/ARCHITECTURE.md` §23.1d, REQ-MOB-02 to REQ-MOB-11):**
+  all of P1 to P29 approved for both apps. Built in the phone navigation pull request (not merged when written):
+  - Under 768 wide both apps get a bottom bar (five tabs), a side panel from More, bottom sheets, a sticky main
+    action, skeletons, pull to refresh, swipe rows with visible buttons, toasts with Undo and a live strip. The admin
+    gets the full version too, including from 600 to 767 (it had the icon rail there). 768 to 1023 keeps the icon rail.
+  - The header menu button is removed on phones; More replaces it.
+  - Restaurant: Today, Calendar, Tables, Inbox, More. Salon: Today, Calendar, Clients, Inbox, More. The work tab says
+    "Calendar" for every industry. Admin: Overview, Businesses, Support, Operations, More.
+  - Later, not now: owners picking their own tabs (D-56); live call status and unread inbox counts, as their own
+    task (D-57). The live strip shows only callers waiting for a person (CRM) and open incidents (admin).
+  - Undo never needs a reverse call: a quick change (task done, ticket assigned or resolved) is only sent once its
+    5 second Undo window has passed (`deferChange` in `web/src/navigation/phoneHelpers.js`).
+  - **"Needs you now should show in the notification" (owner, 25 Nov 2026, REQ-MOB-12):** every "Needs you now"
+    item is also in the CRM bell and its unread count, phone and desktop, opening the same page. Built in the app
+    (`web/src/crm/needsNowNotes.js`), no migration: `staff_notifications` rows are delivered by email, text and push,
+    and these must stay in the app. One note per call or task; it leaves when the item is dealt with; a server
+    `escalation_unacknowledged` or `task_overdue` row for the same item is hidden, then marked read once it is dealt with.
 - **Admin dashboard polish (owner, 25 Nov 2026):** 21 admin dashboard changes approved ("yes to all"): polish only,
   Glass and the brand kept, admin only; the CRM does not change. The admin's motion is now calm (no lift, sheen or
   ripple), which supersedes the 6 Nov lively motion rule for the admin only. Details in `docs/DESIGN_SYSTEM.md`

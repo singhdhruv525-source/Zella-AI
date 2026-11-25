@@ -373,6 +373,27 @@ every screen against a stand in that follows the contract (`tests/browser/owner-
 
 ---
 
+### 8.9 Phone navigation (both apps)
+
+Approved by the owner on 25 Nov 2026 ("Yes to all", P1 to P29; `docs/ARCHITECTURE.md` §23.1d, REQ-MOB-02 to
+REQ-MOB-11). On a phone (under 768 wide) the CRM and the admin dashboard work like a phone app. Tablets (768 to 1023)
+keep the slim icon rail and desktops keep the sidebar, unchanged.
+
+| Part | What it does | Status |
+|---|---|---|
+| **Bottom bar** | Five tabs. CRM: Today, a work tab, a focus tab, Inbox, More, chosen from what the business does and what the person's role can open. Restaurant: Today, Calendar, Tables, Inbox, More. Salon or spa: Today, Calendar, Clients, Inbox, More. Clinic, dental or vet: Today, Calendar, Check ins, Inbox, More. Home services: Today, Dispatch, Leads, Inbox, More. Online store: Today, Orders, Customers, Inbox, More. Admin: Overview, Businesses, Support, Operations, More. Counts: callers waiting for a person on Inbox, spam to review on More, open tickets on Support, open alerts on Operations. Tap the open tab to go back to the top; each tab keeps its scroll, search and filters | Built |
+| **Side panel** | More opens every page, in the desktop menu's groups, with the business switcher (CRM) or platform card (admin), the receptionist card or platform status, and My profile, Password and security, Appearance and theme, Sign out. The menu button in the header is gone on phones | Built |
+| **Top bar** | One row. CRM: the business (tap to switch), search, the bell. Admin: the Zella Voice mark, the page name once the heading has scrolled away, search, the bell | Built |
+| **Sticky action** | The page's main action above the bar: New booking (in the industry's word) on Today and Calendar, Seat a walk in on Tables, New task, Add lead, Create business. On Today a round button opens Quick actions: Seat a walk in, Add lead, New task, Tell callers | Built |
+| **Bottom sheets** | Details and quick choices open from the bottom at half height; drag up for full height or down to close. Covers a booking, a person, a business in the admin, a task, a ticket, quick actions, the business switcher and every dialog | Built |
+| **Live strip** | Above the bar while something is happening now: callers waiting for a person, with the one waiting longest (CRM); open incidents (admin) | Built |
+| **Needs you now** | The top of Today on a phone: callers waiting for a person, overdue tasks and calls to review in Spam protection, each opening its page. Hidden when nothing needs the owner | Built |
+| **Needs you now in the bell** | Every "Needs you now" item is also in the notification bell and its count, on phones and desktops: each caller waiting for a person, each overdue task, the calls to review in Spam protection (past 500 waiting callers or 100 overdue tasks, the rest share one note, "And N more"). A tap opens the same page; the note leaves once the item is dealt with, and a server notification about the same call or task isn't shown twice. In the app only, never sent by text, email or push (owner, 25 Nov 2026) | Built |
+| **Swipe and Undo** | Swipe a task left to call back or mark it done; a callback to call or mark it called (which still asks how it went); an admin ticket to assign it to yourself or resolve it. Each has a visible button too. Marking a task done or dismissing it, and assigning or resolving a ticket, show at once with Undo for 5 seconds, and are only saved after that, so Undo is always safe; if saving fails the change comes back with a message | Built |
+| **Pull to refresh, placeholders, keyboard** | Pull down to refresh Today, Calendar, Inbox, Tasks, Leads, Businesses and Support; grey placeholder shapes while a page loads; the bar steps aside while the keyboard is open; nothing hides behind the bar or the phone's home area | Built |
+| **Call in progress strip, unread counts** | "Ava is on a call" and unread texts and emails on Inbox need live call status and read state from the backend | Not built: later, as its own task (owner, 25 Nov 2026) |
+| **Owners choosing their tabs** | Each owner picks the bar's tabs | Not built: later (owner, 25 Nov 2026) |
+
 ## 9. Platform admin (Zella Voice staff)
 
 Each page needs a named permission, the same one the server checks for its data. An admin with a restricted role sees
@@ -682,6 +703,8 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 | Meta channels in launch scope | Owner and counsel (D-39) |
 | Calendar providers at launch | Owner (D-08) |
 | Push notification provider | Owner (D-40) |
+| Phone: "call in progress" strip and unread inbox counts (need live call status and read state) | Later, its own task (D-57, owner 25 Nov 2026) |
+| Phone: owners choosing their own tabs | Later (D-56, owner 25 Nov 2026) |
 | Self check-in | Later (D-15) |
 | Call recording | Legal review (D-13) |
 | Automatic deletion at end of retention | Built, not deployed, off: nothing is automatic. Purge runs approved by two people (Data retention), including a whole canceled business past its retention date (after a recorded final export offer at least 14 days old, refused while it has billing records, offer history or phone numbers, or while deleting would erase its audit history). Waits for legal review |
