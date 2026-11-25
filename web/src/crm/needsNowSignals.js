@@ -36,7 +36,10 @@ export function spamRead(res, allowed = true) {
 // (missing, null, "", true, "a few", NaN, negative) is not a count, and the read counts as failed, never as 0.
 export function countValue(v) {
   if (typeof v === "number") return Number.isFinite(v) && v >= 0 ? v : null;
-  if (typeof v === "string" && /^\s*\d+(\.\d+)?\s*$/.test(v)) return Number(v);
+  if (typeof v === "string" && /^\s*\d+(\.\d+)?\s*$/.test(v)) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;   // a string of hundreds of digits overflows to Infinity: not a count
+  }
   return null;
 }
 

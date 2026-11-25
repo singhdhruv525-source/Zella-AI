@@ -311,7 +311,16 @@ const STORES = {};
 export function pendingStoreFor(scope) {
   if (!STORES[scope]) {
     STORES[scope] = createPendingStore();
-    if (typeof window !== "undefined") window.addEventListener("pagehide", () => { STORES[scope].flushAll(); });
+    if (typeof window !== "undefined") {
+      // closing the tab: each waiting change goes out as a keepalive request the browser lets finish (best effort)
+      window.addEventListener("pagehide", () => { STORES[scope].unloadAll(); });
+      // a waiting change that can't be sent that way: the browser asks before the tab closes
+      window.addEventListener("beforeunload", (e) => {
+        if (!STORES[scope].waitingWithoutBeacon()) return;
+        e.preventDefault();
+        e.returnValue = "";
+      });
+    }
   }
   return STORES[scope];
 }

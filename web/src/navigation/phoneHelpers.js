@@ -134,19 +134,26 @@ export function createTabMemory() {
 // Several quick changes can wait at once; one toast offers Undo for all of them (undoAll), so none loses its Undo.
 // (the browser's timers must be called as plain functions, never as methods of another object)
 const TIMERS = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (t) => clearTimeout(t) };
-export function deferChange({ apply, commit, revert, onError, ms = 5000, timers = TIMERS }) {
+//   beacon()  optional: sends the change in a way that survives the tab closing (fetch keepalive); returns true when
+//             it could start the send. Used only when the page is going away (unload()).
+export function deferChange({ apply, commit, revert, onError, beacon, ms = 5000, timers = TIMERS }) {
   let state = "waiting";
+  let sending = null;   // the send in progress: a later flush() returns it, so signing out waits for it
   apply?.();
-  const send = async () => {
-    if (state !== "waiting") return;
+  const send = () => {
+    if (state === "sent") return sending ?? Promise.resolve();
+    if (state !== "waiting") return Promise.resolve();   // undone: nothing to send
     state = "sent";
-    try {
-      const result = await commit();
-      if (result && result.error) throw result.error;
-    } catch (err) {
-      revert?.();
-      onError?.(err);
-    }
+    sending = (async () => {
+      try {
+        const result = await commit();
+        if (result && result.error) throw result.error;
+      } catch (err) {
+        revert?.();
+        onError?.(err);
+      }
+    })();
+    return sending;
   };
   const timer = timers.setTimeout(send, ms);
   return {
@@ -158,6 +165,15 @@ export function deferChange({ apply, commit, revert, onError, ms = 5000, timers 
       return true;
     },
     flush() { timers.clearTimeout(timer); return send(); },
+    // the page is closing (pagehide): a request the browser keeps alive when it can, else the usual send
+    unload() {
+      if (state !== "waiting") return false;
+      timers.clearTimeout(timer);
+      if (beacon && beacon()) { state = "sent"; sending = Promise.resolve(); return true; }
+      send();
+      return false;
+    },
+    get canBeacon() { return Boolean(beacon); },
     get state() { return state; },
   };
 }
@@ -197,5 +213,27 @@ export function createPendingStore() {
     waiting() { return [...pending.values()].filter((e) => e.change.state === "waiting").length; },
     subscribe(f) { subs.add(f); return () => subs.delete(f); },
     flushAll() { return Promise.all([...pending.values()].map((e) => e.change.flush())); },
+    // the tab is closing: each waiting change goes out as a keepalive request where it can
+    unloadAll() { [...pending.values()].forEach((e) => e.change.unload?.()); },
+    // changes still waiting that can't be sent that way (the browser is asked to confirm leaving while there are any)
+    waitingWithoutBeacon() { return [...pending.values()].filter((e) => e.change.state === "waiting" && !e.change.canBeacon).length; },
+  };
+}
+
+// The request for a change sent while the tab closes (fetch with keepalive: true, so the browser lets it finish):
+// the same endpoint and headers the Supabase client uses. Pure: the caller supplies the address, the publishable key
+// and the signed in person's access token; returns null without a token (then the change can't go this way).
+//   kind "rpc": a database function (/rest/v1/rpc/<name>); kind "function": an edge function (/functions/v1/<name>)
+export function keepaliveRequest({ url, key, token }, kind, name, body) {
+  if (!url || !key || !token || !name) return null;
+  const path = kind === "rpc" ? `/rest/v1/rpc/${encodeURIComponent(name)}` : kind === "function" ? `/functions/v1/${encodeURIComponent(name)}` : null;
+  if (!path) return null;
+  return {
+    url: `${url}${path}`,
+    init: {
+      method: "POST", keepalive: true,
+      headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body ?? {}),
+    },
   };
 }

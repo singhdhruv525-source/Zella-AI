@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildNavigation, flatten } from "../src/navigation/navConfig.js";
 import { MORE_TAB, PHONE_QUERY, adminTabs, badgeText, crmTabs, selectedTab, tabName } from "../src/navigation/phoneTabs.js";
-import { SIGNAL_START, adminStripFor, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
+import { SIGNAL_START, adminStripFor, createPendingStore, keepaliveRequest, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
 import {
   adminStrip, createTabMemory, crmStrip, deferChange, keyboardOpen, needsNowRows, panelDrag, panelReleaseCloses,
   pullDistance, pullReleaseRefreshes, rowDrag, rowReleaseOpens, sheetRelease, waitLabel,
@@ -370,4 +370,62 @@ test("several quick changes waiting at once: one Undo calls off every one still 
   await timers.run();
   assert.equal(undoAll([c]), 0, "one already sent is left alone");
   assert.deepEqual(sent, ["c"]);
+});
+
+test("a change already being sent: a later flush waits for that send (sign out waits for it)", async () => {
+  const timers = fakeTimers();
+  let finish;
+  const log = [];
+  const c = deferChange({ commit: () => new Promise((r) => { finish = r; }), timers });
+  const first = c.flush();
+  let waited = false;
+  const second = c.flush().then(() => { waited = true; log.push("second done"); });
+  await Promise.resolve();
+  assert.equal(waited, false, "the second flush is still waiting for the send in flight");
+  finish();
+  await first; await second;
+  assert.equal(waited, true);
+  // an undone change has nothing to wait for
+  const u = deferChange({ commit: async () => log.push("sent"), timers });
+  u.undo();
+  await u.flush();
+  assert.deepEqual(log, ["second done"]);
+});
+
+test("closing the tab: waiting changes go out as keepalive requests where they can", async () => {
+  const timers = fakeTimers();
+  const beacons = [];
+  const store = createPendingStore();
+  const withBeacon = deferChange({ commit: async () => beacons.push("normal send"), beacon: () => { beacons.push("keepalive"); return true; }, timers });
+  const noBeacon = deferChange({ commit: async () => beacons.push("fallback send"), timers });
+  store.add("a", withBeacon, {}); store.add("b", noBeacon, {});
+  assert.equal(store.waitingWithoutBeacon(), 1, "the browser asks before closing while this one waits");
+  store.unloadAll();
+  await Promise.resolve();
+  assert.deepEqual(beacons.sort(), ["fallback send", "keepalive"]);
+  assert.equal(withBeacon.state, "sent");
+  await timers.run();
+  assert.equal(beacons.length, 2, "nothing is sent twice when the timers would have fired");
+  // a beacon that couldn't start (no session): the usual send instead
+  const tried = [];
+  const c = deferChange({ commit: async () => tried.push("send"), beacon: () => false, timers });
+  c.unload();
+  await Promise.resolve();
+  assert.deepEqual(tried, ["send"]);
+});
+
+test("the keepalive request: same endpoint and headers as the client, never without a token", () => {
+  const cfg = { url: "https://example.supabase.co", key: "publishable-key", token: "user-token" };
+  const rpc = keepaliveRequest(cfg, "rpc", "zella_complete_task", { p_task_id: "t1" });
+  assert.equal(rpc.url, "https://example.supabase.co/rest/v1/rpc/zella_complete_task");
+  assert.equal(rpc.init.method, "POST");
+  assert.equal(rpc.init.keepalive, true);
+  assert.deepEqual(rpc.init.headers, { "Content-Type": "application/json", apikey: "publishable-key", Authorization: "Bearer user-token" });
+  assert.equal(rpc.init.body, JSON.stringify({ p_task_id: "t1" }));
+  const fn = keepaliveRequest(cfg, "function", "owner-provision-business", { action: "ticket_update", ticketId: "st1", status: "resolved" });
+  assert.equal(fn.url, "https://example.supabase.co/functions/v1/owner-provision-business");
+  assert.equal(JSON.parse(fn.init.body).action, "ticket_update");
+  assert.equal(keepaliveRequest({ ...cfg, token: null }, "rpc", "x", {}), null);
+  assert.equal(keepaliveRequest({ ...cfg, key: "" }, "rpc", "x", {}), null);
+  assert.equal(keepaliveRequest(cfg, "other", "x", {}), null);
 });

@@ -176,8 +176,11 @@ most often needed:
     "Calendar" for every industry. Admin: Overview, Businesses, Support, Operations, More.
   - Later, not now: owners picking their own tabs (D-56); live call status and unread inbox counts, as their own
     task (D-57). The live strip shows only callers waiting for a person (CRM) and open incidents (admin).
-  - Undo never needs a reverse call: a quick change (task done, ticket assigned or resolved) is only sent once its
-    5 second Undo window has passed (`deferChange` in `web/src/navigation/phoneHelpers.js`).
+  - Undo never needs a reverse call: a quick change (task done or dismissed, ticket assigned or resolved) is sent once
+    its 5 second Undo window has passed (`deferChange` in `web/src/navigation/phoneHelpers.js`). Two exceptions send
+    the waiting changes at once: closing the tab (pagehide, as fetch keepalive requests, best effort) and signing out
+    (sent first, then signed out). The window governs every other send, including leaving the page or switching
+    business.
   - **"Needs you now should show in the notification" (owner, 25 Nov 2026, REQ-MOB-12):** every "Needs you now"
     item is also in the CRM bell and its unread count, phone and desktop, opening the same page. Built in the app
     (`web/src/crm/needsNowNotes.js`), no migration: `staff_notifications` rows are delivered by email, text and push,
