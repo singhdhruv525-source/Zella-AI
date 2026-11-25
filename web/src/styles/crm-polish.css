@@ -1,0 +1,100 @@
+/* =========================================================
+   CRM polish (owner approved 25 Nov 2026, 26 changes, "yes to whole CRM").
+   Only the business CRM: every rule starts with html:root:has(.ba-root), so the admin dashboard (.owner-app) never
+   changes, and popups the CRM opens outside its root are covered too. Loaded last (main.jsx), after motion.css, so
+   these refine the shared files without editing their admin rules. Glass, the dock and the picture palette stay.
+   Motion: one easing curve cubic-bezier(0.22, 1, 0.36, 1); 150ms for hover and press, 200ms for menus,
+   400ms for things that enter. Nothing lifts, bounces, springs, shines or ripples.
+   ========================================================= */
+
+/* ---------- Motion (changes 21 to 24) ---------- */
+/* 21. Buttons: no shine, no ripple, no lift or shadow on hover, icons stay their size; a colour change and a small
+   press. The focus ring stays. */
+html:root:has(.ba-root) :is(.ba-btn, .zs-btn, .cp-button, .bd-danger-button, .ba-icon-btn)::after { content: none; }
+html:root:has(.ba-root) .ba-ripple { display: none; }
+html:root:has(.ba-root) :is(.ba-btn, .zs-btn, .cp-button, .bd-danger-button, .ba-icon-btn):hover:not(:disabled) { transform: none; box-shadow: none; }
+html:root:has(.ba-root) :is(.ba-btn, .zs-btn, .cp-button, .bd-danger-button, .ba-icon-btn):hover:not(:disabled) :is(.ba-icon, .material-symbols-rounded, svg) { transform: none; }
+html:root:has(.ba-root) :is(.ba-btn, .zs-btn, .cp-button, .bd-danger-button, .ba-icon-btn):focus-visible,
+html:root:has(.ba-root) :is(.ba-btn, .zs-btn, .cp-button, .bd-danger-button, .ba-icon-btn):focus-visible:hover:not(:disabled) { box-shadow: 0 0 0 3px var(--zella-primary-ring, var(--ba-primary-ring)); }
+
+/* 22. Cards stay where they are under the pointer; their icons don't bounce; the border brightens instead. */
+html:root:has(.ba-root) :is(.ba-kpi, .td-card, .ba-panel, .zs-card, .op-card, .pl-card, .vq-stat, .tb-card, .ba-item):hover { transform: none; border-color: var(--zella-border-strong); }
+html:root:has(.ba-root) :is(.ba-kpi, .op-card, .pl-card):hover :is(.ba-kpi-icon, .td-kpi-icon) { animation: none; }
+
+/* 23. Tabs and status labels don't spring in; sidebar items don't slide toward the pointer. */
+html:root:has(.ba-root) :is(.ba-segment button, .td-tabs button, .ba-panel-tabs button, .op-tabs button, .ao-chip, .zs-chip):is(.active, [aria-selected="true"], [aria-pressed="true"]) { animation: none; }
+html:root:has(.ba-root) :is(.ba-pill, .owner-status) { animation: none; }
+html:root:has(.ba-root) :is(.ba-nav-item, .zs-nav a, .zs-nav button):hover { transform: none; }
+
+/* 24. One curve and a few durations for what still moves. */
+@media (prefers-reduced-motion: no-preference) {
+  html:root:has(.ba-root) :is(.ba-btn, .zs-btn, .cp-button, .bd-danger-button, .ba-icon-btn) {
+    transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), border-color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      color 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html:root:has(.ba-root) :is(.ba-btn, .zs-btn, .cp-button, .bd-danger-button, .ba-icon-btn):active:not(:disabled) { transform: scale(0.98); box-shadow: none; transition-duration: 150ms; }
+  html:root:has(.ba-root) :is(.ba-segment button, .td-tabs button, .ba-panel-tabs button, .op-tabs button, .ao-chip, .zs-chip) {
+    transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html:root:has(.ba-root) :is(.ba-segment button, .td-tabs button, .op-tabs button, .ao-chip, .zs-chip):active { transform: scale(0.98); }
+  html:root:has(.ba-root) :is(.ba-kpi, .ba-panel, .td-card, .zs-card, .op-card, .pl-card, .vq-stat, .tb-card, .ba-item) {
+    transition: border-color 150ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html:root:has(.ba-root) :is(.ba-nav-item, .zs-nav a, .zs-nav button) { transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+  html:root:has(.ba-root) :is(.ba-table, .zs-table) tbody tr { transition: background-color 150ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+  /* the page eases in once, its parts 40ms apart */
+  html:root:has(.ba-root) .ba-content > :not([role="dialog"]) { animation-duration: 400ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+  /* menus and popups */
+  html:root:has(.ba-root) :is(.ba-menu, .ba-bell-panel, .ba-modal-backdrop, .bp-backdrop, .zs-overlay) { animation-duration: 200ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+  /* the side panel keeps its sideways slide; dialogs are set below */
+  html:root:has(.ba-root) .bp-panel { animation-duration: 300ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+  html:root:has(.ba-root) :is(.zs-dialog-icon, .ao-dialog-icon, .ba-modal-icon) { animation: none; }
+  html:root:has(.ba-root) :is(.tb-card, .bp-msg) { transition: border-color 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+  html:root:has(.ba-root) :is(.tb-card, .bp-msg):hover { transform: none; box-shadow: none; }
+}
+
+/* Dialogs (owner, 25 Nov 2026): a centred dialog opens with a fade only, no rise, pop or scale. The one exception is
+   the phone bottom sheet (under 641px, where .ba-modal and .zs-dialog run ba-sheet / zella-sheet), which keeps its
+   slide up from the bottom edge. The booking side panel keeps its sideways slide (bp-slide). */
+@media (prefers-reduced-motion: no-preference) and (min-width: 641px) {
+  html:root:has(.ba-root) :is(.ba-modal, .zs-dialog, .bd-confirm, .owner-modal) {
+    animation: crm-fade 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  html:root:has(.ba-root) .bd-confirm { animation: crm-fade 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  html:root:has(.ba-root) :is(.ba-modal, .zs-dialog) { animation-duration: 300ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
+}
+@keyframes crm-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- Type (changes 17 and 19) ---------- */
+/* 17. Titles, figures, names and times in a medium weight; the page title keeps 600. Figures without negative
+   tracking; the Zella Voice theme keeps its own tracked page title (zella-theme.css). */
+html:root:has(.ba-root) :is(.ba-panel-head h2, .ba-h2, .zs-card-head h3) { font-weight: 500; letter-spacing: 0; }
+html:root:has(.ba-root) .ba-kpi-value { font-weight: 500; letter-spacing: 0; }
+html:root:has(.ba-root) :is(.ba-namebtn, .cal-agenda-time, .ba-ev-time, .ba-slot-time) { font-weight: 500; }
+html:root:has(.ba-root) .ba-pill { font-weight: 500; }
+html:root:has(.ba-root) .ba-page-head h1 { letter-spacing: 0; }
+
+/* 19. Sidebar section names in sentence case, not spaced capitals. */
+html:root:has(.ba-root) .ba-nav-group { font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+
+/* ---------- Details ---------- */
+/* 20. "You are here": the thin accent bar on the selected sidebar item in every CRM theme, the dock included (the
+   Zella Voice theme already has its coral bar). */
+html:not([data-zella-theme="zella"]):root:has(.ba-root) .ba-sidebar .ba-nav-item.active { box-shadow: inset 3px 0 0 var(--zella-primary); }
+
+/* 16. Glass: the floating sidebar and top bar corners on the 4px grid, nearer the cards (the dock stays a pill). */
+@media (min-width: 761px) {
+  html[data-zella-theme="glass"]:root:has(.ba-root) .ba-sidebar { border-radius: 20px; }
+  html[data-zella-theme="glass"]:root:has(.ba-root) .ba-header { border-radius: 16px; }
+}
+
+/* 13. Glass with the "Plain" background: a flat warm dark colour instead of the purple haze (pictures unchanged). */
+html[data-zella-theme="glass"]:root:has(.ba-root) body::before {
+  background: var(--zella-wallpaper, none) center / cover no-repeat, var(--zella-glass-base, #1b1613);
+}
+
+/* 11. The top guests mark in the text colour (Glass gave it its own gold). */
+html:root:has(.ba-root) .td-list li .td-star { color: var(--zella-text-secondary); }

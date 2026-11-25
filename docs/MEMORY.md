@@ -209,6 +209,12 @@ most often needed:
     REQ-BIL-32, D-44); a caller silent for 1 minute gets a polite goodbye and the call ends (REQ-VOX-13, `AI-24`; built in
     `sql/zella_silence_timeout.sql`, not applied yet); urgent texts are always on for team members, and only the
     business owner changes who gets them (§28, REQ-CRM-23).
+  - **CRM polish (25 Nov 2026)** (architecture §23.1d, `AGT-9`): the owner approved all 26 changes of the design pass
+    on the CRM Today page, "yes to whole CRM". Polish only: Glass, the dock, the picture palette and the brand stay;
+    no feature, section or order changes. Revised the same day: Today's date and business name sit on two lines, not
+    joined by a middle dot ("A · B" meta lines read as a template tell). The motion changes apply to every CRM page; the admin dashboard is not
+    changed by it (its own pass is separate). Rules in `web/src/styles/crm-polish.css`, scoped to the CRM root.
+
   - **Audit bug fixes approved (owner, 25 Nov 2026):** fix in one small pull request the crashes and wording bugs the
     page audits found: A41 (Industry configuration shows "Industries didn't load." with Try again, never a code
     error), the Reporting configuration and Auto reload crashes on empty or missing data, and C33, C36, C39, C45
