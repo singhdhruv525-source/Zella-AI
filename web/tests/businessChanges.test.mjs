@@ -21,4 +21,8 @@ test("changeRows lists every changed field with before and after", () => {
   assert.deepEqual(changeRows(null, { status: "sent" }).map((r) => [r.label, r.after, r.hadBefore]), [["Status", "sent", false]]);
   assert.deepEqual(changeRows(["x"], "text"), []);
   assert.deepEqual(changeRows({ a: 1 }, { a: 1 }), []);
+  // a single record lists its null fields too; with both records an unchanged null stays out
+  assert.deepEqual(changeRows(null, { suspended_at: null }).map((r) => [r.label, r.after]), [["Suspended at", "not set"]]);
+  assert.deepEqual(changeRows({ suspended_at: null }, null).map((r) => [r.label, r.before]), [["Suspended at", "not set"]]);
+  assert.deepEqual(changeRows({ suspended_at: null, a: 1 }, { suspended_at: null, a: 2 }).map((r) => r.key), ["a"]);
 });

@@ -36,7 +36,9 @@ function relative(value) {
 
 // What an opened entry changed, as a readable list (owner approved 25 Nov 2026); the raw record is one click away.
 // "not set" reads "Not set"; a stored moment reads "Nov 16, 2026 at 2:49 PM" (the raw record keeps the stored value)
-const cap = (v) => (v === "not set" ? "Not set" : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) ? fullDateTime(v) : v);
+// (only a whole, valid timestamp is reformatted; anything else, such as month 13, keeps its own text)
+const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+const cap = (v) => (v === "not set" ? "Not set" : STAMP.test(v) && !Number.isNaN(new Date(v).getTime()) ? fullDateTime(v) : v);
 function ChangeList({ log }) {
   const rows = changeRows(log.old_data, log.new_data);
   if (!rows.length) return <p className="op-muted al-changes-none">No field changed in this entry.</p>;
