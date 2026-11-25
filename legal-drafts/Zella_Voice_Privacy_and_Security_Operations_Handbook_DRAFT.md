@@ -72,12 +72,13 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 
 1. **Log it.** Record the request in the CRM's data rights requests: the kind (access, export or erasure), the requester and a note. It is due 30 days after it is recorded, and a reminder is sent before it is due.
 2. **Verify identity.** The Customer confirms the requester's identity using information it already holds. A request is not acted on until the identity is verified.
-3. **Access or export.** The Owner exports the customer's records, or the customers and call history, as CSV. A whole business export can be requested from Zella Voice.
+3. **Access or export.** The Owner exports the customer's records, or the customers and call history, as CSV. A whole business export can be requested from Zella Voice. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 4. **Correct.** Staff correct the record in the CRM.
-5. **Erase.** The Owner erases the customer. A second person must approve. Details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is queued. Consent and opt out history is kept so that opt outs keep working.
-6. **Opt out.** Opt outs by STOP, unsubscribe link or "don't call me" take effect immediately for that business and need no request.
-7. **Legal hold.** If a legal hold applies, the data under hold is kept until the hold is released, and the requester is told what was kept and why where the law allows.
-8. **Close.** Mark the request done. Every step is recorded in the audit log.
+5. **Check for a legal hold.** Before any erasure, check whether a legal hold applies to the customer or the business. Data under a hold is excluded from erasure and from deletion at Vapi or any other provider until the hold is released. If a hold applies, ask Zella Voice before continuing.
+6. **Erase.** The Owner erases the customer, except data under a hold. A second person must approve. Details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is queued; calls under a hold are not queued until the hold is released. Consent and opt out history is kept so that opt outs keep working. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+7. **Opt out.** Opt outs by STOP, unsubscribe link or "don't call me" take effect immediately for that business and need no request.
+8. **Report what was kept.** Tell the requester what was kept and why, including data under a legal hold (kept until the hold is released and then deleted on schedule), where the law allows.
+9. **Close.** Mark the request done. Every step is recorded in the audit log.
 
 ### B3. How Zella Voice handles an Account Data request
 
@@ -202,6 +203,7 @@ Placeholders in this document:
 - **[VENDOR CONTRACT NOTICE TERMS]**
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**

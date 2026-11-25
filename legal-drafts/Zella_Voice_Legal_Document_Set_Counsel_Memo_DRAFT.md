@@ -69,6 +69,8 @@ The separate files were removed after merging; their full text is inside the mer
 
 ## 4. Claims that must not be published until the feature is on
 
+In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**, **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** or a more specific placeholder. Remove each only when the feature is live.
+
 | Claim in the documents | Status in the source documents |
 |---|---|
 | Recordings and transcripts deleted automatically after 90 days | Built, not applied; purge switch off; periods pending legal review |
@@ -120,6 +122,7 @@ The separate files were removed after merging; their full text is inside the mer
 25. HR providers and retention periods for applicant, employee and payroll records.
 26. Product fix before texts go live: make the text sender use the recipient's time zone when known (rulebook COM 3) and enforce every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time); confirm the hour ranges.
 27. Product fix: redact payment card numbers that callers speak from call transcripts (and summaries), and check existing transcripts.
+28. Trial start (checkout start in the payment design, or another point) and whether packs, automatic reload and pay as you go stay unavailable during the trial (Terms 9.2 and 9.7, Order Form section 4).
 
 ## 6. Points for counsel
 
@@ -187,7 +190,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 18. The Consent Pack quotes message templates exactly, including one British spelling that the product should fix.
 19. The Messaging Terms keep the architecture's proposed consent wording; the Consent Pack's recommended wording adds message frequency and HELP, for counsel to choose.
 20. Requirement and decision identifiers from the source documents are written with spaces (for example D 49, PRV 4) to keep the no dashes rule.
-21. The Terms now separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends, or without a trial the day the Owner first signs in). The docs fix the billing date but not the trial's start; the drafts start the trial at the Owner's first sign in through the invitation. Confirm.
+21. The Terms separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends, or without a trial the day the Owner first signs in). The Trial Period now starts when the Owner starts checkout during onboarding, after identity verification, matching the payment design (the Checkout Session sets the trial end 5 days after it is created). Nothing is charged during the trial: the setup fee goes on the first paid invoice, and packs, automatic reload and pay as you go are not available until the Subscription Term (a placeholder for the owner to confirm). Terms 9.2 and 9.7, the Order Form and the DPA duration ("any Trial Period") match.
 22. Order Form special terms prevail only where they expressly override a named provision (Terms section 26 and Order Form section 7 use the same rule).
 23. Service credits for yearly Plans use the monthly equivalent: the yearly Fee divided by 12, then by 30, per affected day; the cap is the yearly Fee divided by 12.
 24. No payment card details may be entered anywhere in the Services; payment details go only on Stripe's hosted page (Terms 5.10 and Schedule 1).
@@ -214,6 +217,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[MEMO DATE]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 ### Zella Voice Terms of Service
 
@@ -221,9 +225,12 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
+- **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
+- **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
@@ -261,6 +268,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
@@ -286,6 +294,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
@@ -353,6 +362,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
 - **[TRIAL VARIATION OR NONE]**
+- **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 - **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
@@ -366,6 +376,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[SUBPROCESSOR LIST LOCATION]**
@@ -403,6 +414,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[FIRST STATEMENT OF WORK REFERENCE]**
 - **[COUNSEL TO CONFIRM CLASSIFICATION FOR THE CONTRACTOR'S LOCATION]**
 - **[PAYMENT TERMS]**
+- **[CONTRACTOR CONFIDENTIALITY PERIOD]**
 - **[ATTACH DATA PROCESSING TERMS IF CONTRACTOR WILL ACCESS PERSONAL DATA]**
 - **[TERMINATION NOTICE PERIOD]**
 - **[LIST OF PRIOR INVENTIONS OR "NONE"]**
@@ -416,6 +428,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[FOUNDER NAME]**
 - **[FOUNDER NAMES]**
 - **[CONSIDERATION, FOR EXAMPLE MEMBERSHIP INTERESTS ISSUED OR ONE DOLLAR AND OTHER GOOD AND VALUABLE CONSIDERATION]**
+- **[FOUNDER CONFIDENTIALITY PERIOD]**
 - **[COUNSEL TO CONFIRM WHETHER A CONTRIBUTION AGREEMENT UNDER THE OPERATING AGREEMENT IS ALSO NEEDED]**
 - **[LIST OF ASSETS, FOR EXAMPLE CODE REPOSITORIES, DOMAINS AND ACCOUNTS]**
 - **[EXCEPTIONS OR "NONE"]**
@@ -432,6 +445,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[NON RENEWAL NOTICE PERIOD]**
 - **[UNLESS COUNSEL AGREES A TAIL PERIOD]**
 - **[COUNSEL TO CONFIRM TRANSITION OF RESALE CUSTOMERS]**
+- **[PARTNER CONFIDENTIALITY PERIOD]**
 - **[COUNSEL TO CONFIRM LIABILITY TERMS]**
 - **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES]**
 - **[NON SOLICITATION PERIOD]**
@@ -453,6 +467,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[VENDOR CONTRACT NOTICE TERMS]**
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**

@@ -83,7 +83,7 @@ We use Customer Personal Data only to provide the Services to the Customer under
 
 5.1 Zella Voice uses artificial intelligence to hold telephone conversations, to transcribe and summarize calls and, where enabled, to suggest knowledge answers and review replies and to classify calls by topic.
 
-5.2 **Callers are always told.** At the start of every call, the AI Receptionist says it is an AI receptionist for the Customer. A Customer cannot remove this disclosure.
+5.2 **Callers are always told.** At the start of every call, the AI Receptionist says it is an AI receptionist for the Customer. A Customer cannot remove this disclosure. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 5.3 **Limits.** The AI Receptionist answers only from the Customer's approved knowledge and checked tools, takes a message when it does not know, gives no medical, legal, financial or safety advice, and tells callers in an emergency to call 911.
 
@@ -158,11 +158,11 @@ We keep Personal Data only as long as needed for the purposes in section 4. The 
 
 ## 11. Export, erasure and account deletion
 
-11.1 **Export.** Owners can export customers and call history as CSV at any time and can request a whole business export, downloadable for 7 days. Recording links, and transcripts of Customers in Regulated Industries, are left out of that export.
+11.1 **Export.** Owners can export customers and call history as CSV at any time and can request a whole business export, downloadable for 7 days. Recording links, and transcripts of Customers in Regulated Industries, are left out of that export. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept. Erasure needs a second person's approval at the Customer.
+11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept. Erasure needs a second person's approval at the Customer. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. Audit history is kept without the Customer's details.
+11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. Audit history is kept without the Customer's details. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 ## 12. Your rights
 
@@ -194,7 +194,7 @@ People in other places may have similar rights. Contact us and we will respond a
 
 ## 13. Security
 
-13.1 Every Customer's data is kept separate by row level security on every table and server checks of each person's membership and role. Access follows the role. Every Zella Voice staff member uses two step sign in. Risky actions need a second confirmation, and privileged actions are recorded in an append only audit log. Data travels over encrypted connections. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** Secrets are kept only in secure stores. Files are kept in private storage and checked after upload, and private links open one item only and expire. Backups allow point in time recovery. **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** Annex 2 of the DPA lists the measures in full.
+13.1 Every Customer's data is kept separate by row level security on every table and server checks of each person's membership and role. Access follows the role. Every Zella Voice staff member uses two step sign in. Risky actions need a second confirmation, and privileged actions are recorded in an append only audit log. Data travels over encrypted connections. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** Secrets are kept only in secure stores. Files are kept in private storage and checked after upload, and private links open one item only and expire. Backups allow point in time recovery. **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** Annex 2 of the DPA lists the measures in full. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 13.2 No system is completely secure. If a security incident affects Personal Data, we will notify affected Customers and, where the law requires, individuals and authorities.
 
@@ -274,6 +274,7 @@ Placeholders in this document:
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**

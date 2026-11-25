@@ -52,7 +52,7 @@ Last updated: **[LAST UPDATED DATE]**
 | Logs hold no full telephone numbers, email addresses, message contents or transcripts | Live |
 | Customer Data is never used to train AI models | Live |
 | Export and erasure tools for each business | Live |
-| Scheduled automatic deletion of recordings and transcripts 90 days after the call, and deletion of copies at the voice provider | Built, going live (not yet switched on) |
+| Scheduled automatic deletion of recordings and transcripts 90 days after the call, and deletion of copies at the voice provider **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** | Built, going live (not yet switched on) |
 | Deletion after cancellation, after **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, and account deletion after a 30 day grace period | Built, going live |
 | Removal of payment card numbers that callers speak on calls from call transcripts | Not built; pending remediation |
 | Backups with point in time recovery | **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** |
@@ -162,6 +162,7 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[SUBPROCESSOR LIST LOCATION]**

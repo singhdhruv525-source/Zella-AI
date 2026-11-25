@@ -68,7 +68,7 @@ Zella Voice will pay the fees in each statement of work within **[PAYMENT TERMS]
 
 ### B3. Confidentiality and data
 
-B3.1 Contractor must keep confidential all nonpublic information of Zella Voice and its customers, on the terms of Part A as if Contractor were Recipient, during the engagement and afterwards.
+B3.1 **Confidentiality.** "Confidential Information" means all nonpublic information of Zella Voice and its customers that Contractor receives or creates in performing the Services, including product plans, source code, designs, prompts, security information, customer data and business information, but not information that is or becomes public through no fault of Contractor, that Contractor knew without restriction before receiving it, or that Contractor lawfully receives from a third party without restriction. Contractor must use Confidential Information only to perform the Services (the "Purpose"), protect it with at least reasonable care, disclose it to no one without Zella Voice's written consent unless the law requires it (after giving prompt notice where permitted), and return or destroy it when the engagement ends. These obligations last during the engagement and for **[CONTRACTOR CONFIDENTIALITY PERIOD]** afterward, and for trade secrets and customer data for as long as they remain trade secrets or are held. Under the Defend Trade Secrets Act, 18 U.S.C. 1833(b), an individual is not liable for disclosing a trade secret in confidence to a government official or an attorney solely to report or investigate a suspected violation of law, or in a sealed court filing.
 
 B3.2 Contractor must follow Zella Voice's security rules, including: never copying secrets, credentials or customer data into code, chat, tickets, documents or personal devices; using two step sign in; never making real calls, texts or emails, turning on a live switch, changing a live voice assistant or telephone number, or changing production systems, without the explicit written approval of the Zella Voice owner for that specific action (an approval from anyone else, or a general approval, is not enough); and reporting any suspected security incident immediately.
 
@@ -118,7 +118,7 @@ C2.1 During and after employment, Employee must keep confidential and use only f
 
 C2.2 Employee must follow Zella Voice's security rules, including: never copying secrets, credentials or customer data into code, chat, tickets, documents or personal devices; using two step sign in; never making real calls, texts or emails, turning on a live switch, changing a live voice assistant or telephone number, or changing production systems, without the explicit written approval of the Zella Voice owner for that specific action; and reporting any suspected security incident immediately. On leaving, Employee must return all Zella Voice property and information and delete copies from personal devices.
 
-C2.3 **Whistleblower notice.** Nothing in this agreement prevents Employee from reporting possible violations of law to a government agency, from making disclosures protected by whistleblower laws, or from discussing wages or working conditions as the law protects. The notice in section A4.4 applies.
+C2.3 **Whistleblower notice.** Nothing in this agreement prevents Employee from reporting possible violations of law to a government agency, from making disclosures protected by whistleblower laws, or from discussing wages or working conditions as the law protects. Under the Defend Trade Secrets Act, 18 U.S.C. 1833(b), an individual is not liable for disclosing a trade secret in confidence to a government official or an attorney solely to report or investigate a suspected violation of law, or in a sealed court filing.
 
 ### C3. Inventions
 
@@ -164,7 +164,7 @@ D2.3 Founder represents that, to Founder's knowledge, Founder owns the Assigned 
 
 D2.4 Founder must not include, and represents that the Assigned Assets do not include, third party or open source material under terms that conflict with Company's commercial use, except as listed in Schedule D2.
 
-D2.5 Founder will keep Company's confidential information confidential on the terms of Part A as if Founder were Recipient.
+D2.5 **Confidentiality.** Founder must keep confidential all nonpublic information of Company and its customers, including the Assigned Assets, source code, designs, prompts, security information and business information, except information that is or becomes public through no fault of Founder. Founder must use it only for Company's business (the "Purpose") and disclose it to no one without Company's written consent unless the law requires it. These obligations last for **[FOUNDER CONFIDENTIALITY PERIOD]** after Founder ceases to be involved with Company, and for trade secrets for as long as they remain trade secrets. The Defend Trade Secrets Act notice in 18 U.S.C. 1833(b) applies: an individual is not liable for disclosing a trade secret in confidence to a government official or an attorney solely to report or investigate a suspected violation of law, or in a sealed court filing.
 
 ### D3. General
 
@@ -227,13 +227,13 @@ E5.3 On termination Partner must stop using Zella Voice's marks and return or de
 
 ### E6. Confidentiality, liability and general
 
-E6.1 Part A applies to confidential information exchanged under this agreement, with each party as both Discloser and Recipient.
+E6.1 **Confidentiality.** Each party must keep confidential the nonpublic information the other discloses under this agreement that is marked confidential or that a reasonable person would understand to be confidential, except information that is or becomes public through no fault of the recipient, that the recipient already knew without restriction, that the recipient lawfully receives from a third party without restriction, or that the recipient develops independently. Each party must use the other's confidential information only to perform this agreement (the "Purpose"), protect it with at least reasonable care, disclose it only to its personnel and advisers who need it and are bound by similar obligations, and return or destroy it when this agreement ends. These obligations last during the term and for **[PARTNER CONFIDENTIALITY PERIOD]** afterward, and for trade secrets for as long as they remain trade secrets. Partner receives no customer data except under section E3.4.
 
 E6.2 Each party's total liability under this agreement is limited to the commissions or fees paid or payable under it in the 12 months before the claim, and neither party is liable for indirect or consequential damages, except for breach of sections E3.3, E3.4 or E4, confidentiality, or indemnity obligations. **[COUNSEL TO CONFIRM LIABILITY TERMS]**
 
 E6.3 Partner will indemnify Zella Voice against claims arising from Partner's statements about the Services or Partner's breach of section E3.
 
-E6.4 **Non solicitation (optional).** **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES]** During the term and for **[NON SOLICITATION PERIOD]** afterwards, neither party will solicit for employment the other's employees with whom it worked under this agreement, except through general advertising. **[END OF OPTIONAL CLAUSE]**
+E6.4 **Non solicitation (optional).** **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES]** During the term and for **[NON SOLICITATION PERIOD]** afterward, neither party will solicit for employment the other's employees with whom it worked under this agreement, except through general advertising. **[END OF OPTIONAL CLAUSE]**
 
 E6.5 This agreement is governed by **[GOVERNING LAW AND COURTS]** and may be signed electronically.
 
@@ -269,6 +269,7 @@ Placeholders in this document:
 - **[FIRST STATEMENT OF WORK REFERENCE]**
 - **[COUNSEL TO CONFIRM CLASSIFICATION FOR THE CONTRACTOR'S LOCATION]**
 - **[PAYMENT TERMS]**
+- **[CONTRACTOR CONFIDENTIALITY PERIOD]**
 - **[ATTACH DATA PROCESSING TERMS IF CONTRACTOR WILL ACCESS PERSONAL DATA]**
 - **[TERMINATION NOTICE PERIOD]**
 - **[LIST OF PRIOR INVENTIONS OR "NONE"]**
@@ -282,6 +283,7 @@ Placeholders in this document:
 - **[FOUNDER NAME]**
 - **[FOUNDER NAMES]**
 - **[CONSIDERATION, FOR EXAMPLE MEMBERSHIP INTERESTS ISSUED OR ONE DOLLAR AND OTHER GOOD AND VALUABLE CONSIDERATION]**
+- **[FOUNDER CONFIDENTIALITY PERIOD]**
 - **[COUNSEL TO CONFIRM WHETHER A CONTRIBUTION AGREEMENT UNDER THE OPERATING AGREEMENT IS ALSO NEEDED]**
 - **[LIST OF ASSETS, FOR EXAMPLE CODE REPOSITORIES, DOMAINS AND ACCOUNTS]**
 - **[EXCEPTIONS OR "NONE"]**
@@ -298,6 +300,7 @@ Placeholders in this document:
 - **[NON RENEWAL NOTICE PERIOD]**
 - **[UNLESS COUNSEL AGREES A TAIL PERIOD]**
 - **[COUNSEL TO CONFIRM TRANSITION OF RESALE CUSTOMERS]**
+- **[PARTNER CONFIDENTIALITY PERIOD]**
 - **[COUNSEL TO CONFIRM LIABILITY TERMS]**
 - **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES]**
 - **[NON SOLICITATION PERIOD]**

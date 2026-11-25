@@ -10,7 +10,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 1.1 **Parties.** These Terms of Service ("Terms") are between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company with its registered address at **[REGISTERED ADDRESS]** ("Zella Voice", "we", "us" or "our"), and the business entity identified in the Order Form ("Customer" or "you").
 
-1.2 **Clickwrap acceptance.** By selecting the box or button that indicates acceptance during onboarding, by signing an Order Form that refers to these Terms, or by using the Services, you agree to the Agreement. The Services record which version you accepted, who accepted it and when. If you do not agree, you must not select the acceptance box or use the Services.
+1.2 **Clickwrap acceptance.** By selecting the box or button that indicates acceptance during onboarding, by signing an Order Form that refers to these Terms, or by using the Services, you agree to the Agreement. The Services record which version you accepted, who accepted it and when. If you do not agree, you must not select the acceptance box or use the Services. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 1.3 **Authority.** The individual who accepts the Agreement represents that they are at least 18 years old and have authority to bind Customer. If they do not have that authority, they must not accept the Agreement.
 
@@ -67,7 +67,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 ## 4. Accounts and Authorized Users
 
-4.1 **Onboarding.** Zella Voice creates Customer's account with Customer and invites the Owner. Before the account goes live, the Owner sets a password, enables two step sign in, confirms Customer's details, verifies their identity and accepts the Order Form.
+4.1 **Onboarding.** Zella Voice creates Customer's account with Customer and invites the Owner. Before the account goes live, the Owner sets a password, enables two step sign in, confirms Customer's details, verifies their identity and accepts the Order Form. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 4.2 **Accurate information.** Customer must provide accurate and complete information and keep it current, including business hours, services, transfer numbers and a Fallback Number.
 
@@ -133,7 +133,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 9.1 **Plan and Fees.** The Order Form sets out Customer's Plan, including the plan tier (for example Base or Pro), the monthly or yearly Fee, any one time setup fee and the allowances. Customer must pay the Fees in the Order Form and this section 9.
 
-9.2 **Trial.** If the Order Form includes a free trial, the Trial Period starts when the Owner first signs in through the invitation and, unless the Order Form states otherwise, lasts 5 days and includes 20 AI minutes, 5 texts and 5 emails. The Trial Period is not part of the Subscription Term. Customer must provide a payment method on Stripe's hosted page at the start of the Trial Period, and nothing is charged during it. Customer may cancel at any time during the Trial Period at no charge. **IF CUSTOMER DOES NOT CANCEL BEFORE THE TRIAL PERIOD ENDS, THE PAID SUBSCRIPTION STARTS AUTOMATICALLY ON THE FIRST BILLING DATE AND THE PAYMENT METHOD IS CHARGED THE FEES FOR THE FIRST PAID BILLING PERIOD ON THAT DAY.**
+9.2 **Trial.** If the Order Form includes a free trial, the Trial Period starts when the Owner starts the payment checkout during onboarding (after identity verification) and, unless the Order Form states otherwise, lasts 5 days from then and includes 20 AI minutes, 5 texts and 5 emails. **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]** The Trial Period applies only if the Owner completes checkout and saves a payment method on Stripe's hosted page. The Trial Period is not part of the Subscription Term. Nothing is charged during the Trial Period: any setup fee is charged with the first paid billing period, and packs, automatic reload and pay as you go are not available during the Trial Period. **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]** Customer may cancel at any time during the Trial Period at no charge. **IF CUSTOMER DOES NOT CANCEL BEFORE THE TRIAL PERIOD ENDS, THE PAID SUBSCRIPTION STARTS AUTOMATICALLY ON THE FIRST BILLING DATE AND THE PAYMENT METHOD IS CHARGED THE FEES FOR THE FIRST PAID BILLING PERIOD ON THAT DAY.**
 
 9.3 **Billing.** Fees are payable in advance for each billing period, monthly or yearly as stated in the Order Form, in US dollars. The First Billing Date is: (a) without a Trial Period, the day the Owner first signs in through the invitation; or (b) with a Trial Period, the day the Trial Period ends. Each later billing period starts on the same day of the month (or year) as the First Billing Date or, in a month without that day, on its last day. Automatic payment is on by default; the Owner may switch it off and pay each invoice by the payment link instead. Zella Voice issues an invoice or receipt for every charge.
 
@@ -150,7 +150,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 - At 100% of minutes, Customer's chosen option applies: stop (new calls go to the Fallback Number), automatic reload of a pack, or pay as you go at the per minute rate in the Order Form, where the Order Form sets one. A call in progress is not cut off. A monthly spending limit applies.
 - At 100% of texts or emails, routine and marketing messages stop, while appointment confirmations and reminders continue within a reserve of 5% that Zella Voice does not charge for. At 105%, all texts or emails stop until Customer buys a pack or the next month starts.
 
-9.7 **Packs, automatic reload and pay as you go.** Add on packs are charged when bought at the prices shown in the Services. Automatic reload is off by default; if Customer enables it, Customer sets the threshold, the pack and a monthly spend cap, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
+9.7 **Packs, automatic reload and pay as you go.** These are available only during the Subscription Term, not during a Trial Period (section 9.2). Add on packs are charged when bought at the prices shown in the Services. Automatic reload is off by default; if Customer enables it, Customer sets the threshold, the pack and a monthly spend cap, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
 
 9.8 **Plan changes.** Upgrades take effect immediately, and Customer pays the prorated difference for the rest of the period. Downgrades take effect on the next billing date.
 
@@ -194,9 +194,9 @@ Support, service credits and status information are provided under Schedule 4. S
 
 12.5 **Account Data and Usage Data.** Zella Voice processes Account Data as a controller under the Zella Voice Privacy Policy. Zella Voice may collect and use Usage Data to operate, secure and improve the Services.
 
-12.6 **Export.** The Owner may export customers and call history as CSV files at any time, and may request a whole business export of Customer Data.
+12.6 **Export.** The Owner may export customers and call history as CSV files at any time, and may request a whole business export of Customer Data. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**; after cancellation, Customer Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the export window is deleted on that date.
+12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**; after cancellation, Customer Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the export window is deleted on that date.
 
 12.8 **Telephone numbers.** Customer may port telephone numbers into or out of the Services at no charge. Porting time depends on the carrier. Numbers provided by Zella Voice are released 30 days after cancellation unless ported out before then.
 
@@ -435,7 +435,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 2.2 It can answer questions from knowledge the Customer has approved, check opening hours, book, find, move and cancel appointments, take messages, record requests, transfer calls to numbers the Customer has authorized, report emergencies to the Customer's on call contact and, for stores that connect Shopify, look up an order's status.
 
-2.3 It recognizes a returning caller by the telephone number the network provides, never by what the caller says. Before it shares appointment details it asks for the name on the booking and the date, and before it cancels or moves a booking it asks for the booking's confirmation code. After three failed checks in one call it takes a message instead.
+2.3 It recognizes a returning caller by the telephone number the network provides, never by what the caller says. Before it shares appointment details it asks for the name on the booking and the date, and before it cancels or moves a booking it asks for the booking's confirmation code. After three failed checks in one call it takes a message instead. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 2.4 Each call produces a record for the Customer: the numbers, time and length of the call, what the AI Receptionist did, a written summary and a transcript.
 
@@ -443,7 +443,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 3.1 **AI disclosure on every call.** At the start of every call, the AI Receptionist tells the caller that it is an AI receptionist for the Customer, using the name the Customer has chosen. The default greeting is: "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"
 
-3.2 **Customer greetings.** A Customer may change its greeting but may not remove the AI disclosure. The Services check this on the server, and where a custom greeting leaves the disclosure out, the disclosure is added in the caller's language.
+3.2 **Customer greetings.** A Customer may change its greeting but may not remove the AI disclosure. The Services check this on the server, and where a custom greeting leaves the disclosure out, the disclosure is added in the caller's language. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 3.3 **If asked.** If a caller asks whether they are speaking with a person, the AI Receptionist says that it is an AI assistant. It never pretends to be human.
 
@@ -485,7 +485,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 6.6 **Untrusted input.** Callers cannot change its rules or permissions, make it reveal its instructions or reach another Customer's data. Attempts are declined and may be flagged as spam.
 
-6.7 **Call length and capacity.** A single call is limited to **[MAXIMUM CALL LENGTH]** minutes, after which the AI Receptionist transfers the caller or ends the call politely. If a caller says nothing for 1 minute, it ends the call politely. The number of calls each Customer can have answered at the same time is limited (10 unless set otherwise for the Customer).
+6.7 **Call length and capacity.** A single call is limited to **[MAXIMUM CALL LENGTH]** minutes, after which the AI Receptionist transfers the caller or ends the call politely. If a caller says nothing for 1 minute, it ends the call politely. The number of calls each Customer can have answered at the same time is limited (10 unless set otherwise for the Customer). **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 6.8 **Regulated Industries.** In Regulated Industries the AI Receptionist uses stricter settings: it gives no advice of any kind, it never confirms whether a person is a patient or client, and private fields are never read aloud.
 
@@ -561,7 +561,7 @@ This Schedule describes support, service status and service credits for the Serv
 
 ### 2. Support
 
-2.1 **Channels.** Owners, admins and managers can open and answer support requests in the Services under Settings, Help and support. Customers can also contact **[SUPPORT CONTACT EMAIL]**.
+2.1 **Channels.** Owners, admins and managers can open and answer support requests in the Services under Settings, Help and support. Customers can also contact **[SUPPORT CONTACT EMAIL]**. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 2.2 **Hours.** Support is staffed **[SUPPORT HOURS AND TIME ZONE]**, excluding **[SUPPORT HOLIDAYS]**.
 
@@ -575,7 +575,7 @@ This Schedule describes support, service status and service credits for the Serv
 
 3.1 **No uptime commitment.** Zella Voice does not commit to a particular uptime percentage. **[PLACEHOLDER FOR OWNER DECISION: WHETHER TO PUBLISH AN UPTIME TARGET, AND IF SO WHICH]**
 
-3.2 **Status.** The status page at /status shows the status of each part of the Services and public incidents. It says that everything is working only when every part has been checked and is working.
+3.2 **Status.** The status page at /status shows the status of each part of the Services and public incidents. It says that everything is working only when every part has been checked and is working. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 3.3 **Fallback Number.** Whenever the AI Receptionist is paused or unavailable, calls go to the Customer's Fallback Number where the telephone network allows it.
 
@@ -607,9 +607,12 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
+- **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
+- **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**

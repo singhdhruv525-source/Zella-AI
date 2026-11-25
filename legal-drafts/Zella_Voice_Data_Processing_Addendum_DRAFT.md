@@ -36,7 +36,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 ## 5. Confidentiality of personnel
 
-Zella Voice will ensure that every person it authorizes to process Customer Personal Data is under an appropriate obligation of confidentiality, has access only as their role requires, and uses two step sign in. Access by Zella Voice personnel is recorded in the audit log.
+Zella Voice will ensure that every person it authorizes to process Customer Personal Data is under an appropriate obligation of confidentiality, has access only as their role requires, and uses two step sign in. Access by Zella Voice personnel is recorded in the audit log. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 ## 6. Security
 
@@ -65,9 +65,9 @@ As Customer's service provider, Zella Voice will not: (a) sell or share Customer
 9.1 **Tools.** Taking into account the nature of the processing, Zella Voice will assist Customer by appropriate technical and organizational measures, insofar as possible, to respond to requests from data subjects. The Services provide these tools:
 
 - a request log in the CRM for access, export and erasure requests, each with a due date 30 days after it is recorded and a reminder before it is due;
-- export of customers and call history as CSV at any time, and a whole business export on request, downloadable for 7 days;
+- export of customers and call history as CSV at any time, and a whole business export on request, downloadable for 7 days **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**;
 - correction of records in the CRM;
-- erasure of an End User: their details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is requested. Consent and opt out history is retained so that opt outs continue to work. Erasure needs a second person's approval at Customer;
+- erasure of an End User: their details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is requested. Consent and opt out history is retained so that opt outs continue to work. Erasure needs a second person's approval at Customer **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**;
 - opt outs by STOP, unsubscribe link and "don't call me", honored immediately for Customer.
 
 9.2 **Requests received by Zella Voice.** If Zella Voice receives a request from a data subject about Customer Personal Data, it will promptly forward it to Customer and will not respond except to direct the data subject to Customer, unless Customer instructs otherwise or the law requires.
@@ -92,7 +92,7 @@ Taking into account the nature of processing and the information available to it
 
 12.2 **After cancellation.** Customer Personal Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days.
 
-12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted.
+12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 12.4 **Provider copies.** Deletion extends to files and copies held by Subprocessors where technically possible.
 
@@ -148,7 +148,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Item | Details |
 |---|---|
 | Subject matter | Provision of the Services to Customer |
-| Duration | Any Trial Period and the Subscription Term, and afterwards until deletion under section 12 |
+| Duration | Any Trial Period and the Subscription Term, and afterward until deletion under section 12 |
 | Nature | Collection, recording, organization, storage, transcription, summarization, retrieval, use, transmission, restriction, export and erasure, including processing by artificial intelligence |
 | Purpose | Answering and routing Customer's calls with the AI Receptionist, answering questions from approved knowledge, booking and changing appointments, taking messages, transferring calls, sending messages Customer has set up, keeping Customer's CRM, lead intake, order lookup, calendar sync and review replies where connected and enabled, reporting, security, spam protection and support |
 | Data subjects | End Users: callers, clients, customers, patients, guests, members, students, tenants, policyholders and leads; relationships Customer records (such as parents and guardians); Customer's staff as named in bookings and rotas |
@@ -163,10 +163,10 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 |---|---|
 | Separation between Customers | Row level security on every table; every Customer function checks the person's membership and role; cross Customer tests for every table, view, function and endpoint |
 | Access control | Roles of owner, admin, manager, staff and viewer enforced by the database; transcripts limited by role and closed to staff in Regulated Industries |
-| Authentication | Two step sign in required for every Zella Voice administrator, who cannot remove their last authenticator; Owners set up two step sign in at onboarding; enforced on the server for roles that require it |
+| Authentication | Two step sign in required for every Zella Voice administrator, who cannot remove their last authenticator; Owners set up two step sign in at onboarding; enforced on the server for roles that require it **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
 | Audit | Append only audit log of every privileged action (who, what, which Customer, when, before and after), with sensitive Personal Data and secrets redacted |
 | Sensitive actions | Exports, erasure and role changes need a second person's approval or a second confirmation |
-| Personnel access | Named permissions and least privilege; contact details masked in the administration tools by default and shown only with a recorded reason |
+| Personnel access | Named permissions and least privilege; contact details masked in the administration tools by default and shown only with a recorded reason **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
 | Encryption | Encryption in transit. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** |
 | Secrets | Held only in the database vault and function secrets; never in code, logs or tables |
 | Logging | No full telephone numbers, email addresses, message contents or transcripts in logs; masking where needed |
@@ -209,7 +209,7 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 
 | Provider | Purpose | Data it receives |
 |---|---|---|
-| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Zella Voice never receives or stores card data |
+| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Zella Voice never receives or stores the card data entered on Stripe's hosted pages; card numbers are never collected on purpose, but a number a caller speaks may appear in a transcript until redaction is in place (Annex 1) |
 | Google Fonts (Google) | Serves the typeface used by the web application | The visitor's network address and browser details when a page loads |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Verifying an Owner's identity | The Owner's identity documents and the check result |
 | **[EMAIL INBOX PROVIDER]** | Zella Voice's own email inboxes | The contents of emails sent to Zella Voice |
@@ -337,6 +337,7 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
