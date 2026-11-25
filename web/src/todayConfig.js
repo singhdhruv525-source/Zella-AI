@@ -46,7 +46,7 @@ export const CONNECT = {
   orders: { icon: "receipt_long", title: "Orders", text: "Dine in, takeout and delivery orders appear here once your ordering or till system is connected." },
   revenue: { icon: "payments", title: "Revenue", text: "Today's takings appear here once payments are connected." },
   tables: { icon: "table_restaurant", title: "Table layout", text: "A live floor plan needs your table positions and seating status. Your tables are listed under Restaurant operations." },
-  reviews: { icon: "reviews", title: "Reviews & feedback", text: "Your rating and latest reviews appear here once Google reviews are connected. You can already send your review link." },
+  reviews: { icon: "reviews", title: "Reviews and feedback", text: "Your rating and latest reviews appear here once Google reviews are connected. You can already send your review link." },
 };
 
 // Booking details per industry, for the calendar and its side panel. Each field is [label, key]; keys read real
