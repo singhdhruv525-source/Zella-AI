@@ -505,7 +505,7 @@ export function RecordsPage({ workspace, type, query, refreshKey, canManage, onN
               </table>
             </div>
             <Pager page={list.page} pages={list.pages} total={list.total} hasNext={list.hasNext} busy={list.loading}
-              onPage={(n) => (n > list.page ? list.next() : list.prev())} noun={type.singular.toLowerCase()} />
+              onPage={(n) => (n > list.page ? list.next() : list.prev())} noun={type.singular.toLowerCase()} nounMany={type.plural.toLowerCase()} />
           </>
         )}
       </section>

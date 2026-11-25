@@ -209,6 +209,11 @@ most often needed:
     joined by a middle dot ("A · B" meta lines read as a template tell). The motion changes apply to every CRM page; the admin dashboard is not
     changed by it (its own pass is separate). Rules in `web/src/styles/crm-polish.css`, scoped to the CRM root.
 
+  - **Audit bug fixes approved (owner, 25 Nov 2026):** fix in one small pull request the crashes and wording bugs the
+    page audits found: A41 (Industry configuration shows "Industries didn't load." with Try again, never a code
+    error), the Reporting configuration and Auto reload crashes on empty or missing data, and C33, C36, C39, C45
+    (branch `claude/audit-bugfixes`; wording in `docs/ZELLA_COPY_CHANGELOG.md`).
+
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed
   checks per call; a known caller's new email or phone waits for staff. Built in `sql/zella_caller_verification.sql`
