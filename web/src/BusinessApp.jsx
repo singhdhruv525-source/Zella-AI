@@ -312,7 +312,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               </span>
               {isOwner && (
                 <button type="button" className="ba-btn primary sm" onClick={keepPlan} disabled={busy}>
-                  {busy ? "Saving..." : "Keep my plan"}
+                  {busy ? "Saving…" : "Keep my plan"}
                 </button>
               )}
             </div>
@@ -594,9 +594,9 @@ function BusinessHome() {
     setWorkspaces(null);
   }
 
-  if (session === undefined) return <Loading text="Loading..." />;
+  if (session === undefined) return <Loading text="Loading…" />;
   if (!session) return <BusinessSignIn />;
-  if (mfa.state === "checking") return <Loading text="Loading..." />;
+  if (mfa.state === "checking") return <Loading text="Loading…" />;
   if (mfa.state === "needs_code") return <MfaCodeCard email={session.user.email} onDone={mfa.recheck} />;
   if (mfa.state === "error") return (
     <main className="ba-auth">
@@ -609,7 +609,7 @@ function BusinessHome() {
       </section>
     </main>
   );
-  if (workspaces === null) return <Loading text="Loading your workspace..." />;
+  if (workspaces === null) return <Loading text="Loading your workspace…" />;
 
   if (!workspaces.length) {
     return (
@@ -727,7 +727,7 @@ const OnboardingResumeBanner = lazy(() => import("./onboarding/ResumeBanner"));
 
 export default function BusinessApp() {
   const path = window.location.pathname;
-  if (/^\/welcome\/setup\/?$/.test(path)) return <Suspense fallback={<Loading text="Loading..." />}><OwnerOnboarding /></Suspense>;
+  if (/^\/welcome\/setup\/?$/.test(path)) return <Suspense fallback={<Loading text="Loading…" />}><OwnerOnboarding /></Suspense>;
   if (path.startsWith("/welcome")) return <Welcome />;
   if (import.meta.env.DEV && path.startsWith("/app/preview")) return <Preview />;
   return <BusinessHome />;

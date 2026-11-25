@@ -134,7 +134,7 @@ export default function Reschedule() {
       <section className="cp-card">
         {info?.business && <div className="cp-brand"><span>{info.business}</span></div>}
 
-        {!info && !stop && !error && <p className="op-muted">Checking your link...</p>}
+        {!info && !stop && !error && <p className="op-muted">Checking your link…</p>}
         {error && !info && !stop && (
           <>
             <h1>Something went wrong</h1>
@@ -213,7 +213,7 @@ export default function Reschedule() {
                 </div>
                 {error && <div className="owner-form-error">{error}</div>}
                 <button type="button" className="owner-primary-button cp-button" disabled={!picked || working} onClick={confirm}>
-                  {working ? "Saving..." : picked ? `Move to ${clock(picked, tz)}` : "Choose a time"}
+                  {working ? "Saving…" : picked ? `Move to ${clock(picked, tz)}` : "Choose a time"}
                 </button>
                 <p className="cp-small">Times shown are in {info.business}'s local time.</p>
               </>

@@ -13,8 +13,8 @@ const say = (error) => {
   const codes = {
     BAD_PHONE: "Enter the mobile number with its country code, for example +1 555 123 4567.",
     USE_SIGN_OUT: "That's this device. Use Sign out instead.",
-    NO_SESSION: "Your session has ended. Please sign in again.",
-    NOT_SIGNED_IN: "Your session has ended. Please sign in again.",
+    NO_SESSION: "Your session ended. Sign in again.",
+    NOT_SIGNED_IN: "Your session ended. Sign in again.",
     BAD_AVATAR_URL: "Upload the picture here so it's stored with Zella Voice.",
   };
   const code = Object.keys(codes).find((k) => m.includes(k));

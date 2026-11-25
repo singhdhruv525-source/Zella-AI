@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Pill, personName } from "./BusinessUI";
-import { formatLongDate, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { formatLongDate, formatTime, timeAgoLabel, todayInput, zonedDateTime } from "./businessTime";
 import { APPT_LABEL, APPT_TONE, availabilityAt, changed, explain, friendly, noShowNotice, setCheckIn, callResult, isAnswered } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
 import { BookingMessages } from "./BookingMessages";
 import { bookingFields, fieldValue, todayConfig } from "./todayConfig";
+import { formatPhone } from "./lib/format";
 
 // The side panel a booking opens in, from the calendar. Sections: booking details, customer, assignment, activity
 // and actions. Everything is read and changed with the member's own session (row level security keeps it to this
@@ -261,7 +262,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
             {person ? (
               <dl className="bp-rows">
                 <Row label="Name"><button type="button" className="ba-namebtn" onClick={() => onOpenPerson(person.id)}>{name}</button></Row>
-                <Row label="Phone">{person.phone ? <a className="ba-link" href={`tel:${person.phone}`}>{person.phone}</a> : null}</Row>
+                <Row label="Phone">{person.phone ? <a className="ba-link" href={`tel:${person.phone}`}>{formatPhone(person.phone)}</a> : null}</Row>
                 <Row label="Email">{person.email ? <a className="ba-link" href={`mailto:${person.email}`}>{person.email}</a> : null}</Row>
               </dl>
             ) : <p className="ba-muted">No {term("customer").toLowerCase()} linked to this {oneWord.toLowerCase()}.</p>}
@@ -286,14 +287,14 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
             <ul className="bp-feed">
               {(activity?.calls ?? []).map((c) => (
                 <li key={`c${c.id}`}><Icon name={c.status === "missed" ? "phone_missed" : "call"} size="sm" />
-                  <span>{c.status === "missed" ? "Missed call" : !isAnswered(c.status) ? `Call: ${callResult(c.status).label.toLowerCase()}` : c.ai_handled ? "Call answered by AI" : "Call"}{c.summary ? `: ${c.summary.slice(0, 80)}` : ""}</span><time>{timeAgo(c.created_at)}</time></li>
+                  <span>{c.status === "missed" ? "Missed call" : !isAnswered(c.status) ? `Call: ${callResult(c.status).label.toLowerCase()}` : c.ai_handled ? "Call answered by AI" : "Call"}{c.summary ? `: ${c.summary.slice(0, 80)}` : ""}</span><time>{timeAgoLabel(c.created_at)}</time></li>
               ))}
               {(activity?.convos ?? []).map((c) => (
                 <li key={`m${c.id}`}><Icon name={c.channel === "email" ? "mail" : "sms"} size="sm" />
-                  <span>{c.subject || `${c.channel ?? "Message"} conversation`}{c.ai_handled ? " · AI" : ""}</span><time>{c.last_message_at ? timeAgo(c.last_message_at) : ""}</time></li>
+                  <span>{c.subject || `${c.channel ?? "Message"} conversation`}{c.ai_handled ? " · AI" : ""}</span><time>{c.last_message_at ? timeAgoLabel(c.last_message_at) : ""}</time></li>
               ))}
               {history.map(([at, text]) => (
-                <li key={`h${text}`}><Icon name="history" size="sm" /><span>{text}</span><time>{timeAgo(at)}</time></li>
+                <li key={`h${text}`}><Icon name="history" size="sm" /><span>{text}</span><time>{timeAgoLabel(at)}</time></li>
               ))}
             </ul>
             {activity?.failed && <p className="ba-muted">Activity couldn't be loaded</p>}

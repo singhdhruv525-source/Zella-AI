@@ -9,16 +9,16 @@ import { humanize } from "./copy/labels";
 import { NOT_TRACKED } from "./connectionState.js";
 import { Metric } from "./admin/adminOps";
 
-const PHONE_LABELS = { new_number: "New number", call_forwarding: "Forwarding", existing_number: "Forwarding" };
+const PHONE_LABELS = { new_number: "New number", forward: "Forwarding", call_forwarding: "Forwarding", existing_number: "Forwarding" };
 const LEAD_LABELS = { meta: "Meta", website: "Website", google: "Google" };
 
 function Need({ wanted, connected, label, available = true }) {
   if (!wanted) return <span className="op-muted">None</span>;
-  if (!available) return <span className="in-need">{label}<em> · not available</em></span>;
+  if (!available) return <span className="in-need">{label}<em>, not available</em></span>;
   return (
     <span className={`in-need ${connected ? "ok" : ""}`}>
       {connected ? "✓ " : ""}{label}
-      {!connected && <em> · not connected</em>}
+      {!connected && <em>, not connected</em>}
     </span>
   );
 }
@@ -52,7 +52,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : "↻ Refresh"}
+            {loading ? "Loading…" : "↻ Refresh"}
           </button>
         </div>
       </div>
@@ -69,7 +69,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
       <section className="owner-panel op-card">
         <div className="owner-panel-heading">
           <div>
-            <h2>Client requests vs. connected</h2>
+            <h2>Asked for and connected</h2>
             <p>From each business's Phone & integrations setup step.</p>
           </div>
         </div>
@@ -86,7 +86,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                     {available && r.voice.connected && <div className="op-muted">{r.voice.answering ? "Answering" : "No call answered in 7 days"}</div>}
                   </td>
                   <td><Need available={available} wanted={r.calendar.wanted} connected={r.calendar.connected} label={r.calendar.wanted === "google" ? "Google Calendar" : "Outlook / Microsoft Calendar"} /></td>
-                  <td>{r.email?.wanted ? <span className="in-need">{r.email.wanted === "gmail" ? "Gmail" : "Outlook email"}<em> · {NOT_TRACKED.toLowerCase()}</em></span> : <span className="op-muted">None</span>}</td>
+                  <td>{r.email?.wanted ? <span className="in-need">{r.email.wanted === "gmail" ? "Gmail" : "Outlook email"}<em>, {NOT_TRACKED.toLowerCase()}</em></span> : <span className="op-muted">None</span>}</td>
                   <td>
                     {r.leads.wanted.length ? (
                       <div className="in-needs">

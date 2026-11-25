@@ -181,15 +181,17 @@ export default function ReviewsPage({ workspace, onNotice }) {
     return <>{head}<Empty icon="rate_review" title="Reviews aren't set up yet">The Zella Voice team needs to apply its latest database update.</Empty></>;
   }
   const counts = data?.counts ?? {};
+  // a figure that didn't load: small words with Try again, never a big "Not available" in number type
+  const didntLoad = <small className="ba-kpi-missing">Didn't load. <button type="button" className="ba-link" onClick={reload}>Try again</button></small>;
   const source = data?.source;
   return (
     <>
       {head}
       {error && <div className="ba-banner error"><span>{error}</span><button type="button" className="ba-btn sm" onClick={reload}>Try again</button></div>}
       <div className="rv-summary">
-        <div><strong>{data ? counts.to_reply ?? 0 : loading ? "…" : "Not available"}</strong><span>to reply</span></div>
-        <div><strong>{data ? counts.average ?? (counts.total ? "Not available" : "No ratings yet") : loading ? "…" : "Not available"}</strong><span>average stars</span></div>
-        <div><strong>{data ? counts.total ?? 0 : loading ? "…" : "Not available"}</strong><span>reviews</span></div>
+        <div><strong>{data ? counts.to_reply ?? 0 : loading ? "…" : didntLoad}</strong><span>to reply</span></div>
+        <div><strong>{data ? counts.average ?? (counts.total ? <small className="ba-kpi-missing">Not available</small> : "No ratings yet") : loading ? "…" : didntLoad}</strong><span>average stars</span></div>
+        <div><strong>{data ? counts.total ?? 0 : loading ? "…" : didntLoad}</strong><span>reviews</span></div>
         <div className="rv-source">
           <Icon name="storefront" size="sm" />
           <span>

@@ -25,7 +25,7 @@ import { defaultVoiceName, languagesOf, unusedVoiceNote, voiceLabel, voiceSummar
 // ---------------------------------------------------------------------------
 
 export async function callOwnerFunction(action, payload = {}) {
-  const fallback = "Something went wrong. Please try again.";
+  const fallback = "That didn't work. Check your connection and try again.";
   const { data, error } = await supabase.functions.invoke(
     "owner-provision-business",
     { body: { action, ...payload } }
@@ -1832,7 +1832,7 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, on
       </Section>
       {setup.planStatus?.state === "error" && (
         <div className="owner-form-error" role="alert">
-          The saved plan couldn't be checked, so the owner can't be invited yet. <button type="button" className="owner-secondary-button" onClick={onRetryPlan}>Retry</button>
+          The saved plan couldn't be checked, so the owner can't be invited yet. <button type="button" className="owner-secondary-button" onClick={onRetryPlan}>Try again</button>
         </div>
       )}
       <Readiness businessId={businessId} />
@@ -2242,7 +2242,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   if (loading) {
     return (
       <section className="wiz">
-        <div className="owner-empty-state"><strong>Loading business setup...</strong></div>
+        <div className="owner-empty-state"><strong>Loading business setup…</strong></div>
       </section>
     );
   }
@@ -2273,7 +2273,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           <div className="wiz-done-actions">
             {!sent && (
               <button type="button" className="owner-secondary-button" onClick={finish} disabled={saving}>
-                {saving ? "Trying again..." : completed ? "Retry invitation" : "Try again"}
+                {saving ? "Trying again…" : completed ? "Retry invitation" : "Try again"}
               </button>
             )}
             <button type="button" className="owner-primary-button" onClick={() => onClose(true)}>
@@ -2297,7 +2297,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
     <section className="wiz" ref={top}>
       <div className="wiz-header">
         <div>
-          <div className="owner-eyebrow">{businessId ? "BUSINESS SETUP" : "NEW BUSINESS"}</div>
+          <div className="owner-eyebrow">{businessId ? "Business setup" : "New business"}</div>
           <h1>{setup.business.name || "Create a business"}</h1>
           <p>Set up the CRM, AI receptionist, integrations and automations for this client.</p>
         </div>
@@ -2307,11 +2307,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       </div>
 
       {industryError && <div className="owner-form-error" role="alert">
-        {industryError} <button type="button" className="owner-secondary-button" onClick={onRetryIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Loading..." : "Retry"}</button>
+        {industryError} <button type="button" className="owner-secondary-button" onClick={onRetryIndustries} disabled={loadingIndustries}>{loadingIndustries ? "Trying again…" : "Try again"}</button>
       </div>}
       <div className="wiz-progress" role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
         <span style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
-        <small>Step {step + 1} of {STEPS.length} · {STEPS[step].label}</small>
+        <small>Step {step + 1} of {STEPS.length}: {STEPS[step].label}</small>
       </div>
 
       <ol className="wiz-stepper">
@@ -2363,7 +2363,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         )}
         {STEPS[step].key === "crm" && <CrmSetupStep businessId={businessId} terminology={terminology} onTerminology={update("terminology")} modules={setup.modules} onModules={update("modules")} />}
         {STEPS[step].key === "plan" && (planError
-          ? <div className="owner-form-error" role="alert">The plan couldn't be loaded: {planError} <button type="button" className="owner-secondary-button" onClick={reloadPlan}>Retry</button></div>
+          ? <div className="owner-form-error" role="alert">The plan couldn't be loaded: {planError} <button type="button" className="owner-secondary-button" onClick={reloadPlan}>Try again</button></div>
           : <PlanStep key={planInfo?.plan?.version ?? "new"} businessId={businessId} info={planInfo} onSaved={reloadPlan} onDirty={setPlanDirty} Section={Section} Badge={Badge} Toggle={Toggle} />)}
         {STEPS[step].key === "review" && <ReviewStep businessId={businessId} setup={persisted} industries={industries} goTo={request} config={persistedConfig} docsReady={docsReady} onRetryPlan={reloadPlan} voice={voiceInfo} />}
       </div>
@@ -2405,7 +2405,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
       <div className="wiz-footer">
         {/* Step 1 has nothing before it: Back stays disabled and is hidden there, keeping the footer's layout (UI-30). */}
         <button type="button" className={`owner-secondary-button${step === 0 ? " wiz-back-first" : ""}`} onClick={() => request(step - 1)} disabled={saving || step === 0}>
-          ← Back
+          <Icon name="arrow_back" size="sm" />Back
         </button>
         <div className="wiz-footer-right">
           {!isLast && businessId && (
@@ -2420,11 +2420,11 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
               onClick={finish}
               disabled={saving || !persisted.owner.email || !docsReady || dirty || !(planStatus?.state === "ok" && planStatus.saved)}
             >
-              {saving ? "Finishing..." : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
+              {saving ? "Finishing…" : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
             </button>
           ) : (
             <button type="button" className="owner-primary-button" disabled={saving} onClick={() => run(() => setStep(step + 1))}>
-              {saving ? "Saving..." : step === 0 && !businessId ? "Create draft & continue →" : "Save & continue →"}
+              {saving ? "Saving…" : step === 0 && !businessId ? "Create draft & continue" : "Save & continue"}
             </button>
           )}
         </div>

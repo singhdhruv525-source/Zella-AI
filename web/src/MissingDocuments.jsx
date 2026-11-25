@@ -84,7 +84,7 @@ export default function MissingDocuments({ onOpenBusiness, refreshKey = 0 }) {
                 );
               })}
               {!rows.length && (
-                <tr><td colSpan={4}><div className="op-empty">{!data ? (error ? "Couldn't load this list." : "Loading...") : data.available === false ? "Document storage isn't set up yet." : "Every business has its required documents."}</div></td></tr>
+                <tr><td colSpan={4}><div className="op-empty">{!data ? (error ? "Couldn't load this list." : "Loading…") : data.available === false ? "Document storage isn't set up yet." : "Every business has its required documents."}</div></td></tr>
               )}
             </tbody>
           </table>

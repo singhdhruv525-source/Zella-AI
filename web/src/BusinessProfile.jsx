@@ -11,6 +11,12 @@ import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { APPT_LABEL, APPT_TONE, changed, clock, friendly, orThrow, sourceLabel, transcriptLines, useLoad, callResult, isAnswered } from "./BusinessShared";
 import { humanize } from "./copy/labels";
 import { PeopleAndConsent } from "./BusinessPeople";
+import { formatPhone } from "./lib/format";
+
+// How someone was added, read as the end of "Guest added yesterday ...": " by phone", " from the website".
+const ADDED_VIA = { manual: " by the team", phone: " by phone", call: " by phone", walk_in: " as a walk in", website: " from the website",
+  google: " from Google", meta: " from Meta", referral: " by referral", voice: " by the AI receptionist", other: "" };
+const addedVia = (s) => ADDED_VIA[s] ?? (s ? ` from ${sourceLabel(s)}` : "");
 
 // One place for everything about a person: their details, every call with the
 // full transcript, appointments and conversations in one timeline, and any
@@ -287,7 +293,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
     <Modal
       wide
       title={name}
-      description={person ? `${term("customer")} · added ${timeAgo(person.created_at)} · ${sourceLabel(person.source)}${person.last_contacted_at ? ` · last contacted ${timeAgo(person.last_contacted_at)}` : " · not contacted yet"}` : undefined}
+      description={person ? `${term("customer")} added ${timeAgo(person.created_at)}${addedVia(person.source)}${person.last_contacted_at ? `, last contacted ${timeAgo(person.last_contacted_at)}` : ", not contacted yet"}` : undefined}
       onClose={onClose}
       busy={busy}
     >
@@ -325,7 +331,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
             <div className="ba-profile-top">
               <div className="ba-avatar">{initials(name)}</div>
               <div className="ba-profile-contact">
-                {person.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />{person.phone}</a>}
+                {person.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />{formatPhone(person.phone)}</a>}
                 {person.email && <a className="ba-btn sm" href={`mailto:${person.email}`}><Icon name="mail" size="sm" />{person.email}</a>}
                 <button type="button" className="ba-btn sm" disabled={busy} onClick={markContacted}>Mark contacted</button>
               </div>

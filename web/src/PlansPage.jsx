@@ -253,7 +253,7 @@ export default function PlansPage({ onOpenBusiness }) {
                 </tr>
               ))}
               {!listRows.length && (
-                <tr className="pp-empty-row"><td colSpan={6}><div className="op-empty">{listLoading ? "Loading..." : list.error ? "Couldn't load this list. Try again with Refresh." : query ? "No business matches this search." : "No businesses yet."}</div></td></tr>
+                <tr className="pp-empty-row"><td colSpan={6}><div className="op-empty">{listLoading ? "Loading…" : list.error ? "Couldn't load this list. Try again with Refresh." : query ? "No business matches this search." : "No businesses yet."}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -298,7 +298,7 @@ export default function PlansPage({ onOpenBusiness }) {
           </div>
           <div className="ic-actions">
             <button type="button" className="owner-secondary-button" onClick={() => setEditing(null)} disabled={busy}>Cancel</button>
-            <button type="submit" className="owner-primary-button" disabled={busy || !editing.name.trim()}>{busy ? "Saving..." : "Save plan"}</button>
+            <button type="submit" className="owner-primary-button" disabled={busy || !editing.name.trim()}>{busy ? "Saving…" : "Save plan"}</button>
           </div>
         </form>
       )}
@@ -337,7 +337,7 @@ export default function PlansPage({ onOpenBusiness }) {
           );
         })}
         {!data?.plans?.length && (
-          <div className="owner-panel"><div className="op-empty">{loading ? "Loading plans..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No plans yet."}</div></div>
+          <div className="owner-panel"><div className="op-empty">{loading ? "Loading plans…" : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : "No plans yet."}</div></div>
         )}
       </div>
 

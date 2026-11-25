@@ -46,7 +46,7 @@ export default function Unsubscribe() {
             <h1>Stop marketing emails?</h1>
             <p>{business ? `You will no longer get marketing emails from ${business}.` : "You will no longer get marketing emails."} Messages about your own bookings can still reach you.</p>
             <button type="button" className="owner-primary-button cp-button" disabled={state === "working"} onClick={confirm}>
-              {state === "working" ? "Saving..." : "Unsubscribe"}
+              {state === "working" ? "Saving…" : "Unsubscribe"}
             </button>
           </>
         )}

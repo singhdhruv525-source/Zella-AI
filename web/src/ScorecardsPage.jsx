@@ -24,7 +24,7 @@ export default function ScorecardsPage({ workspace }) {
     return result;
   }, [workspace.id, range]);
 
-  const head = <PageHead crumb="Team & staff / Scorecards" title="Scorecards" sub="Callbacks, leads and tasks per person, and how each team member's appointments went." />;
+  const head = <PageHead crumb="Team and staff / Scorecards" title="Scorecards" sub="Callbacks, leads and tasks per person, and how each team member's appointments went." />;
   if (data?.missing) return <>{head}<Empty icon="leaderboard" title="Scorecards aren't set up yet">The Zella Voice team needs to apply its latest database update.</Empty></>;
 
   const people = data?.people ?? [];
@@ -82,7 +82,7 @@ export default function ScorecardsPage({ workspace }) {
                 <tbody>
                   {bookable.map((b) => (
                     <tr key={b.staff_id}>
-                      <th scope="row">{b.name}{!b.active && <small>no longer works here</small>}</th>
+                      <th scope="row">{b.name}{!b.active && <small>No longer on the team</small>}</th>
                       <td>{b.booked}</td><td>{b.completed}</td>
                       <td className={b.no_shows ? "warn" : ""}>{b.no_shows}</td>
                       <td>{pct(b.no_shows, b.completed + b.no_shows)}</td>

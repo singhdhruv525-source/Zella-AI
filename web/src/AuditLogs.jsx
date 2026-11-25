@@ -121,18 +121,18 @@ export default function AuditLogs({ onOpenBusiness }) {
     <section className="owner-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">Security</div>
+          <div className="owner-eyebrow">Administration</div>
           <h1>Audit logs</h1>
           <p>Every admin action on client businesses: who did it, what changed and when.</p>
         </div>
         <div className="ic-actions">
           {canExport && (
             <button type="button" className="owner-secondary-button" onClick={exportCsv} disabled={exporting || loading}>
-              {exporting ? "Exporting..." : "Export CSV"}
+              {exporting ? "Exporting…" : "Export CSV"}
             </button>
           )}
           <button type="button" className="owner-secondary-button" onClick={() => load(null)} disabled={loading}>
-            {loading ? "Loading..." : "↻ Refresh"}
+            {loading ? "Loading…" : "↻ Refresh"}
           </button>
         </div>
       </div>
@@ -258,7 +258,7 @@ export default function AuditLogs({ onOpenBusiness }) {
                 <tr className="al-empty-row">
                   <td colSpan={5}>
                     <div className="op-empty">
-                      {loading ? "Loading audit logs..." : error ? "Audit logs unavailable." : filtered ? "No matching entries." : "No admin actions recorded yet."}
+                      {loading ? "Loading audit logs…" : error ? "Audit logs unavailable." : filtered ? "No matching entries." : "No admin actions recorded yet."}
                     </div>
                   </td>
                 </tr>
@@ -270,7 +270,7 @@ export default function AuditLogs({ onOpenBusiness }) {
           <span>{logs.length} entries shown</span>
           {cursor && !stale && (
             <button type="button" className="owner-secondary-button op-small" onClick={() => load(cursor)} disabled={loading}>
-              {loading ? "Loading..." : "Load older"}
+              {loading ? "Loading…" : "Load older"}
             </button>
           )}
         </div>
