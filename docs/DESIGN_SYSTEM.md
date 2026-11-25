@@ -265,3 +265,13 @@ Classic and the Zella Voice theme stay; no feature, section or order changed.
 - **Stars:** review stars are gold `#B7791F` on the light looks (3.6:1 against a white card, WCAG 1.4.11 asks 3:1)
   and keep `#E0A21B` on Glass.
 - **Voice carousel:** in the CRM the chosen card keeps its accent border and a 1px ring, without the glow.
+- **Tables page, compacted (owner feedback, 25 Nov 2026: "the table layout is showing way too enlarged"):** the
+  floor plan fits its tables (`FloorPlan fit`, `web/src/floorPlanFit.js`). The saved positions are kept exactly: the
+  plan is cropped to the tables' bounding box (with room for chairs) plus 28px padding, then one scale is applied to
+  both axes so it fits the width and a height cap (the viewport less 540px, between 300 and 480px), so the plan sits
+  beside the details panel without large empty bands. The scale stays at least 0.86 (14px names and seats stay at
+  least 12px; the smallest table stays about 50px, over the 44px tap target) and at most 1, or 1.35 for a plan of up
+  to 4 tables so it doesn't look tiny. A big plan that would scroll at the screen's cap may grow to 480px first;
+  one still too big at 0.86 scrolls inside its box. Below 560px wide (phones) the plan keeps the full room drawing;
+  Today's card and the layout editor are unchanged. The four counts are compact cards like the Reports figures
+  (12px by 16px padding, 28px figures, the note on one line, about 100px tall).

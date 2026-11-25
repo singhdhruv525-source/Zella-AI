@@ -71,3 +71,20 @@ html[data-zella-theme="glass"]:root:has(.ba-root) .rv-stars .on { color: #E0A21B
 
 /* ---------- C51. Voice and personality: the chosen voice card keeps its thin accent ring, without the glow ---------- */
 html:root:has(.ba-root) .zs-vc-glow { box-shadow: 0 0 0 1px var(--zella-primary-ring); }
+
+/* ---------- Tables page compacted (owner feedback, 25 Nov 2026: "the table layout is showing way too enlarged") ---------- */
+/* The floor plan's tables sit in a layer. Normally the layer is the whole room, so saved positions draw as before
+   (Today's card, the layout editor). On the Tables page (FloorPlan fit) the layer is cropped to the tables' box and
+   scaled to fit the width and a height cap (floorPlanFit.js); positions and the relative layout are unchanged. */
+html:root:has(.ba-root) .fp-layer { position: absolute; inset: 0; }
+html:root:has(.ba-root) .fp-room.fitted { aspect-ratio: auto; min-height: 0; }
+html:root:has(.ba-root) .fp-room.fitted .fp-layer { inset: auto; transform-origin: 0 0; }
+html:root:has(.ba-root) .fp-room.fitted.scrolls { overflow: auto; }
+/* names and seats stay at least 12px at the smallest scale (0.86) */
+html:root:has(.ba-root) .fp.fit .fp-name { font-size: 14px; }
+html:root:has(.ba-root) .fp.fit .fp-seats { font-size: 14px; }
+/* the four counts: compact cards like the Reports figures (C40), about 100px tall, the note on one line */
+html:root:has(.ba-root) .tb-cards { gap: 12px; }
+html:root:has(.ba-root) .tb-count { min-width: 0; padding: 12px 16px; }
+html:root:has(.ba-root) .tb-count .ba-kpi-value { margin-top: 4px; font-size: 28px; line-height: 1.1; }
+html:root:has(.ba-root) .tb-count .ba-kpi-note { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

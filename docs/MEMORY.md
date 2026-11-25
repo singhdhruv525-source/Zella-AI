@@ -212,6 +212,9 @@ most often needed:
     palette, Classic and the Zella Voice theme stay; no feature, section or order changes; the admin dashboard is not
     changed. Rules in `web/src/styles/crm-look.css`, scoped to the CRM root (branch `claude/crm-look`). The CRM phone
     items (C20 to C25, C30, C49) wait for the phone navigation pull request.
+  - **Tables page compacted (owner feedback, 25 Nov 2026, same pull request):** "the table layout is showing way too
+    enlarged". The floor plan now fits its tables (saved positions kept, only cropped and scaled, never below
+    readable sizes) and the four counts are compact cards (`docs/DESIGN_SYSTEM.md` "CRM look").
 
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed

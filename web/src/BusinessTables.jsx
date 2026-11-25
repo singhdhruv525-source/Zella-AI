@@ -181,7 +181,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
                 return (
                   <>
                     {secs.length > 1 && <div className="fp-tabs"><Segment label="Section" value={show} onChange={setPlanSection} options={secs.map((x) => [x, x])} /></div>}
-                    <FloorPlan tables={tables.filter((t) => t.section === show)} selectedId={selected} onSelect={(id) => setSelected(id === selected ? null : id)}
+                    <FloorPlan fit tables={tables.filter((t) => t.section === show)} selectedId={selected} onSelect={(id) => setSelected(id === selected ? null : id)}
                       label={`${show} floor plan`} tz={tz} formatTime={formatTime} />
                   </>
                 );

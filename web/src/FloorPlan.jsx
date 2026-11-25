@@ -1,5 +1,6 @@
-import { useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "./BusinessUI";
+import { fitOptions, fitPlan } from "./floorPlanFit";
 
 /* The floor plan: each table drawn where the owner placed it (Settings > Tables and seating), with its chairs, its
    name and seats, and its state from the seating board (zella_table_board). Used by the Tables page, the Today
@@ -45,10 +46,34 @@ function size(t, compact) {
   return { w: Math.max(min, Math.round(w * base)), h: Math.max(min, Math.round(s * base)) };
 }
 
-export function FloorPlan({ tables, selectedId, onSelect, compact = false, editable = false, onMove, label = "Floor plan", tz, formatTime }) {
+// The Tables page's plan fits its tables (fit): below this width (phones) it keeps the full room drawing.
+const FIT_MIN_WIDTH = 560;
+const FIT_MAX_HEIGHT = 480;
+// the plan's height cap, so the whole plan and the details panel beside it fit on screen
+const fitMaxHeight = () => (typeof window === "undefined" ? 480 : Math.max(300, Math.min(FIT_MAX_HEIGHT, window.innerHeight - 540)));
+
+export function FloorPlan({ tables, selectedId, onSelect, compact = false, editable = false, fit = false, onMove, label = "Floor plan", tz, formatTime }) {
   const box = useRef(null);
   const drag = useRef(null);
   const placed = autoPlace(tables);
+  const [frame, setFrame] = useState({ width: 0, maxHeight: 480 });
+  const fitting = fit && !editable && !compact;
+  useLayoutEffect(() => {
+    if (!fitting || !box.current) return undefined;
+    const measure = () => setFrame((f) => {
+      const width = Math.round(box.current?.clientWidth ?? 0), maxHeight = fitMaxHeight();
+      return f.width === width && f.maxHeight === maxHeight ? f : { width, maxHeight };
+    });
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(box.current);
+    window.addEventListener("resize", measure);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [fitting]);
+  const boxes = placed.map((t) => ({ x: t.x, y: t.y, ...size(t, false) }));
+  let plan = fitting && frame.width >= FIT_MIN_WIDTH ? fitPlan(boxes, frame.width, frame.maxHeight, fitOptions(placed.length)) : null;
+  // a big plan that would scroll at the screen's cap gets up to the full cap first, so fewer rows hide below
+  if (plan?.scrolls && frame.maxHeight < FIT_MAX_HEIGHT) plan = fitPlan(boxes, frame.width, FIT_MAX_HEIGHT, fitOptions(placed.length));
 
   const toPercent = (clientX, clientY) => {
     const r = box.current.getBoundingClientRect();
@@ -67,9 +92,11 @@ export function FloorPlan({ tables, selectedId, onSelect, compact = false, edita
   };
 
   return (
-    <div className={`fp ${compact ? "compact" : ""} ${editable ? "editable" : ""}`}>
-      <div className="fp-room" ref={box} role="group" aria-label={label}>
+    <div className={`fp ${compact ? "compact" : ""} ${editable ? "editable" : ""} ${fitting ? "fit" : ""}`}>
+      <div className={`fp-room ${plan ? "fitted" : ""} ${plan?.scrolls ? "scrolls" : ""}`} ref={box} role="group" aria-label={label}
+        style={plan ? { height: plan.boxHeight } : undefined}>
         {!placed.length && <p className="fp-empty">No tables in this section.</p>}
+        <div className="fp-layer" style={plan ? { left: plan.offsetX, top: plan.offsetY, width: plan.width, height: plan.height, transform: `scale(${plan.scale})` } : undefined}>
         {placed.map((t) => {
           const st = FLOOR_STATES[t.state] ?? FLOOR_STATES.available;
           const { w, h } = size(t, compact);
@@ -78,7 +105,9 @@ export function FloorPlan({ tables, selectedId, onSelect, compact = false, edita
           return (
             <button key={t.id} type="button"
               className={`fp-table shape-${t.shape ?? "square"} st-${t.state ?? "available"} ${t.id === selectedId ? "selected" : ""}`}
-              style={{ left: `${t.x}%`, top: `${t.y}%`, width: w, height: h }}
+              style={plan
+                ? { left: (t.x / 100) * frame.width - plan.left, top: (t.y / 100) * plan.roomH - plan.top, width: w, height: h }
+                : { left: `${t.x}%`, top: `${t.y}%`, width: w, height: h }}
               onClick={() => onSelect?.(t.id)} onPointerDown={down(t)} onPointerMove={move(t)} onPointerUp={up} onKeyDown={key(t)}
               aria-pressed={selectedId ? t.id === selectedId : undefined}
               aria-label={`${t.name}, ${t.seats} seats, ${st.label}${sub ? `, ${sub}` : ""}${editable ? ". Drag, or use the arrow keys, to move it" : ""}`}>
@@ -91,6 +120,7 @@ export function FloorPlan({ tables, selectedId, onSelect, compact = false, edita
             </button>
           );
         })}
+        </div>
       </div>
       <ul className="fp-legend" aria-label="Key">
         {LEGEND.map((k) => <li key={k}><span className={`fp-swatch st-${k}`} aria-hidden="true" /><Icon name={FLOOR_STATES[k].icon} size="sm" />{FLOOR_STATES[k].label}</li>)}
