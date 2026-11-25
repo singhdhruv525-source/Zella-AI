@@ -100,6 +100,8 @@ export function formatPhone(value) {
 // A search finds a phone number whether it is typed raw ("+12025550123") or as shown ("(202) 555 0123"): digits only,
 // at least 3 of them, matched with and without the leading 1 of a US or Canadian number.
 export function phoneMatches(phone, query) {
+  // only a phone shaped query (digits and the usual separators) is compared by digits; an email or name never is
+  if (!/^[\d\s+().\-/]+$/.test(String(query ?? "").trim())) return false;
   const want = String(query ?? "").replace(/\D/g, "");
   if (want.length < 3 || empty(phone)) return false;
   const have = String(phone).replace(/\D/g, "");

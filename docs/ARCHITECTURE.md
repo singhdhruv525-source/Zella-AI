@@ -2214,6 +2214,7 @@ Knowledge, Automations, Reports, Team, Settings.
 |---|---|---|
 | Decisions given in chat (24 Nov) | Written into this document (and the rulebook when it is a rule) in the same pull request as the work that implements them; a decision with no code change goes in its own docs pull request straight away; always logged in `docs/MEMORY.md` with its date (`AGT-9`). Audit of the chat: `docs/OWNER_DECISIONS_AUDIT.md` | `AGT-9` |
 | CodeRabbit findings (25 Nov) | Claude fixes every finding itself, requests a new review, and merges only when every merge condition holds | `docs/MEMORY.md` §1, `NN-5` |
+| Full review before merge (25 Nov) | "Make sure coderabbit review everything": the last review before a merge is a full review of the final head ("@coderabbitai full review"), not an incremental one | `docs/MEMORY.md` §1 and §5, `NN-5` |
 | Limits and caps (25 Nov) | Zella Voice admins set every plan limit and cap at Create Business and can change them later; the owner may choose a lower monthly spending limit and what happens at the limit, never above the plan | REQ-BIL-01, REQ-BIL-23, REQ-BIL-32, D-44 |
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |

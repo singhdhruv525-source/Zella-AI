@@ -180,6 +180,9 @@ most often needed:
   change). The admin phone items (A27 to A30, A32, A53) wait for the phone navigation pull request (#122). Details in
   `docs/DESIGN_SYSTEM.md` "Admin pages polish"; architecture §23.1d.
 
+- **Full review before every merge (owner, 25 Nov 2026):** "make sure coderabbit review everything". The last review
+  before a merge is a full review of the final head ("@coderabbitai full review"), because an incremental review reads
+  only commits it hasn't seen. `NN-5`, architecture §23.1.
 - **Wording pass, admin and CRM (owner, 25 Nov 2026):** the owner approved every item of the admin and CRM page audits,
   "yes to all A and C" (A1 to A59, C1 to C51). The wording items are built in one pull request (admin A2 to A5, A14 to
   A21, A34, A36, A38, A42, A43, A50, A52, A56, A58; CRM C1 to C8, C11 to C15, C28, C31, C32, C34, C35, C38, C43, C44,

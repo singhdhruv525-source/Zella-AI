@@ -280,7 +280,7 @@ Automations, Waitlist, Team access invitations), and a figure that didn't load o
 | Page | What it does | Status |
 |---|---|---|
 | **Leads** | Every new lead with source, stage, owner and qualification answers; Pipeline view; server-side paging. | Built |
-| **Customers** (named by the industry) | One record per person with a timeline of every call, message, booking and note; duplicates flagged for review and merge; relationships (parent, guardian) with what each may do; consent and contact preferences; data export and erasure. | Built |
+| **Customers** (named by the industry) | One record per person with a timeline of every call, message, booking and note; duplicates flagged for review and merge; relationships (parent, guardian) with what each may do; consent and contact preferences; data export and erasure. Search finds a phone number typed raw or as shown ("(202) 555 0123", with or without the leading 1). | Built |
 | **Money** | Charges and recorded payments, balances, quotes. Records only: no card number ever touches Zella Voice (`NN-9`). | Built |
 | **Business operations** (named by the industry) | The industry's own records (pets, vehicles, matters, policies, jobs, ...) with private fields, files, approvals, milestones, inspections, exceptions and credits. "Customize records" lets leads add fields within the industry's bounds. | Built |
 

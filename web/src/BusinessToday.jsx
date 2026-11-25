@@ -492,7 +492,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
                     const tableName = !(a.table_ids ?? []).length ? "Not set" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id] ?? "Not available").join(" + ");
                     const staffName = showStaff ? data.staff[a.staff_id] ?? "Not set" : "";
                     // on a phone the folded columns read under the name instead
-                    const folded = [showGuests && a.party_size ? `${a.party_size} ${term("customers").toLowerCase()}` : "",
+                    const folded = [showGuests ? (a.party_size ? `${a.party_size} ${term("customers").toLowerCase()}` : `${term("customers")}: None`) : "",
                       tablesOn && (a.table_ids ?? []).length ? `Table ${tableName}` : "", showStaff && a.staff_id ? staffName : ""].filter(Boolean).join(" · ");
                     return (
                       <tr key={a.id}>

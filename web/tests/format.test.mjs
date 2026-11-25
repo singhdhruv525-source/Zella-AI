@@ -83,4 +83,6 @@ test("formatPhone keeps a number with an extension as written; phoneMatches find
   assert.equal(pm("+12025550123", "99"), false);
   assert.equal(pm("+12025550123", "303"), false);
   assert.equal(pm(null, "202"), false);
+  assert.equal(pm("+12025550123", "alex123@example.com"), false);
+  assert.equal(pm("+12025550123", "room 0123"), false);
 });
