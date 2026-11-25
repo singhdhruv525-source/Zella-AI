@@ -44,6 +44,20 @@ export function formatTime(value) {
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+// A count with the word that agrees with it: (1, "arrival") -> "1 arrival", (4, "enquiry", "enquiries") -> "4 enquiries".
+// Pass `many` whenever the plural is not just the word plus "s".
+export function countWord(n, one, many) {
+  return `${n} ${n === 1 ? one : many ?? `${one}s`}`;
+}
+
+// A calendar day with no time: "2026-11-23" -> "Nov 23". Read in UTC so the day never shifts with the viewer's zone.
+export function formatMonthDay(value) {
+  if (empty(value)) return "";
+  const d = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : toDate(value);
+  if (!d || Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(LOCALE, { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
 // "Just now", "5 minutes ago", "3 hours ago", "Yesterday", "5 days ago", then the date. Never "5 d ago".
 // Put formatDateTime(value) in a title next to it so the exact time is one hover away.
 export function formatRelative(value, now = Date.now()) {

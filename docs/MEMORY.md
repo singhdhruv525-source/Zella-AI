@@ -220,6 +220,10 @@ most often needed:
     REQ-BIL-32, D-44); a caller silent for 1 minute gets a polite goodbye and the call ends (REQ-VOX-13, `AI-24`; built in
     `sql/zella_silence_timeout.sql`, not applied yet); urgent texts are always on for team members, and only the
     business owner changes who gets them (§28, REQ-CRM-23).
+  - **Audit bug fixes approved (owner, 25 Nov 2026):** fix in one small pull request the crashes and wording bugs the
+    page audits found: A41 (Industry configuration shows "Industries didn't load." with Try again, never a code
+    error), the Reporting configuration and Auto reload crashes on empty or missing data, and C33, C36, C39, C45
+    (branch `claude/audit-bugfixes`; wording in `docs/ZELLA_COPY_CHANGELOG.md`).
 
 - **Caller verification (owner, 18 Nov 2026, D-18):** cancelling or moving a booking by phone needs its 6 character
   confirmation code; hearing details needs the name on the booking and the date from the calling number; 3 failed

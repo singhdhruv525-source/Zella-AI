@@ -26,6 +26,20 @@ New words on phones only (under 768 wide); tablets and desktops show nothing new
 | Placeholders (screen readers) | Loading the page, Loading tasks, Loading callbacks, Loading tickets, Checking your access | P18 |
 | Notification bell, "Needs you now" notes (phones and desktops) | Kicker "Needs you now"; "Tom Becker wants a person" or "A caller wants a person", "Asked about ... Waiting 4 min" or "Your AI receptionist handed them over. Waiting 4 min"; "Overdue: Confirm cake delivery" (or "Overdue: a task"), "Task for Maya Chen, due 1 hr ago" or "Due 5 min ago"; "1 call to review in Spam protection", "Blocked as likely spam, check it was right" | Owner, 25 Nov 2026: Needs you now should show in the notification |
 
+## 25 November 2026: wording bugs found by the page audits
+
+Approved by the owner on 25 Nov 2026 (A41, C33, C36, C39, C45). Details: the admin and CRM page audits.
+
+| Where | Before | After | Item |
+|---|---|---|---|
+| Record lists, count under the table | "4 event or catering enquirys" | each kind's own plural word, as stored in its setup: "4 events and catering" for the restaurant preset (customer lists too) | C33 |
+| Spam protection, incidents per day chart | "11-23" | "Nov 23" | C36 |
+| Reports, Checked in | "1 arrivals" | "1 arrival" (and "1 no show" under No show rate) | C39 |
+| Settings, Industry profile, Modules switched on | "Ai-receptionist, Automations, Calendar, Calls" | "AI receptionist, Automations, Calendar, Calls" | C45 |
+| Admin, Industry configuration, failed or empty load | "Cannot read properties of undefined (reading '0')", "Couldn't load the industries. Reload the page to try again." and "Industries didn't load." | "Industries didn't load." with a Try again button | A41 (A40 wording) |
+| Admin Settings, Reporting configuration, empty answer | the page crashed | "Couldn't load this: The server didn't answer." with Try again | S62 |
+| Settings, Billing, Auto reload, a resource with no packs | the page crashed when the list was missing | "No packs of texts are on offer right now, so there is nothing to reload with. Ask Zella Voice support." (per resource) | CRM audit, section 4 |
+
 ## 25 November 2026: admin dashboard polish
 
 Admin dashboard only (owner approved, `docs/DESIGN_SYSTEM.md` "Admin polish"). No words added or removed.
