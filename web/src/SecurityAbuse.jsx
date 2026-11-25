@@ -97,7 +97,7 @@ export default function SecurityAbuse({ permissions, onOpenBusiness }) {
             <option value={30}>Last 30 days</option>
             <option value={90}>Last 90 days</option>
           </select>
-          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading…" : "↻ Refresh"}</button>
+          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}</button>
         </div>
       </div>
 
@@ -240,7 +240,7 @@ function Incidents({ days, onOpenBusiness }) {
         </select>
         {filters.businessId && (
           <button type="button" className="owner-secondary-button" onClick={() => set("businessId", "")}>
-            {rows[0]?.business_name ?? "This business"} ✕
+            {rows[0]?.business_name ?? "This business"}<Icon name="close" size="sm" />
           </button>
         )}
       </div>

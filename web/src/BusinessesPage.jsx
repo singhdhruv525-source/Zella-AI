@@ -6,7 +6,7 @@ import { callOwnerFunction } from "./CreateBusinessWizard";
 import { Icon } from "./BusinessUI";
 import { Pill } from "./OwnerOverview";
 import { formatDate } from "./ownerFormat";
-import { friendlyError, Metric, Select, num } from "./admin/adminOps";
+import { DotText, friendlyError, Metric, Select, num, statValueClass } from "./admin/adminOps";
 import { isCount } from "./admin/loadStatus";
 import { useSettled } from "./crm/paging";
 import {
@@ -161,7 +161,7 @@ export default function BusinessesPage({ state, search, onSearch, canManage, onC
           <button type="button" className="owner-stat-card bl-stat-link" aria-pressed={Boolean(filters.problem)}
             onClick={() => setFilters(filters.problem ? { problem: false } : { problem: true, sort: "problems" })}>
             <div className="owner-stat-top"><span>Need attention</span><Icon name="chevron_right" size="sm" /></div>
-            <div className="owner-stat-value">{statValue(stats.withProblems)}</div>
+            <div className={statValueClass(statValue(stats.withProblems))}>{statValue(stats.withProblems)}</div>
             <div className="owner-stat-note">{filters.problem ? "Showing only these" : "With an open problem"}</div>
           </button>
         ) : (
@@ -335,7 +335,7 @@ function BusinessRow({ b, canManage, onOpen, onSetup }) {
           : <EmptyValue label="No owner invited yet" />}
         {owner.sub && <span className="owner-table-secondary owner-cell-truncate" title={owner.sub}>{owner.sub}</span>}
         {owner.status && owner.status !== "accepted" && (
-          <span className="bl-badge-line"><Pill tone={INVITE_TONE[owner.status] ?? "neutral"}>{`Invitation ${owner.status === "sent" ? "sent" : owner.status}`}</Pill></span>
+          <DotText className="bl-invite" tone={INVITE_TONE[owner.status] ?? "neutral"}>{`Invitation ${owner.status === "sent" ? "sent" : owner.status}`}</DotText>
         )}
       </td>
       <td className="col-plan" data-label="Plan">

@@ -269,7 +269,7 @@ export default function PlansPage({ onOpenBusiness }) {
             <p>Shared plans whose limits apply only to a business with no plan of its own. Their prices aren't used: each business's price is on its own plan.</p>
           </div>
           {canEditCatalog && (
-            <button type="button" className="owner-secondary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}>＋ New shared plan</button>
+            <button type="button" className="owner-secondary-button" onClick={() => setEditing({ ...EMPTY_PLAN })} disabled={busy}><Icon name="add" size="sm" />New shared plan</button>
           )}
         </div>
       </section>

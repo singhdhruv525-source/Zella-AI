@@ -7,6 +7,7 @@ import { actionLabel, formatDateTime } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import catalog from "../supabase/functions/_shared/catalog.json";
 import { auditActionOptions, auditQuery } from "./adminAccess";
+import { changeRows } from "./business/changes";
 
 const ACTIONS = auditActionOptions(catalog);
 const label = (action) => catalog.audit_actions[action] ?? actionLabel(action);
@@ -31,6 +32,30 @@ function relative(value) {
   if (days === 1) return "Yesterday";
   if (days < 30) return `${days} days ago`;
   return "";
+}
+
+// What an opened entry changed, as a readable list (owner approved 25 Nov 2026); the raw record is one click away.
+// "not set" reads "Not set"; a stored moment reads "Nov 16, 2026 at 2:49 PM" (the raw record keeps the stored value)
+// (only a whole, valid timestamp is reformatted; anything else, such as month 13, keeps its own text)
+const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+const cap = (v) => (v === "not set" ? "Not set" : STAMP.test(v) && !Number.isNaN(new Date(v).getTime()) ? fullDateTime(v) : v);
+function ChangeList({ log }) {
+  const rows = changeRows(log.old_data, log.new_data);
+  if (!rows.length) return <p className="op-muted al-changes-none">No field changed in this entry.</p>;
+  const both = Boolean(log.old_data && log.new_data);
+  return (
+    <dl className="al-changes" aria-label={both ? "What changed" : "What was recorded"}>
+      {rows.map((r) => (
+        <div key={r.key} className="al-change">
+          <dt>{r.label}</dt>
+          <dd>
+            {both && r.hadBefore && <><span className="al-before">{cap(r.before)}</span><Icon name="arrow_forward" size="sm" /></>}
+            <span className="al-after">{cap(log.new_data ? r.after : r.before)}</span>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 const EMPTY = { businessId: "", auditAction: "", actorId: "", from: "", to: "", entityType: "", entityId: "" };
@@ -132,7 +157,7 @@ export default function AuditLogs({ onOpenBusiness }) {
             </button>
           )}
           <button type="button" className="owner-secondary-button" onClick={() => load(null)} disabled={loading}>
-            {loading ? "Loading…" : "↻ Refresh"}
+            {loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
         </div>
       </div>
@@ -235,14 +260,18 @@ export default function AuditLogs({ onOpenBusiness }) {
                   {expanded === log.id && (
                     <tr className="op-detail-row al-detail-row">
                       <td colSpan={5}>
-                        <div className="op-json-grid">
-                          {log.old_data && (
-                            <div><h4>Before</h4><pre>{JSON.stringify(log.old_data, null, 2)}</pre></div>
-                          )}
-                          {log.new_data && (
-                            <div><h4>{log.old_data ? "After" : "Recorded"}</h4><pre>{JSON.stringify(log.new_data, null, 2)}</pre></div>
-                          )}
-                        </div>
+                        <ChangeList log={log} />
+                        <details className="al-raw">
+                          <summary>Show raw record</summary>
+                          <div className="op-json-grid">
+                            {log.old_data && (
+                              <div><h4>Before</h4><pre>{JSON.stringify(log.old_data, null, 2)}</pre></div>
+                            )}
+                            {log.new_data && (
+                              <div><h4>{log.old_data ? "After" : "Recorded"}</h4><pre>{JSON.stringify(log.new_data, null, 2)}</pre></div>
+                            )}
+                          </div>
+                        </details>
                         <p className="op-muted">
                           {log.entity_type ? `Record: ${log.entity_type}` : ""}
                           {log.entity_id ? ` ${log.entity_id}` : ""}

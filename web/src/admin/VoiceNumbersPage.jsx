@@ -66,8 +66,9 @@ function Overview({ onTab, onOpenCalls }) {
       {o && (
         <>
           {!o.calls_live && <NotAvailable title="Outbound AI calls are off" tip={switchHint("calls_live")}>Zella Voice places no outbound calls until they are switched on at go live. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
+          {/* Grouped under Calls and Numbers, like Messaging's Texts and Emails (owner approved 25 Nov 2026) */}
+          <h3 className="ao-h3">Calls</h3>
           <div className="owner-stat-grid ao-stats vn-stats">
-            <Tile onOpen={() => onTab("numbers")} label="Open the numbers"><Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} /></Tile>
             <Tile onOpen={() => onOpenCalls(tileFilter("inbound", days))} label="Open the inbound calls"><Metric label="Inbound calls" value={num(o.inbound)} note={o.answer_rate == null ? "No answer rate yet" : `Answer rate ${pct(o.answer_rate)}`} /></Tile>
             <Tile onOpen={() => onOpenCalls(tileFilter("outbound", days))} label="Open the outbound calls"><Metric label="Outbound calls" value={num(o.outbound)} /></Tile>
             <Metric label="In progress now" value={num(o.in_progress)} />
@@ -75,6 +76,10 @@ function Overview({ onTab, onOpenCalls }) {
             <Tile onOpen={() => onOpenCalls(tileFilter("missed", days))} label="Open the missed calls"><Metric label="Missed" value={num(o.missed)} tone={o.missed ? "warning" : null} /></Tile>
             <Tile onOpen={() => onOpenCalls(tileFilter("failed", days))} label="Open the failed calls"><Metric label="Failed" value={num(o.failed)} tone={o.failed ? "danger" : null} /></Tile>
             <Metric label="Transfers that didn't connect" value={num(o.transfers_failed)} tone={o.transfers_failed ? "warning" : null} />
+          </div>
+          <h3 className="ao-h3">Numbers</h3>
+          <div className="owner-stat-grid ao-stats vn-stats">
+            <Tile onOpen={() => onTab("numbers")} label="Open the numbers"><Metric label="Active numbers" value={num(o.numbers_active)} note={o.numbers_paused ? `${o.numbers_paused} paused` : "None paused"} /></Tile>
             {o.refusals_24h != null && <Tile onOpen={() => onTab("providers")} label="Open Providers for the Vapi sign in check"><Metric label="Refused Vapi requests (24 h)" value={num(o.refusals_24h)} tone={o.refusals_24h ? "warning" : null} note={o.last_refusal_at ? `Last ${whenText(o.last_refusal_at)}` : "No refusals yet"} /></Tile>}
           </div>
           {o.numbers_active === 0 && (

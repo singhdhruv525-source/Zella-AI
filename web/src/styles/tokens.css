@@ -75,6 +75,12 @@
   --zella-radius-md: 10px;        /* menus, small cards */
   --zella-radius-lg: 14px;        /* cards, panels, modals */
   --zella-radius-full: 999px;
+  /* Admin corner steps (owner approved 25 Nov 2026, admin-polish.css): panels, stat cards, notes and small boxes,
+     and items nested inside them (outer radius minus padding, never under 4) */
+  --zella-radius-panel: 16px;
+  --zella-radius-card: 12px;
+  --zella-radius-note: 8px;
+  --zella-radius-nested: 4px;
   --zella-shadow-sm: 0 1px 2px rgba(37, 35, 33, 0.04);
   --zella-shadow-md: 0 4px 12px -4px rgba(37, 35, 33, 0.08);
   --zella-shadow-pop: 0 18px 40px -12px rgba(37, 35, 33, 0.18);
