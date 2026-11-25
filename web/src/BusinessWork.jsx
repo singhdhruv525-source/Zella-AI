@@ -12,6 +12,7 @@ import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
 import { deferChange } from "./navigation/phoneHelpers";
+import { loadRead, mergeBellNotes, needsNowNotes, pruneRead, saveRead } from "./crm/needsNowNotes";
 
 /* ------------------------------------------------------------------ */
 /* Shared bits                                                         */
@@ -478,8 +479,11 @@ function NoteToasts({ toasts, workspace, onOpen, onClose }) {
     </div>, host);
 }
 
-export function NotificationsBell({ workspace, onGo }) {
+export function NotificationsBell({ workspace, onGo, needsNow }) {
   const [open, setOpen] = useState(false);
+  // "Needs you now" in the bell (owner, 25 Nov 2026; crm/needsNowNotes.js): in the app only, one note per item, gone
+  // once it is dealt with. Read state is kept on this device.
+  const [readNotes, setReadNotes] = useState(() => loadRead(workspace.id));
   const [rows, setRows] = useState([]);
   const [missing, setMissing] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -524,15 +528,36 @@ export function NotificationsBell({ workspace, onGo }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.id]);
 
-  const unread = rows.filter((r) => !r.read_at);
+  const notes = useMemo(() => (needsNow ? needsNowNotes({ waiting: needsNow.waiting, overdue: needsNow.overdue, spam: needsNow.spam, at: needsNow.at }) : []), [needsNow]);
+  const merged = useMemo(() => mergeBellNotes(rows, notes, readNotes, needsNow?.complete ?? {}), [rows, notes, readNotes, needsNow]);
+  const shown = merged.rows;
+  const unread = shown.filter((r) => !r.read_at);
   useEffect(() => { tabCount(unread.length); }, [unread.length]);
+  // forget read notes that have left the bell, and mark read the server notifications whose call or task is dealt with
+  useEffect(() => {
+    if (!needsNow?.at) return;
+    const kept = pruneRead(readNotes, notes);
+    if (kept.size !== readNotes.size) { setReadNotes(kept); saveRead(workspace.id, kept); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes]);
+  const staleTried = useRef(new Set());
+  useEffect(() => {
+    const ids = merged.stale.filter((id) => !staleTried.current.has(id));
+    if (!ids.length) return;
+    ids.forEach((id) => staleTried.current.add(id));
+    supabase.rpc("zella_mark_notifications_read", { p_ids: ids }).then(() => load(), () => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merged.stale.join(",")]);
+  const readHere = (keys) => setReadNotes((set) => { const next = new Set([...set, ...keys]); saveRead(workspace.id, next); return next; });
   async function markAll() {
-    const ids = unread.map((r) => r.id);
+    readHere(unread.filter((r) => r.derived).map((r) => r.key));
+    const ids = unread.filter((r) => !r.derived).map((r) => r.id);
     if (!ids.length) return;
     await supabase.rpc("zella_mark_notifications_read", { p_ids: ids });
     load();
   }
   async function go(note) {
+    if (note.derived) { readHere([note.key]); setOpen(false); onGo(note.page_key); return; }
     setToasts((t) => t.filter((x) => x.id !== note.id));
     if (!note.read_at) await supabase.rpc("zella_mark_notifications_read", { p_ids: [note.id] });
     setOpen(false);
@@ -540,31 +565,32 @@ export function NotificationsBell({ workspace, onGo }) {
     load();
   }
   const closeToast = useMemo(() => (id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
-  if (missing) return null;
+  if (missing && !notes.length) return null;   // no notifications table yet: the bell still shows "Needs you now"
 
   return (
     <div className="ba-bell">
       <button type="button" className={`ba-btn icon ${toasts.length ? "ringing" : ""}`} aria-label={unread.length ? `${unread.length} unread notifications` : "Notifications"} aria-expanded={open} onClick={() => { setOpen(!open); if (!open) load(); }}>
         <Icon name="notifications" />
-        {unread.length > 0 && <span className={`ba-count ${unread.some((n) => n.severity === "urgent") ? "urgent" : ""}`}>{unread.length > 9 ? "9+" : unread.length}</span>}
+        {unread.length > 0 && <span className={`ba-count ${unread.some((n) => n.severity === "urgent") ? "urgent" : ""}`} aria-hidden="true">{unread.length > 9 ? "9+" : unread.length}</span>}
       </button>
       {open && (
         <div className="ba-bell-panel" role="dialog" aria-label="Notifications">
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
           {failed && <p className="ba-muted pad" role="status">Notifications couldn't be checked just now. Zella Voice will try again shortly.</p>}
-          {!rows.length ? (!failed && <p className="ba-muted pad">{quiet}</p>) : (
+          {!shown.length ? (!failed && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
-              {rows.map((n) => {
-                const { icon, tone, kicker } = noteStyle(n);
+              {shown.map((n) => {
+                const style = noteStyle(n);
+                const { icon, tone, kicker } = n.derived ? { icon: n.icon, tone: style.tone, kicker: "Needs you now" } : style;
                 return (
                   <li key={n.id} className={`${n.read_at ? "" : "unread"} ${n.severity === "urgent" ? "urgent" : ""}`}>
                     <button type="button" onClick={() => go(n)}>
                       <span className={`ba-note-icon tone-${tone}`}><Icon name={icon} size="sm" /></span>
                       <span className="ba-note-text">
                         <span className={`ba-kicker tone-${tone}`}>{kicker}</span>
-                        <strong>{voiceTitle(n, workspace)}</strong>
+                        <strong>{n.derived ? n.title : voiceTitle(n, workspace)}</strong>
                         {n.body && <small>{n.body}</small>}
-                        <small>{timeAgo(n.created_at)}</small>
+                        {n.created_at && <small>{timeAgo(n.created_at)}</small>}
                       </span>
                     </button>
                   </li>

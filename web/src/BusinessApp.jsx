@@ -264,7 +264,8 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const onTab = tabs.some((t) => t.key === current.key);
   const panelOpen = phone && navOpen;
   useTabScroll(phone, current.key, tabMemory, onTab);
-  const signals = useCrmSignals(workspace, { enabled: phone, attention, refreshKey });
+  // read on every screen size: the bell shows "Needs you now" too (owner, 25 Nov 2026)
+  const signals = useCrmSignals(workspace, { enabled: !navPreview, attention, refreshKey });
   const strip = phone && current.key !== "attention" ? crmStrip(attention, signals.oldest) : null;
   const canLead = workspace.role !== "viewer";
   const walkIn = canBook && todayConfig(nav.data?.industry?.slug).walkIn
@@ -416,7 +417,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               <button type="button" className="pn-iconbtn" aria-label={`Search ${searchLabel}`} aria-expanded={searchOpen} onClick={() => setSearchOpen((o) => !o)}>
                 <Icon name={searchOpen ? "close" : "search"} />
               </button>
-              <NotificationsBell workspace={workspace} onGo={goFromBell} />
+              <NotificationsBell workspace={workspace} onGo={goFromBell} needsNow={signals} />
             </>}
             search={(
               <label className="ba-search">
@@ -458,7 +459,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
                 <Icon name="campaign" /><span>Tell callers</span>
               </button>
             )}
-            <NotificationsBell workspace={workspace} onGo={(raw) => {
+            <NotificationsBell workspace={workspace} needsNow={signals} onGo={(raw) => {
               const key = raw?.startsWith("settings/") ? raw : pageFor(raw);   // older keys such as on_call open their page
               if (canGo(key) || key?.startsWith("settings/")) setPage(key);
               else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");

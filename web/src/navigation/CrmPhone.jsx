@@ -11,10 +11,14 @@ import { needsNowRows } from "./phoneHelpers.js";
 const SPAM_ROLES = ["owner", "admin", "manager"];
 const DAY = 864e5;
 
-// Live signals for the phone: the caller waiting longest, overdue tasks and spam to review. Only while a phone layout
-// is shown; refreshed with the waiting count, on a refresh and every minute.
+// Live signals for "Needs you now": the callers waiting for a person, overdue tasks and spam to review. Read on every
+// screen size, because the notification bell shows the same items (owner, 25 Nov 2026, crm/needsNowNotes.js); the
+// phone also uses them for the live strip, Today's block and the More count. Refreshed with the waiting count, on a
+// refresh and every minute.
+const WAITING_LIMIT = 50;
+const OVERDUE_LIMIT = 100;
 export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
-  const [signals, setSignals] = useState({ oldest: null, overdue: [], spam: 0 });
+  const [signals, setSignals] = useState({ oldest: null, waiting: [], overdue: [], spam: 0, complete: {}, at: null });
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!enabled) return undefined;
@@ -26,28 +30,31 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
     let live = true;
     const id = workspace.id;
     const now = new Date();
-    const waiting = attention > 0
-      ? supabase.from("calls_view").select("id, customer_id, from_number, summary, escalated_at, created_at").eq("business_id", id)
-        .eq("needs_human", true).is("escalation_resolved_at", null).order("escalated_at", { ascending: true, nullsFirst: false }).limit(1)
-      : Promise.resolve({ data: [] });
+    const waiting = supabase.from("calls_view").select("id, customer_id, from_number, summary, escalated_at, created_at").eq("business_id", id)
+      .eq("needs_human", true).is("escalation_resolved_at", null).order("escalated_at", { ascending: true, nullsFirst: false }).limit(WAITING_LIMIT);
     const overdue = supabase.from("crm_tasks").select("id, title, due_at, customer_id").eq("business_id", id).eq("status", "open")
-      .lt("due_at", now.toISOString()).order("due_at", { ascending: true }).limit(20);
+      .lt("due_at", now.toISOString()).order("due_at", { ascending: true }).limit(OVERDUE_LIMIT);
     const spam = SPAM_ROLES.includes(workspace.role)
       ? supabase.rpc("zella_spam_overview", { p_business_id: id, p_from: new Date(now.getTime() - 30 * DAY).toISOString(), p_to: now.toISOString() })
       : Promise.resolve({ data: null });
-    Promise.all([waiting, overdue, spam].map((p) => Promise.resolve(p).catch(() => ({ data: null })))).then(async ([w, o, s]) => {
-      const call = (w.data ?? [])[0] ?? null;
+    Promise.all([waiting, overdue, spam].map((p) => Promise.resolve(p).catch((error) => ({ data: null, error })))).then(async ([w, o, s]) => {
+      const calls = w.error ? [] : w.data ?? [];
       const tasks = o.error ? [] : o.data ?? [];
-      const ids = [call?.customer_id, tasks[0]?.customer_id].filter(Boolean);
+      const ids = [...new Set([...calls, ...tasks].map((r) => r.customer_id).filter(Boolean))];
       const people = ids.length
         ? await Promise.resolve(supabase.from("customers").select("id, first_name, last_name, company_name").in("id", ids)).catch(() => ({ data: [] }))
         : { data: [] };
       const nameOf = Object.fromEntries((people.data ?? []).map((p) => [p.id, personName(p)]));
       if (!live) return;
+      const list = calls.map((c) => ({ id: c.id, name: nameOf[c.customer_id] ?? c.from_number ?? null, since: c.escalated_at ?? c.created_at, summary: c.summary }));
       setSignals({
-        oldest: call ? { name: nameOf[call.customer_id] ?? call.from_number ?? null, since: call.escalated_at ?? call.created_at, summary: call.summary } : null,
-        overdue: tasks.map((t, n) => ({ ...t, who: n === 0 ? nameOf[t.customer_id] ?? null : null })),
+        oldest: list[0] ?? null,
+        waiting: list,
+        overdue: tasks.map((t) => ({ ...t, who: nameOf[t.customer_id] ?? null })),
         spam: Number(s.data?.unreviewed) || 0,
+        // a list read in full: anything missing from it has been dealt with
+        complete: { waiting: !w.error && Boolean(w.data) && calls.length < WAITING_LIMIT, task: !o.error && Boolean(o.data) && tasks.length < OVERDUE_LIMIT },
+        at: now.toISOString(),
       });
     });
     return () => { live = false; };

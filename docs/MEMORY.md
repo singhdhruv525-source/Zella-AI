@@ -178,6 +178,11 @@ most often needed:
     task (D-57). The live strip shows only callers waiting for a person (CRM) and open incidents (admin).
   - Undo never needs a reverse call: a quick change (task done, ticket assigned or resolved) is only sent once its
     5 second Undo window has passed (`deferChange` in `web/src/navigation/phoneHelpers.js`).
+  - **"Needs you now should show in the notification" (owner, 25 Nov 2026, REQ-MOB-12):** every "Needs you now"
+    item is also in the CRM bell and its unread count, phone and desktop, opening the same page. Built in the app
+    (`web/src/crm/needsNowNotes.js`), no migration: `staff_notifications` rows are delivered by email, text and push,
+    and these must stay in the app. One note per call or task; it leaves when the item is dealt with; a server
+    `escalation_unacknowledged` or `task_overdue` row for the same item is hidden, then marked read once it is dealt with.
 - **Admin dashboard polish (owner, 25 Nov 2026):** 21 admin dashboard changes approved ("yes to all"): polish only,
   Glass and the brand kept, admin only; the CRM does not change. The admin's motion is now calm (no lift, sheen or
   ripple), which supersedes the 6 Nov lively motion rule for the admin only. Details in `docs/DESIGN_SYSTEM.md`
