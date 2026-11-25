@@ -257,6 +257,10 @@ the same rules; hiding an item is never the protection.
 | **Today** | What needs doing now: calls needing attention, callbacks, today's bookings, follow-ups, alerts, a calls-this-week chart. Cards come from the industry. | Built |
 | **Calendar** | Day, week and staff views of bookings; book, move, cancel, confirm requested bookings; blocked times. Today's column is marked by a thin accent bar over its day name (owner, 25 Nov 2026). | Built |
 | **Tables** (restaurants) | The floor plan: table states (free, seated, needs clearing), blocks, combinations, walk-ins. Restaurants book real tables, not just a seat limit, and the same drawn floor plan shows as a Table layout card on Today (owner, 6 Nov 2026). A table's details panel offers "Block table" (owner, 25 Nov 2026). | Built |
+
+| **Today** | What needs doing now: calls needing attention, callbacks, today's bookings, follow-ups, alerts, a calls-this-week chart. Cards come from the industry. Titled "Today" with the date under it and the business name on a quieter line below (another day shows that date as the title); on a phone the bookings table folds its columns under the name (owner, 25 Nov 2026). | Built |
+| **Calendar** | Day, week and staff views of bookings; book, move, cancel, confirm requested bookings; blocked times. | Built |
+| **Tables** (restaurants) | The floor plan: table states (free, seated, needs clearing), blocks, combinations, walk-ins. Restaurants book real tables, not just a seat limit, and the same drawn floor plan shows as a Table layout card on Today (owner, 6 Nov 2026). | Built |
 | **Dispatch** (field work) | The board for jobs: assign, en route, on site, finished, checklists, return visits. | Built |
 | **Resources** | Rooms, chairs, bays and equipment bookings need; which services need which. | Built |
 | **Recurring visits** | Repeat work (every two weeks, monthly) that generates future visits. | Built |
