@@ -75,3 +75,41 @@
 @keyframes ba-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes ba-pop { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes ba-sheet { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Admin polish (owner approved 25 Nov 2026, docs/DESIGN_SYSTEM.md "Admin polish"): calmer motion in the admin only
+   (.owner-app; the CRM keeps the rules above). One curve with no overshoot: 150ms for hover and press, 200ms for
+   menus and popups, the 350ms page rise. Buttons change colour and press in slightly: no lift, glow, shine, ripple or
+   icon grow. Cards, panels and menu rows stay put under the pointer. */
+.owner-app { --owner-ease: cubic-bezier(0.22, 1, 0.36, 1); }
+.owner-app .ba-ripple { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .owner-app :is(.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-secondary-button, .cp-button, .bd-danger-button, .ba-icon-btn, .owner-icon-button) {
+    transition: background-color 150ms var(--owner-ease), border-color 150ms var(--owner-ease), color 150ms var(--owner-ease), transform 120ms var(--owner-ease);
+  }
+  .owner-app :is(.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-button-primary, .owner-secondary-button, .cp-button, .bd-danger-button, .owner-button-danger, .ba-icon-btn, .owner-icon-button):hover:not(:disabled):not(:focus-visible) { transform: none; box-shadow: none; }
+  .owner-app :is(.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-button-primary, .owner-secondary-button, .cp-button, .bd-danger-button, .owner-button-danger, .ba-icon-btn, .owner-icon-button):active:not(:disabled):not(:focus-visible) { transform: scale(0.98); box-shadow: none; transition-duration: 120ms; }
+  .owner-app :is(.ba-btn.primary, .zs-btn.primary, .owner-primary-button, .owner-button-primary, .cp-button, .ba-btn.danger, .zs-btn.danger, .bd-danger-button, .owner-button-danger)::after { content: none; }
+  .owner-app :is(.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-secondary-button, .cp-button, .bd-danger-button, .ba-icon-btn, .owner-icon-button) :is(.ba-icon, .material-symbols-rounded, svg) { transform: none; transition: none; }
+
+  .owner-app :is(.owner-stat-card, .op-card, .pl-card) { transition: border-color 150ms var(--owner-ease); }
+  .owner-app :is(.owner-stat-card, .op-card, .pl-card):hover { transform: none; box-shadow: var(--zella-shadow-sm); }
+  .owner-app .owner-stat-card:hover .owner-stat-icon { animation: none; }
+  .owner-app :is(.owner-panel, .zs-card) { transition: border-color 150ms var(--owner-ease); }
+  .owner-app :is(.owner-panel, .zs-card):hover { box-shadow: var(--zella-shadow-sm); }
+
+  .owner-app :is(.op-tabs button, .ao-chip, .zs-chip, .ba-segment button) { transition: background-color 150ms var(--owner-ease), color 150ms var(--owner-ease), box-shadow 150ms var(--owner-ease), transform 120ms var(--owner-ease); }
+  .owner-app :is(.op-tabs button, .ao-chip, .zs-chip, .ba-segment button):active { transform: scale(0.98); }
+  .owner-app :is(.op-tabs button.active, .op-tabs button[aria-selected="true"], .ao-chip.active, .ao-chip[aria-pressed="true"], .ba-segment button.active) { animation-duration: 200ms; animation-timing-function: var(--owner-ease); }
+
+  .owner-app :is(.owner-table tbody tr, .zs-table tbody tr) { transition: background-color 150ms var(--owner-ease), box-shadow 150ms var(--owner-ease); }
+
+  .owner-app :is(.owner-nav a, .owner-nav button, .owner-nav-item) { transition: background-color 150ms var(--owner-ease), color 150ms var(--owner-ease); }
+  .owner-app :is(.owner-nav a, .owner-nav button, .owner-nav-item):hover { transform: none; }
+
+  .owner-app :is(.ba-pill, .owner-status) { animation-duration: 200ms; animation-timing-function: var(--owner-ease); }
+
+  .owner-app :is(.owner-page > *, .owner-content > :not(.owner-page):not(.owner-modal-overlay)) { animation-timing-function: var(--owner-ease); }
+
+  .owner-app :is(.owner-modal-overlay, .owner-modal-backdrop, .zs-overlay, .owner-modal, .zs-dialog, .bd-confirm, .ba-modal) { animation-duration: 200ms; animation-timing-function: var(--owner-ease); }
+  .owner-app :is(.zs-dialog-icon, .ao-dialog-icon, .ba-modal-icon) { animation: none; }
+}

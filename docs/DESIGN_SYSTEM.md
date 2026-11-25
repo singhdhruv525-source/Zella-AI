@@ -157,7 +157,7 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 | Component | What it does |
 | --- | --- |
 | `PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh })` | The eyebrow is the sidebar group (Businesses, Configuration, AI and communications, Operations); the H1 is the sidebar label. "Updated 2:44 PM" and a small Refresh button sit in the header actions, left of the single primary button. Cards don't carry their own Refresh. |
-| `Metric({ label, value, note, onClick })` and `.owner-stat-card` | One KPI card: label 13px secondary, value 32px semibold with tabular figures, one line of note 12px (ellipsis), a fixed minimum height, no coloured icon tiles. A card that filters the list is a real button (`onClick`) with a chevron, hover border and focus ring. |
+| `Metric({ label, value, note, onClick })` and `.owner-stat-card` | One KPI card: label 13px secondary, value 32px medium (500) with tabular figures and a thousands comma, one line of note 12px (ellipsis; two lines on a phone), a fixed minimum height, no coloured icon tiles. A card that filters the list is a real button (`onClick`) with a chevron, hover border and focus ring. |
 | `DataTable({ columns, rows, cards, selected })` | Columns are `[header, cell, className, label]`. Use `num` for numbers (right aligned, tabular) and `col-actions` for the action cell. With `cards`, each row becomes a card under 600px, labelled from `data-label`. Tables that stay tables on a phone fade at the right edge. |
 | `Pager` | The one table footer (`.owner-table-foot`): "Showing 1 to 25 of 96" (or "3 shown") on the left, Previous and Next small buttons on the right, chevrons only under 600px. |
 | `Drawer({ eyebrow, title, status, footer })` | A side panel: a 12px eyebrow ("Plan"), the title (the business name) at 18px, an optional status badge, and a sticky footer for its actions. Facts inside are a two column list (`.ao-facts`); sections use `.drawer-section h3`. |
@@ -192,6 +192,30 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 | Danger | Failed, Suspended, Urgent |
 | Neutral | Everything else, such as No plan, Canceled, Not available yet |
 
+## Admin polish (owner, 25 Nov 2026)
+
+The owner approved 21 admin dashboard changes on 25 Nov 2026 ("yes to all"): polish only, the Glass and Zella Voice
+looks and the brand stay, admin only (every rule in a shared stylesheet is scoped to `.owner-app`, so the CRM does not
+change). Design pass guided by unslop by heydamir (CC BY 4.0).
+
+- **Labels:** sidebar group labels, the eyebrow above the page title and the "More below" cue are sentence case,
+  12px, weight 500, no letter spacing. Group labels are `--zella-text-faint`, the eyebrow `--zella-text-secondary`.
+  A group label has more space above it than below (16 and 8), so each group reads as one block.
+- **Weight:** panel titles keep 600 as the one emphasis. The page title, KPI figures, buttons, links, pills and list
+  names are 500. Inter Tight is loaded at 500, 700 and 800, so the Zella Voice page title draws the weight it asks for.
+- **Numbers:** counts use the locale's thousands separator (3,182); pipeline counts and table cells use tabular figures.
+- **Setup pipeline:** 8px bars with a 4px radius; every stage is `--zella-text` at 28% on `--zella-subtle`, only Live is
+  the accent, with a 3px by 16px mark before its label like the selected menu item. Live is coral `#FF4F2E` in the Zella
+  Voice look, and the look's own `--zella-primary` elsewhere: mocha in Classic, copper (or the picture's copper) in Glass.
+- **Icons:** buttons use Material Symbols (`refresh`, `add`), never typed symbols; menu and top bar icons are 18px.
+- **Spacing:** one rhythm on the 4px grid: 24 between panels and under the KPI rows, panel headings 20 by 24, list
+  rows 12 by 24, the pipeline 24 with 12 between rows.
+- **Glass:** admin pages' entrance animations hold only their start state, so cards and panels really frost.
+- **Motion:** one curve, `cubic-bezier(0.22, 1, 0.36, 1)`: 150ms for hover, 120ms press to 0.98, 200ms for menus and
+  popups, the 350ms page rise. Buttons only change colour: no lift, glow, sheen, ripple or icon grow. Cards, panels
+  and menu rows don't move or grow shadows under the pointer; no bounce or overshoot anywhere.
+- **Copy:** panel captions have no full stop; the search box says "Search businesses".
+
 ## Rules of use
 
 - The primary colour (midnight in Zella Voice, mocha in Classic) is for primary buttons and key icons. Coral marks only
@@ -202,7 +226,8 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 - Motion is lively but short (owner, 6 Nov 2026: buttons and pages should not feel flat, in the CRM and the admin
   dashboard): buttons lift on hover and press in on click with a ripple, main buttons get a sheen, cards and panels
   respond to the pointer, tabs glide, popups open with a pop and pages ease in (`web/src/styles/motion.css`,
-  `web/src/CrmMotion.css`). All motion stops for people who prefer reduced motion.
+  `web/src/CrmMotion.css`). All motion stops for people who prefer reduced motion. The admin dashboard is calmer
+  since 25 Nov 2026 (see "Admin polish" below); the CRM keeps the lively motion.
 - On phones (CRM under 760px, admin under 600px) the sidebar opens as a drawer from the menu button in the top bar;
   it closes on Escape, on the backdrop, or when a page is chosen. Wide tables and tab rows scroll inside themselves,
   never the whole page, and fade at the right edge while there is more.
