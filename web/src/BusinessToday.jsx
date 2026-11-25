@@ -1,4 +1,7 @@
-import { TodayTopSlot } from "./navigation/phoneContext";
+import { TodayTopSlot, usePhoneUi } from "./navigation/phoneContext";
+import { usePendingViews } from "./navigation/PhoneNav";
+import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import UsageLive from "./UsageLive";
 import { supabase } from "./supabase";
@@ -286,10 +289,16 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   const [moving, setMoving] = useState(null);
   const opsKeys = useMemo(() => operations.filter((t) => t.enabled && capabilityOn(capabilities, t.capability)).slice(0, 2).map((t) => t.key), [operations, capabilities]);
 
+  // On a phone a task ticked here goes through the app's quick change store, like Tasks: hidden at once, Undo for 5
+  // seconds, sent after (navigation/PhoneNav.jsx usePendingStore). A desktop completes it at once, as before.
+  const ui = usePhoneUi();
+  const [ownStore] = useState(createPendingStore);
+  const store = ui.pending ?? ownStore;
   // A newer load (another day, a refresh) wins: an older one that finishes later must not overwrite it.
   const loadSeq = useRef(0);
   const load = useCallback(async () => {
     const request = ++loadSeq.current;
+    const settledBefore = store.settledSnapshot();   // acknowledged once this read's data is on screen
     setLoading(true);
     setError("");
     const id = workspace.id;
@@ -353,6 +362,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       const missedOpen = (rows) => rows.filter((c) => c.status === "missed" && !c.metadata?.followed_up_at).length;
 
       if (request !== loadSeq.current) return;
+      store.clearSettledSnapshot(settledBefore);
       setData({
         appts: appts.map((a) => ({ ...withPerson(a), forTitle: forTitle[a.record_id] })),
         prev: {
@@ -412,8 +422,29 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   }
   const setStatus = (a, status, done) => act(`appt-${a.id}`, () => changed(supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id)), done);
   const checkIn = (a) => act(`appt-${a.id}`, () => setCheckIn(a.id, !a.checked_in_at), a.checked_in_at ? "Undone." : `${personName(a.customer) ?? a.title}: ${cfg.arrived.toLowerCase()}.`);
-  const completeTask = (t) => act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.")
-    .then((ok) => { if (ok) onTaskDone?.(); });
+  const views = usePendingViews(store, () => { load(); });
+  const completeTask = (t) => {
+    if (!(ui.phone && ui.pending)) {
+      return act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.").then((ok) => { if (ok) onTaskDone?.(); });
+    }
+    if (store.has(t.id)) return undefined;
+    const change = deferChange({
+      commit: async () => {
+        const { error: failure } = await supabase.rpc("zella_complete_task", { p_task_id: t.id });
+        if (failure) throw failure;
+        store.succeed(t.id);
+        onTaskDone?.();
+      },
+      revert: () => store.rollback(t.id),
+      beacon: () => sendKeepalive("rpc", "zella_complete_task", { p_task_id: t.id }),
+      beaconReady: keepaliveReady,
+      onError: (err) => ui.toast(`Couldn't mark it done, so it's back on the list. ${friendly(err)}`),
+    });
+    store.add(t.id, change, { hidden: true });
+    ui.toast(pendingToastText("Task marked done", store.waiting()), { undo: () => undoAll(store.changes()) });
+    return undefined;
+  };
+  const todayTasks = (data?.tasks ?? []).filter((t) => !views.get(t.id)?.hidden);
   const person = (id, label) => (id && onOpenPerson ? <button type="button" className="ba-namebtn" onClick={() => onOpenPerson(id)}>{label}</button> : <span>{label}</span>);
 
   const now = Date.now();
@@ -610,9 +641,9 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
         </Card>}
 
         <Card title="Tasks and follow ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
-          {data?.tasks.length ? (
+          {todayTasks.length ? (
             <ul className="td-list">
-              {data.tasks.map((t) => {
+              {todayTasks.map((t) => {
                 const overdue = t.due_at && new Date(t.due_at).getTime() < now;
                 return (
                   <li key={t.id}>

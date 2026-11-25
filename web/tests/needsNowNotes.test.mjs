@@ -362,3 +362,26 @@ test("while any source hasn't read yet, nothing is called quiet", () => {
   const partly = signalsFrom(nextSources(SOURCES_START, { waiting: listRead(ok([], 0)) }), ago(0));
   assert.equal(partly.loading, true);
 });
+
+test("consecutive quick changes on one row: every settled field stays shown until a read acknowledges it", async () => {
+  const timers = fakeTimers();
+  const store = createPendingStore();
+  const send = (id, view) => { const c = deferChange({ commit: async () => store.succeed(id), revert: () => store.rollback(id), timers }); store.add(id, c, view); return c; };
+  send("st1", { assigned_to: "u1", assignee: "me@zella.test" });
+  await timers.run();                                       // assigned and sent
+  const readAfterAssign = store.settledSnapshot();          // a read starts
+  send("st1", { status: "resolved" });
+  assert.deepEqual(store.views().get("st1"), { assigned_to: "u1", assignee: "me@zella.test", status: "resolved" }, "waiting on top of settled");
+  await timers.run();                                       // resolved and sent
+  assert.deepEqual(store.views().get("st1"), { assigned_to: "u1", assignee: "me@zella.test", status: "resolved" }, "the assignment isn't lost");
+  store.clearSettledSnapshot(readAfterAssign);              // that read worked: it saw the assignment only
+  assert.deepEqual(store.views().get("st1"), { status: "resolved" });
+  store.clearSettledSnapshot(store.settledSnapshot());      // a later read that worked
+  assert.equal(store.views().has("st1"), false);
+  // a newer change to the same field: an older snapshot can't clear it
+  send("st2", { status: "resolved" }); await timers.run();
+  const old = store.settledSnapshot();
+  send("st2", { status: "closed" }); await timers.run();
+  store.clearSettledSnapshot(old);
+  assert.deepEqual(store.views().get("st2"), { status: "closed" });
+});

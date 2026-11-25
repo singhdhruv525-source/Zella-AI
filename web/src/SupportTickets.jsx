@@ -28,7 +28,8 @@ const firstReplyText = (h) => (Number.isFinite(h) && h < 1 ? "First reply: withi
 
 const EMPTY_TICKET = { businessId: "", subject: "", description: "", category: "", priority: "normal" };
 
-export default function SupportTickets({ onOpenBusiness, myEmail }) {
+// refreshRef: given the page's refresh (a promise that settles when the read has finished), for pull to refresh
+export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) {
   // On a phone the list is rows you can swipe (approved 25 Nov 2026, P19 and P20): Assign to yourself or Resolve, shown
   // at once with Undo, and only sent once the Undo window has passed (navigation/phoneHelpers.js deferChange).
   const ui = usePhoneUi();
@@ -83,6 +84,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => { refreshRef?.(() => load()); return () => refreshRef?.(undefined); }, [refreshRef, load]);
   // a refresh after a change uses the tab shown when it finishes, not the one shown when the change was sent
   const loadRef = useRef(load);
   const overdueRef = useRef(overdueTab);

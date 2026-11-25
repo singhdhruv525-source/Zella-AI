@@ -266,10 +266,13 @@ export default function OwnerDashboard({ onSignOut }) {
   const scrolled = useScrolledPast(phone);
   // P17: pull to refresh on Overview, Businesses and Support; each page reads again with its own Refresh
   const pullable = phoneTabbed && ["Overview", "Businesses", "Support"].includes(activePage);
+  // each page hands over its own refresh (a promise), so the indicator stays until the read has finished
+  const pageRefresh = useRef({});
+  const overviewRefresh = useCallback((fn) => { pageRefresh.current.Overview = fn; }, []);
+  const supportRefresh = useCallback((fn) => { pageRefresh.current.Support = fn; }, []);
   const pull = usePullToRefresh({ enabled: pullable, onRefresh: () => {
     if (activePage === "Businesses") return businessList.reload({ fresh: true });
-    document.querySelector(".pn-tabpage:not([hidden]) .owner-page-heading .op-heading-actions > .owner-secondary-button")?.click();
-    return undefined;
+    return pageRefresh.current[activePage]?.();
   } });
   const selectTab = (key) => {
     if (key === activePage && phoneTabbed) { scrollToTop(); return; }
@@ -285,6 +288,7 @@ export default function OwnerDashboard({ onSignOut }) {
         onOpenBusiness={setDetailId}
         onContinueSetup={can("businesses.manage") ? (id) => setWizard({ businessId: id }) : null}
         onNavigate={setActivePage}
+        refreshRef={overviewRefresh}
       />
     ) : label === "Businesses" ? (
       <BusinessesPage
@@ -296,7 +300,7 @@ export default function OwnerDashboard({ onSignOut }) {
         onOpen={(id) => setBizSheet(id)}
         onSetup={(id) => setWizard({ businessId: id })}
       />
-    ) : label === "Support" ? <SupportTickets onOpenBusiness={setDetailId} myEmail={email} />
+    ) : label === "Support" ? <SupportTickets onOpenBusiness={setDetailId} myEmail={email} refreshRef={supportRefresh} />
       : label === "Platform Operations" ? <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
         : label === "Verification" ? <VerificationQueue onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           : label === "Audit Logs" ? <AuditLogs onOpenBusiness={setDetailId} /> : null

@@ -260,6 +260,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   // signing out sends the changes still waiting first (on purpose: a task marked done is never lost by signing out)
   const signOut = async () => { await sendWaitingChanges(pendingStore); return onSignOut(); };
   const [tabMemory] = useState(createTabMemory);
+  // a task changed on Tasks: the bell, Needs you now and the Today page kept in the background read again (Tasks reads
+  // itself; the other pages are left alone)
+  const [todayBump, setTodayBump] = useState(0);
+  const tasksChanged = () => { signals.refresh(); setTodayBump((n) => n + 1); };
   const [phoneSheet, setPhoneSheet] = useState(null);   // "switcher" | "quick"
   const [searchOpen, setSearchOpen] = useState(false);
   const tabs = phone && nav.status === "ready"
@@ -290,9 +294,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   useRootFlag("pn-has-strip", Boolean(strip));
   // P17: pull to refresh on the lists. Today reloads in place (its own Refresh); the others read again.
   const pullable = phone && ["today", "calendar", "inbox", "tasks", "leads"].includes(current.key);
+  // every page, Today included, reads again through refreshKey (Today takes it as a prop, so its day and filter stay,
+  // and its spam and usage cards refresh too); one read each, no button clicks
   const pull = usePullToRefresh({ enabled: pullable, onRefresh: () => {
-    const own = current.key === "today" && document.querySelector('.td-head [aria-label="Refresh"]');
-    if (own) own.click(); else setRefreshKey((k) => k + 1);
+    setRefreshKey((k) => k + 1);
     signals.refresh();   // the bell and "Needs you now" read again too
     return countAttention();
   } });
@@ -316,7 +321,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
     <>
       {key === "today" && (
         <BusinessToday
-          refresh={refreshKey}
+          refresh={`${refreshKey}:${todayBump}`}
           onTaskDone={signals.refresh}
           workspace={workspace}
           userId={userId}
@@ -342,7 +347,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       {key === "receptionist" && <ReceptionistPage workspace={workspace} onNotice={setNotice} onReload={onReload} />}
       {key === "automations" && <AutomationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
       {key === "callbacks" && <CallbacksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
-      {key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={signals.refresh} />}
+      {key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={tasksChanged} />}
       {key === "dispatch" && <DispatchPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
       {key === "resources" && <ResourcesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
       {key === "recurring" && <RecurringPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}

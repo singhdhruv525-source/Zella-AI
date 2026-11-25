@@ -198,41 +198,64 @@ export const pendingToastText = (text, waiting) => (waiting > 1 ? `${waiting} ch
 export function createPendingStore() {
   // methods refer to `store`, never `this`, so they work when passed around on their own
   let nextToken = 0;
-  const pending = new Map();   // id -> { change, view, token }
-  const settled = new Map();   // id -> { view, token }: the token says which change it came from
+  const pending = new Map();   // id -> { change, view, token }: at most one waiting change per row
+  // id -> Map(field -> { value, token }): each field a sent change set, with the change it came from, so consecutive
+  // changes to one row (assigned, then resolved) all stay shown until a read that works acknowledges each of them
+  const settled = new Map();
   const subs = new Set();
   const emit = (event) => subs.forEach((f) => f(event));
+  const settledView = (fields) => Object.fromEntries([...fields].map(([k, f]) => [k, f.value]));
   const store = {
     has: (id) => pending.has(id),
     change: (id) => pending.get(id)?.change ?? null,
     add(id, change, view) { pending.set(id, { change, view, token: ++nextToken }); emit({ type: "add", id }); },
-    // sent: the page reads its list again, and a read that works clears the settled view (clearSettledSnapshot)
-    succeed(id) { const e = pending.get(id); pending.delete(id); if (e) settled.set(id, { view: e.view, token: e.token }); emit({ type: "sent", id }); },
-    // undone, or the send failed: the view goes (pending or already settled), the row is back as it was
+    // sent: its fields join the row's settled fields; a read that works clears them (clearSettledSnapshot)
+    succeed(id) {
+      const e = pending.get(id);
+      pending.delete(id);
+      if (e) {
+        const fields = settled.get(id) ?? new Map();
+        for (const [k, value] of Object.entries(e.view ?? {})) fields.set(k, { value, token: e.token });
+        settled.set(id, fields);
+      }
+      emit({ type: "sent", id });
+    },
+    // the row's view goes entirely (pending and settled), the row is back as the server last said
     drop(id) { const a = pending.delete(id); const b = settled.delete(id); if (a || b) emit({ type: "drop", id }); },
-    // Undo, or this change's send failed: only this waiting change goes; an earlier change for the same row that has
-    // already been sent keeps its settled view until a read that works acknowledges it (its token)
+    // Undo, or this change's send failed: only this waiting change goes; fields earlier changes for the same row
+    // already sent stay until a read that works acknowledges them (their tokens)
     rollback(id) { if (pending.delete(id)) emit({ type: "drop", id }); },
     clearSettled(id) { if (settled.delete(id)) emit({ type: "settled", id }); },
     // a page that has just read its list fresh: what was sent is in it now
     clearAllSettled() { if (settled.size) { settled.clear(); emit({ type: "settled" }); } },
-    views() { return new Map([...[...settled].map(([id, e]) => [id, e.view]), ...[...pending].map(([id, e]) => [id, e.view])]); },
+    // what each row shows: its settled fields, then its waiting change's fields on top
+    views() {
+      const out = new Map();
+      for (const [id, fields] of settled) out.set(id, settledView(fields));
+      for (const [id, e] of pending) out.set(id, { ...(out.get(id) ?? {}), ...e.view });
+      return out;
+    },
     changes() { return [...pending.values()].map((e) => e.change); },
     waiting() { return [...pending.values()].filter((e) => e.change.state === "waiting").length; },
     subscribe(f) { subs.add(f); return () => subs.delete(f); },
     flushAll() { return Promise.all([...pending.values()].map((e) => e.change.flush())); },
-    // the settled entries now, each with the change it came from: a read that starts now may clear exactly these
-    // once it has put fresh data on screen. A change settled while it ran, or a newer change settled for the same
-    // row since (an older read finishing late), is left alone.
-    settledSnapshot() { return [...settled].map(([id, e]) => [id, e.token]); },
+    // the settled fields now, each with the change it came from: a read that starts now may clear exactly these once
+    // it has put fresh data on screen. A field settled while it ran, or set again by a newer change since (an older
+    // read finishing late), is left alone.
+    settledSnapshot() { return [...settled].flatMap(([id, fields]) => [...fields].map(([k, f]) => [id, k, f.token])); },
     clearSettledSnapshot(snapshot) {
       let n = 0;
-      for (const [id, token] of snapshot ?? []) if (settled.get(id)?.token === token) { settled.delete(id); n++; }
+      for (const [id, k, token] of snapshot ?? []) {
+        const fields = settled.get(id);
+        if (fields?.get(k)?.token !== token) continue;
+        fields.delete(k); n++;
+        if (!fields.size) settled.delete(id);
+      }
       if (n) emit({ type: "settled" });
     },
     // back from the back/forward cache: only the changes that went out as keepalive requests while the page was
     // hidden are settled (open pages read their lists again, showing the real outcome); a normal send still in flight
-    // settles itself when it finishes, or drops on failure
+    // settles itself when it finishes, or rolls back on failure
     settleSent() { [...pending].forEach(([id, e]) => { if (e.change.state === "beaconed") store.succeed(id); }); },
     // the tab is closing: each waiting change goes out as a keepalive request where it can
     unloadAll() { [...pending.values()].forEach((e) => e.change.unload?.()); },
