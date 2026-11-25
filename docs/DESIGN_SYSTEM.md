@@ -145,6 +145,8 @@ Every notification (banner, pop up, bell item, email) follows one pattern, in th
   the headline, the facts, one mocha button, and the reason for the email in the footer. Email clients can't read CSS
   variables, so `EMAIL_COLORS` copies the hex values from `tokens.css`; `web/tests/businessEmails.test.mjs` fails if
   they drift.
+- Pop ups (`.ba-toast`) sit on the plain card colour: no colour wash, no confetti, and the bell doesn't shake. The
+  tone shows in the coloured left edge, the icon and the label (owner, 25 Nov 2026).
 - In the CRM, `noteStyle(n)` in `web/src/zellaVoice.js` gives each notification its icon, tone and label. The five
   tones are classes `tone-good`, `tone-brand`, `tone-info`, `tone-heads` and `tone-urgent` on `.ba-toast`,
   `.ba-note-icon` and `.ba-kicker` (`BusinessApp.css`), built only from the `--ba-success`, `--ba-primary`,
@@ -237,3 +239,29 @@ change). Design pass guided by unslop by heydamir (CC BY 4.0).
   table in a Settings card shows its first rows with a count and a "See all" button under it (`.zs-table-more`).
 - Setting keys (`sms_live`, `calls_live`, ...) are code: pages say what they mean in words ("Texts are in test mode",
   `web/src/copy/liveSwitches.js`) and give the key only as a tooltip (`NotAvailable`'s `tip`, or a `title`).
+
+## CRM look (owner approved, 25 Nov 2026)
+
+Every CRM page except Today ("yes to all A and C": C9, C10, C16, C17, C18, C27, C29, C37, C40, C41, C42, C51). Same
+language as the Today polish. Rules in `web/src/styles/crm-look.css`, every one scoped to `html:has(.ba-root)` and
+loaded last from `web/src/main.jsx`, so the admin dashboard does not change. Glass, the dock, the picture palette,
+Classic and the Zella Voice theme stay; no feature, section or order changed.
+
+- **The accent means today or current:** `--crm-accent` is the look's primary (mocha in Classic, copper or the
+  picture's copper in Glass) and coral `#FF4F2E` in the Zella Voice theme, where the primary is midnight.
+- **Icons:** number cards carry a 16px icon in the faint text colour next to the label (`.crm-kpi-label`,
+  `.crm-kpi-glyph`), never a coloured tile (Calendar, Tables, Spam protection, the check ins columns). Icons in lists
+  (`.ba-thread-icon`: Integrations cards, Inbox, Messages and other rows) sit in a neutral `--zella-subtle` box with
+  secondary text; red (`.bad`) stays only for failed or missed.
+- **Charts:** soft grey bars (the text colour at 50%) with the latest day or today in the accent: Spam protection's
+  "Incidents per day" (square topped bars) and Reports' "Calls per day" (the rounded voice bars, 14px wide, with
+  date marks under the first, middle and last bar; the last reads "Today").
+- **Calendar:** today's column has no fill; a 3px accent bar sits on top of its day name.
+- **Reports figures:** each group is one row of compact cards (`.rp-kpis`: at least 150px each, 28px figures), so
+  five calls figures never leave a hole; two per row on a phone.
+- **Notifications:** see Notifications above.
+- **Glass:** names on the filled floor plan tables (seated, reserved, clearing, blocked) use the dark glass base
+  colour, because Glass makes those fills light; the note under the Integrations cards sits in a quiet glass panel.
+- **Stars:** review stars are gold `#B7791F` on the light looks (3.6:1 against a white card, WCAG 1.4.11 asks 3:1)
+  and keep `#E0A21B` on Glass.
+- **Voice carousel:** in the CRM the chosen card keeps its accent border and a 1px ring, without the glow.

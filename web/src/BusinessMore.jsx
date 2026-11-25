@@ -239,6 +239,9 @@ export function LeadSourcesPage({ workspace, refreshKey }) {
 /* Reports                                                           */
 /* ---------------------------------------------------------------- */
 
+// "Nov 3" in the business's own time zone, for the chart's date marks
+const shortDay = (value, timeZone) => new Date(value).toLocaleDateString("en-US", { timeZone, month: "short", day: "numeric" });
+
 function Stat({ label, value, note }) {
   return (
     <div className="ba-kpi">
@@ -312,7 +315,7 @@ export function ReportsPage({ workspace, refreshKey }) {
             </section>
           )}
           <h2 className="ba-h2">Calls</h2>
-          <div className="ba-kpis">
+          <div className="ba-kpis rp-kpis">
             <Stat label="Total calls" value={r.calls} note={`${r.answered} answered`} />
             <Stat label="Handled by AI" value={pct(r.ai, r.calls)} note={`${r.ai} calls`} />
             <Stat label="Missed" value={r.missed} note={r.missed ? `${r.followed} followed up` : "None missed"} />
@@ -321,14 +324,21 @@ export function ReportsPage({ workspace, refreshKey }) {
           </div>
           <section className="ba-panel ba-gap">
             <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Calls per day</h2><p>Last {Math.min(Number(range), 30)} days</p></div></div></div>
-            <div className="ba-bars" role="img" aria-label="Calls per day">
-              {r.perDay.map((d) => (
-                <span key={d.day.toISOString()} title={`${formatDay(d.day, tz)}: ${d.n}`}><i style={{ height: `${Math.max(3, (d.n / peak) * 100)}%` }} /></span>
+            <div className="ba-bars" role="img" aria-label={`Calls per day, ${formatDay(r.perDay[0]?.day, tz)} to today. Today: ${r.perDay.at(-1)?.n ?? 0}`}>
+              {r.perDay.map((d, i) => (
+                <span key={d.day.toISOString()} className={i === r.perDay.length - 1 ? "on" : ""} title={`${formatDay(d.day, tz)}: ${d.n}`}><i style={{ height: `${Math.max(3, (d.n / peak) * 100)}%` }} /></span>
               ))}
+            </div>
+            {/* date marks under the first, middle and last bar */}
+            <div className="ba-bars-axis" aria-hidden="true">
+              {r.perDay.map((d, i) => {
+                const mark = i === 0 || i === r.perDay.length - 1 || i === Math.floor((r.perDay.length - 1) / 2);
+                return <span key={d.day.toISOString()}>{mark ? (i === r.perDay.length - 1 ? "Today" : shortDay(d.day, tz)) : ""}</span>;
+              })}
             </div>
           </section>
           <h2 className="ba-h2">{term("appointments")} and people</h2>
-          <div className="ba-kpis">
+          <div className="ba-kpis rp-kpis">
             <Stat label={`${term("appointments")} so far`} value={r.booked} note={`${r.completed} completed`} />
             <Stat label="No show rate" value={r.noShowRate == null ? "Not available" : `${r.noShowRate}%`} note={plural(r.noShows, "no show")} />
             <Stat label="Checked in" value={pct(r.checkedIn, r.booked)} note={plural(r.checkedIn, "arrival")} />
@@ -564,7 +574,7 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
             onNotice={onNotice} onChanged={reload} workspace={workspace} />
         ))}
       </div>
-      <p className="ba-muted ba-gap">Want one connected or connected again? Ask the Zella Voice team and it will be set up for you.</p>
+      <p className="ba-muted ba-gap ba-integrations-note">Want one connected or connected again? Ask the Zella Voice team and it will be set up for you.</p>
     </>
   );
 }

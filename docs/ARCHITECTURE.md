@@ -2218,6 +2218,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
 | Admin dashboard polish (25 Nov) | 21 admin dashboard design changes approved: polish only, Glass and the brand kept, admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin polish" |
+| CRM look (25 Nov) | The owner approved the CRM items C9, C10, C16, C17, C18, C27, C29, C37, C40, C41, C42 and C51 ("yes to all A and C") for every CRM page except Today: grey icons without coloured tiles, the accent only for today, quiet notification pop ups, readable Glass floor plan names, calmer charts and stars; no feature, section or order changes; the admin dashboard does not change | `web/src/styles/crm-look.css`, `docs/DESIGN_SYSTEM.md` "CRM look" |
 
 ### 23.3 Rulebook alignment
 

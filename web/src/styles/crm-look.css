@@ -1,0 +1,73 @@
+/* =========================================================
+   CRM look (owner approved 25 Nov 2026, "yes to all A and C": C9, C10, C16, C17, C18, C27, C29, C37, C40, C41,
+   C42, C51). Every CRM page except Today. Only the business CRM: every rule starts with html:root:has(.ba-root), so
+   the admin dashboard (.owner-app) never changes, and pop ups the CRM opens outside its root are covered too.
+   Loaded last (main.jsx). Glass, the dock, the picture palette, Classic and the Zella Voice theme stay.
+   Same visual language as the Today polish: grey neutral icons, the accent only for "today" or "current", the thin
+   accent bar, soft grey bars with today in the accent.
+   ========================================================= */
+
+/* The accent that marks "today" or "current": the look's own primary (mocha in Classic, copper or the picture's
+   copper in Glass); coral in the Zella Voice theme, where the primary is midnight. */
+html:root:has(.ba-root) { --crm-accent: var(--zella-primary); }
+html[data-zella-theme="zella"]:root:has(.ba-root) { --crm-accent: #FF4F2E; }
+
+/* ---------- C9. Number cards: a small grey icon next to each label, no coloured tile ---------- */
+html:root:has(.ba-root) .crm-kpi-label { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+html:root:has(.ba-root) .crm-kpi-glyph { flex-shrink: 0; color: var(--zella-text-faint); font-size: 16px; }
+/* Check ins: the icon beside each column's title */
+html:root:has(.ba-root) .ba-panel-title > .ba-kpi-icon { width: 20px; height: 20px; background: none; color: var(--zella-text-faint); }
+
+/* ---------- C10. Icons in lists: a plain grey box; red stays only for failed or missed ---------- */
+html:root:has(.ba-root) .ba-thread-icon { background: var(--zella-subtle); color: var(--zella-text-secondary); }
+html:root:has(.ba-root) .ba-thread-icon.bad { background: var(--ba-danger-bg); color: var(--ba-danger); }
+
+/* ---------- C16. Notification pop ups: no colour wash and no shaking bell (the confetti is gone from the markup).
+   Tone, coloured edge, icon colour and label stay. Glass keeps its near solid glass. ---------- */
+html:root:not([data-zella-theme="glass"]):has(.ba-root) .ba-toast { background: var(--ba-surface); }
+html:root:has(.ba-root) .ba-btn.icon.ringing .ba-icon { animation: none; }
+
+/* ---------- C17. Glass floor plan: names on the light filled tables in a dark colour, so they read ---------- */
+html[data-zella-theme="glass"]:root:has(.ba-root) .fp-table:is(.st-seated, .st-reserved, .st-needs_clearing, .st-unavailable) {
+  color: var(--zella-glass-base, #1b1613);
+}
+
+/* ---------- C18. Glass: the note under the Integrations cards sits in a quiet glass panel ---------- */
+html[data-zella-theme="glass"]:root:has(.ba-root) .ba-integrations-note {
+  padding: 12px 16px; border: 1px solid var(--zella-border); border-radius: var(--zella-radius-md, 10px);
+  background: var(--zella-card); -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge); color: var(--zella-text-secondary);
+}
+
+/* ---------- C27. Calendar: today's column is not filled; a thin accent bar tops its day name ---------- */
+html:root:has(.ba-root) .ba-tg-col.today { background-color: transparent; }
+html:root:has(.ba-root) .ba-tg-title.today { box-shadow: inset 0 3px 0 var(--crm-accent); }
+
+/* ---------- C37. Spam protection, "Incidents per day": soft grey bars, the latest day in the accent ---------- */
+html:root:has(.ba-root) .sp-bar span { max-width: 20px; border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--zella-text) 50%, transparent); opacity: 1; }
+html:root:has(.ba-root) .sp-bar:last-child span { background: var(--crm-accent); }
+
+/* ---------- C40. Reports: each row of figures in one row of compact cards (five calls, four people) ---------- */
+html:root:has(.ba-root) .rp-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+html:root:has(.ba-root) .rp-kpis .ba-kpi { min-width: 0; padding: 14px 16px; }
+html:root:has(.ba-root) .rp-kpis .ba-kpi-value { margin-top: 6px; font-size: 28px; }
+html:root:has(.ba-root) .rp-kpis .ba-kpi-note { margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- C41. Reports, "Calls per day": the voice bars (soft grey, today in the accent) with date marks under
+   the first, middle and last bar ---------- */
+html:root:has(.ba-root) .ba-bars { padding-bottom: 8px; }
+html:root:has(.ba-root) .ba-bars span { justify-content: center; }
+html:root:has(.ba-root) .ba-bars i { width: min(14px, 100%); border-radius: 999px; background: color-mix(in srgb, var(--zella-text) 50%, transparent); opacity: 1; }
+html:root:has(.ba-root) .ba-bars span.on i { background: var(--crm-accent); }
+html:root:has(.ba-root) .ba-bars-axis { display: flex; gap: 4px; padding: 0 18px 16px; color: var(--ba-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+html:root:has(.ba-root) .ba-bars-axis span { flex: 1; display: flex; justify-content: center; min-width: 0; white-space: nowrap; }
+html:root:has(.ba-root) .ba-bars-axis span:first-child { justify-content: flex-start; }
+html:root:has(.ba-root) .ba-bars-axis span:last-child { justify-content: flex-end; }
+
+/* ---------- C42. Review stars: a darker gold on the light looks, 3.6:1 against a white card (WCAG 1.4.11 asks
+   3:1); Glass keeps its bright gold on the dark glass ---------- */
+html:root:has(.ba-root) .rv-stars .on { color: #B7791F; }
+html[data-zella-theme="glass"]:root:has(.ba-root) .rv-stars .on { color: #E0A21B; }
+
+/* ---------- C51. Voice and personality: the chosen voice card keeps its thin accent ring, without the glow ---------- */
+html:root:has(.ba-root) .zs-vc-glow { box-shadow: 0 0 0 1px var(--zella-primary-ring); }

@@ -1980,18 +1980,9 @@ html[data-zella-theme="glass"] .td-week li.on .td-week-bar::after { background: 
 .ba-toast.tone-urgent { background: linear-gradient(135deg, var(--ba-danger-bg), var(--ba-surface) 65%); border-color: var(--ba-danger-border, var(--ba-danger)); box-shadow: inset 4px 0 0 var(--ba-danger), 0 12px 32px rgba(20, 14, 8, 0.18); }
 @keyframes ba-toast-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
 
-.ba-confetti { position: absolute; inset: 0; pointer-events: none; }
-.ba-confetti i { position: absolute; top: -8px; width: 6px; height: 10px; border-radius: 2px; opacity: 0; animation: ba-confetti 1.6s ease-out forwards; }
-.ba-confetti i:nth-child(5n + 1) { background: #E0A21B; } .ba-confetti i:nth-child(5n + 2) { background: #DCA67F; } .ba-confetti i:nth-child(5n + 3) { background: #15803D; }
-.ba-confetti i:nth-child(5n + 4) { background: #7C3AED; } .ba-confetti i:nth-child(5n + 5) { background: #DB2777; }
-.ba-confetti i:nth-child(1) { left: 8%; animation-delay: 0s; } .ba-confetti i:nth-child(2) { left: 18%; animation-delay: 0.1s; } .ba-confetti i:nth-child(3) { left: 28%; animation-delay: 0.05s; }
-.ba-confetti i:nth-child(4) { left: 38%; animation-delay: 0.15s; } .ba-confetti i:nth-child(5) { left: 48%; animation-delay: 0.02s; } .ba-confetti i:nth-child(6) { left: 58%; animation-delay: 0.12s; }
-.ba-confetti i:nth-child(7) { left: 68%; animation-delay: 0.07s; } .ba-confetti i:nth-child(8) { left: 78%; animation-delay: 0.18s; } .ba-confetti i:nth-child(9) { left: 88%; animation-delay: 0.04s; }
-.ba-confetti i:nth-child(10) { left: 95%; animation-delay: 0.1s; }
-@keyframes ba-confetti { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: 0; transform: translateY(90px) rotate(260deg); } }
+/* The celebration confetti was removed (owner approved, 25 Nov 2026): pop ups keep their tone, edge and label. */
 @media (prefers-reduced-motion: reduce) {
   .ba-toast, .ba-btn.icon.ringing .ba-icon { animation: none; }
-  .ba-confetti { display: none; }
 }
 @media (max-width: 600px) { .ba-toasts { right: 16px; left: 16px; bottom: 16px; width: auto; } }
 
