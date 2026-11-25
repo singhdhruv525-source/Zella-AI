@@ -2207,6 +2207,8 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
 | D-39 | WhatsApp, Instagram and Messenger as messaging channels: in launch scope or later (the current code has Meta workers; not yet a decision) | owner + counsel |
 | D-40 | Push notification service for the installed web app (Web Push directly, or a push provider) | owner |
+| D-56 | Owners choosing their own phone tabs: decided as later work, not now (owner, 25 Nov 2026, §23.1d) | owner |
+| D-57 | Live call status for the phone's live strip ("Ava is on a call") and unread inbox counts: later, as their own task (owner, 25 Nov 2026, §23.1d) | owner |
 
 ### 23.1d Decided by the owner (24 and 25 Nov 2026)
 
@@ -2217,6 +2219,13 @@ Knowledge, Automations, Reports, Team, Settings.
 | Limits and caps (25 Nov) | Zella Voice admins set every plan limit and cap at Create Business and can change them later; the owner may choose a lower monthly spending limit and what happens at the limit, never above the plan | REQ-BIL-01, REQ-BIL-23, REQ-BIL-32, D-44 |
 | Silent callers (25 Nov) | After 1 minute with no voice the receptionist ends the call politely | REQ-VOX-13, `AI-24` |
 | Urgent texts (25 Nov) | Always on for team members; only the business owner changes who receives them | §28, REQ-CRM-23 |
+| Phone navigation (25 Nov) | All of P1 to P29 of the phone navigation proposal are approved for **both** apps ("Yes to all"): a bottom bar with five tabs, the side panel, bottom sheets, a sticky main action, skeletons, pull to refresh, swipe rows with visible buttons, toasts with Undo and a live strip. The admin gets the full version too | REQ-MOB-02, REQ-MOB-04 to REQ-MOB-11 |
+| Phone menu button (25 Nov) | On phones the header menu button is removed; More opens the side panel | REQ-MOB-05 |
+| Phone tabs by industry (25 Nov) | Restaurant: Today, Calendar, Tables, Inbox, More. Salon: Today, Calendar, Clients, Inbox, More. The work tab says "Calendar" for every industry | REQ-MOB-04 |
+| Admin phone tabs (25 Nov) | Overview, Businesses, Support, Operations, More | REQ-MOB-04 |
+| Owners choosing their own tabs (25 Nov) | Later, not now | §23.2 (D-56) |
+| Live call status (25 Nov) | Later, as its own task: no "call in progress" strip and no unread inbox counts. The live strip shows only what existing data supports: callers waiting for a person (CRM) and open incidents (admin) | REQ-MOB-08, §23.2 (D-57) |
+| Phone breakpoints (25 Nov) | Under 768 wide: the bottom bar and side panel in both apps, including the admin from 600 to 767. From 768 to 1023 the icon rail stays as before | REQ-MOB-11 |
 
 ### 23.3 Rulebook alignment
 
@@ -2695,7 +2704,16 @@ Required before launch (written and approved by the owner with counsel; not part
 | ID | Decision (principal architect) |
 |---|---|
 | REQ-MOB-01 | The CRM is a responsive web app that can be **installed to the phone's home screen** and sends **push notifications** for urgent items (emergency, failed transfer, needs a person, new lead). SMS and email remain the fallback for urgent alerts. A native app is not part of the first version. |
-| REQ-MOB-02 | The phone layout puts Today, Callbacks, Inbox and Calendar first; every urgent notification opens the exact item. |
+| REQ-MOB-02 | The phone layout puts what the business does first, through a bottom bar (REQ-MOB-04); every urgent notification opens the exact item. Updated by the owner's phone navigation decisions of 25 Nov 2026 (§23.1d). |
+| REQ-MOB-03 | Phone navigation applies under 768 wide in both apps (`web/src/navigation/phoneTabs.js` `PHONE_QUERY`). Tablets and desktops keep their sidebar or icon rail; nothing they show changes. |
+| REQ-MOB-04 | **Bottom bar:** five tabs. CRM: Today, a work tab, a focus tab, Inbox, More. The work tab is the first that applies of Dispatch (dispatch on), Calendar (scheduling on), the first Orders record type (orders on), Leads; the focus tab of Tables (tables on), Check ins (clinic, dental or vet with check ins on), Leads (dispatch on), the industry's customers. A page the person's role can't open is skipped. Admin: Overview, Businesses, Support, Operations; a page the role can't open gives its place to Verification, then Audit logs. The rule is pure code with unit tests (`phoneTabs.js`, `web/tests/phoneNav.test.mjs`); it reads `buildNavigation()`'s output, so a tab never shows a page the menu hides. Counts: Inbox (callers waiting for a person), More (spam to review), Support (open tickets), Operations (open alerts), capped at 99+ and part of each tab's name. |
+| REQ-MOB-05 | **Side panel:** More opens every page in the desktop sidebar's groups, plus the business switcher or platform card, the receptionist card or platform status, and the account menu. It is a dialog called Menu: focus moves in and stays in, the page behind is inert, and Escape, the backdrop, a swipe to the left or choosing a page close it, with focus back on More. The header menu button is gone on phones. |
+| REQ-MOB-06 | **Bottom sheets:** the shared dialog (`Modal`), the booking panel and the admin's dialogs and drawers show as bottom sheets on phones: half height with a handle (drag up for full, down to close), Escape, a tap outside, focus kept inside. Short sheets (quick actions, the switcher, questions with buttons) take only the height they need. |
+| REQ-MOB-07 | **Thumb zone:** one main action per page pinned above the bar (New booking on Today and Calendar, Seat a walk in on Tables, New task, Add lead, Create business on admin Overview and Businesses); on Today a round button opens Quick actions. No floating round button and no plus tab. |
+| REQ-MOB-08 | **Live strip:** above the bar while something is happening now, from data the app already reads: callers waiting for a person (with the one waiting longest) in the CRM, open platform incidents in the admin. Live call status and unread counts are later work (§23.1d). |
+| REQ-MOB-09 | **Quick changes with Undo:** marking a task done and assigning or resolving a support ticket show at once with Undo, and are only sent once the Undo window (5 seconds) has passed, so Undo never needs a reverse call; a failed save puts the change back with a message. Anything without that safe path (money, cancelling a booking, sending a message, marking a callback called, which needs an outcome) keeps its confirm flow. Swipe rows (Tasks, Callbacks, admin Support) always have a visible button for each swipe action. |
+| REQ-MOB-10 | **Speed and fit:** tapping the open tab scrolls to the top; each tab keeps its scroll position, search and filters (its page stays in the page, hidden); pull to refresh on Today, Calendar, Inbox, Tasks, Leads, Businesses and Support; grey placeholder shapes while a page loads; messages after an action appear above the bar; the bar hides while the on screen keyboard is open (`visualViewport`); pages keep room at the bottom; safe area insets (`viewport-fit=cover`); every target at least 44 by 44. |
+| REQ-MOB-11 | **Look and motion:** one curve (`cubic-bezier(0.22, 1, 0.36, 1)`): panel 280 ms, sheets 300 ms, backdrop 200 ms; none with reduced motion. All three themes; in Glass the bar, header and panel are frosted and sheets, toasts and the strip almost solid. Styles live in `web/src/styles/phone-nav.css`, loaded last and scoped to `html.pn-phone`, which is only set under 768 wide. |
 | REQ-CALL-01 | **Staff calling, first version:** staff tap the customer's number to call from their own phone, then log the result in one tap (reached, no answer, voicemail, wrong number) with a note. The attempt is recorded on the timeline. |
 | REQ-CALL-02 | **Staff calling, later:** click-to-call that rings the staff member and connects the customer through the business's Zella Voice number, so the customer sees the business number and the call is logged automatically. |
 | REQ-CALL-03 | Calls transferred by the assistant go to the business's transfer destinations (REQ-VOX-06), set when the business is created. |

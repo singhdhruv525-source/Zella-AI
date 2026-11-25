@@ -1,5 +1,30 @@
 # Zella Voice: copy changelog
 
+## 25 November 2026: phone navigation (both apps)
+
+New words on phones only (under 768 wide); tablets and desktops show nothing new. Approved by the owner on 25 Nov
+2026 (`docs/ARCHITECTURE.md` §23.1d). Sources: `web/src/navigation/` and the phone parts of the pages named below.
+
+| Where | Text | Why |
+|---|---|---|
+| Bottom bar, CRM | Today, Calendar, Tables, Check ins, Dispatch, Orders (the record type's name), Leads, the industry's customers (Guests, Clients, Patients, Customers), Inbox, More | The tab rule; "Calendar" for every industry (owner decision 3) |
+| Bottom bar, admin | Overview, Businesses, Support, Operations, More (Verification and Audit logs when a role can't open Support or Operations) | Owner decision 4 |
+| Tab names for screen readers | "Inbox, 2 waiting", "More, 1 to review", "Support, 5 open", "Operations, 1 open alert" | The count is part of the tab's name |
+| Side panel | Menu (its name), Close menu, Switch, My profile, Password and security, Appearance and theme, Sign out, Zella Voice Platform | Same words as the desktop menus |
+| Top bar | Search (and the page's own "Search ..." words), Show more, Show less (the sheet handle), Close | Plain names for icon buttons |
+| Sticky action | New reservation (the industry's word for a booking), Add lead, New task, Seat a walk in (restaurants) or Add a walk in, Create business, Quick actions | One main action per page |
+| Quick actions sheet | Quick actions; Seat a walk in, Add lead, New task, Tell callers | Today's round button |
+| Business switcher sheet | Switch business or open its settings; Switch business; Business profile; Modules and industry; Team members; Plan and billing | Same as the desktop switcher |
+| Live strip, CRM | "2 callers want a person", "Tom Becker, waiting 4 min", "Waiting 9 min", "Your AI receptionist handed them over", Open | Callers waiting only (owner decision 6) |
+| Live strip, admin | The incident's title, "Incident open for 18 min", "2 open incidents", View | Open incidents only |
+| Needs you now (Today) | Needs you now; "2 callers want a person"; "Tom Becker asked about ..."; "Task for Maya Chen, due 1 hr ago"; "3 overdue tasks"; "The oldest: ..."; Overdue; "1 call to review in Spam protection"; "Blocked as likely spam, check it was right" | P14 |
+| Tasks | "Swipe a task left to call back or mark it done", Call back, Done, "Mark ... done", "More for ...", Mark done, "Call back ...", "Open ...", Dismiss, "Task marked done", Undo, "Couldn't mark it done, so it's back on the list." | Swipe rows with visible buttons, Undo |
+| Callbacks | "Swipe a callback left to call or mark it called", Call, Called, "Mark ... called", Overdue | Swipe rows; Called opens the existing "how did it go" form |
+| Admin Support | "Swipe a ticket left to assign it to you or resolve it", Assign, Resolve, Open ticket, Assign to me, "Open ...", "Ticket resolved", "Ticket assigned to you", "Couldn't save that change, so it's back as it was.", No reply yet, "Couldn't load this list. Pull down to try again, or reload the page." | Swipe rows, Undo |
+| Admin business sheet | Plan, Stage, Last call, Open, Continue setup, Call owner, Activity, Needs attention, Setup; "Plumbing, owner Dana Reyes" | P12 |
+| Pull to refresh | Pull to refresh, Let go to refresh, Refreshing | P17 |
+| Placeholders (screen readers) | Loading the page, Loading tasks, Loading callbacks, Loading tickets, Checking your access | P18 |
+
 ## 30 October 2026: product language pass
 
 Frontend wording only (`web/src`). Internal values, routes, permissions and backend behavior are unchanged, except

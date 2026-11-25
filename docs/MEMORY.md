@@ -166,6 +166,19 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Phone navigation (owner, 25 Nov 2026, "Yes to all"; `docs/ARCHITECTURE.md` §23.1d, REQ-MOB-02 to REQ-MOB-11):**
+  all of P1 to P29 approved for both apps. Built in the phone navigation pull request (not merged when written):
+  - Under 768 wide both apps get a bottom bar (five tabs), a side panel from More, bottom sheets, a sticky main
+    action, skeletons, pull to refresh, swipe rows with visible buttons, toasts with Undo and a live strip. The admin
+    gets the full version too, including from 600 to 767 (it had the icon rail there). 768 to 1023 keeps the icon rail.
+  - The header menu button is removed on phones; More replaces it.
+  - Restaurant: Today, Calendar, Tables, Inbox, More. Salon: Today, Calendar, Clients, Inbox, More. The work tab says
+    "Calendar" for every industry. Admin: Overview, Businesses, Support, Operations, More.
+  - Later, not now: owners picking their own tabs (D-56); live call status and unread inbox counts, as their own
+    task (D-57). The live strip shows only callers waiting for a person (CRM) and open incidents (admin).
+  - Undo never needs a reverse call: a quick change (task done, ticket assigned or resolved) is only sent once its
+    5 second Undo window has passed (`deferChange` in `web/src/navigation/phoneHelpers.js`).
+
 - **Owner rules found in chat (audit of 24 Nov 2026, `docs/OWNER_DECISIONS_AUDIT.md`):** every rule the owner gave in
   chat from 28 Oct to 24 Nov 2026 was checked against these documents. Rules missing or contradicted were written in:
   - **No notification preferences page (28 Oct 2026):** pop ups, desktop notifications and urgent texts are on by

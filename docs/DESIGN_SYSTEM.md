@@ -203,12 +203,49 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
   dashboard): buttons lift on hover and press in on click with a ripple, main buttons get a sheen, cards and panels
   respond to the pointer, tabs glide, popups open with a pop and pages ease in (`web/src/styles/motion.css`,
   `web/src/CrmMotion.css`). All motion stops for people who prefer reduced motion.
-- On phones (CRM under 760px, admin under 600px) the sidebar opens as a drawer from the menu button in the top bar;
-  it closes on Escape, on the backdrop, or when a page is chosen. Wide tables and tab rows scroll inside themselves,
-  never the whole page, and fade at the right edge while there is more.
+- On phones (both apps under 768px) the bottom bar and the side panel replace the sidebar and the menu button (see
+  "Phone navigation" below, owner 25 Nov 2026). Wide tables and tab rows scroll inside themselves, never the whole
+  page, and fade at the right edge while there is more.
 - The admin sidebar's background and border run the full height of the page (`.owner-sidebar-col`); only the nav inside
   it is sticky. The settings sub navigation (`.zs-nav`) is sticky at the top of its column.
 - A short choice such as a period is as wide as its options (`<Field fit>` in Settings), not the whole row. A long
   table in a Settings card shows its first rows with a count and a "See all" button under it (`.zs-table-more`).
 - Setting keys (`sms_live`, `calls_live`, ...) are code: pages say what they mean in words ("Texts are in test mode",
   `web/src/copy/liveSwitches.js`) and give the key only as a tooltip (`NotAvailable`'s `tip`, or a `title`).
+
+## Phone navigation (owner, 25 Nov 2026)
+
+All of P1 to P29 of the phone navigation proposal are approved for both apps ("Yes to all"). Owner decisions:
+
+1. The header menu button is removed on phones; More opens the side panel.
+2. Restaurant middle tab: Tables. Salon: Clients.
+3. The work tab says "Calendar" for every industry.
+4. Admin fourth tab: Operations.
+5. Owners picking their own tabs: later, not now.
+6. Live call status: later, as its own task. No "call in progress" strip and no unread inbox counts; the live strip
+   shows callers waiting for a person (CRM) and open incidents (admin).
+7. 768 to 1023 wide keeps the icon rail. Under 768 gets the bottom bar and side panel, including the admin's 600 to
+   767 range.
+
+Where it lives: `web/src/navigation/` (`phoneTabs.js` the tab rule, `phoneHelpers.js` pure helpers, `usePhoneLayout.js`
+the browser hooks, `PhoneNav.jsx` the bar, panel, strip, toast, skeleton and swipe row, `BottomSheet.jsx`,
+`CrmPhone.jsx`, `AdminPhone.jsx`) and `web/src/styles/phone-nav.css`, loaded last in `main.jsx`. Every rule is
+scoped to `html.pn-phone`, which is only set under 768 wide, and reads the shared `--zella-*` tokens; no shared
+stylesheet changes, so tablets and desktops look exactly as before.
+
+| Part | Look and behaviour |
+|---|---|
+| Top bar | One slim row, 56px. CRM: the business (tap to switch, as a sheet), search, the bell. Admin: the Zella Voice bars, the page name once its heading has scrolled away, search, the bell. Zella Voice: paper at 92% with blur; Glass: frosted. |
+| Bottom bar | Five tabs, each a full cell (56px tall plus the home area, never under 44 by 44): icon over an 11px label. The selected tab has a filled icon, darker text and a thin bar along its top edge (coral in Zella Voice, copper in Glass, mocha in Classic); More is selected for a page from the panel. Counts are red pills, capped at 99+, and part of the tab's name. A labelled navigation landmark. |
+| Side panel | 320px (at most 86% of the screen), slides in from the left over the dimmed backdrop, radius 20px on its open edge. The desktop menu groups inside, with the selected item's coral bar. Business or platform card at the top, account rows at the bottom. A dialog called Menu. |
+| Bottom sheet | Radius 20px at the top, a 36 by 5 handle (a button: Show more, Show less). Half height (52% of the screen) or full (92%); a short one fits its content. Drag the handle or the heading. Glass: almost solid (`--glass-solid`). |
+| Sticky action | One pill button, 48px, full width above the bar (plus a 48px round button for Quick actions on Today). |
+| Live strip | A card above the bar with a 3px brand mark on its left edge, a live dot (stops with reduced motion) and a pill "Open" or "View". |
+| Swipe row | Swipe left for a tray of 76px actions (blue Call, green Done); every row also has a round check and a "more" button. A hint line says what the swipe does. |
+| Toast | Dark (light in Glass), above the bar, 5 seconds, Undo when the change can be undone. |
+| Skeleton | Grey rounded shapes in `--zella-subtle`, a slow fade (none with reduced motion). |
+
+Motion: one curve, `cubic-bezier(0.22, 1, 0.36, 1)`; panel 280ms, sheets 300ms, backdrop 200ms, a press of 150ms on
+every tap (rows, tabs and buttons darken slightly and scale to 98%). Reduced motion turns every slide off. Phones on
+the web can't vibrate, so there are no haptics.
+
