@@ -2221,6 +2221,8 @@ Knowledge, Automations, Reports, Team, Settings.
 | Admin dashboard polish (25 Nov) | 21 admin dashboard design changes approved: polish only, Glass and the brand kept, admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin polish" |
 | Admin pages polish (25 Nov) | Every admin page except Overview ("yes to all A and C", items A1 to A59 without the phone items): real icons, the approved weights, no text under 12px, neutral notes, number colours as a small dot, corner steps, calm wizard motion, quiet row danger buttons, readable audit changes. Polish only: features, sections and their order stay; admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin pages polish" |
 
+| Admin and CRM page audits (25 Nov) | Every item approved, "yes to all A and C" (admin A1 to A59, CRM C1 to C51), built in batches. The wording batch: labels in sentence case, "and" for "&" in the CRM, the line above each title names its sidebar place, titles match the sidebar, times, phone numbers and time zones in words (`web/src/lib/format.js`), one ellipsis for "still working", failed loads say what didn't load with Try again, empty lists offer their add button, no file names or database talk on admin screens. Frontend wording only | `docs/ZELLA_COPY_CHANGELOG.md`, `docs/PRODUCT.md` §8 and §9, `AGT-9` |
+
 ### 23.3 Rulebook alignment
 
 `ZELLA_VOICE_RULES.md` is aligned with this document on the owner's instruction. The two must always agree; a change

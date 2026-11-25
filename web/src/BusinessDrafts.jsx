@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal } from "./BusinessUI";
-import { timeAgo } from "./businessTime";
+import { timeAgoLabel } from "./businessTime";
 import { Empty, Notice, PageHead, friendly, plural, useLoad } from "./BusinessShared";
 
 // Suggested messages that wait for a person, the review link, and live notices ("full tonight").
@@ -38,7 +38,7 @@ function DraftRow({ draft, onDone, onNotice }) {
     <li className="ba-draft">
       <div className="ba-draft-head">
         <strong>{draft.customer ?? "Customer"}</strong>
-        <small>{draft.reason ? `${draft.reason} · ` : ""}{timeAgo(draft.created_at)}</small>
+        <small>{draft.reason ? `${draft.reason} · ` : ""}{timeAgoLabel(draft.created_at)}</small>
       </div>
       <textarea rows={3} maxLength={300} value={text} onChange={(e) => setText(e.target.value)} aria-label={`Message to ${draft.customer ?? "customer"}`} />
       <div className="ba-draft-foot">
@@ -59,7 +59,7 @@ export function DraftsPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Calls & messages / Suggested messages" title="Suggested messages"
+      <PageHead crumb="Calls and messages / Suggested messages" title="Suggested messages"
         sub="Zella Voice writes these when a follow up is due. Nothing is sent until you check it and press Send." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">

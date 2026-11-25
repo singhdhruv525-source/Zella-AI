@@ -10,6 +10,7 @@ import { BlockTimeModal } from "./BusinessPages";
 import { EmailField, PhoneField } from "./formFields";
 import { OnCallPanel } from "./BusinessOnCall";
 import { checkEmail, validatePhone } from "./formValidation";
+import { formatPhone } from "./lib/format";
 
 // Team: the people customers book with (stylists, dentists, servers,
 // technicians... the words follow the industry), their weekly hours and
@@ -166,8 +167,8 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
   return (
     <>
       <PageHead
-        crumb="Team & staff"
-        title="Team"
+        crumb={`Team and staff / ${term("staff_plural")}`}
+        title={term("staff_plural")}
         sub={`${term("staff_plural")}, their hours and breaks, and who is away. Your AI receptionist only books people who are available.`}
       >
         <button type="button" className="ba-btn" onClick={() => setBlockFor("")}><Icon name="block" size="sm" /><span>Block time</span></button>
@@ -194,7 +195,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
                   <span className="ba-staff-avatar" style={{ background: m.color }}>{initials(m.name)}</span>
                   <div className="ba-staff-main">
                     <strong>{m.name}</strong>
-                    <small>{[m.title, m.phone].filter(Boolean).join(" · ") || term("staff")}</small>
+                    <small>{[m.title, formatPhone(m.phone)].filter(Boolean).join(", ") || term("staff")}</small>
                   </div>
                   <span className={`ba-who ${a.state}`}><i /><small>{a.label}</small></span>
                   <div className="ba-staff-actions">

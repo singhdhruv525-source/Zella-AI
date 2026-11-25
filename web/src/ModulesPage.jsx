@@ -25,7 +25,7 @@ export default function ModulesPage({ onNavigate }) {
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : <><Icon name="refresh" size="sm" />Refresh</>}
+            {loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
           <button type="button" className="owner-primary-button" onClick={() => onNavigate("Industry Configuration")}>
             Edit in Industry configuration

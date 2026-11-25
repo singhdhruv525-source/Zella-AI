@@ -411,7 +411,7 @@ function AdminApp() {
   if (checkingSession) {
     return (
       <main className="login-page">
-        <p className="form-description">Checking your session...</p>
+        <p className="form-description">Checking your session…</p>
       </main>
     );
   }
@@ -599,14 +599,14 @@ function AdminApp() {
               )}
               <button className="login-button" type="submit" disabled={loading}>
                 {mode === "mfasetup"
-                  ? loading ? "Checking..." : mfaSetup ? "Turn on and continue" : "Try again"
+                  ? loading ? "Checking…" : mfaSetup ? "Turn on and continue" : "Try again"
                   : mode === "mfa"
-                  ? loading ? "Checking..." : mfaVerified ? "Retry access check" : "Verify and continue"
+                  ? loading ? "Checking…" : mfaVerified ? "Retry access check" : "Verify and continue"
                   : mode === "setpassword"
-                  ? loading ? "Saving..." : "Save password and continue"
+                  ? loading ? "Saving…" : "Save password and continue"
                   : mode === "reset"
-                  ? loading ? "Sending..." : "Send reset link"
-                  : loading ? "Verifying access..." : "Sign in to Zella Voice"}
+                  ? loading ? "Sending…" : "Send reset link"
+                  : loading ? "Verifying access…" : "Sign in to Zella Voice"}
                 {!loading && mode === "signin" && <span>→</span>}
               </button>
               {mode === "mfa" || mode === "mfasetup" ? (

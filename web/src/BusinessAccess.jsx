@@ -65,7 +65,7 @@ export function ApprovalsPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Team & staff / Approvals" title="Approvals" sub="Sensitive actions wait here until a second person says yes." />
+      <PageHead crumb="Team and staff / Approvals" title="Approvals" sub="Sensitive actions wait here until a second person says yes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Items unavailable"}</p> : !data.length ? (
@@ -242,7 +242,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
 
   return (
     <>
-      <PageHead crumb="Team & staff / Team access" title="Team access" sub="Who can sign in, what they can do, and who is waiting to join.">
+      <PageHead crumb="Team and staff / Team access" title="Team access" sub="Who can sign in, what they can do, and who is waiting to join.">
         <button type="button" className="ba-btn" onClick={() => setModal({ kind: "handover" })}><Icon name="swap_horiz" size="sm" /><span>Hand over work</span></button>
         {canAdmin && <button type="button" className="ba-btn primary" onClick={() => setModal({ kind: "invite" })}><Icon name="person_add" size="sm" /><span>Invite someone</span></button>}
       </PageHead>
@@ -270,7 +270,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
         <section className="ba-panel ba-gap">
           <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Waiting to join</h2><p>Invitations that haven't been accepted yet.</p></div></div></div>
           {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Invitations unavailable"}</p> : !data.invites.length ? (
-            <div className="ba-panel-body"><Empty title="No open invitations">Invite someone to give them access.</Empty></div>
+            <div className="ba-panel-body"><Empty title="No open invitations">Invite someone to give them access.{canAdmin && <div className="ba-empty-actions"><button type="button" className="ba-btn sm" onClick={() => setModal({ kind: "invite" })}><Icon name="person_add" size="sm" /><span>Invite someone</span></button></div>}</Empty></div>
           ) : (
             <ul className="ba-threads">
               {data.invites.map((i) => (
@@ -316,7 +316,7 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Calls & messages / Sending failed" title="Sending failed" sub="follow ups, appointment reminders and social messages that Zella Voice tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
+      <PageHead crumb="Calls and messages / Sending failed" title="Sending failed" sub="Follow ups, appointment reminders and social messages that Zella Voice tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Failed messages unavailable"}</p> : !rows.length ? (
@@ -347,7 +347,7 @@ export function SecurityLogPage({ workspace, refreshKey }) {
   }, [workspace.id, refreshKey]);
   return (
     <>
-      <PageHead crumb="Team & staff / Security log" title="Security log" sub="Who changed what in this workspace. The last 100 changes." />
+      <PageHead crumb="Team and staff / Security log" title="Security log" sub="Who changed what in this workspace. The last 100 changes." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Items unavailable"}</p> : !data.length ? (

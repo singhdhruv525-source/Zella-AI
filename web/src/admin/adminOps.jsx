@@ -42,10 +42,10 @@ export function friendlyError(error) {
     const detail = rest.join(":").trim();
     return code.trim() === "UNKNOWN_VARIABLES" ? `These variables aren't available for this message: ${detail}` : detail;
   }
-  if (/could not find the function|PGRST202/i.test(raw)) return "This page needs a database update (sql/zella_admin_ops.sql).";
+  if (/could not find the function|PGRST202/i.test(raw)) return "This page needs the latest Zella Voice update.";
   if (/failed to fetch|network/i.test(raw)) return "Couldn't reach the server. Check your connection and try again.";
   if (/^[A-Z][A-Z0-9_]{2,}$/.test(raw.trim())) return `That didn't work (code ${raw.trim()}). Try again, or check the audit log.`;
-  return raw || "Something went wrong. Try again.";
+  return raw || "That didn't work. Check your connection and try again.";
 }
 
 export async function rpc(name, args = {}) {
@@ -106,7 +106,7 @@ export function statusTone(word) {
 export const PERIODS = [[1, "Last 24 hours"], [7, "Last 7 days"], [30, "Last 30 days"], [90, "Last 90 days"]];
 export const since = (days) => new Date(Date.now() - days * 86400000).toISOString();
 
-// The one page header. The eyebrow is the sidebar group (Businesses, Configuration, AI and communications,
+// The one page header. The eyebrow is the sidebar group (Businesses, Configuration, AI & communications,
 // Operations), the title is the sidebar label. "Updated 2:44 PM" and Refresh sit in the actions, left of the single
 // primary button, so no card carries its own Refresh.
 export function PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh, refreshing }) {

@@ -85,7 +85,7 @@ export function BusinessModulesCard({ businessId, modules, onSaved, canEdit = fa
       {canEdit && modules.length > 0 && (
         <div className="bac-actions">
           <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setDraft(Object.fromEntries(modules.map((m) => [m.id, m.enabled])))}>Discard</button>
-          <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save modules"}</button>
+          <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save modules"}</button>
         </div>
       )}
     </div>
@@ -148,7 +148,7 @@ export function BusinessRecordsCard({ businessId, canEdit = false }) {
     }
   }
 
-  if (loading && !data) return <div className="op-empty">Loading record types...</div>;
+  if (loading && !data) return <div className="op-empty">Loading record types…</div>;
   return (
     <div className="bac">
       {error && <div className="owner-form-error" role="alert">{error}</div>}
@@ -157,7 +157,7 @@ export function BusinessRecordsCard({ businessId, canEdit = false }) {
           {data.presetPending
             ? canEdit
               ? <>Record types haven't been added yet. They're added when the business first opens its CRM, or now:{" "}
-                <button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={applyPreset}>{saving ? "Adding..." : "Add the industry's record types"}</button></>
+                <button type="button" className="owner-secondary-button op-small" disabled={saving} onClick={applyPreset}>{saving ? "Adding…" : "Add the industry's record types"}</button></>
               : "Record types haven't been added yet. They're added when the business first opens its CRM."
             : ["testing", "ready", "active", "paused"].includes(data.status)
               ? "This business's industry has no record types."
@@ -181,7 +181,7 @@ export function BusinessRecordsCard({ businessId, canEdit = false }) {
       {canEdit && data?.types.length > 0 && (
         <div className="bac-actions">
           <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setDraft(Object.fromEntries(data.types.map((t) => [t.key, t.enabled])))}>Discard</button>
-          <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save record types"}</button>
+          <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save record types"}</button>
         </div>
       )}
     </div>

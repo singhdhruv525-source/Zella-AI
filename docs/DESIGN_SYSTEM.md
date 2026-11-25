@@ -122,6 +122,13 @@ are not changed by this.
     roundup, setup, Ecommerce.
   - Phone numbers use spaces: (555) 010 2040.
   - Code is not text: class names, routes, keys, stored values, file names, web addresses and locale tags keep theirs.
+  - Wording pass (owner, 25 Nov 2026), both apps: labels are sentence case, never spaced capitals; "still working" is
+    one ellipsis character ("Loading…", "Trying again…"), and choices have no dots ("Choose"); a failed load says what
+    didn't load and offers "Try again" (one name for that action); an empty list offers the page's own add button
+    (`.ba-empty-actions` in the CRM); a figure that didn't load is a small note (`.ba-kpi-missing`), never a big
+    "Not available"; a line joining facts reads as a sentence with commas, not middle dots. The CRM writes "and", not
+    "&". Admin screens never show file names or database talk: a missing setup note says what isn't switched on, with
+    any file name in the note's hover tip.
 - `npm run lint` runs `web/scripts/check-dashes.mjs`, which fails on any dash or hyphen in the app's text
   (`npm run check:writing` lists them).
 
@@ -158,7 +165,7 @@ All in `web/src/admin/adminOps.jsx` unless noted; their look is in `web/src/styl
 
 | Component | What it does |
 | --- | --- |
-| `PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh })` | The eyebrow is the sidebar group (Businesses, Configuration, AI and communications, Operations); the H1 is the sidebar label. "Updated 2:44 PM" and a small Refresh button sit in the header actions, left of the single primary button. Cards don't carry their own Refresh. |
+| `PageHeader({ eyebrow, title, description, actions, updatedAt, onRefresh })` | The eyebrow is the sidebar group (Businesses, Configuration, AI & communications, Operations, Administration); the H1 is the sidebar label. "Updated 2:44 PM" and a small Refresh button sit in the header actions, left of the single primary button. Cards don't carry their own Refresh. |
 | `Metric({ label, value, note, onClick })` and `.owner-stat-card` | One KPI card: label 13px secondary, value 32px medium (500) with tabular figures and a thousands comma, one line of note 12px (ellipsis; two lines on a phone), a fixed minimum height, no coloured icon tiles. A card that filters the list is a real button (`onClick`) with a chevron, hover border and focus ring. |
 | `DataTable({ columns, rows, cards, selected })` | Columns are `[header, cell, className, label]`. Use `num` for numbers (right aligned, tabular) and `col-actions` for the action cell. With `cards`, each row becomes a card under 600px, labelled from `data-label`. Tables that stay tables on a phone fade at the right edge. |
 | `Pager` | The one table footer (`.owner-table-foot`): "Showing 1 to 25 of 96" (or "3 shown") on the left, Previous and Next small buttons on the right, chevrons only under 600px. |

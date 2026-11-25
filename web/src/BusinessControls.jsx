@@ -225,8 +225,8 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="AI & automation / Automations" title="Automations"
-        sub={canManage ? "See what's running, what happened, and fix what failed. Changes apply straight away." : "follow ups, reminders and check ins that run for you."}>
+      <PageHead crumb="AI and automation / Automations" title="Automations"
+        sub={canManage ? "See what's running, what happened, and fix what failed. Changes apply straight away." : "Follow ups, reminders and check ins that run for you."}>
         <OwnRuleButton workspace={workspace} onNotice={onNotice} onSaved={reload} />
       </PageHead>
       <Notice error={error} onRetry={reload} />
@@ -245,7 +245,7 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
       )}
       <section className="ba-panel">
         {loading && !data ? <div className="ba-panel-body"><p className="ba-muted">Loading…</p></div> : !data?.list.length ? (
-          <div className="ba-panel-body"><Empty title="No automations yet">Zella Voice sets up reminders, missed call callbacks and no show follow ups for you.</Empty></div>
+          <div className="ba-panel-body"><Empty title="No automations yet">Zella Voice sets up reminders, missed call callbacks and no show follow ups for you.<div className="ba-empty-actions"><OwnRuleButton workspace={workspace} onNotice={onNotice} onSaved={reload} /></div></Empty></div>
         ) : tab === "failed" && data?.runsFailed ? <p className="ba-muted">Run history unavailable</p> : !shown.length ? (
           <div className="ba-panel-body"><Empty title={tab === "failed" ? "Nothing has failed" : "Nothing here"}>{tab === "failed" ? "Failed runs from the last 7 days would show up here." : "No automations match this view."}</Empty></div>
         ) : (

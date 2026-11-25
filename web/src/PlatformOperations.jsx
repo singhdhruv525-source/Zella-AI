@@ -72,7 +72,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
         <div className="op-heading-actions">
           <UpdatedAt r={r} />
           <button type="button" className="owner-secondary-button po-refresh" onClick={load} disabled={loading}>
-            {loading ? "Checking..." : "Refresh"}
+            {loading ? "Checking…" : "Refresh"}
           </button>
         </div>
       </div>
@@ -109,7 +109,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
               </div>
             </li>
           ))}
-          {!rows.length && <li><span className="op-muted">{r.status === "loading" ? "Checking..." : "Not checked: the health check didn't return results."}</span></li>}
+          {!rows.length && <li><span className="op-muted">{r.status === "loading" ? "Checking…" : "Not checked: the health check didn't return results."}</span></li>}
         </ul>
       </section>
 

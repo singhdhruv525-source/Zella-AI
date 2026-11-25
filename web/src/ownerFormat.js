@@ -40,9 +40,9 @@ export function actionLabel(action) {
   return ACTION_LABELS[action] ?? String(action ?? "").replace(/[._]/g, " ");
 }
 
-// A draft's label names the wizard step it reopens at (RESUME_AT in wizardProgress.js), so "Draft · next: Team" is
+// A draft's label names the wizard step it reopens at (RESUME_AT in wizardProgress.js), so "Draft, next step: Team" is
 // where "Continue setup" lands. The other stages have their own words.
-const draftLabel = (status) => `Draft · next: ${resumeStep(status).label}`;
+const draftLabel = (status) => `Draft, next step: ${resumeStep(status).label}`;
 const DRAFT_STATUSES = Object.keys(RESUME_AT).filter((s) => RESUME_AT[s] !== "review");
 export const STAGE_LABELS = {
   ...Object.fromEntries(DRAFT_STATUSES.map((s) => [s, draftLabel(s)])),

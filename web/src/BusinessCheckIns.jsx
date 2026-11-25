@@ -6,6 +6,7 @@ import { makeTerm } from "./businessWorkspace";
 import { APPT_LABEL, APPT_TONE, Empty, Notice, PageHead, explain, loadPeople, noShowNotice, orThrow, plural, useLoad } from "./BusinessShared";
 import { RescheduleModal } from "./BusinessForms";
 import { WalkInModal } from "./BusinessMore";
+import { formatTimeZone } from "./lib/format";
 
 /* Who is expected, who has arrived, who is with someone, who is done.
    Attendance is recorded by a person (or a trusted integration), never guessed from the clock. */
@@ -181,7 +182,7 @@ export function CheckInsPage({ workspace, refreshKey, onNotice, onOpenPerson, on
 
   return (
     <>
-      <PageHead crumb="Workspace / check ins" title="Check ins" sub={`Who is expected, who has arrived, and who is done today (${tz.replace("_", " ")}). You record each step.`}>
+      <PageHead crumb="Workspace / Check ins" title="Check ins" sub={`Who is expected, who has arrived, and who is done today (${formatTimeZone(tz)}). You record each step.`}>
         <button type="button" className="ba-btn primary" onClick={() => setWalkIn(true)}><Icon name="directions_walk" size="sm" /><span>Add walk in</span></button>
       </PageHead>
       <div className="ba-toolbar ba-lead-tools">

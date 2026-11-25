@@ -10,17 +10,17 @@ import { humanize } from "./copy/labels";
 import { NOT_TRACKED } from "./connectionState.js";
 import { DotText, Metric } from "./admin/adminOps";
 
-const PHONE_LABELS = { new_number: "New number", call_forwarding: "Forwarding", existing_number: "Forwarding" };
+const PHONE_LABELS = { new_number: "New number", forward: "Forwarding", call_forwarding: "Forwarding", existing_number: "Forwarding" };
 const LEAD_LABELS = { meta: "Meta", website: "Website", google: "Google" };
 
 // Plain text with a small dot (owner approved 25 Nov 2026): green when connected, grey when not yet. The words say it.
 function Need({ wanted, connected, label, available = true }) {
   if (!wanted) return <span className="op-muted">None</span>;
-  if (!available) return <DotText className="in-need">{label}<span className="in-need-state"> · not available</span></DotText>;
+  if (!available) return <DotText className="in-need">{label}<span className="in-need-state">, not available</span></DotText>;
   return (
     <DotText className="in-need" tone={connected ? "success" : "neutral"}>
       {label}
-      {!connected && <span className="in-need-state"> · not connected</span>}
+      {!connected && <span className="in-need-state">, not connected</span>}
     </DotText>
   );
 }
@@ -54,7 +54,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
-            {loading ? "Loading..." : <><Icon name="refresh" size="sm" />Refresh</>}
+            {loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}
           </button>
         </div>
       </div>
@@ -71,7 +71,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
       <section className="owner-panel op-card">
         <div className="owner-panel-heading">
           <div>
-            <h2>Client requests vs. connected</h2>
+            <h2>Asked for and connected</h2>
             <p>From each business's Phone & integrations setup step.</p>
           </div>
         </div>
@@ -88,7 +88,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
                     {available && r.voice.connected && <div className="op-muted">{r.voice.answering ? "Answering" : "No call answered in 7 days"}</div>}
                   </td>
                   <td><Need available={available} wanted={r.calendar.wanted} connected={r.calendar.connected} label={r.calendar.wanted === "google" ? "Google Calendar" : "Outlook / Microsoft Calendar"} /></td>
-                  <td>{r.email?.wanted ? <DotText className="in-need">{r.email.wanted === "gmail" ? "Gmail" : "Outlook email"}<span className="in-need-state"> · {NOT_TRACKED.toLowerCase()}</span></DotText> : <span className="op-muted">None</span>}</td>
+                  <td>{r.email?.wanted ? <DotText className="in-need">{r.email.wanted === "gmail" ? "Gmail" : "Outlook email"}<span className="in-need-state">, {NOT_TRACKED.toLowerCase()}</span></DotText> : <span className="op-muted">None</span>}</td>
                   <td>
                     {r.leads.wanted.length ? (
                       <div className="in-needs">

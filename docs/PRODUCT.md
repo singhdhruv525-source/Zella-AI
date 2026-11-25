@@ -230,7 +230,7 @@ add Spanish, contact Zella Voice support." and a link to Help and support (built
 | Calls sampled for quality review | Built |
 | Evaluation cases per industry (`ai_eval_cases`) | Built |
 | Configuration versions: what each call actually received | Built |
-| Call recording | **Off** until legal review (D-13). Built, not deployed: a recording on or off policy per business (Settings, Legal, policy and documents > Policy configuration). The policy is off by default and refused on until a Zella Voice owner records legal approval and the caller disclosure line (both empty: pending legal review); withdrawing approval turns the policy off for every business; audited. The policy doesn't change live calls yet: the phone assistant doesn't read it, so Vapi's own settings still decide whether a call is recorded until a separately approved call path change |
+| Call recording | **Off** until legal review (D-13). Built, not deployed: a recording on or off policy per business (Settings, Legal, Policy configuration). The policy is off by default and refused on until a Zella Voice owner records legal approval and the caller disclosure line (both empty: pending legal review); withdrawing approval turns the policy off for every business; audited. The policy doesn't change live calls yet: the phone assistant doesn't read it, so Vapi's own settings still decide whether a call is recorded until a separately approved call path change |
 | AI call intelligence (topics, sentiment) | Built, off (`call_intel_live`) |
 
 ### 7.4 Outbound calls
@@ -250,6 +250,16 @@ The sidebar is configuration (`web/src/navigation/navConfig.js`). A business see
 the module is available in its industry, the business has it on, and the person's role allows it. The server enforces
 the same rules; hiding an item is never the protection.
 
+How the CRM reads (wording pass, owner approved 25 Nov 2026; every change is listed in `docs/ZELLA_COPY_CHANGELOG.md`):
+the sidebar groups are written with "and" ("Calls and messages", "AI and automation", "Reports and analytics", "Team
+and staff"); the small line above each page title names the sidebar place in plain words ("Workspace / Tables",
+"Restaurant operations / Events and catering") and each title matches its sidebar item ("Reports and analytics",
+"Knowledge base", "Transcripts", the staff word such as "Restaurant staff"). Times read in words ("13 minutes ago",
+"yesterday"), phone numbers with spaces ("(555) 555 0101") and time zones by name ("Eastern Time (New York)"). Labels
+are in sentence case, not spaced capitals. Empty lists offer the page's own add button (Resources, Recurring visits,
+Automations, Waitlist, Team access invitations), and a figure that didn't load on Spam protection or Reviews says
+"Didn't load" in small type with Try again.
+
 ### 8.1 Workspace
 
 | Page | What it does | Status |
@@ -260,9 +270,9 @@ the same rules; hiding an item is never the protection.
 | **Dispatch** (field work) | The board for jobs: assign, en route, on site, finished, checklists, return visits. | Built |
 | **Resources** | Rooms, chairs, bays and equipment bookings need; which services need which. | Built |
 | **Recurring visits** | Repeat work (every two weeks, monthly) that generates future visits. | Built |
-| **Check-ins** | Staff mark arrivals, no-shows and attendance (staff-managed first, D-15). | Built |
+| **Check ins** | Staff mark arrivals, no-shows and attendance (staff-managed first, D-15). | Built |
 | **Waitlist** | People waiting for a time; freed times are offered by private link. | Built |
-| **Tasks & follow-ups** | Staff tasks and automatic follow-ups due, with owner and due time. | Built |
+| **Tasks and follow ups** | Staff tasks and automatic follow-ups due, with owner and due time. | Built |
 | **Follow-through** | Approvals waiting, dates coming up, and problems holding work up, across all records. | Built |
 
 ### 8.2 CRM
@@ -297,8 +307,8 @@ catering"), report counts agree with their number ("1 arrival", "1 no show"), th
 |---|---|---|
 | **Delete this account** (owner, Settings > Privacy) | The owner asks with the business name typed; a Zella Voice admin confirms under Data retention; the account is frozen at once (calls not answered, automations paused) and deleted 30 days later unless the owner cancels; the copies at Vapi are queued for deletion; audit history is kept without the business | Built, not applied (`sql/zella_account_deletion.sql`); the purge waits for the purge switch and lane B's audit SET NULL |
 | **Privacy policy and terms** | Public pages /privacy and /terms, linked from both sign in pages; drafts for owner and legal review until published; the owner accepts both during onboarding (recorded on the server) | Drafts built, not applied (`sql/zella_privacy_retention.sql`); legal review pending |
-| **AI Receptionist > Voice and setup** | Voice, languages, greeting, rules, readiness. Callers always hear that they are speaking with an AI receptionist (added in their language if a custom greeting leaves it out) and, only while recording is on for the business, that the call is recorded; Vapi recording follows the same setting (off) | Built; the disclosure is built, not applied (`sql/zella_call_disclosure.sql`) |
-| **AI Receptionist > Transcripts** | Call transcripts for the roles allowed to see them. | Built |
+| **AI receptionist > Voice and setup** | Voice, languages, greeting, rules, readiness. Callers always hear that they are speaking with an AI receptionist (added in their language if a custom greeting leaves it out) and, only while recording is on for the business, that the call is recorded; Vapi recording follows the same setting (off) | Built; the disclosure is built, not applied (`sql/zella_call_disclosure.sql`) |
+| **AI receptionist > Transcripts** | Call transcripts for the roles allowed to see them. | Built |
 | **Call handling rules** | When to transfer, take a message or escalate. | Built |
 | **Knowledge base** | Approved answers, versions and rollback, knowledge gaps to answer, website sources. AI drafting of answers is built, off (`knowledge_ai_live`). | Built |
 | **Automations** | The business's automations from its industry presets, on or off, with channel decisions and run history. | Built |
@@ -309,13 +319,13 @@ catering"), report counts agree with their number ("1 arrival", "1 no show"), th
 |---|---|---|
 | **Lead sources** | Website forms and chat widget (public form key, allowed websites, spam checks), Google Ads lead forms (key shown once), Facebook and Instagram leads, lead rules and questions. | Built (Meta channels: see §10) |
 | **Reviews** | Google reviews and AI reply drafts the owner approves before anything is posted. | Built, off (`reviews_live`, `review_ai_live`) |
-| **Reports & analytics** | Calls, bookings, response times, lead sources, campaigns, usage; scheduled reports. | Built |
+| **Reports and analytics** | Calls, bookings, response times, lead sources, campaigns, usage; scheduled reports. | Built |
 
 ### 8.6 Management
 
 | Page | What it does | Status |
 |---|---|---|
-| **Team & staff** | The staff list (named by the industry), skills, time off, handovers. | Built |
+| **Team and staff** | The staff list (named by the industry, and the page is titled with that word, for example "Restaurant staff"), skills, time off, handovers. | Built |
 | **Scorecards** | Per-staff results with nudges. | Built |
 | **Team access** | Invite, change role, deactivate, resend invitations (owners and admins). | Built |
 | **Approvals** | Two-person approval for risky actions (exports, erasure, role changes). | Built |
@@ -368,6 +378,13 @@ every screen against a stand in that follows the contract (`tests/browser/owner-
 Each page needs a named permission, the same one the server checks for its data. An admin with a restricted role sees
 only the pages they can use. Every admin action is written to the audit log.
 
+Wording (owner approved 25 Nov 2026, listed in `docs/ZELLA_COPY_CHANGELOG.md`): the line above each page title names
+its sidebar group (Support tickets, Operations; Users & access and Audit logs, Administration); small labels are in
+sentence case; "still working" is written with one ellipsis ("Loading…", "Trying again…"); a failed load says what
+didn't load and offers Try again; empty lists offer their add button (Support "New ticket", Voice & numbers and
+Settings "Assign a number", Offers "New offer"); notes about missing setup speak to the admin, with any file name in
+the note's hover tip.
+
 | Group | Page | What it does | Permission |
 |---|---|---|---|
 | — | **Overview** | Platform health, businesses, calls, alerts at a glance | `businesses.view` |
@@ -388,7 +405,7 @@ only the pages they can use. Every admin action is written to the audit log.
 | Operations | **Security & abuse** | Spam and abuse across the platform: the tabs first, then (on Overview) the period's six totals, three a row | `security.view` |
 | Administration | **Users & access** | Platform admins and their roles | `security.view` |
 | Administration | **Audit logs** | Every privileged action; append-only. Filters by business, action (every action in the shared list), person, dates and record; Details list what changed in words (each field, before and after), with the raw record under "Show raw record", and the record id, address and browser. Export CSV (at most 10,000 entries, cells that could run as spreadsheet formulas defused) for a Zella Voice owner or super admin; each export is audited | `audit.view` (export: also owner or super admin) |
-| Administration | **Settings** | 17 categories: general, tenants, users, plans, offers, billing, AI providers, voice and usage, communications, integrations, security, alerts, support, analytics, legal, developer, administrator profile. Platform settings are labelled in words, with the setting key as small help text; Communication templates previews the templates and links to Messaging, Templates, where they are edited. Alert rules: every alert kind the platform raises, grouped by area (AI receptionist, billing, calendar, messaging, offers, platform) with a search and an "only changed rules" switch, with its rule (on or off, severity, bell only or email to admins holding a permission, how often it may open again, quiet hours for email); saving needs `platform.configure` and a reason and is audited; urgent alerts are never switched off, lowered or delayed | per category |
+| Administration | **Settings** | 17 categories, with short names that fit the Settings menu: Platform, Businesses, Admins and roles, Plans and limits, Offers, Billing, AI, Voice and numbers, Texts and email, Integrations, Security and privacy, Alerts, Service health, Reports, Legal, Developer, Your profile. Platform settings are labelled in words, with the setting key as small help text; Communication templates previews the templates and links to Messaging, Templates, where they are edited. Alert rules: every alert kind the platform raises, grouped by area (AI receptionist, billing, calendar, messaging, offers, platform) with a search and an "only changed rules" switch, with its rule (on or off, severity, bell only or email to admins holding a permission, how often it may open again, quiet hours for email); saving needs `platform.configure` and a reason and is audited; urgent alerts are never switched off, lowered or delayed | per category |
 | Administration | **Settings, Business onboarding** | Every business still in setup with what it has in place and when it last changed. Every setup save records its step in provisioning_steps (pending, then done or failed; a refused input puts the step back), so Failed steps and Provisioning errors show real failures, and a failed owner invitation email is its own step (SET-ONB-RETRY part 1; built, needs the owner-provision-business deploy). A failed internal step (modules, AI receptionist, automations) has **Retry step**, which only adds what is missing and is audited; a failed invitation email has Send owner invite; anything else is finished with Continue setup. A timed retry of the internal steps (at most 3 tries each) exists but is off until the owner switches it on (SET-ONB-RETRY part 2; built, needs `sql/zella_provisioning_retry.sql`). A draft with no change for 30 days (Operational rules, `draft_abandon_days`) shows as **Abandoned** and raises one alert; nothing is deleted automatically (BIZ-13b; built, needs the owner-provision-business deploy). A Zella Voice owner or super admin can **Delete draft** for a business that never finished setup: they type its name and give a reason; the database refuses a business that is live, active, in testing or ready, cancelled, has an accepted owner, team members, calls, phone numbers, billing, a delivered receptionist or offer history. Its uploaded documents are removed; its audit history stays (audit rows are never deleted with a business: ACC-10, the owner's decision), and the deletion's own audit record keeps its id and name (BIZ-13a, ACC-10; built, needs `sql/zella_draft_delete.sql` and the owner-provision-business deploy) | `businesses.manage` and the zella_owner or super_admin role to delete |
 | Administration | **Settings, Data lifecycle** | How long a canceled business's records are kept (`retention_days`; labelled Pending legal review, since the architecture says 30 days and the database falls back to 90), every canceled business with its retention date and state, and a **Past their retention date** list. Read only: nothing is deleted automatically; a purge waits for the owner and legal (BIZ-13c; built, needs the owner-provision-business deploy) Whole business export: an admin requests it, a Zella Voice owner other than the requester approves, and it is downloadable for 7 days through signed links that end with it, for the person who asked or an owner; the Whole business export card lists exports with their state and progress. The business-export worker writes one JSON file per table plus the business's stored files and a manifest, resumes after an interruption, and leaves out secret tables and columns, recording links and sensitive industries' transcripts (SET-DL-EXPORT; built, needs `sql/zella_business_export.sql`, the business-export and owner-provision-business deploys; nothing runs until the owner turns the worker's timed call on) | `security.view` |
 
@@ -401,7 +418,7 @@ Platform roles use named permissions (`businesses.view/manage`, `telephony.manag
 platform alerts live. The Growth page (prospects and demos, REQ-ADM-18) and its `growth.manage` permission come
 later, not before launch (owner, 16 Nov 2026).
 
-**Weekly platform report** (Settings, Analytics and reporting, Reporting configuration; `reports.view`, which the
+**Weekly platform report** (Settings, Reports, Reporting configuration; `reports.view`, which the
 Zella Voice owner and super admins have; a restricted role only when the owner grants it): one summary of the whole
 platform for each week, Monday to Sunday in UTC: new businesses, live businesses, calls, missed calls, texts sent and
 received, open platform alerts, support tickets and failed automations, each with its definition, plus earlier weeks.
@@ -419,7 +436,7 @@ their other devices, and that is recorded in the audit log as "Signed out other 
 role or access need an authenticator code entered in the last 5 minutes: Users & access asks for a new code and then
 makes the change (only a fresh code, no second owner's approval). Changing what a restricted role may do (Platform
 roles in Settings) gets the same check once that page's open changes have merged. An admin's own security changes in
-Administrator profile > Account security go through the server and are audited: adding an authenticator ("Admin
+Your profile > Account security go through the server and are audited: adding an authenticator ("Admin
 added an authenticator app"), removing one ("Admin removed an authenticator app", with a new code, and never the last
 one) and changing the password (with a new code; the password itself is never recorded). Business owners and staff
 keep the same screens as before. Refused calls to the admin server (not an admin, two step sign in

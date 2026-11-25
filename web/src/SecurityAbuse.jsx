@@ -19,6 +19,8 @@ const STATUS = {
   confirmed_spam: ["danger", "Confirmed spam"], false_positive: ["success", "Not spam"], resolved: ["neutral", "Resolved"],
 };
 const RISK = { high: "danger", medium: "warning", low: "neutral" };
+// "High risk, score 82"
+const riskText = (level, score) => `${String(level ?? "").charAt(0).toUpperCase()}${String(level ?? "").slice(1)} risk, score ${score}`;
 const ACTION = { allowed: "Allowed", flagged: "Flagged", held: "Held for review", screened: "Screened", restricted: "Restricted", blocked: "Blocked" };
 const REASON = {
   blocklisted: "On a block list", allowlisted: "On the allow list", repeat_contact: "Repeated contact", flood: "Flooding", suspicious_link: "Suspicious link", many_links: "Many links",
@@ -50,9 +52,8 @@ const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "med
 
 function NotSetUp() {
   return (
-    <div className="wiz-note op-gap">
-      Spam protection isn't set up in the database yet. Apply <strong>sql/zella_spam_protection.sql</strong> (after a backup); incidents,
-      defaults and rules then appear here.
+    <div className="wiz-note op-gap" title="Needs sql/zella_spam_protection.sql applied, after a backup">
+      Spam protection isn't switched on yet. Ask the Zella Voice team to turn it on.
     </div>
   );
 }
@@ -96,7 +97,7 @@ export default function SecurityAbuse({ permissions, onOpenBusiness }) {
             <option value={30}>Last 30 days</option>
             <option value={90}>Last 90 days</option>
           </select>
-          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading..." : <><Icon name="refresh" size="sm" />Refresh</>}</button>
+          <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>{loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}</button>
         </div>
       </div>
 
@@ -255,14 +256,14 @@ function Incidents({ days, onOpenBusiness }) {
                   <td><button type="button" className="vq-link" onClick={(e) => { e.stopPropagation(); set("businessId", r.business_id); }} title="Show only this business">{r.business_name}</button></td>
                   <td>{CHANNEL[r.channel] ?? r.channel}</td>
                   <td>{r.sender}{r.occurrences > 1 && <small className="op-muted"> ×{r.occurrences}</small>}</td>
-                  <td><Pill tone={RISK[r.risk_level]}>{`${r.risk_level} · ${r.risk_score}`}</Pill></td>
+                  <td><Pill tone={RISK[r.risk_level]}>{riskText(r.risk_level, r.risk_score)}</Pill></td>
                   <td>{ACTION[r.action] ?? r.action}</td>
                   <td><Pill tone={tone}>{label}</Pill></td>
                   <td>{when(r.last_seen_at)}</td>
                 </tr>
               );
             })}
-            {!rows.length && <tr><td colSpan={7}><div className="op-empty">{res ? "No incidents match." : "Loading incidents..."}</div></td></tr>}
+            {!rows.length && <tr><td colSpan={7}><div className="op-empty">{res ? "No incidents match." : "Loading incidents…"}</div></td></tr>}
           </tbody>
         </table>
       </div>
@@ -295,11 +296,11 @@ function IncidentDrawer({ id, onClose, onOpenBusiness }) {
           <h3>{inc ? `${CHANNEL[inc.channel] ?? inc.channel} from ${inc.sender}` : "Incident"}</h3>
         </div>
         {error && <div className="owner-form-error" role="alert">{error}</div>}
-        {!inc && !error && <p className="op-muted">Loading...</p>}
+        {!inc && !error && <p className="op-muted">Loading…</p>}
         {inc && (
           <>
             <div className="sa-badges">
-              <Pill tone={RISK[inc.risk_level]}>{`${inc.risk_level} risk · ${inc.risk_score}`}</Pill>
+              <Pill tone={RISK[inc.risk_level]}>{riskText(inc.risk_level, inc.risk_score)}</Pill>
               <Pill tone={(STATUS[inc.status] ?? ["neutral"])[0]}>{(STATUS[inc.status] ?? [null, inc.status])[1]}</Pill>
               <Pill>{ACTION[inc.action] ?? inc.action}</Pill>
             </div>
@@ -419,7 +420,7 @@ function Policy({ policy, canSave, onSaved }) {
       <div className="ic-actions">
         {!canSave && <span className="op-muted">Your role can view these but not change them.</span>}
         {canSave && <button type="button" className="owner-secondary-button" disabled={!dirty || busy} onClick={() => setForm({ ...policy })}>Undo changes</button>}
-        {canSave && <button type="button" className="owner-primary-button" disabled={!dirty || busy} onClick={save}>{busy ? "Saving..." : "Save defaults"}</button>}
+        {canSave && <button type="button" className="owner-primary-button" disabled={!dirty || busy} onClick={save}>{busy ? "Saving…" : "Save defaults"}</button>}
       </div>
     </section>
   );
@@ -512,7 +513,7 @@ function Rules({ canManage, onChanged }) {
               </tr>
             ))}
             {rules && !rules.length && <tr><td colSpan={6}><div className="op-empty">No platform wide rules. Businesses manage their own block lists.</div></td></tr>}
-            {!rules && <tr><td colSpan={6}><div className="op-empty">Loading rules...</div></td></tr>}
+            {!rules && <tr><td colSpan={6}><div className="op-empty">Loading rules…</div></td></tr>}
           </tbody>
         </table>
       </div>
@@ -526,7 +527,7 @@ function Rules({ canManage, onChanged }) {
             <p>Contacts from {removing.value} will reach every business again, unless a business has blocked it itself.</p>
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={() => setRemoving(null)} disabled={busy}>Go back</button>
-              <button type="button" className="bd-danger-button" disabled={busy} onClick={() => remove(removing)}>{busy ? "Removing..." : "Remove rule"}</button>
+              <button type="button" className="bd-danger-button" disabled={busy} onClick={() => remove(removing)}>{busy ? "Removing…" : "Remove rule"}</button>
             </div>
           </div>
         </div></DialogFocus>,
@@ -618,7 +619,7 @@ function Automation({ info, canSave, onSaved }) {
               <input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} disabled={busy} autoFocus /></label>
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={closeConfirm} disabled={busy}>Go back</button>
-              <button type="button" className="owner-primary-button" disabled={busy || reason.trim().length < 3} onClick={() => save({ live: true }, "Spam Response switched on. Live alerts will now be sent.")}>{busy ? "Saving..." : "Switch on live alerts"}</button>
+              <button type="button" className="owner-primary-button" disabled={busy || reason.trim().length < 3} onClick={() => save({ live: true }, "Spam Response switched on. Live alerts will now be sent.")}>{busy ? "Saving…" : "Switch on live alerts"}</button>
             </div>
           </div>
         </div></DialogFocus>,
@@ -636,7 +637,7 @@ function Automation({ info, canSave, onSaved }) {
               <input value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} disabled={busy} autoFocus /></label>
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={closeConfirm} disabled={busy}>Go back</button>
-              <button type="button" className="owner-primary-button" disabled={busy || reason.trim().length < 3} onClick={() => save({ ai_live: true }, "AI second opinion switched on.")}>{busy ? "Saving..." : "Switch on"}</button>
+              <button type="button" className="owner-primary-button" disabled={busy || reason.trim().length < 3} onClick={() => save({ ai_live: true }, "AI second opinion switched on.")}>{busy ? "Saving…" : "Switch on"}</button>
             </div>
           </div>
         </div></DialogFocus>,

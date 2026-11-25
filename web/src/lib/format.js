@@ -127,3 +127,13 @@ export function formatDuration(seconds) {
   const m = Math.floor((v % 3600) / 60);
   return m ? `${Math.floor(v / 3600)} h ${m} min` : `${Math.floor(v / 3600)} h`;
 }
+
+// A wall clock time with no zone of its own, read as written: "2026-11-15T10:00" -> "Nov 15, 2026, 10:00 AM".
+// For times stored in a business's local time (an offer's start and end): never shifted by the viewer's zone.
+export function formatWallTime(value) {
+  if (empty(value)) return "";
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!m) return String(value);
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]));
+  return d.toLocaleString(LOCALE, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }).replace(/\s+/g, " ");
+}

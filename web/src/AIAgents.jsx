@@ -12,6 +12,9 @@ import { answeringText, countText, livePill, missingForLive, outcomePill, relati
 import AgentDeliveries from "./AgentDeliveries";
 import AiTesting from "./AiTesting";
 
+// "Setup complete" -> "setup complete", for a word that continues a sentence
+const firstLower = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
 // The five setup checks, in the order an admin fixes them. The second word is how a missing one reads.
 const CHECKS = [
   ["knowledge", "knowledge", "Services or FAQs added"],
@@ -102,14 +105,14 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
     <section className="owner-page ag-page">
       <div className="owner-page-heading">
         <div>
-          <div className="owner-eyebrow">AI and communications</div>
+          <div className="owner-eyebrow">AI & communications</div>
           <h1>AI receptionists</h1>
           <p>Every client's receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
           <button type="button" className="owner-secondary-button ag-refresh" onClick={() => { load(); setTestingRefresh((n) => n + 1); }} disabled={loading}>
-            <Icon name="refresh" size="sm" />{loading ? "Loading..." : "Refresh"}
+            <Icon name="refresh" size="sm" />{loading ? "Loading…" : "Refresh"}
           </button>
         </div>
       </div>
@@ -187,7 +190,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                         <button type="button" className="op-name ag-name" title={a.businessName} onClick={() => onOpenBusiness(a.businessId)}>
                           {a.businessName}
                         </button>
-                        <span className="ag-line">{a.industry} · {a.stage === "active" ? "Setup finished" : stageLabel(a.stage)}</span>
+                        <span className="ag-line">{a.industry}, {a.stage === "active" ? "setup finished" : firstLower(stageLabel(a.stage))}</span>
                       </div>
                     </td>
                     <td data-label="Receptionist">

@@ -284,7 +284,7 @@ export function ResourcesPage({ workspace, refreshKey, onNotice }) {
               </div></li>
             ))}
           </ul>
-        ) : <Empty title="No resources yet" icon="meeting_room">Add the rooms, chairs, bays or equipment that bookings need.</Empty>)}
+        ) : <Empty title="No resources yet" icon="meeting_room">Add the rooms, chairs, bays or equipment that bookings need.{canManage && <div className="ba-empty-actions"><button type="button" className="ba-btn sm" onClick={() => setEditing("new")}><Icon name="add" size="sm" />Add a resource</button></div>}</Empty>)}
         {list.data && list.data.needs.length > 0 && (
           <p className="ba-muted ba-small">Services that need a resource: {list.data.needs.map((n) => `${n.service} → ${n.quantity} ${KIND_LABEL[n.kind]?.toLowerCase() ?? n.kind}`).join(" · ")}. A booking for one of these gets a free one picked.</p>
         )}
@@ -424,7 +424,7 @@ export function RecurringPage({ workspace, refreshKey, onNotice }) {
               );
             })}
           </ul>
-        ) : <Empty title="No recurring plans yet" icon="event_repeat">Add one for work that repeats, like a cleaning every two weeks or a quarterly service.</Empty>)}
+        ) : <Empty title="No recurring plans yet" icon="event_repeat">Add one for work that repeats, like a cleaning every two weeks or a quarterly service.{canManage && <div className="ba-empty-actions"><button type="button" className="ba-btn sm" onClick={() => setEditing("new")}><Icon name="add" size="sm" />Add a plan</button></div>}</Empty>)}
       </LoadState>
       {editing && d && <PlanModal key={editing === "new" ? "new" : editing.id} workspace={workspace} plan={editing === "new" ? null : editing} staff={d.staff} resources={d.resources}
         person={editing !== "new" && editing.customer_id ? d.people[editing.customer_id] : null} busy={busy} onClose={() => setEditing(null)}

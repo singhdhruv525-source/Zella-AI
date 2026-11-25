@@ -143,14 +143,13 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
           <p>Documents that prove each business is real and that the person who registered it may act for it.</p>
         </div>
         <div className="op-heading-actions">
-          <button type="button" className="owner-secondary-button" onClick={() => { setRefreshes((n) => n + 1); load(); }} disabled={loading}>{loading ? "Loading..." : <><Icon name="refresh" size="sm" />Refresh</>}</button>
+          <button type="button" className="owner-secondary-button" onClick={() => { setRefreshes((n) => n + 1); load(); }} disabled={loading}>{loading ? "Loading…" : <><Icon name="refresh" size="sm" />Refresh</>}</button>
         </div>
       </div>
 
       {data && !data.available && (
-        <div className="wiz-note op-gap">
-          Document storage isn't set up yet. Apply <strong>sql/zella_onboarding.sql</strong>; documents uploaded in the Create Business
-          wizard then appear here for review.
+        <div className="wiz-note op-gap" title="Needs sql/zella_onboarding.sql applied">
+          Document review isn't switched on yet. Documents uploaded during setup appear here once it is.
         </div>
       )}
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
@@ -225,7 +224,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
                     );
                   })}
                   {!docs.length && (
-                    <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading documents..." : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : scopeUnsupported ? "Showing one business's documents needs the latest Zella Voice update. Use Show all for now." : status === "pending_review" ? "Nothing waiting for review." : "No documents here."}</div></td></tr>
+                    <tr><td colSpan={5}><div className="op-empty">{loading ? "Loading documents…" : !data ? "Couldn't load this list. Try again with Refresh, or reload the page." : scopeUnsupported ? "Showing one business's documents needs the latest Zella Voice update. Use Show all for now." : status === "pending_review" ? "Nothing waiting for review." : "No documents here."}</div></td></tr>
                   )}
                 </tbody>
               </table>
@@ -251,7 +250,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={closeDialog} disabled={Boolean(busy)}>Go back</button>
               <button type="button" className="bd-danger-button" disabled={!reason.trim() || Boolean(busy)} onClick={() => review(rejecting, "rejected", reason.trim())}>
-                {busy ? "Rejecting..." : "Reject document"}
+                {busy ? "Rejecting…" : "Reject document"}
               </button>
             </div>
           </div>
@@ -279,7 +278,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={closeDialog} disabled={Boolean(busy)} autoFocus>Cancel</button>
               <button type="button" className="owner-primary-button" disabled={Boolean(busy)} onClick={() => review(verifying, "verified")}>
-                {busy ? "Verifying..." : "Confirm: mark verified"}
+                {busy ? "Verifying…" : "Confirm: mark verified"}
               </button>
             </div>
           </div>

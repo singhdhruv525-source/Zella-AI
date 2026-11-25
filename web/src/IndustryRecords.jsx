@@ -91,7 +91,7 @@ export default function IndustryRecords({ industryId, industryName }) {
         {data && <Pill tone={data.usesGeneral ? "warning" : "info"}>{data.usesGeneral ? "Using the general set" : `${types.length} record types`}</Pill>}
       </div>
 
-      {loading && !data && <div className="op-empty">Loading record types...</div>}
+      {loading && !data && <div className="op-empty">Loading record types…</div>}
       {error && <div className="owner-form-error op-gap" role="alert">{error}</div>}
       {notice && <div className="vq-notice op-gap" role="status">{notice}</div>}
 
@@ -177,7 +177,7 @@ export default function IndustryRecords({ industryId, industryName }) {
             <button type="button" className="owner-secondary-button" disabled={types.length >= 12} onClick={() => { setTypes([...types, blankType()]); setOpen(types.length); }}><Icon name="add" size="sm" />Add record type</button>
             <span className="ir-grow" />
             <button type="button" className="owner-secondary-button" disabled={!dirty || saving} onClick={() => setTypes(withEditState(data.types))}>Discard</button>
-            <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving..." : "Save record types"}</button>
+            <button type="button" className="owner-primary-button" disabled={!dirty || saving} onClick={save}>{saving ? "Saving…" : "Save record types"}</button>
           </div>
         </>
       )}

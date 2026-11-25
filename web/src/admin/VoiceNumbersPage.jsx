@@ -36,7 +36,7 @@ export default function VoiceNumbersPage({ me, sub, onOpenBusiness }) {
   const openCalls = (filter) => { setCallFilter(filter); setTab("calls"); };
   return (
     <section className="owner-page ao-page vn-page">
-      <PageHeader eyebrow="AI and communications" title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
+      <PageHeader eyebrow="AI & communications" title="Voice & numbers" description="Every business's phone numbers, the calls the AI receptionist handled and who callers are put through to."
         actions={manage && <button type="button" className="owner-primary-button" onClick={() => setAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button>} />
       <ErrorNote error={options.error} onRetry={options.reload} />
       <Tabs tabs={TABS} current={tab} onChange={setTab} />
@@ -97,7 +97,7 @@ function Overview({ onTab, onOpenCalls }) {
         </Panel>
         <Panel title="Providers" description="Zella Voice's own checks of each provider, run by the provider health job." action={<button type="button" className="owner-secondary-button" onClick={() => onTab("providers")}>Keys and costs</button>}>
           {o && <ProviderHealth rows={o.providers} checksLive={o.checks_live} names={[["vapi", "Vapi", "AI voice and phone numbers"], ["telnyx", "Telnyx", "Numbers and carrier"]]} />}
-          {o && !o.checks_live && <NotAvailable title="Provider checks are off" tip={switchHint("provider_checks_live")}>The provider health job isn't switched on, so connection status is unknown rather than healthy. A "test connection" button isn't offered because it would need the provider keys in the browser.</NotAvailable>}
+          {o && !o.checks_live && <NotAvailable title="Provider checks are off" tip={switchHint("provider_checks_live")}>The provider health job isn't switched on, so connection status is unknown rather than healthy.</NotAvailable>}
         </Panel>
       </div>
       {o && <Switches o={o} />}
@@ -124,7 +124,7 @@ function Switches({ o }) {
             </li>
           ))}
         </ul>
-      ) : <NotAvailable title="Switches need a database update">Once the voice admin update is applied, this lists the call switches and jobs.</NotAvailable>}
+      ) : <NotAvailable title="Switches aren't available yet" tip="Needs the voice admin database update">This lists the call switches and jobs once they are.</NotAvailable>}
     </Panel>
   );
 }
@@ -148,7 +148,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
       </Filters>
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} onRow={setOpen}
-        empty={f.q || f.status || f.business ? "No numbers match these filters." : "No phone numbers are assigned to any business yet."}
+        empty={f.q || f.status || f.business ? "No numbers match these filters." : <>No numbers yet.{manage && <> <button type="button" className="owner-secondary-button op-small" onClick={() => onAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button></>}</>}
         columns={[
           ["Number", (r) => <strong>{phone(r.e164)}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? <EmptyValue label="Not set" />],
           ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">No receptionist</Pill>],
@@ -164,7 +164,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
             ["Receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None. Calls can't be answered"],
             ["Vapi phone number id", open.vapi_phone_number_id ? <code key="v">{open.vapi_phone_number_id}</code> : "Not linked"],
             ["Calls, last 30 days", num(open.calls_30d)], ["Last call", when(open.last_call_at, "No calls yet")], ["Added", when(open.created_at, "Not recorded")]]} />
-          <NotAvailable title="Carrier details aren't read from Telnyx">Number type, capabilities and carrier status need the Telnyx API from a server action, which isn't built. Buying and releasing numbers at the carrier is done in the Telnyx or Vapi dashboard.</NotAvailable>
+          <NotAvailable title="Carrier details aren't shown yet" tip="Needs the Telnyx API from a server action, which isn't built">Number type and carrier status are in the Telnyx dashboard. Buying and releasing numbers at the carrier is done in the Telnyx or Vapi dashboard.</NotAvailable>
           <div className="ao-drawer-actions">
             <button type="button" className="owner-secondary-button" onClick={() => onOpenCalls({ business: open.business_id, q: open.e164.replace(/\D/g, "").slice(-7) })}>View calls</button>
             {manage && <>
