@@ -40,7 +40,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 4.2 **Contact hours.** Messages are sent within contact hours in your local time zone when the Business knows it, and otherwise in the Business's time zone. Replies to your own messages, the missed call text and booking confirmations are sent immediately. The other windows are: follow ups after a call attempt, within the Business's calling hours; appointment reminders, between 7 a.m. and 9 p.m.; other service messages, between 9 a.m. and 7 p.m.; and marketing messages, between 9 a.m. and 7 p.m. A message due outside its window moves to the next allowed time. **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
 
-4.3 **Condition before sending.** Marketing texts and automated texts are not switched on until the text sender enforces section 4.2 using the recipient's time zone. Today the sender checks the Business's time zone only. **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
+4.3 **Condition before sending.** Marketing texts and automated texts are not switched on until the text sender enforces all of section 4.2: the recipient's time zone when known, and every window (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time). Today the sender checks only marketing texts, only before 8 a.m. and from 9 p.m., and only in the Business's time zone. **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 
 ## 5. Costs
 
@@ -111,7 +111,7 @@ Placeholders in this document:
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
-- **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
+- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 - **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[CONFIRM THE HELP REPLY INCLUDES THE BUSINESS NAME AND A CONTACT METHOD]**

@@ -196,7 +196,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 12.6 **Export.** The Owner may export customers and call history as CSV files at any time, and may request a whole business export of Customer Data.
 
-12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call; after cancellation, Customer Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the export window is deleted on that date.
+12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**; after cancellation, Customer Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the export window is deleted on that date.
 
 12.8 **Telephone numbers.** Customer may port telephone numbers into or out of the Services at no charge. Porting time depends on the carrier. Numbers provided by Zella Voice are released 30 days after cancellation unless ported out before then.
 
@@ -459,7 +459,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 4.4 **Transcripts.** Calls are transcribed so that the Customer can see what was said and so that a summary can be written. Transcripts are visible only to owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-4.5 **Retention.** Recordings and transcripts are deleted 90 days after the call, as described in the Zella Voice Privacy Policy and the Zella Voice Data Processing Addendum.
+4.5 **Retention.** Recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**, as described in the Zella Voice Privacy Policy and the Zella Voice Data Processing Addendum.
 
 ### 5. Outbound calls and messages
 
@@ -613,6 +613,7 @@ Placeholders in this document:
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**

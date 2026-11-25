@@ -88,9 +88,9 @@ Taking into account the nature of processing and the information available to it
 
 ## 12. Deletion or return
 
-12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
+12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are scheduled to be deleted 90 days after the call; the contents of texts and emails are scheduled to be removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure. These automatic deletions are a draft schedule: the deletion jobs are built but not yet switched on. **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 
-12.2 **After cancellation.** Customer Personal Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days.
+12.2 **After cancellation.** Customer Personal Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days.
 
 12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted.
 
@@ -340,6 +340,7 @@ Placeholders in this document:
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[AUDIT NOTICE PERIOD]**
 - **[DATA HOSTING REGION]**

@@ -59,11 +59,13 @@ The separate files were removed after merging; their full text is inside the mer
 
 3.1 The architecture (section 20, REQ BIL 49) and the rulebook (PRV 4) say a canceled Customer's data is deleted 30 days after cancellation, after a final export offer. The version 0.1 privacy policy said 90 days. The product document notes that the database falls back to 90 days when no value is set, and the admin page labels it "Pending legal review".
 
-3.2 **Every document in this set uses the placeholder **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** for this period**, wherever it appears (Terms 12.7, Privacy Policy section 10, DPA 12.2, Trust overview section 5). The rulebook's 30 days is shown as the proposal. To resolve: decide the period, replace the placeholder with it everywhere it appears, and set the database value to match. Each kind of data keeps its own deletion schedule during the export window, so recordings and transcripts are still deleted 90 days after the call and the window covers only data still held.
+3.2 Every document in this set uses the placeholder **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** for this period, wherever it appears (Terms 12.7, Privacy Policy section 10, DPA 12.2, Trust overview section 5). The rulebook's 30 days is shown as the proposal. To resolve: decide the period, replace the placeholder with it everywhere it appears, and set the database value to match. Each kind of data keeps its own deletion schedule during the export window, so recordings and transcripts stay on their own draft 90 day schedule (the purge is built but not applied and its switch is off, so this is not yet an active guarantee) and the window covers only data still held.
 
 3.3 **Recordings: 90 days or 30 days.** The owner decided on 18 November 2026 that call recordings and transcripts are kept 90 days (architecture section 23.1c; rulebook PRV 4). The earlier proposal was recordings 30 days and transcripts 90 days. The per kind retention settings built on 16 November 2026 (not deployed) still default to that earlier proposal, recordings 30 days, while the privacy retention migration (not applied) sets both to 90 days. Every period is pending legal review. **The drafts use 90 days for recordings and transcripts.** Decide between 90 days (current owner decision) and 30 days (earlier proposal), and make the settings match before publishing.
 
-3.4 Other periods used consistently across the set: recordings and transcripts 90 days; message contents 2 years; audit and security logs 7 years; Owner identity documents 90 days after the check (replaced copies 30 days); backups cleared within 90 days after cancellation; account deletion 30 days after confirmation; numbers released 30 days after cancellation; legal holds override. All periods are marked pending legal review in the product (PRV 4). The consistency of the recording period across the set (section 9) depends on the decision in section 3.3.
+3.4 **All automatic deletion is a draft schedule.** The purge jobs for recordings, transcripts and message contents, and the deletion of copies at Vapi, are built but not applied, and their switches are off. Every document therefore describes these periods as scheduled and carries **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** where the 90 day deletion is stated (Privacy Policy sections 6.3 and 10, DPA 12.1 and 12.2, Terms 12.7 and Schedule 2 section 4.5, Trust overview section 5).
+
+3.5 Other periods used consistently across the set: recordings and transcripts 90 days; message contents 2 years; audit and security logs 7 years; Owner identity documents 90 days after the check (replaced copies 30 days); backups cleared within 90 days after cancellation; account deletion 30 days after confirmation; numbers released 30 days after cancellation; legal holds override. All periods are marked pending legal review in the product (PRV 4). The consistency of the recording period across the set (section 9) depends on the decision in section 3.3.
 
 ## 4. Claims that must not be published until the feature is on
 
@@ -85,7 +87,7 @@ The separate files were removed after merging; their full text is inside the mer
 | Status page wording ("everything is working" only when checked) | Built, not applied |
 | Support replies in the app | Built, not applied |
 | Trust overview "Built, going live" items | Must be relabelled Live only once in production |
-| Contact hours in the recipient's time zone (Messaging Terms 4.2) | **Blocker for texts going live:** the text sender checks only marketing texts, only 8 a.m. to 9 p.m., and only in the Business's time zone; rulebook COM 3 requires the recipient's time zone when known. Marketing and automated texts must stay off until the sender enforces it (Messaging Terms 4.3) |
+| Contact hours in the recipient's time zone (Messaging Terms 4.2) | **Blocker for texts going live:** the text sender checks only marketing texts, only 8 a.m. to 9 p.m., and only in the Business's time zone; rulebook COM 3 requires the recipient's time zone when known and every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time). Marketing and automated texts must stay off until the sender enforces both the time zone basis and every window (Messaging Terms 4.3) |
 | Card numbers never collected | Zella Voice never asks for them and payment is only through Stripe, but callers may speak card numbers and transcripts may store them; transcript redaction is not built (pending remediation) |
 | HIPAA BAA available | Offered only after BAAs with every vendor (D 49); not in place |
 
@@ -116,7 +118,7 @@ The separate files were removed after merging; their full text is inside the mer
 23. Accessibility contact, response time and known limitations after an audit.
 24. Reseller and referral model, commission rate, period and payment timing, and whether to include non solicitation.
 25. HR providers and retention periods for applicant, employee and payroll records.
-26. Product fix before texts go live: make the text sender use the recipient's time zone when known (rulebook COM 3) and apply the windows in Messaging Terms 4.2; confirm the hour ranges.
+26. Product fix before texts go live: make the text sender use the recipient's time zone when known (rulebook COM 3) and enforce every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time); confirm the hour ranges.
 27. Product fix: redact payment card numbers that callers speak from call transcripts (and summaries), and check existing transcripts.
 
 ## 6. Points for counsel
@@ -211,6 +213,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 
 - **[MEMO DATE]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 
 ### Zella Voice Terms of Service
 
@@ -224,6 +227,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
@@ -257,6 +261,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
@@ -284,6 +289,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[AUDIT NOTICE PERIOD]**
 - **[DATA HOSTING REGION]**
@@ -314,7 +320,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
-- **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
+- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 - **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[CONFIRM THE HELP REPLY INCLUDES THE BUSINESS NAME AND A CONTACT METHOD]**
@@ -486,7 +492,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
 - **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
 - **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
+- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 - **[UPDATE THE TEMPLATE SPELLING]**
 
 <!-- ALL PLACEHOLDERS END -->

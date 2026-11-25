@@ -45,7 +45,7 @@ A Customer keeps records about its End Users, which may include:
 - calls: calling and called numbers, time and length, what the AI Receptionist did, the outcome, a written summary and a transcript, and a recording only when the Customer has turned call recording on (section 6);
 - texts and emails sent or received for the Customer, with delivery status and replies;
 - appointments, reservations, jobs, waitlist entries, check ins and attendance;
-- requests, notes, tasks, follow ups, quotes and recorded payments (Zella Voice does not collect card numbers; see section 3.1 about numbers spoken on calls);
+- requests, notes, tasks, follow ups, quotes and recorded payments (card numbers are never collected on purpose; a number a caller speaks may appear in a transcript until redaction is in place, see section 3.1);
 - the records the Customer's industry uses, which may include uploaded files;
 - relationships the Customer records, such as a parent or guardian;
 - consent records, contact preferences, opt outs and do not contact flags;
@@ -101,7 +101,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 6.2 **Transcripts** are visible only to a Customer's owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-6.3 Recordings and transcripts are deleted 90 days after the call (section 10).
+6.3 Recordings and transcripts are scheduled to be deleted 90 days after the call (section 10). **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 
 ## 7. Messages, consent and opting out
 
@@ -141,18 +141,18 @@ Our main database is hosted in **[DATA HOSTING REGION]**, and Zella Voice is ope
 
 ## 10. Retention
 
-We keep Personal Data only as long as needed for the purposes in section 4. Anything under an active legal hold is kept until the hold is released and then deleted on schedule.
+We keep Personal Data only as long as needed for the purposes in section 4. The automatic deletion described below is a scheduled process that is built but not yet switched on. **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** Anything under an active legal hold is kept until the hold is released and then deleted on schedule.
 
 | Data | Retention |
 |---|---|
-| Call recordings (only when recording is on) | 90 days after the call, then deleted automatically |
-| Call transcripts | 90 days after the call, then removed automatically |
+| Call recordings (only when recording is on) | Scheduled for automatic deletion 90 days after the call |
+| Call transcripts | Scheduled for automatic removal 90 days after the call |
 | Copies of calls held by Vapi | Deleted at Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
 | Other Customer Data and Account Data | While the account is active |
-| After a Customer cancels | Data still held is available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts are still deleted 90 days after the call, even during the export window |
+| After a Customer cancels | Data still held is available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window |
 | Telephone numbers of a canceled Customer | Released 30 days after cancellation unless ported out |
 | Consent and opt out records | Kept after erasure so that opt outs continue to work |
 
@@ -274,6 +274,7 @@ Placeholders in this document:
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
+- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**

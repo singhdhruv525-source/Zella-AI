@@ -112,7 +112,7 @@ Inbound voicemail prompt (designed in the architecture; the voicemail feature is
 ### 5.5 Other mismatches to resolve
 
 - One reminder template still says "Reply C to confirm or R to reschedule", but C and R are no longer treated as keywords; customers change a time with the reschedule link. **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- Contact hours: the rulebook (COM 3) and Messaging Terms 4.2 require the recipient's local time zone when known, otherwise the Business's, with windows of 7 a.m. to 9 p.m. for reminders and 9 a.m. to 7 p.m. for other service and marketing messages. Today the text sender checks only marketing texts, only before 8 a.m. and from 9 p.m., and only in the Business's time zone; follow ups are scheduled in the Business's time zone. **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]** Registration samples and opt in text must not promise hours the sender does not enforce.
+- Contact hours: the rulebook (COM 3) and Messaging Terms 4.2 require the recipient's local time zone when known, otherwise the Business's, and these windows: immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time. Today the text sender checks only marketing texts, only before 8 a.m. and from 9 p.m., and only in the Business's time zone; follow ups are scheduled in the Business's time zone. Activation requires the sender to enforce both the time zone basis and every window. **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]** Registration samples and opt in text must not promise hours the sender does not enforce.
 
 - The cancellation template uses British spelling ("cancelled"), quoted exactly above; the rulebook asks for American English. **[UPDATE THE TEMPLATE SPELLING]**
 
@@ -144,7 +144,7 @@ Placeholders in this document:
 - **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
 - **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
 - **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- **[OWNER: THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON]**
+- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 - **[UPDATE THE TEMPLATE SPELLING]**
 
 <!-- PLACEHOLDERS END -->
