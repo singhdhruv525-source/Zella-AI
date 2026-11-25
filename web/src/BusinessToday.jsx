@@ -488,6 +488,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
                     const [src, srcIcon] = SOURCE[a.customer?.source] ?? (a.customer?.source ? [a.customer.source, "more_horiz"] : ["None", null]);
                     const busy = working === `appt-${a.id}`;
                     const mins = minutes(a);
+                    const note = a.description || a.internal_notes || a.location || "";
                     const tableName = !(a.table_ids ?? []).length ? "Not set" : tableNames === null ? "…" : tableNames === "failed" ? "Not available" : a.table_ids.map((id) => tableNames[id] ?? "Not available").join(" + ");
                     const staffName = showStaff ? data.staff[a.staff_id] ?? "Not set" : "";
                     // on a phone the folded columns read under the name instead
@@ -499,13 +500,14 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
                           <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small>
                           {folded && <small className="td-sub td-folded">{folded}</small>}
+                          {note && <small className="td-sub td-folded td-folded-note">{note}</small>}
                           <span className="td-folded td-folded-status"><Pill tone={tone}>{stageLabel}</Pill>
                             {a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</span></td>
                         {showGuests && <td className="td-wide">{a.party_size ?? ""}</td>}
                         {tablesOn && <td className="td-wide">{tableName}</td>}
                         {showStaff && <td className="td-wide">{staffName}</td>}
                         <td className="td-wide"><Pill tone={tone}>{stageLabel}</Pill>{a.booking_state === "requested" && <small className="td-sub">Request, not booked</small>}</td>
-                        <td className="td-notes td-wide">{a.description || a.internal_notes || a.location || ""}</td>
+                        <td className="td-notes td-wide">{note}</td>
                         <td>
                           <div className="td-actions">
                             {a.customer?.phone && <a className="ba-btn ghost sm" href={`tel:${a.customer.phone}`} aria-label={`Call ${personName(a.customer) ?? ""}`} title="Call"><Icon name="call" size="sm" /></a>}

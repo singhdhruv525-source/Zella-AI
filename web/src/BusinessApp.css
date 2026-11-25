@@ -1706,6 +1706,8 @@ html:not([data-zella-icons="ready"]) .ba-icon { color: transparent !important; }
   .td-table .td-wide { display: none; }
   .td-folded { display: block; }
   .td-folded-status { margin-top: 4px; }
+  /* the note keeps its place on a phone: one muted line, cut with an ellipsis */
+  .td-table td:nth-child(2) .td-folded-note { width: 0; min-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .td-actions { flex-wrap: wrap; max-width: 60px; margin-left: auto; }
   .td-table td:nth-child(2) { white-space: normal; }
   .td-table td:nth-child(2) .td-sub { max-width: none; }
