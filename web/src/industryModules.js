@@ -26,7 +26,7 @@ const MODULE_NAMES = {
 export function moduleName(slug) {
   const key = String(slug ?? "").trim();
   if (!key) return "";
-  if (MODULE_NAMES[key]) return MODULE_NAMES[key];
+  if (Object.hasOwn(MODULE_NAMES, key)) return MODULE_NAMES[key];   // inherited names ("constructor") use the fallback
   const text = key.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase().replace(/\bai\b/g, "AI");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

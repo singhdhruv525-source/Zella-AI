@@ -42,6 +42,8 @@ test("module slugs read as their real names on the Industry profile (C45)", asyn
   assert.equal(moduleName("ai-new_thing"), "AI new thing");   // unknown slugs: words, AI in capitals, no hyphens
   assert.equal(moduleName(""), "");
   assert.equal(moduleName(null), "");
+  assert.equal(moduleName("constructor"), "Constructor");   // never the inherited Object constructor
+  assert.equal(moduleName("toString"), "Tostring");
 });
 
 test("an empty or broken industries answer is a load failure, not a code error (A41)", async () => {
