@@ -88,7 +88,7 @@ Taking into account the nature of processing and the information available to it
 
 ## 12. Deletion or return
 
-12.1 **During the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
+12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
 
 12.2 **After cancellation.** Customer Personal Data remains available for export for 30 days after cancellation, after a final offer to export, and is then deleted. Backups are cleared within 90 days.
 
@@ -148,7 +148,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Item | Details |
 |---|---|
 | Subject matter | Provision of the Services to Customer |
-| Duration | The Subscription Term, and afterwards until deletion under section 12 |
+| Duration | Any Trial Period and the Subscription Term, and afterwards until deletion under section 12 |
 | Nature | Collection, recording, organization, storage, transcription, summarization, retrieval, use, transmission, restriction, export and erasure, including processing by artificial intelligence |
 | Purpose | Answering and routing Customer's calls with the AI Receptionist, answering questions from approved knowledge, booking and changing appointments, taking messages, transferring calls, sending messages Customer has set up, keeping Customer's CRM, lead intake, order lookup, calendar sync and review replies where connected and enabled, reporting, security, spam protection and support |
 | Data subjects | End Users: callers, clients, customers, patients, guests, members, students, tenants, policyholders and leads; relationships Customer records (such as parents and guardians); Customer's staff as named in bookings and rotas |

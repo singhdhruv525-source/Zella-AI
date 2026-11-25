@@ -27,17 +27,22 @@ A second unticked checkbox, never combined with the first:
 
 "I also agree to receive marketing calls and text messages, including offers, from {business} at the number I provided, which may use an automated or AI voice or an automatic system. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
 
-### 2.3 What the Services record
+### 2.3 What the Services record for every consent
 
-For each consent the Services record the form version, the exact text shown, the time, the network address and the checkbox state, per channel (call, text, email) and per purpose (service or marketing), for the Customer that collected it. Consent is never shared between Customers.
+Every consent or opt out is stored in an append only consent history for the Customer that collected it, with: the telephone number or email address; the channel (call, text or email); the purpose (service or marketing); the status (for example opted in or opted out); the source; the keyword used, for a texted keyword; who recorded it, for a staff entry; the time it was recorded; and an evidence record. Consent is never shared between Customers.
 
-### 2.4 Leads from other sources
+### 2.4 Evidence kept for each source
 
-| Source | Consent basis to record |
-|---|---|
-| Google Ads lead forms and Meta lead ads (where enabled) | The consent shown on the lead form, recorded with the lead. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** |
-| Leads added by hand or imported | Staff must choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically |
-| Inbound callers | Consent for confirmation texts is asked during the call before any text is sent |
+The evidence for each source below is what the architecture specifies (its consent capture design, proposed for counsel review). **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
+
+| Source | Consent basis | Evidence kept |
+|---|---|---|
+| Website forms and chat widget | The unticked checkbox in section 2.1 (and section 2.2 for marketing) | Form version, exact text shown, time, network address and checkbox state |
+| Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier and the disclosure version from the source |
+| Inbound callers (verbal) | The caller asks to be called or texted back, or agrees when the AI Receptionist asks before any confirmation text is sent | The call identifier, the time and the caller's answer. No form, text version or checkbox applies |
+| Missed calls | The caller called the business; one missed call text and the callback respond to that call. **[COUNSEL TO CONFIRM]** | The call identifier |
+| Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically | The staff member, the time and the basis chosen |
+| Marketing (any source) | A separate, explicit opt in for each channel | As for the source through which it was given |
 
 ## 3. In call AI disclosure
 
@@ -122,7 +127,9 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
+- **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
+- **[COUNSEL TO CONFIRM]**
 - **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**

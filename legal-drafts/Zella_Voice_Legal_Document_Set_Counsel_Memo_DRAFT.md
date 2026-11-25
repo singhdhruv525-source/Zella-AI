@@ -49,7 +49,7 @@ The separate files were removed after merging; their full text is inside the mer
 
 2.3.2 **The Agreement** is the Order Form, the DPA (with its Annexes and Schedule 1 when signed), the Terms with Schedules 1 to 4, and the Messaging Terms. The Privacy Policy is a notice, not part of the Agreement.
 
-2.3.3 **Order of precedence** (Terms section 26, repeated in the Order Form and the DPA): a BAA for PHI only; then Order Form special terms; then the DPA for Customer Personal Data; then the Terms; then the Policies (Schedules 1 to 4 and the Messaging Terms). Transfer clauses prevail over the DPA. Marked "as counsel prefers".
+2.3.3 **Order of precedence** (Terms section 26, repeated in the Order Form and the DPA): a BAA for PHI only; then Order Form special terms, only where they expressly override a named provision; then the DPA for Customer Personal Data; then the Terms; then the Policies (Schedules 1 to 4 and the Messaging Terms). Transfer clauses prevail over the DPA. Marked "as counsel prefers".
 
 2.3.4 **Changes.** Zella Voice may update the Terms and the Policies on notice under Terms section 22; section 22.3 confirms this for Schedules 1 and 4.
 
@@ -116,7 +116,7 @@ The separate files were removed after merging; their full text is inside the mer
 ## 6. Points for counsel
 
 1. **AI voice calls and the TCPA.** Outbound AI calls and texts are off. Before they are switched on, confirm the consent evidence required per lead source (D 04) and the consent wording proposed in the architecture (section 34), which the Messaging Terms quote.
-2. **Recording consent.** Recording is off until review. Confirm the notice ("This call is recorded.") is sufficient or whether an active consent question is needed in all party consent states (the architecture contemplates a consent question when recording is on).
+2. **Recording consent.** Whether calls are recorded today is unverified: until a call path change is approved, Vapi's own settings decide, and the owner has not yet confirmed that recording is off at Vapi. Separately, recording must stay off until legal review is complete. Confirm whether the notice ("This call is recorded.") is sufficient or whether an active consent question is needed in all party consent states (the architecture contemplates a consent question when recording is on).
 3. **Section 230 and AI drafts.** The Terms do not rely on any platform liability shield for AI generated drafts that a Customer approves. Advise.
 4. **Liability.** Cap at the greater of 12 months' Fees or a floor; exclusions of indirect damages; carve outs for indemnities, confidentiality (excluding Customer Data), Customer payment obligations and Customer breach of sections 5 and 7 or the AUP. Consider a separate cap for data protection claims.
 5. **Indemnities.** Zella Voice indemnifies for third party IP claims with standard exclusions and modify, replace or refund remedies; Customer indemnifies for Customer Data, Customer Content (including defamation and privacy), communications and breach of law or the AUP. Confirm scope and procedure.
@@ -176,6 +176,11 @@ The details for each action are in the separate Owner Action Pack, in the second
 18. The Consent Pack quotes message templates exactly, including one British spelling that the product should fix.
 19. The Messaging Terms keep the architecture's proposed consent wording; the Consent Pack's recommended wording adds message frequency and HELP, for counsel to choose.
 20. Requirement and decision identifiers from the source documents are written with spaces (for example D 49, PRV 4) to keep the no dashes rule.
+21. The Terms now separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends, or without a trial the day the Owner first signs in). The docs fix the billing date but not the trial's start; the drafts start the trial at the Owner's first sign in through the invitation. Confirm.
+22. Order Form special terms prevail only where they expressly override a named provision (Terms section 26 and Order Form section 7 use the same rule).
+23. Service credits for yearly Plans use the monthly equivalent: the yearly Fee divided by 12, then by 30, per affected day; the cap is the yearly Fee divided by 12.
+24. No payment card details may be entered anywhere in the Services; payment details go only on Stripe's hosted page (Terms 5.10 and Schedule 1).
+25. Consent evidence per source in the Consent Pack follows the architecture's proposed design and is behind a placeholder until the product is confirmed to store it.
 
 ## 9. Consistency check
 
@@ -324,7 +329,6 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
 - **[TRIAL VARIATION OR NONE]**
-- **[START DATE OR "THE FIRST BILLING DATE UNDER SECTION 9.3 OF THE TERMS"]**
 - **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
@@ -425,6 +429,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
+- **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**
 - **[OWNER DECISION: WHETHER TO PUBLISH A TRANSPARENCY REPORT]**
 - **[NEEDED ONLY IF THE EU AND UK SECTIONS ARE KEPT. COUNSEL TO CONFIRM]**
@@ -445,7 +450,9 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
+- **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
+- **[COUNSEL TO CONFIRM]**
 - **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**

@@ -70,7 +70,7 @@ Zella Voice will pay the fees in each statement of work within **[PAYMENT TERMS]
 
 B3.1 Contractor must keep confidential all nonpublic information of Zella Voice and its customers, on the terms of Part A as if Contractor were Recipient, during the engagement and afterwards.
 
-B3.2 Contractor must follow Zella Voice's security rules, including: never copying secrets, credentials or customer data into code, chat, tickets, documents or personal devices; using two step sign in; never making real calls, texts or emails, or changing live systems, without Zella Voice's explicit written approval for that action; and reporting any suspected security incident immediately.
+B3.2 Contractor must follow Zella Voice's security rules, including: never copying secrets, credentials or customer data into code, chat, tickets, documents or personal devices; using two step sign in; never making real calls, texts or emails, turning on a live switch, changing a live voice assistant or telephone number, or changing production systems, without the explicit written approval of the Zella Voice owner for that specific action (an approval from anyone else, or a general approval, is not enough); and reporting any suspected security incident immediately.
 
 B3.3 Where Contractor processes Personal Data for Zella Voice, it does so only on Zella Voice's written instructions and under the data protection terms Zella Voice requires. **[ATTACH DATA PROCESSING TERMS IF CONTRACTOR WILL ACCESS PERSONAL DATA]**
 
@@ -116,7 +116,7 @@ This agreement is between **[LEGAL ENTITY NAME]**, a Wyoming limited liability c
 
 C2.1 During and after employment, Employee must keep confidential and use only for Zella Voice's business all nonpublic information of Zella Voice and its customers, including product plans, source code, designs, prompts, security information, customer data and business information.
 
-C2.2 Employee must follow Zella Voice's security rules, including those in section B3.2, and on leaving must return all Zella Voice property and information and delete copies from personal devices.
+C2.2 Employee must follow Zella Voice's security rules, including: never copying secrets, credentials or customer data into code, chat, tickets, documents or personal devices; using two step sign in; never making real calls, texts or emails, turning on a live switch, changing a live voice assistant or telephone number, or changing production systems, without the explicit written approval of the Zella Voice owner for that specific action; and reporting any suspected security incident immediately. On leaving, Employee must return all Zella Voice property and information and delete copies from personal devices.
 
 C2.3 **Whistleblower notice.** Nothing in this agreement prevents Employee from reporting possible violations of law to a government agency, from making disclosures protected by whistleblower laws, or from discussing wages or working conditions as the law protects. The notice in section A4.4 applies.
 
@@ -128,7 +128,9 @@ C3.2 **Statutory exclusion.** This assignment does not apply to an invention tha
 
 C3.3 **Disclosure, moral rights and further assurance.** Employee will promptly disclose Company Inventions to Zella Voice, waives moral rights in them to the extent permitted by law, and will sign documents reasonably requested to perfect Zella Voice's rights.
 
-C3.4 **Prior inventions.** Employee lists in Exhibit C1 the inventions Employee owns that predate employment. If none are listed, Employee represents there are none. Sections B4.4 and B4.5 apply to Employee as if Employee were Contractor.
+C3.4 **Prior inventions.** "Employee Prior Inventions" means the inventions, works of authorship, software and other developments that Employee owns, alone or jointly, that were made before Employee's employment with Zella Voice began, and that are listed in Exhibit C1. Employee Prior Inventions are not Company Inventions and remain Employee's. If none are listed in Exhibit C1, Employee represents that there are none. Employee must not incorporate an Employee Prior Invention into any Company Invention, product or service of Zella Voice without Zella Voice's prior written consent. If Employee does incorporate one, with or without consent, Employee grants Zella Voice a non exclusive, perpetual, irrevocable, worldwide, fully paid, royalty free, transferable license, with the right to sublicense, to make, use, sell, copy, modify, distribute and otherwise exploit that Employee Prior Invention as part of, or in connection with, that Company Invention, product or service.
+
+C3.5 **Open source and third party materials.** Employee must not include any open source or third party material in a Company Invention, product or service of Zella Voice without Zella Voice's prior written approval of the specific material and its license, and must never include material under a license that would require Zella Voice to disclose or license its own source code, or that would restrict its commercial use, unless Zella Voice approves it in writing.
 
 ### C4. General
 

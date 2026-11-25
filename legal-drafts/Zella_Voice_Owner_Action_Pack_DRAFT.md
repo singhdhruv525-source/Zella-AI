@@ -12,9 +12,9 @@ Prepared: **[PACK DATE]**
 | Item | Entry |
 |---|---|
 | Mark | ZELLA VOICE, standard characters (no claim to font, style or color). A logo (special form) application can follow later |
-| Applicant | **[LEGAL ENTITY NAME]**, a Wyoming limited liability company, **[REGISTERED ADDRESS]** |
+| Applicant | **[LEGAL ENTITY NAME]**, a Wyoming limited liability company, **[REGISTERED ADDRESS]**, subject to the ownership condition in the "Owner of the mark" row |
 | Applicant's attorney | **[COUNSEL NAME AND BAR DETAILS]** |
-| Owner of the mark | The company, not any individual. The founder assignment (Team and Partner Agreements, Part D) assigns any earlier rights in the name to the company |
+| Owner of the mark | The company, not any individual, **but only once each founder has signed the Founder Intellectual Property Assignment (Team and Partner Agreements, Part D)**, which assigns any earlier rights in the name and goodwill to the company. Counsel must confirm before filing that the company owns the mark, because an application filed by an applicant that does not own the mark is void. **[COUNSEL TO CONFIRM OWNERSHIP BEFORE FILING; FOUNDER ASSIGNMENTS SIGNED: YES OR NO]** |
 
 ### 1.2 Filing basis
 
@@ -190,6 +190,7 @@ Placeholders in this document:
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[COUNSEL NAME AND BAR DETAILS]**
+- **[COUNSEL TO CONFIRM OWNERSHIP BEFORE FILING; FOUNDER ASSIGNMENTS SIGNED: YES OR NO]**
 - **[COUNSEL TO CHOOSE THE FILING BASIS FOR EACH CLASS]**
 - **[COUNSEL QUESTION: WHETHER TO FILE IN CLASS 35]**
 - **[COUNSEL QUESTION: WHETHER CLASS 38 IS NEEDED, GIVEN THAT CARRIERS PROVIDE THE TELECOMMUNICATIONS]**

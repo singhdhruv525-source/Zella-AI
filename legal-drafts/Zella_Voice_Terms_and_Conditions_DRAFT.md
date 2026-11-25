@@ -50,7 +50,9 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 - **"Regulated Industry"** means an industry that Zella Voice designates as regulated in the Services, currently childcare, dental, healthcare, legal, financial services and insurance.
 - **"Services"** means the Zella Voice hosted services described in the Order Form, including the AI Receptionist, the business customer relationship management application ("CRM"), public link pages, messaging features and related support, together with any updates.
 - **"Subprocessor"** means a third party that Zella Voice engages to process Customer Personal Data, as listed in Annex 3 of the DPA.
+- **"First Billing Date"** means the date in section 9.3 on which the first paid billing period starts.
 - **"Subscription Term"** means the period in section 10.1.
+- **"Trial Period"** means the free trial period, if any, under section 9.2.
 - **"Usage Data"** means information about the operation and use of the Services, such as volumes, timings and performance metrics, that does not identify Customer, any Authorized User or any End User.
 
 ## 3. The Services
@@ -93,7 +95,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 5.9 **Protected health information.** Customer must not use the Services to create, receive, maintain or transmit protected health information as defined under the Health Insurance Portability and Accountability Act of 1996 and its regulations ("HIPAA") unless Customer and Zella Voice have signed a BAA.
 
-5.10 **Sensitive data.** Customer must not submit payment card numbers, bank account numbers, government identification numbers or similar sensitive data to the Services except in a field designed for that purpose.
+5.10 **Sensitive data.** Customer must not submit payment card numbers or other payment card details to the Services in any field, note, file, message or knowledge item. Payment details are entered only on Stripe's hosted page (section 9.5). Customer must not submit bank account numbers, government identification numbers or similar sensitive data except in a private field designed for that purpose.
 
 5.11 **Accurate knowledge.** Customer is responsible for the accuracy of the information it gives the AI Receptionist, including hours, prices, services and policies.
 
@@ -131,11 +133,11 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 9.1 **Plan and Fees.** The Order Form sets out Customer's Plan, including the plan tier (for example Base or Pro), the monthly or yearly Fee, any one time setup fee and the allowances. Customer must pay the Fees in the Order Form and this section 9.
 
-9.2 **Trial.** If the Order Form includes a free trial, then unless it states otherwise the trial lasts 5 days and includes 20 AI minutes, 5 texts and 5 emails. Customer must provide a payment method at the start of the trial, and nothing is charged until the trial ends. Customer may cancel at any time during the trial at no charge. **IF CUSTOMER DOES NOT CANCEL BEFORE THE TRIAL ENDS, THE PAID SUBSCRIPTION STARTS AUTOMATICALLY AND THE PAYMENT METHOD IS CHARGED THE FEES FOR THE FIRST PERIOD ON THAT DAY.**
+9.2 **Trial.** If the Order Form includes a free trial, the Trial Period starts when the Owner first signs in through the invitation and, unless the Order Form states otherwise, lasts 5 days and includes 20 AI minutes, 5 texts and 5 emails. The Trial Period is not part of the Subscription Term. Customer must provide a payment method on Stripe's hosted page at the start of the Trial Period, and nothing is charged during it. Customer may cancel at any time during the Trial Period at no charge. **IF CUSTOMER DOES NOT CANCEL BEFORE THE TRIAL PERIOD ENDS, THE PAID SUBSCRIPTION STARTS AUTOMATICALLY ON THE FIRST BILLING DATE AND THE PAYMENT METHOD IS CHARGED THE FEES FOR THE FIRST PAID BILLING PERIOD ON THAT DAY.**
 
-9.3 **Billing.** Fees are payable in advance, monthly or yearly as stated in the Order Form, in US dollars, on the billing date. Without a trial, the billing date is the day the Owner first signs in through the invitation; with a trial, it is the day the trial ends. Automatic payment is on by default; the Owner may switch it off and pay each invoice by the payment link instead. Zella Voice issues an invoice or receipt for every charge.
+9.3 **Billing.** Fees are payable in advance for each billing period, monthly or yearly as stated in the Order Form, in US dollars. The First Billing Date is: (a) without a Trial Period, the day the Owner first signs in through the invitation; or (b) with a Trial Period, the day the Trial Period ends. Each later billing period starts on the same day of the month (or year) as the First Billing Date or, in a month without that day, on its last day. Automatic payment is on by default; the Owner may switch it off and pay each invoice by the payment link instead. Zella Voice issues an invoice or receipt for every charge.
 
-9.4 **Automatic renewal.** **THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR SUCCESSIVE PERIODS EQUAL TO THE BILLING PERIOD IN THE ORDER FORM UNTIL CUSTOMER CANCELS UNDER SECTION 10.2.** Zella Voice sends a renewal notice 3 days before every renewal and, for yearly Plans, also 7 days before.
+9.4 **Automatic renewal.** **AT THE END OF EACH BILLING PERIOD, THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR A FURTHER BILLING PERIOD OF THE SAME LENGTH (MONTHLY OR YEARLY, AS STATED IN THE ORDER FORM) UNTIL CUSTOMER CANCELS UNDER SECTION 10.2.** Zella Voice sends a renewal notice 3 days before every renewal and, for yearly Plans, also 7 days before.
 
 9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Payment card details are entered on Stripe's hosted pages and are never received or stored by Zella Voice.
 
@@ -162,7 +164,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 ## 10. Term, renewal, cancellation and refunds
 
-10.1 **Subscription Term.** The Subscription Term starts on the earlier of the start of the trial or the first billing date, and continues for the billing period in the Order Form, renewing under section 9.4 until canceled or terminated.
+10.1 **Subscription Term.** The Subscription Term starts on the First Billing Date, and consists of the first paid billing period and each renewal period under section 9.4, until canceled or terminated. The Agreement itself takes effect when Customer accepts it under section 1.2, so it also governs any Trial Period.
 
 10.2 **Cancellation.** The Owner may cancel at any time in the Services. Cancellation takes effect at the end of the current billing period, and Customer keeps access until then. There is no cancellation fee. The Services do not offer a pause.
 
@@ -208,7 +210,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 ## 14. Intellectual property and feedback
 
-14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. All rights not expressly granted are reserved.
+14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during any Trial Period and the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. All rights not expressly granted are reserved.
 
 14.2 **Restrictions.** Customer must not copy, modify, reverse engineer, resell or sublicense the Services, or use them to build a competing product, except to the extent applicable law expressly permits.
 
@@ -307,7 +309,7 @@ Zella Voice will not identify Customer as a customer, or use Customer's name or 
 **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]** If documents of the Agreement conflict, the following order applies, with the earlier document prevailing to the extent of the conflict:
 
 - a BAA, for protected health information only;
-- the special terms of an Order Form;
+- the special terms of an Order Form, but only where a special term expressly states that it overrides a named provision of these Terms, the DPA or a Policy;
 - the DPA, for the processing of Customer Personal Data;
 - these Terms;
 - the Policies (the Schedules and the Messaging Terms).
@@ -391,7 +393,8 @@ Customer must not configure or use the AI Receptionist to give medical, legal, f
 Customer must not:
 
 - collect, submit or process Personal Data without a lawful basis and every notice the law requires;
-- submit payment card numbers, bank account numbers, government identification numbers or similar sensitive data except in a field designed for it;
+- submit payment card numbers or other payment card details anywhere in the Services; payment details are entered only on Stripe's hosted page;
+- submit bank account numbers, government identification numbers or similar sensitive data except in a private field designed for it;
 - use the Services to create, receive, maintain or transmit protected health information under HIPAA unless a BAA has been signed;
 - use the Services for surveillance, profiling that produces legal or similarly significant effects, or any decision about a person's eligibility for credit, employment, housing or insurance.
 
@@ -578,11 +581,11 @@ This Schedule describes support, service status and service credits for the Serv
 
 ### 4. Service credits
 
-4.1 **Eligibility.** If AI answering is unavailable for more than 4 hours in a calendar day because of Zella Voice or one of its providers, Customer may request a service credit of one day's Fee (the monthly Fee divided by 30) for each affected day. **[CONFIRM THE CALENDAR DAY TIME ZONE AND HOW UNAVAILABILITY IS MEASURED]**
+4.1 **Eligibility.** If AI answering is unavailable for more than 4 hours in a calendar day because of Zella Voice or one of its providers, Customer may request a service credit of one day's Fee for each affected day. One day's Fee is the monthly Fee divided by 30 for a monthly Plan, and the yearly Fee divided by 12 and then by 30 for a yearly Plan. **[CONFIRM THE CALENDAR DAY TIME ZONE AND HOW UNAVAILABILITY IS MEASURED]**
 
 4.2 **Request.** Customer must request the credit through support within 30 days after the affected day.
 
-4.3 **Limits.** Credits apply to Customer's next invoices, have no cash value, and are capped at one month's Fee in total for any billing period. **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
+4.3 **Limits.** Credits apply to Customer's next invoices, have no cash value, and are capped at one month's Fee in total for any billing period (for a yearly Plan, the yearly Fee divided by 12). **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
 
 4.4 **Exclusions.** No credit applies to unavailability caused by: (a) Customer, its Authorized Users, its equipment, its telephone carrier or its call forwarding; (b) suspension under section 16 of the Terms; (c) Beta Features or Live Features that are switched off; (d) events beyond Zella Voice's reasonable control under section 28.3 of the Terms; or (e) scheduled maintenance announced in advance on the status page.
 

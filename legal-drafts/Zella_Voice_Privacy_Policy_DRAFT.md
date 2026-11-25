@@ -170,9 +170,9 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 
 Please contact the Customer you dealt with. The Customer handles your request in Zella Voice, which records it with a due date 30 days later. If you contact us, we will pass your request to the Customer and help it respond. You can always reply STOP to texts and use the unsubscribe link in marketing emails.
 
-### 12.2 Authorized Users
+### 12.2 Authorized Users and visitors
 
-You can see and correct most Account Data in Settings. To request access, correction, export or deletion, write to **[PRIVACY CONTACT EMAIL]**. We respond within 30 days, or sooner if the law requires, may need to verify your identity, and may keep data the law requires us to keep.
+You can see and correct most Account Data in Settings. To request access, correction, export or deletion, write to **[PRIVACY CONTACT EMAIL]**. We respond within 30 days, or sooner if the law requires, may need to verify your identity, and may keep data the law requires us to keep. If you have an account, we verify you through your sign in. If you do not (for example as a visitor to our public pages or a former user), we verify you by a one time code sent to an email address on record and by asking for details we already hold, never for new sensitive information.
 
 ### 12.3 European Economic Area, United Kingdom and Switzerland
 

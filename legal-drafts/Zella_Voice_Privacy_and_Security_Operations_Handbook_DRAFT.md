@@ -82,7 +82,10 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 ### B3. How Zella Voice handles an Account Data request
 
 1. Record it in the request log at **[ACCOUNT DATA REQUEST LOG LOCATION]**.
-2. Verify the requester using the account's sign in and, where needed, a fresh two step code.
+2. Verify the requester before acting:
+   - **Authorized Users with an account:** through the account's sign in and, where needed, a fresh two step code.
+   - **Requesters without an account** (visitors to public pages, former Authorized Users, billing contacts and authorized agents): send a one time verification link or code to the email address on record, or the email address the requester gave when the data was collected, and ask for matching details that Zella Voice already holds (for example the business name, the approximate dates of contact or the last digits of an invoice number). Ask for no more information than is needed, and never for new sensitive data. For a request to delete or to see specific pieces of information, require a higher degree of matching. **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
+   - If identity cannot be verified, tell the requester why and what is needed, and record the outcome.
 3. Search Account Data across the account, billing records, identity verification records and support records.
 4. Respond within 30 days, using the tools above where they apply. Keep only what the law requires.
 5. For California, also honor authorized agent requests with proof of authority.
@@ -200,6 +203,7 @@ Placeholders in this document:
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
+- **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**
 - **[OWNER DECISION: WHETHER TO PUBLISH A TRANSPARENCY REPORT]**
 - **[NEEDED ONLY IF THE EU AND UK SECTIONS ARE KEPT. COUNSEL TO CONFIRM]**

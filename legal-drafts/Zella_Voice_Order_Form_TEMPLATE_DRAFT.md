@@ -48,11 +48,11 @@ Order date: **[ORDER DATE]**
 | Trial included | **[YES OR NO]** |
 | Trial length and allowances | 5 days, 20 AI minutes, 5 texts and 5 emails, unless stated here: **[TRIAL VARIATION OR NONE]** |
 
-If a trial is included, a payment method is required at the start, nothing is charged until the trial ends, and the paid subscription starts automatically when the trial ends unless the Owner cancels before then (Terms, section 9.2).
+If a trial is included, a payment method is required at the start, nothing is charged until the trial ends, and the paid subscription starts automatically on the First Billing Date, the day the Trial Period ends, unless the Owner cancels before then (Terms, section 9.2).
 
 ## 5. Term and renewal
 
-5.1 **Subscription Term.** The Subscription Term starts on **[START DATE OR "THE FIRST BILLING DATE UNDER SECTION 9.3 OF THE TERMS"]** and continues for the billing period above.
+5.1 **Trial Period and Subscription Term.** Any Trial Period runs as stated in section 4 and is not part of the Subscription Term. The Subscription Term starts on the First Billing Date under section 9.3 of the Terms (the day the Trial Period ends or, without a trial, the day the Owner first signs in through the invitation) and consists of the first paid billing period above and each renewal period.
 
 5.2 **Automatic renewal.** **THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR SUCCESSIVE BILLING PERIODS UNTIL CANCELED UNDER SECTION 10.2 OF THE TERMS.** Zella Voice sends a renewal notice 3 days before each renewal and, for yearly Plans, also 7 days before.
 
@@ -72,11 +72,11 @@ If a trial is included, a payment method is required at the start, nothing is ch
 
 **[SPECIAL TERMS OR NONE]**
 
-Special terms apply only to this Customer and prevail over the Terms only to the extent they expressly say so.
+Special terms apply only to this Customer. A special term prevails over the Terms, the Zella Voice Data Processing Addendum or a Policy only where it expressly states that it overrides a named provision of that document (Terms, section 26). Otherwise the Terms prevail.
 
 ## 8. Order of precedence
 
-**[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]** If documents of the Agreement conflict, the following order applies, as section 26 of the Terms provides: a BAA (for protected health information only), then the special terms of this Order Form, then the Zella Voice Data Processing Addendum (for Customer Personal Data), then the Terms, then the Policies (Schedules 1 to 4 of the Terms and the Zella Voice Messaging Terms).
+**[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]** If documents of the Agreement conflict, the following order applies, as section 26 of the Terms provides: a BAA (for protected health information only), then the special terms of this Order Form (only where they expressly override a named provision), then the Zella Voice Data Processing Addendum (for Customer Personal Data), then the Terms, then the Policies (Schedules 1 to 4 of the Terms and the Zella Voice Messaging Terms).
 
 ## 9. Acceptance
 
@@ -122,7 +122,6 @@ Placeholders in this document:
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
 - **[TRIAL VARIATION OR NONE]**
-- **[START DATE OR "THE FIRST BILLING DATE UNDER SECTION 9.3 OF THE TERMS"]**
 - **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
