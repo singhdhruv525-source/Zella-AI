@@ -4,8 +4,9 @@ import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
 import { Empty, Notice, PageHead, friendly, loadPeople, orThrow } from "./BusinessShared";
-import { formatDay, formatTime, timeAgo, timeAgoLabel } from "./businessTime";
+import { formatDay, formatTime, timeAgo } from "./businessTime";
 import { useRoster } from "./BusinessLeads";
+import { timeAgoLabel } from "./businessTime";
 
 // Spam protection: one inbox for suspicious calls, texts, emails and bookings, with the reasons each was flagged,
 // review decisions, block and allow lists, and this business's settings. Everything is read with the member's own
