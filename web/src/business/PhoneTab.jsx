@@ -2,6 +2,7 @@
 // what it worked out from business_detail.
 import { Pill } from "../OwnerOverview";
 import { formatDateTime } from "../ownerFormat";
+import { humanize } from "../copy/labels";
 import { NumbersCard } from "./OverviewCards";
 import { Card, Facts, Empty, label } from "./shared";
 
@@ -36,7 +37,7 @@ export default function PhoneTab({ data, setupData, phone, esc, can, businessId 
                 {data.integrations.map((i) => (
                   <tr key={i.id}>
                     <td className="op-cap">{i.provider}</td>
-                    <td>{i.integration_type}</td>
+                    <td>{humanize(i.integration_type)}</td>
                     <td><Pill tone={i.status === "active" ? "success" : i.status === "error" ? "danger" : "neutral"}>{i.status}</Pill></td>
                     <td>{i.account_email || <span className="op-muted">Not shown</span>}</td>
                     <td>{formatDateTime(i.last_synced_at)}</td>

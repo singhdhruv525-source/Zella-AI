@@ -74,7 +74,7 @@ export default function WaitlistOffer() {
     <main className="cp-page">
       <section className="cp-card">
         {info?.business && <div className="cp-brand"><span>{info.business}</span></div>}
-        {!info && !stop && !error && <p className="op-muted">Checking your link...</p>}
+        {!info && !stop && !error && <p className="op-muted">Checking your link…</p>}
         {error && !info?.offer && (
           <>
             <h1>Something went wrong</h1>
@@ -111,7 +111,7 @@ export default function WaitlistOffer() {
             </p>
             {error && <div className="owner-form-error">{error}</div>}
             <button type="button" className="owner-primary-button cp-button" disabled={working} onClick={() => answer(true)}>
-              {working ? "Saving..." : "Book this time"}
+              {working ? "Saving…" : "Book this time"}
             </button>
             <button type="button" className="rs-chip" style={{ width: "100%", marginTop: 10 }} disabled={working} onClick={() => answer(false)}>
               No thanks

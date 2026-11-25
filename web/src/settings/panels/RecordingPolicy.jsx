@@ -3,7 +3,7 @@ import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync, when } from "../SettingsKit";
 import BusinessPicker from "./BusinessPicker";
 
-// Settings > Legal, policy and documents > Policy configuration: recording on or off per business
+// Settings > Legal > Policy configuration: recording on or off per business
 // (owner-provision-business retention.ts, sql/zella_recording_policy.sql). Off for every business until a Zella Voice
 // owner records legal approval with the caller disclosure line (D-27). The phone assistant doesn't read this yet.
 

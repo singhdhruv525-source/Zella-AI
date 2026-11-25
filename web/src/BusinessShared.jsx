@@ -56,11 +56,12 @@ export function Empty({ title, icon = "inbox", children }) {
   );
 }
 
-export function Notice({ error, onRetry }) {
+// `plain`: the error already says what didn't load ("Your receptionist's settings didn't load."), so it stands alone.
+export function Notice({ error, onRetry, plain = false }) {
   if (!error) return null;
   return (
     <div className="ba-banner error">
-      <span>Couldn't load this page: {error}</span>
+      <span>{plain ? error : <>Couldn't load this page: {error}</>}</span>
       {onRetry && <button type="button" className="ba-btn sm" onClick={onRetry}>Try again</button>}
     </div>
   );

@@ -22,7 +22,7 @@ export function ReadinessCard({ readiness }) {
       <ul className="op-checks">
         {rows.map((r) => <Check key={r.key} ok={r.ok} title={r.title} detail={r.detail} />)}
       </ul>
-      <p className="op-muted bd-hint">"Voice connection" reads the connections table, which has no rows yet, so it stays unticked until that connection is recorded.</p>
+      <p className="op-muted bd-hint">Voice connection stays unticked until the first call connection is recorded.</p>
     </Card>
   );
 }

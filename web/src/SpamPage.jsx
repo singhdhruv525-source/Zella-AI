@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
 import { Empty, Notice, PageHead, friendly, loadPeople, orThrow } from "./BusinessShared";
-import { formatDay, formatTime, timeAgo } from "./businessTime";
+import { formatDay, formatTime, timeAgo, timeAgoLabel } from "./businessTime";
 import { useRoster } from "./BusinessLeads";
 
 // Spam protection: one inbox for suspicious calls, texts, emails and bookings, with the reasons each was flagged,
@@ -54,7 +54,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
   if (overview.missing) {
     return (
       <>
-        <PageHead crumb="Calls & messages / Spam protection" title="Spam protection" />
+        <PageHead crumb="Calls and messages / Spam protection" title="Spam protection" />
         <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">The Zella Voice team needs to apply its latest database update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
       </>
     );
@@ -62,13 +62,13 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
 
   return (
     <>
-      <PageHead crumb="Calls & messages / Spam protection" title="Spam protection" sub="Suspicious calls, texts, emails and bookings in one place, with why each was flagged.">
+      <PageHead crumb="Calls and messages / Spam protection" title="Spam protection" sub="Suspicious calls, texts, emails and bookings in one place, with why each was flagged.">
         <div className="ba-segment" role="group" aria-label="Date range">
           {RANGES.map(([v, label]) => <button key={v} type="button" className={range === v ? "active" : ""} aria-pressed={range === v} onClick={() => setRange(v)}>{label}</button>)}
         </div>
       </PageHead>
       <Notice error={overview.error} onRetry={loadOverview} />
-      <Overview data={overview.data} loading={overview.loading} channels={setup?.channels} />
+      <Overview data={overview.data} loading={overview.loading} channels={setup?.channels} onRetry={loadOverview} />
 
       <div className="td-tabs sp-tabs" role="tablist" aria-label="Spam protection sections">
         {[["inbox", "Inbox"], ["lists", "Block and allow lists"], ["settings", "Settings"]].map(([k, label]) => (
@@ -82,9 +82,11 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
   );
 }
 
-function Overview({ data, loading, channels }) {
-  // no data after loading means it couldn't be loaded: "Not available", never 0
-  const v = (k) => (data ? data[k] ?? "Not available" : loading ? "…" : "Not available");
+function Overview({ data, loading, channels, onRetry }) {
+  // no data after loading means it couldn't be loaded: a small "Didn't load" with Try again, never 0 and never a big
+  // "Not available" in number type
+  const didntLoad = <small className="ba-kpi-missing">Didn't load. <button type="button" className="ba-link" onClick={onRetry}>Try again</button></small>;
+  const v = (k) => (data ? data[k] ?? didntLoad : loading ? "…" : didntLoad);
   const ch = data?.by_channel ?? {};
   const cmp = data && data.previous_total !== null && data.previous_total !== undefined
     ? data.total === data.previous_total ? "Same as the previous period"
@@ -119,7 +121,7 @@ function Overview({ data, loading, channels }) {
               <li key={k} className={channels && channels[k] === false ? "off" : ""}>
                 <Icon name={CHANNELS[k][0]} size="sm" />
                 <span>{CHANNELS[k][1]}{k === "booking" ? "s" : k === "sms" ? "s" : k === "email" ? "s" : "s"}</span>
-                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{data ? ch[k] ?? 0 : loading ? "…" : "Not available"}</strong>}
+                {channels && channels[k] === false ? <small>Not connected</small> : <strong>{data ? ch[k] ?? 0 : loading ? "…" : <small className="ba-kpi-missing">Didn't load</small>}</strong>}
               </li>
             ))}
             {(ch.other ?? 0) > 0 && <li><Icon name="help" size="sm" /><span>Other</span><strong>{ch.other}</strong></li>}
@@ -234,7 +236,7 @@ function Inbox({ workspace, from, onChanged, onNotice, onOpenPerson }) {
                     <td><Pill tone={RISK[r.risk_level][0]}>{RISK[r.risk_level][1]} · {r.risk_score}</Pill></td>
                     <td className="sp-why">{(r.reasons ?? []).slice(0, 2).map((x) => x.label).join("; ") || "None"}{r.occurrences > 1 && <small className="ba-muted"> ×{r.occurrences}</small>}</td>
                     <td><Pill tone={STATUS[r.status][0]}>{STATUS[r.status][1]}</Pill></td>
-                    <td>{timeAgo(r.last_seen_at)}</td>
+                    <td>{timeAgoLabel(r.last_seen_at)}</td>
                   </tr>
                 );
               })}
@@ -391,7 +393,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
                     {e.actor && ` · ${roster.nameOf[e.actor] ?? "Team member"}`}
                     {e.note && <em className="sp-note">{e.note}</em>}
                   </span>
-                  <time>{timeAgo(e.created_at)}</time>
+                  <time>{timeAgoLabel(e.created_at)}</time>
                 </li>
               ))}
             </ul>
@@ -548,7 +550,7 @@ function Lists({ workspace, onNotice }) {
                   <td><Pill tone={r.list === "block" ? "danger" : "success"}>{r.list === "block" ? "Blocked" : "Allowed"}</Pill></td>
                   <td>{r.value}</td>
                   <td>{LIST_CHANNELS.find(([k]) => k === r.channel)?.[1] ?? r.channel}</td>
-                  <td>{timeAgo(r.created_at)}{r.source !== "manual" && <small className="ba-muted"> · {r.source === "auto" ? "automatic" : "from an incident"}</small>}</td>
+                  <td>{timeAgoLabel(r.created_at)}{r.source !== "manual" && <small className="ba-muted"> · {r.source === "auto" ? "automatic" : "from an incident"}</small>}</td>
                   <td>{r.expires_at ? formatDay(r.expires_at, workspace.timezone) : "Until removed"}</td>
                   <td>{r.reason || "None"}</td>
                   <td><button type="button" className="ba-btn sm" onClick={() => setRemoving(r)}>Remove</button></td>

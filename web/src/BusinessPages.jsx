@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { makeTerm, receptionistState } from "./businessWorkspace";
-import { dayRange, formatDay, formatLongDate, formatTime, timeAgo, zonedDateTime } from "./businessTime";
+import { dayRange, formatDay, formatLongDate, formatTime, timeAgoLabel, zonedDateTime } from "./businessTime";
 import {
   APPT_LABEL, APPT_TONE, Empty, Notice, PAGE_SIZE, PageHead, Pager, Segment, changed, clock, friendly, loadPeople,
   availabilityAt, findConflict, orThrow, sourceLabel, useLoad,
@@ -15,6 +15,7 @@ import { ReceptionistEditor } from "./BusinessReceptionist";
 import { BookingPanel } from "./BookingPanel";
 import { todayConfig } from "./todayConfig";
 import { humanize } from "./copy/labels";
+import { formatPhone, formatTimeZone } from "./lib/format";
 
 // The rest of the business app: Leads, People (Patients / Customers / Clients…),
 // Calendar, Calls, Messages, AI Receptionist, Automations, Team and Settings.
@@ -100,7 +101,7 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
       )}
       <section className="ba-panel">
         <div className="ba-toolbar">
-          <span className="ba-muted">Use the search box at the top to find someone by name, phone or email.</span>
+          <span className="ba-muted">Search by name, phone or email in the top bar.</span>
           <label className="ba-select">
             <span>Source</span>
             <select value={source} onChange={(e) => setSource(e.target.value)}>
@@ -138,10 +139,10 @@ function PeoplePage({ mode, workspace, query, refreshKey, onOpenPerson }) {
                             <div><strong>{name}</strong><small>{p.email ?? ""}</small>{p.tags?.length > 0 && <span className="ba-tags inline">{p.tags.slice(0, 3).map((t) => <Pill key={t} tone="indigo">{t}</Pill>)}</span>}</div>
                           </div>
                         </td>
-                        <td>{p.phone ?? "None"}</td>
+                        <td>{p.phone ? formatPhone(p.phone) : "None"}</td>
                         <td><Pill tone="indigo">{sourceLabel(p.source)}</Pill></td>
-                        <td>{timeAgo(p.created_at)}</td>
-                        <td>{p.last_contacted_at ? timeAgo(p.last_contacted_at) : <span className="ba-flag">Not yet</span>}</td>
+                        <td>{timeAgoLabel(p.created_at)}</td>
+                        <td>{p.last_contacted_at ? timeAgoLabel(p.last_contacted_at) : <span className="ba-flag">Not yet</span>}</td>
                         <td className="ba-actions" onClick={(e) => e.stopPropagation()}>
                           {p.phone && <a className="ba-btn sm" href={`tel:${p.phone}`} aria-label={`Call ${name}`}><Icon name="call" size="sm" /></a>}
                         </td>
@@ -211,7 +212,7 @@ export function BlockTimeModal({ workspace, staff = [], defaultStaffId = "", def
     <Modal
       icon="block"
       title="Block time"
-      description={`Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}). Your AI receptionist won't offer blocked times.${staff.length ? ` Pick a ${term("staff").toLowerCase()} if only they are away.` : ""}`}
+      description={`Times are in ${workspace.name}'s time zone (${formatTimeZone(tz)}). Your AI receptionist won't offer blocked times.${staff.length ? ` Pick a ${term("staff").toLowerCase()} if only they are away.` : ""}`}
       onClose={onClose}
       busy={busy}
     >
@@ -517,7 +518,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
 
   return (
     <>
-      <PageHead crumb="Workspace / Calendar" title="Calendar" sub={`${title} · ${tz.replace(/_/g, " ")}`}>
+      <PageHead crumb="Workspace / Calendar" title="Calendar" sub={`${title}, ${formatTimeZone(tz)}`}>
         <div className="ba-segment" role="group" aria-label="Calendar view">
           {VIEWS.filter(([id]) => id !== "staff" || staff.length > 0).map(([id, label]) => (
             <button key={id} type="button" className={view === id ? "active" : ""} aria-pressed={view === id} onClick={() => setView(id)}>{id === "staff" ? term("staff_plural") : label}</button>
@@ -650,7 +651,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
           footer={
             <>
               <button type="button" className="ba-btn" onClick={() => setPending(null)} disabled={moving}>Keep it where it was</button>
-              <button type="button" className="ba-btn primary" onClick={() => applyMove(pending)} disabled={moving}>{moving ? "Moving..." : "Move anyway"}</button>
+              <button type="button" className="ba-btn primary" onClick={() => applyMove(pending)} disabled={moving}>{moving ? "Moving…" : "Move anyway"}</button>
             </>
           }
         >
@@ -689,7 +690,7 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
   const rows = (data?.rows ?? []).filter((r) => filter === "all" || r.channel === filter);
   return (
     <>
-      <PageHead crumb="Calls & messages / Messages" title="Messages" sub="Conversations by text and email. Your AI receptionist answers the routine ones.">
+      <PageHead crumb="Calls and messages / Messages" title="Messages" sub="Conversations by text and email. Your AI receptionist answers the routine ones.">
         {channels.length > 1 && (
           <Segment label="Channel" value={filter} onChange={setFilter} options={[["all", "All"], ...channels.map((c) => [c, humanize(c)])]} />
         )}
@@ -712,7 +713,7 @@ export function MessagesPage({ workspace, refreshKey, onOpenPerson }) {
                   <div className="ba-thread-meta">
                     {r.ai_handled && <Pill tone="indigo">AI</Pill>}
                     <Pill tone={r.status === "open" ? "warning" : r.status === "pending" ? "info" : ""}>{humanize(r.status)}</Pill>
-                    <span>{r.last_message_at ? timeAgo(r.last_message_at) : "None"}</span>
+                    <span>{r.last_message_at ? timeAgoLabel(r.last_message_at) : "None"}</span>
                   </div>
                 </li>
               );
@@ -753,7 +754,7 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
 
   return (
     <>
-      <PageHead crumb="AI Receptionist / Voice and setup" title={workspace.receptionist?.name ?? "AI receptionist"} sub="Answers your calls, books appointments and adds new people to your CRM.">
+      <PageHead crumb="AI receptionist / Voice and setup" title={workspace.receptionist?.name ?? "AI receptionist"} sub="Answers your calls, books appointments and adds new people to your CRM.">
         <Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.label}</Pill>
       </PageHead>
       <Notice error={error} onRetry={reload} />

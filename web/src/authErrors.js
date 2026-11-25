@@ -24,7 +24,7 @@ export function friendlyAuthError(error) {
   if (/fetch|network|failed to load/i.test(message)) {
     return "Couldn't reach Zella Voice. Check your internet connection and try again.";
   }
-  return message || "Something went wrong. Please try again.";
+  return message || "That didn't work. Check your connection and try again.";
 }
 
 // What an email link brought the person here with. Supabase links arrive in two

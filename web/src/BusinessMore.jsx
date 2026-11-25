@@ -8,6 +8,7 @@ import { CallCard, isOpenEscalation } from "./BusinessProfile";
 import { RescheduleModal } from "./BusinessForms";
 import { MoreReports } from "./BusinessReports";
 import { humanize } from "./copy/labels";
+import { formatPhone } from "./lib/format";
 
 // Needs attention, Check-ins, Unified Inbox, Lead sources, Reports and
 // Integrations. Everything is calculated from the business's own records.
@@ -40,7 +41,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   return (
     <>
       <PageHead
-        crumb="Calls & messages / Needs attention"
+        crumb="Calls and messages / Needs attention"
         title="Needs attention"
         sub={open.length ? `${plural(open.length, "caller")} waiting for a person. Your AI receptionist handed these over.` : "Nothing is waiting. Anything your AI receptionist can't handle shows up here."}
       >
@@ -61,8 +62,8 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
                   <div className="ba-person">
                     <div className="ba-avatar sm">{initials(personName(person) ?? c.from_number ?? "?")}</div>
                     <div>
-                      <NameButton person={person} fallback={c.from_number ?? "Unknown caller"} onOpenPerson={onOpenPerson} />
-                      <small>{person ? c.from_number : ""} {c.escalated_at ? `· handed over ${timeAgo(c.escalated_at)}` : ""}</small>
+                      <NameButton person={person} fallback={c.from_number ? formatPhone(c.from_number) : "Unknown caller"} onOpenPerson={onOpenPerson} />
+                      <small>{person ? formatPhone(c.from_number) : ""} {c.escalated_at ? `· handed over ${timeAgo(c.escalated_at)}` : ""}</small>
                     </div>
                   </div>
                   {(person?.phone || c.from_number) && <a className="ba-btn primary sm" href={`tel:${person?.phone ?? c.from_number}`}><Icon name="call" size="sm" />Call now</a>}
@@ -299,7 +300,7 @@ export function ReportsPage({ workspace, refreshKey }) {
   const peak = Math.max(1, ...(r?.perDay ?? []).map((d) => d.n));
   return (
     <>
-      <PageHead crumb="Business growth / Reports & analytics" title="Reports" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
+      <PageHead crumb="Business growth / Reports and analytics" title="Reports and analytics" sub={`How ${workspace.name} is doing. Every figure comes from your own records.`}>
         <Segment label="Date range" value={range} onChange={setRange} options={RANGES} />
       </PageHead>
       <Notice error={error} onRetry={reload} />
@@ -317,7 +318,7 @@ export function ReportsPage({ workspace, refreshKey }) {
             <Stat label="Handled by AI" value={pct(r.ai, r.calls)} note={`${r.ai} calls`} />
             <Stat label="Missed" value={r.missed} note={r.missed ? `${r.followed} followed up` : "None missed"} />
             <Stat label="Average call" value={r.avg ? clock(r.avg) : r.calls ? "Not available" : "No calls yet"} />
-            <Stat label="Handed to a human" value={r.handoffs} note={r.handoffsOpen ? `${r.handoffsOpen} still waiting` : "None waiting"} />
+            <Stat label="Handed to a person" value={r.handoffs} note={r.handoffsOpen ? `${r.handoffsOpen} still waiting` : "None waiting"} />
           </div>
           <section className="ba-panel ba-gap">
             <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Calls per day</h2><p>Last {Math.min(Number(range), 30)} days</p></div></div></div>

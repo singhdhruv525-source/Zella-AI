@@ -11,6 +11,7 @@ import { EmailField, PhoneField } from "./formFields";
 import { checkEmail, validatePhone } from "./formValidation";
 import { addLead } from "./leadCreate";
 import { resourceRefusal, scheduleError } from "./schedulingLogic";
+import { formatTimeZone } from "./lib/format";
 
 // Quick actions from the header: add a lead and book an appointment.
 // Both write with the signed-in member's session, so Row Level Security
@@ -69,7 +70,7 @@ export function AddCustomerModal({ workspace, term, onClose, onDone }) {
     <Modal icon="person_add" title={`Add a ${noun}`} description="Zella Voice checks for someone with the same phone or email first, so nobody is added twice." onClose={onClose} busy={busy}
       footer={<>
         <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
-        <button type="submit" form="ba-add-customer" className="ba-btn primary" disabled={busy}>{busy ? "Saving..." : `Add ${noun}`}</button>
+        <button type="submit" form="ba-add-customer" className="ba-btn primary" disabled={busy}>{busy ? "Saving…" : `Add ${noun}`}</button>
       </>}>
       <form id="ba-add-customer" className="ba-modal-body" onSubmit={save}>
         <div className="ba-form-grid">
@@ -126,7 +127,7 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
         <>
           <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="submit" form="ba-add-lead" className="ba-btn primary" disabled={busy}>
-            {busy ? "Saving..." : "Add lead"}
+            {busy ? "Saving…" : "Add lead"}
           </button>
         </>
       }
@@ -304,14 +305,14 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
     <Modal
       icon="event_available"
       title={`New ${term("appointment").toLowerCase()}`}
-      description={`Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}).`}
+      description={`Times are in ${workspace.name}'s time zone (${formatTimeZone(tz)}).`}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="submit" form="ba-book" className="ba-btn primary" disabled={busy}>
-            {busy ? "Booking..." : "Book"}
+            {busy ? "Booking…" : "Book"}
           </button>
         </>
       }
@@ -474,13 +475,13 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
     <Modal
       icon="event_repeat"
       title={`Reschedule ${term("appointment").toLowerCase()}`}
-      description={`${appt.title}${personName(person) ? ` · ${personName(person)}` : ""}. Times are in ${workspace.name}'s time zone (${tz.replace("_", " ")}).`}
+      description={`${appt.title}${personName(person) ? ` · ${personName(person)}` : ""}. Times are in ${workspace.name}'s time zone (${formatTimeZone(tz)}).`}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="submit" form="ba-resched" className="ba-btn primary" disabled={busy}>{busy ? "Moving..." : "Move it"}</button>
+          <button type="submit" form="ba-resched" className="ba-btn primary" disabled={busy}>{busy ? "Moving…" : "Move it"}</button>
         </>
       }
     >

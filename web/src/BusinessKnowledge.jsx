@@ -154,8 +154,8 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
   return (
     <>
       <PageHead
-        crumb="AI & automation / Knowledge base"
-        title="Knowledge"
+        crumb="AI and automation / Knowledge base"
+        title="Knowledge base"
         sub="What your AI receptionist is allowed to say. It only uses an answer once it shows Ready."
       >
         <button type="button" className="ba-btn primary" onClick={addItem}><Icon name="add" size="sm" />Add an answer</button>

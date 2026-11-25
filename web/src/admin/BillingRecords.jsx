@@ -10,7 +10,7 @@ import { DataTable, ErrorNote, Filters, Panel, Pill, Select, Tabs, can, rpc, use
 const status = (map, s) => { const [label, tone] = map[s] ?? [String(s ?? "Unknown"), "neutral"]; return <Pill tone={tone}>{label}</Pill>; };
 const notSetUp = (e) => /needs a database update|PGRST202/i.test(String(e ?? ""));
 // A list must come back as a list: a missing or malformed answer is an error with a retry, never "nothing yet".
-const list = (name, args) => rpc(name, args).then((v) => { if (!Array.isArray(v)) throw new Error("The list could not be loaded. Please try again."); return v; });
+const list = (name, args) => rpc(name, args).then((v) => { if (!Array.isArray(v)) throw new Error("The list didn't load. Try again."); return v; });
 
 function Invoices({ onOpenBusiness }) {
   const [st, setSt] = useState(null);
@@ -71,7 +71,7 @@ function Refunds({ me }) {
           <div className="ic-actions">
             <button type="button" className="owner-secondary-button" onClick={() => setDeciding(null)} disabled={busy}>Cancel</button>
             <button type="button" className="owner-secondary-button" onClick={() => decide(false)} disabled={busy || reason.trim().length < 5}>Decline</button>
-            <button type="button" className="owner-primary-button" onClick={() => decide(true)} disabled={busy || reason.trim().length < 5}>{busy ? "Saving..." : "Approve refund"}</button>
+            <button type="button" className="owner-primary-button" onClick={() => decide(true)} disabled={busy || reason.trim().length < 5}>{busy ? "Saving…" : "Approve refund"}</button>
           </div>
         </div>
       )}

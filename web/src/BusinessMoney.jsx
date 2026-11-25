@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, personName } from "./BusinessUI";
-import { formatDay, timeAgo } from "./businessTime";
+import { formatDay, timeAgoLabel } from "./businessTime";
 import { Empty, PageHead, explain, orThrow, useLoad } from "./BusinessShared";
 import { PersonPicker } from "./BusinessWork";
 
@@ -154,7 +154,7 @@ function ChargeDetail({ workspace, charge, onClose, onChanged }) {
             {info.data.payments.map((p) => (
               <li key={p.id}><strong>{{ payment: "Payment", refund: "Refund", redemption: "Gift card used" }[p.kind]} · {showMoney(p.amount_minor, cur)}</strong>
                 {` · ${p.source === "provider" ? "confirmed by payment provider" : METHODS.find(([v]) => v === p.method)?.[1] ?? p.method}`}{p.note ? ` · ${p.note}` : ""}
-                <small>{timeAgo(p.created_at)}</small></li>
+                <small>{timeAgoLabel(p.created_at)}</small></li>
             ))}
           </ul>
         )}
@@ -182,7 +182,7 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
   const currency = useLoad(async () => {
     const r = await supabase.rpc("zella_business_currency", { p_business_id: workspace.id });
     if (r.error) throw r.error;
-    if (!r.data) throw new Error("Business currency unavailable.");
+    if (!r.data) throw new Error("Your currency didn't load. Try again, or check Settings, Time zone and locale.");
     return r.data;
   }, [workspace.id]);
   const { data, error, loading } = useLoad(async () => orThrow(await supabase.from("customer_charges")
@@ -225,7 +225,7 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
                     <td>{showMoney(c.amount_minor, c.currency)}</td>
                     <td><Pill tone={tone}>{label}</Pill></td>
                     <td>{c.due_on ? formatDay(c.due_on, tz) : "None"}</td>
-                    <td>{timeAgo(c.created_at)}</td>
+                    <td>{timeAgoLabel(c.created_at)}</td>
                   </tr>
                 );
               })}

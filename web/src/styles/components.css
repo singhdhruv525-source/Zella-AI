@@ -1311,3 +1311,55 @@
     white-space: normal;
   }
 }
+
+/* =========================================================
+   Wording pass (owner approved 25 Nov 2026, admin A3 and A14, CRM C1 and C8): small labels are written in sentence
+   case, not spaced capitals, and technical keys read in the normal typeface. Admin rules start with .owner-app, CRM
+   rules with html:root:has(.ba-root); Settings labels (.zs) are shared by both apps. Only case, tracking and type
+   change here: colours, weights and layout stay with their own files.
+   ========================================================= */
+.owner-app :is(.wiz-term-head, .wiz-preview-label, .op-rule-block h4, .op-json-grid h4, .st-notes h4),
+.zs :is(.zs-group, .zs-table th),
+:is(.owner-app, .ba-root) .ar-group th {
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The line above each CRM page title: plain words in a quiet grey (C1) */
+html:root:has(.ba-root) .ba-page-head .ba-crumb {
+  color: var(--zella-text-secondary, var(--ba-muted));
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* CRM labels in spaced capitals become normal writing (C8): number card labels, table headings, the table details
+   panel, floor plan states, the person profile, notification labels and the profile menu email */
+html:root:has(.ba-root) :is(.ba-kpi-top, .bp-head small, .bp-section h3, .sc-table thead th, .ba-kicker, .tb-section-title,
+  .tb-card-state, .tb-list thead th, .tb-panel-body h3, .fp-state),
+html:root:has(.ba-root) .ul-banner .ba-kicker {
+  letter-spacing: 0;
+  text-transform: none;
+}
+html:root:has(.ba-root) :is(.bp-head small, .bp-section h3, .sc-table thead th, .ba-kicker, .tb-section-title, .tb-list thead th, .tb-panel-body h3) {
+  font-size: 12px;
+}
+html:root:has(.ba-root) .ba-menu-label { letter-spacing: 0; text-transform: none; }
+
+/* Technical keys (setting keys, webhook paths, record field keys) in the normal typeface, grey, after the name (A14) */
+.owner-app :is(.zs-tech code, .zs-key, .ir-key) {
+  padding: 0;
+  background: none;
+  color: var(--zella-text-secondary);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* An empty list offers the page's own add button under its words (C13, A20) */
+.ba-empty .ba-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 12px; }
+
+/* A figure that didn't load reads as a small note with Try again, not as a number (C14) */
+.ba-kpi-missing { color: var(--zella-text-secondary, var(--ba-muted)); font-size: 12px; font-weight: 400; letter-spacing: 0; }
+.ba-kpi-missing .ba-link { font-size: inherit; }

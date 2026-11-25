@@ -6,6 +6,8 @@ import { Empty, Notice, friendly, orThrow, useLoad } from "./BusinessShared";
 import { PhoneField } from "./formFields";
 import { formatDay, formatTime } from "./businessTime";
 
+const SETTINGS_DIDNT_LOAD = "Your receptionist's settings didn't load. Try again.";
+
 // Edit the AI receptionist through the versioned flow the database already has
 // (sql/zella_workflows.sql): save a draft, check it, publish it, or bring back an
 // earlier version. Publishing marks the version for n8n to sync to Vapi; it is
@@ -231,7 +233,7 @@ export function ReceptionistEditor({ workspace, agent, onNotice, stacked }) {
     const list = orThrow(versions);
     // Start from what is live; if that can't be read, from the latest published version.
     const base = current.error ? (list.find((v) => v.status === "published")?.config ?? null) : current.data;
-    if (!base) throw current.error ?? new Error("The receptionist's settings couldn't be loaded.");
+    if (!base) throw current.error ?? new Error(SETTINGS_DIDNT_LOAD);
     return { base, versions: list };
   }, [agent?.id, canManage]);
 
@@ -239,7 +241,7 @@ export function ReceptionistEditor({ workspace, agent, onNotice, stacked }) {
   if (!canManage) return <p className="ba-muted pad-top">An owner, admin or manager can change what the receptionist says.</p>;
   return (
     <>
-      <Notice error={error} onRetry={reload} />
+      <Notice error={error} onRetry={reload} plain={error === SETTINGS_DIDNT_LOAD} />
       {loading && !data && <p className="ba-muted">Loading…</p>}
       {data && (
         <div className={stacked ? "ba-stack-1" : "ba-grid-2"} style={{ marginTop: 16 }}>

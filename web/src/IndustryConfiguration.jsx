@@ -386,7 +386,7 @@ export default function IndustryConfiguration() {
                   Cancel
                 </button>
                 <button type="submit" className="owner-primary-button" disabled={saving || !newIndustry.name.trim()}>
-                  {saving ? "Creating..." : "Create industry"}
+                  {saving ? "Creating…" : "Create industry"}
                 </button>
               </div>
             </form>
@@ -620,7 +620,7 @@ export default function IndustryConfiguration() {
                     Discard
                   </button>
                   <button type="button" className="owner-primary-button" onClick={save} disabled={!dirty || saving}>
-                    {saving ? "Saving..." : "Save changes"}
+                    {saving ? "Saving…" : "Save changes"}
                   </button>
                 </div>
               </div>
