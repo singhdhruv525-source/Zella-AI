@@ -90,6 +90,8 @@
   .owner-app :is(.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-button-primary, .owner-secondary-button, .cp-button, .bd-danger-button, .owner-button-danger, .ba-icon-btn, .owner-icon-button):active:not(:disabled):not(:focus-visible) { transform: scale(0.98); box-shadow: none; transition-duration: 120ms; }
   .owner-app :is(.ba-btn.primary, .zs-btn.primary, .owner-primary-button, .owner-button-primary, .cp-button, .ba-btn.danger, .zs-btn.danger, .bd-danger-button, .owner-button-danger)::after { content: none; }
   .owner-app :is(.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-secondary-button, .cp-button, .bd-danger-button, .ba-icon-btn, .owner-icon-button) :is(.ba-icon, .material-symbols-rounded, svg) { transform: none; transition: none; }
+  /* the shared hover rule above (.x:hover:not(:disabled) .ba-icon) outranks the plain reset, so hover gets its own */
+  .owner-app :is(.ba-btn, .zs-btn, .owner-button, .owner-primary-button, .owner-secondary-button, .cp-button, .bd-danger-button, .ba-icon-btn, .owner-icon-button):hover:not(:disabled) :is(.ba-icon, .material-symbols-rounded, svg) { transform: none; }
 
   .owner-app :is(.owner-stat-card, .op-card, .pl-card) { transition: border-color 150ms var(--owner-ease); }
   .owner-app :is(.owner-stat-card, .op-card, .pl-card):hover { transform: none; box-shadow: var(--zella-shadow-sm); }

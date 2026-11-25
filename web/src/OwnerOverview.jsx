@@ -125,7 +125,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
                 <div className="op-funnel-bar">
                   <div style={{ width: `${(stage.count / maxFunnel) * 100}%` }} />
                 </div>
-                <strong>{stage.count}</strong>
+                <strong>{count(stage.count)}</strong>
               </div>
             ))}
             {!list("funnel") && <div className="op-empty">{emptyText(r, "Not reported.", "the overview")}</div>}
