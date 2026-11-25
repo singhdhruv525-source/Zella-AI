@@ -30,17 +30,17 @@ export function BottomBar({ tabs, selected, onSelect, onMore, moreOpen, moreCoun
       {all.map((t) => {
         const isMore = t.key === MORE_TAB.key;
         const current = selected === t.key;
-        const count = badgeText(t.count);
+        const count = t.countState === "failed" ? "!" : badgeText(t.count);
         return (
           <button key={t.key} type="button" className="pn-tab" data-tab={t.key}
             aria-current={current ? "page" : undefined}
             aria-expanded={isMore ? Boolean(moreOpen) : undefined}
             aria-haspopup={isMore ? "dialog" : undefined}
-            aria-label={tabName(t.label, t.count, t.countNoun)}
+            aria-label={tabName(t.label, t.count, t.countNoun, t.countState)}
             onClick={(e) => (isMore ? onMore(e.currentTarget) : onSelect(t.key))}>
             <span className="pn-ic">
               <Icon name={t.icon} />
-              {count && <span className="pn-count" aria-hidden="true">{count}</span>}
+              {count && <span className={`pn-count ${t.countState === "failed" || t.countState === "stale" ? t.countState : ""}`} aria-hidden="true">{count}</span>}
             </span>
             <span aria-hidden="true">{t.label}</span>
           </button>

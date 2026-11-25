@@ -5,30 +5,34 @@ import { callOwnerFunction } from "../CreateBusinessWizard";
 import { Pill } from "../OwnerOverview";
 import { lastCallLabel, ownerCell, planCell, problemSummary, rowActions, stageCell } from "../businessList";
 import { BottomSheet } from "./BottomSheet";
+import { SIGNAL_START, signalReduce } from "./phoneHelpers.js";
 
 // The admin's phone parts (approved 25 Nov 2026): the counts on Support and Operations (P5), the open incidents for
 // the live strip (P13), and a business as a bottom sheet (P12). Platform alerts and incidents are readable by Zella
 // Voice admins only (row level security); the open ticket count comes from the same overview the Overview page reads.
 
+// Each reading keeps whether it worked (phoneHelpers signalReduce): a failed read is never shown as "nothing wrong",
+// and a later failure marks the last good value as possibly out of date. Without businesses.view nothing is read and
+// nothing earlier is returned; without support.manage there is no ticket count.
+const EMPTY = { alerts: SIGNAL_START, incidents: SIGNAL_START, tickets: SIGNAL_START };
 export function useAdminSignals({ enabled, can }) {
-  const [signals, setSignals] = useState({ alerts: 0, incidents: [], tickets: 0 });
+  const [signals, setSignals] = useState(EMPTY);
   const view = enabled && can("businesses.view");
   const support = view && can("support.manage");
+  const apply = (key, event) => setSignals((s) => ({ ...s, [key]: signalReduce(s[key], event) }));
   useEffect(() => {
     if (!view) return undefined;
     let live = true;
+    apply("alerts", { type: "reset" });
+    apply("incidents", { type: "reset" });
     const read = async () => {
       const [alerts, incidents] = await Promise.all([
-        Promise.resolve(supabase.from("platform_alerts").select("id, severity").eq("status", "open").limit(200)).catch(() => ({ data: null })),
-        Promise.resolve(supabase.from("platform_incidents").select("id, title, status, created_at").eq("status", "open").order("created_at", { ascending: true }).limit(20)).catch(() => ({ data: null })),
+        Promise.resolve(supabase.from("platform_alerts").select("id, severity").eq("status", "open").limit(200)).catch((error) => ({ data: null, error })),
+        Promise.resolve(supabase.from("platform_incidents").select("id, title, status, created_at").eq("status", "open").order("created_at", { ascending: true }).limit(20)).catch((error) => ({ data: null, error })),
       ]);
       if (!live) return;
-      setSignals((s) => ({
-        ...s,
-        // a failed read keeps the last counts: never shown as "all calm" because it couldn't be read
-        alerts: alerts.data ? alerts.data.filter((a) => a.severity !== "info").length : s.alerts,
-        incidents: incidents.data ?? s.incidents,
-      }));
+      apply("alerts", alerts.error || !alerts.data ? { type: "fail" } : { type: "ok", value: alerts.data.filter((a) => a.severity !== "info").length });
+      apply("incidents", incidents.error || !incidents.data ? { type: "fail" } : { type: "ok", value: incidents.data });
     };
     read();
     const timer = setInterval(read, 60000);
@@ -37,15 +41,18 @@ export function useAdminSignals({ enabled, can }) {
   useEffect(() => {
     if (!support) return undefined;
     let live = true;
+    apply("tickets", { type: "reset" });
     const read = () => callOwnerFunction("overview_data").then((d) => {
       const n = Number(d?.stats?.openTickets);
-      if (live && Number.isFinite(n)) setSignals((s) => ({ ...s, tickets: n }));
-    }).catch(() => {});
+      if (live) apply("tickets", Number.isFinite(n) ? { type: "ok", value: n } : { type: "fail" });
+    }, () => { if (live) apply("tickets", { type: "fail" }); });
     read();
     const timer = setInterval(read, 5 * 60000);
     return () => { live = false; clearInterval(timer); };
   }, [support]);
-  return signals;
+  // what a person may no longer see is never handed on, even for the moment before the next read
+  if (!view) return EMPTY;
+  return support ? signals : { ...signals, tickets: SIGNAL_START };
 }
 
 // A business from the list, as a sheet: where it stands, and the ways on (P12).

@@ -10,7 +10,7 @@ import { businessHoursText } from "./adminAccess";
 import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
-import { deferChange } from "./navigation/phoneHelpers";
+import { deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
 const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]];
@@ -105,6 +105,8 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
   const detailOpen = Boolean(selected || creating);
 
   async function update(payload) {
+    // the admin's last explicit choice wins: a quick change still waiting for this ticket is called off first
+    pendingChanges.current.get(selectedId)?.undo();
     setBusy(true);
     setError("");
     try {
@@ -142,7 +144,9 @@ export default function SupportTickets({ onOpenBusiness, myEmail }) {
       onError: (err) => ui.toast(`Couldn't save that change, so it's back as it was. ${friendlyError(err)}`),
     });
     pendingChanges.current.set(t.id, change);
-    ui.toast(resolve ? "Ticket resolved" : "Ticket assigned to you", { undo: () => change.undo() });
+    // one toast whose Undo calls off every change still waiting, so an earlier one never loses its Undo
+    const waiting = [...pendingChanges.current.values()].filter((c) => c.state === "waiting").length;
+    ui.toast(pendingToastText(resolve ? "Ticket resolved" : "Ticket assigned to you", waiting), { undo: () => undoAll([...pendingChanges.current.values()]) });
   }
   useEffect(() => {
     if (ui.phone && selectedId) document.querySelector(".st-detail")?.scrollIntoView({ block: "start" });

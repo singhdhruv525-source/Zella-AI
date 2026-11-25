@@ -102,10 +102,11 @@ const ENHANCED = ".bp-panel, .owner-modal[role=\"dialog\"], [role=\"dialog\"] .o
 export function useSheetEnhancer(enabled) {
   useEffect(() => {
     if (!enabled || typeof MutationObserver === "undefined") return undefined;
-    const seen = new WeakSet();
+    // one disposer per dialog: cleanup removes exactly the listeners added here, so turning phone mode off and on
+    // again never leaves two sets (two drags, two Escapes)
+    const attached = new Map();
     const attach = (el) => {
-      if (seen.has(el) || el.closest(".pn-sheet")) return;
-      seen.add(el);
+      if (attached.has(el) || el.closest(".pn-sheet")) return;
       const fit = el.classList.contains("bd-confirm");
       let size = fit ? "fit" : "half";
       el.dataset.pnSheet = size;
@@ -142,6 +143,17 @@ export function useSheetEnhancer(enabled) {
       el.addEventListener("pointermove", move);
       el.addEventListener("pointerup", up);
       el.addEventListener("pointercancel", up);
+      attached.set(el, () => {
+        el.removeEventListener("pointerdown", down);
+        el.removeEventListener("pointermove", move);
+        el.removeEventListener("pointerup", up);
+        el.removeEventListener("pointercancel", up);
+        if (start) { try { el.releasePointerCapture?.(start.id); } catch { /* already released */ } }
+        delete el.dataset.pnSheet;
+        delete el.dataset.pnDragging;
+        el.style.removeProperty("--pn-drag");
+        el.style.removeProperty("height");
+      });
     };
     const scan = () => document.querySelectorAll(ENHANCED).forEach(attach);
     scan();
@@ -149,7 +161,8 @@ export function useSheetEnhancer(enabled) {
     mo.observe(document.body, { childList: true, subtree: true });
     return () => {
       mo.disconnect();
-      document.querySelectorAll("[data-pn-sheet]").forEach((el) => { delete el.dataset.pnSheet; });
+      attached.forEach((dispose) => dispose());
+      attached.clear();
     };
   }, [enabled]);
 }

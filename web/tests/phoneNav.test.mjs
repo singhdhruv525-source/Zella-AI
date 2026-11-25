@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildNavigation, flatten } from "../src/navigation/navConfig.js";
 import { MORE_TAB, PHONE_QUERY, adminTabs, badgeText, crmTabs, selectedTab, tabName } from "../src/navigation/phoneTabs.js";
+import { SIGNAL_START, adminStripFor, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
 import {
   adminStrip, createTabMemory, crmStrip, deferChange, keyboardOpen, needsNowRows, panelDrag, panelReleaseCloses,
   pullDistance, pullReleaseRefreshes, rowDrag, rowReleaseOpens, sheetRelease, waitLabel,
@@ -325,4 +326,48 @@ test("Undo for a dismissed task: the same deferral, the cancel only sent after t
   await timers.run();
   assert.deepEqual(sent, [{ p_task_id: "task-1", p_cancel: true }]);
   assert.equal(shown.has("task-1"), true, "a failed dismiss comes back");
+});
+
+test("admin readings: a failure is never shown as nothing wrong, and a later failure marks the value stale", () => {
+  let st = SIGNAL_START;
+  assert.deepEqual(signalCount(st), { count: null, state: "loading" });
+  st = signalReduce(st, { type: "fail" });
+  assert.deepEqual(st, { status: "failed", value: null });
+  assert.deepEqual(signalCount(st), { count: null, state: "failed" });
+  st = signalReduce(st, { type: "ok", value: 0 });
+  assert.deepEqual(signalCount(st), { count: 0, state: "ok" }, "0 only for a read that worked");
+  st = signalReduce(st, { type: "ok", value: 5 });
+  st = signalReduce(st, { type: "fail" });
+  assert.deepEqual(st, { status: "stale", value: 5 });
+  assert.deepEqual(signalReduce(st, { type: "fail" }), { status: "stale", value: 5 });
+  assert.deepEqual(signalReduce(st, { type: "reset" }), SIGNAL_START, "lost permission: nothing kept");
+  assert.equal(tabName("Support", null, "open", "failed"), "Support, count not available");
+  assert.equal(tabName("Support", 5, "open", "stale"), "Support, 5 open, may be out of date");
+  assert.equal(tabName("Support", 5, "open", "ok"), "Support, 5 open");
+});
+
+test("the admin live strip from the incidents reading", () => {
+  const inc = [{ status: "open", title: "Texts delayed for 3 businesses", created_at: ago(18) }];
+  assert.equal(adminStripFor(SIGNAL_START, NOW), null);
+  assert.equal(adminStripFor({ status: "ok", value: [] }, NOW), null, "a successful empty read: no strip");
+  assert.equal(adminStripFor({ status: "ok", value: inc }, NOW).title, "Texts delayed for 3 businesses");
+  assert.equal(adminStripFor({ status: "failed", value: null }, NOW).title, "Incidents couldn't be checked");
+  assert.equal(adminStripFor({ status: "stale", value: inc }, NOW).sub, "Incident open for 18 min · may be out of date");
+  assert.equal(adminStripFor({ status: "stale", value: [] }, NOW).title, "Incidents couldn't be refreshed");
+});
+
+test("several quick changes waiting at once: one Undo calls off every one still in its window", async () => {
+  const timers = fakeTimers();
+  const sent = [];
+  const make = (id) => deferChange({ commit: async () => { sent.push(id); }, timers });
+  const a = make("a"), b = make("b");
+  assert.equal(pendingToastText("Ticket resolved", 2), "2 changes made");
+  assert.equal(pendingToastText("Ticket resolved", 1), "Ticket resolved");
+  assert.equal(undoAll([a, b]), 2);
+  await timers.run();
+  assert.deepEqual(sent, [], "neither was sent");
+  const c = make("c");
+  await timers.run();
+  assert.equal(undoAll([c]), 0, "one already sent is left alone");
+  assert.deepEqual(sent, ["c"]);
 });

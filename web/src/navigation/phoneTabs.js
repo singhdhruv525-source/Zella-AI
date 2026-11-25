@@ -29,10 +29,13 @@ export function badgeText(count) {
   return n > 99 ? "99+" : String(Math.floor(n));
 }
 
-// The tab's name for screen readers: the count is part of it ("Inbox, 2 waiting").
-export function tabName(label, count, noun = "waiting") {
+// The tab's name for screen readers: the count is part of it ("Inbox, 2 waiting"). state "failed": the count couldn't
+// be read; "stale": it is the last one read and may be out of date.
+export function tabName(label, count, noun = "waiting", state = "ok") {
+  if (state === "failed") return `${label}, count not available`;
   const text = badgeText(count);
-  return text ? `${label}, ${text} ${noun}` : label;
+  const name = text ? `${label}, ${text} ${noun}` : label;
+  return state === "stale" ? `${name}, may be out of date` : name;
 }
 
 // Is a capability on? true or false when the database says; undefined on an older database without capability data.

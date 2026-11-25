@@ -33,7 +33,7 @@ import { ACCESS, hasPermission, useAdminAccess } from "./adminPermissions";
 import { friendlyError } from "./admin/adminOps";
 // Phone navigation (under 768 wide, approved 25 Nov 2026): bottom bar, side panel, sheets (navigation/PhoneNav.jsx).
 import { adminTabs, selectedTab } from "./navigation/phoneTabs";
-import { adminStrip, createTabMemory } from "./navigation/phoneHelpers";
+import { adminStripFor, createTabMemory, signalCount } from "./navigation/phoneHelpers";
 import { useKeyboardOpen, usePhoneLayout, usePhoneRoot, usePullToRefresh, useRootFlag, useScrolledPast } from "./navigation/usePhoneLayout";
 import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, useTabScroll, useToast } from "./navigation/PhoneNav";
 import { useSheetEnhancer } from "./navigation/BottomSheet";
@@ -254,7 +254,8 @@ export default function OwnerDashboard({ onSignOut }) {
   const panelOpen = phone && navOpen;
   useTabScroll(phone, tabKey, tabMemory, phoneTabbed);
   const signals = useAdminSignals({ enabled: phone && authorized, can });
-  const strip = phone && authorized && activePage !== "Platform Operations" ? adminStrip(signals.incidents) : null;
+  // only with businesses.view (platform incidents are part of it); a failed read says so, never looks calm
+  const strip = phone && authorized && can("businesses.view") && activePage !== "Platform Operations" ? adminStripFor(signals.incidents) : null;
   const action = phoneTabbed && ["Overview", "Businesses"].includes(activePage) && can("businesses.manage")
     ? { label: "Create business", icon: "add", onClick: () => setWizard({ businessId: null }) } : null;
   useRootFlag("pn-has-action", Boolean(action));
@@ -271,7 +272,8 @@ export default function OwnerDashboard({ onSignOut }) {
     if (key === activePage && phoneTabbed) { scrollToTop(); return; }
     goTo(key);
   };
-  const countFor = (key) => (key === "Support" ? signals.tickets : key === "Platform Operations" ? signals.alerts : 0);
+  const countOf = (key) => (key === "Support" ? signalCount(signals.tickets) : key === "Platform Operations" ? signalCount(signals.alerts) : { count: 0, state: "ok" });
+  const countFor = (key) => countOf(key).count;
   const nounFor = (key) => (key === "Support" ? "open" : countFor(key) === 1 ? "open alert" : "open alerts");
   const tabView = (label) => (
     label === "Overview" ? (
@@ -561,7 +563,7 @@ export default function OwnerDashboard({ onSignOut }) {
           action={action && <button type="button" className="owner-primary-button" onClick={action.onClick}><Icon name={action.icon} />{action.label}</button>}
           strip={strip && <LiveStrip {...strip} onAction={() => goTo("Platform Operations")} />}
           bar={tabs.length > 0 && (
-            <BottomBar label="Admin" tabs={tabs.map((t) => ({ ...t, count: countFor(t.key), countNoun: nounFor(t.key) }))}
+            <BottomBar label="Admin" tabs={tabs.map((t) => ({ ...t, count: countFor(t.key), countState: countOf(t.key).state, countNoun: nounFor(t.key) }))}
               selected={panelOpen ? "more" : selectedTab(tabs, phoneTabbed || detailId || wizard ? activePage : null)} onSelect={selectTab}
               onMore={() => setNavOpenAt(panelOpen ? null : path)} moreOpen={panelOpen} />
           )} />

@@ -65,14 +65,17 @@ export function useKeyboardOpen(enabled) {
     vv?.addEventListener("resize", check);
     document.addEventListener("focusin", onIn);
     document.addEventListener("focusout", onOut);
+    // start from what the screen shows now (a field may already have focus when this turns on)
+    if (typing(document.activeElement) && window.matchMedia("(pointer: coarse)").matches) set(true); else check();
     return () => {
       vv?.removeEventListener("resize", check);
       document.removeEventListener("focusin", onIn);
       document.removeEventListener("focusout", onOut);
       root.classList.remove("pn-kb");
+      setOpen(false);   // turned off: no keyboard state carries over to the next time it turns on
     };
   }, [enabled]);
-  return open;
+  return enabled && open;
 }
 
 // P17: pull to refresh. Pulling down while the page is at the top shows the indicator; letting go past the line calls

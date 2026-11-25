@@ -11,7 +11,7 @@ import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural,
 import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
-import { deferChange } from "./navigation/phoneHelpers";
+import { deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
 import { loadRead, mergeBellNotes, needsNowNotes, pruneRead, saveRead } from "./crm/needsNowNotes";
 
 /* ------------------------------------------------------------------ */
@@ -221,7 +221,8 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
       onError: (err) => ui.toast(`Couldn't ${cancel ? "dismiss it" : "mark it done"}, so it's back on the list. ${explain(err)}`),
     });
     pendingChanges.current.set(t.id, change);
-    ui.toast(cancel ? "Task dismissed" : "Task marked done", { undo: () => change.undo() });
+    const waiting = [...pendingChanges.current.values()].filter((c) => c.state === "waiting").length;
+    ui.toast(pendingToastText(cancel ? "Task dismissed" : "Task marked done", waiting), { undo: () => undoAll([...pendingChanges.current.values()]) });
   }
 
   const tasks = data?.tasks ?? [];
