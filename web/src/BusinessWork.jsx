@@ -8,6 +8,10 @@ import { validatePhone } from "./formValidation";
 import { noteIcon, noteStyle, pickQuiet, voiceTitle } from "./zellaVoice";
 import { chime, desktopAlert, deviceAlerts, tabCount, unlockAlerts } from "./liveAlerts";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
+import { usePhoneUi } from "./navigation/phoneContext";
+import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
+import { BottomSheet } from "./navigation/BottomSheet";
+import { deferChange } from "./navigation/phoneHelpers";
 
 /* ------------------------------------------------------------------ */
 /* Shared bits                                                         */
@@ -149,7 +153,7 @@ const TASK_KIND = {
   staff_unavailable: "Staff unavailable", appointment_request: "Appointment request", reactivation: "Win back", other: "Task",
 };
 
-function NewTaskModal({ workspace, onClose, onSaved }) {
+export function NewTaskModal({ workspace, onClose, onSaved }) {
   const [person, setPerson] = useState(null);
   const [form, setForm] = useState({ title: "", date: "", time: "", priority: "normal" });
   const [busy, setBusy] = useState(false);
@@ -192,9 +196,34 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
     return { tasks, dups, people: await loadPeople([...tasks.map((t) => t.customer_id), ...dups.map((d) => d.customer_id)]) };
   }, [workspace.id, refreshKey]);
   const { working, error: actionError, run } = useAction(onNotice, reload, onChanged);
+  // On a phone (approved 25 Nov 2026, P19 and P20): a task marked done leaves the list at once, with Undo. It is only
+  // sent once the Undo window has passed, so Undo never needs to reopen anything; if sending fails it comes back.
+  const ui = usePhoneUi();
+  const [doneHere, setDoneHere] = useState(() => new Set());
+  const pendingChanges = useRef(new Map());
+  const [rowMenu, setRowMenu] = useState(null);
+  useEffect(() => () => { pendingChanges.current.forEach((c) => c.flush()); }, []);
+  function quickDone(t) {
+    if (pendingChanges.current.has(t.id)) return;
+    const forget = () => setDoneHere((set) => { const next = new Set(set); next.delete(t.id); return next; });
+    const change = deferChange({
+      apply: () => setDoneHere((set) => new Set(set).add(t.id)),
+      commit: async () => {
+        const { error: failure } = await supabase.rpc("zella_complete_task", { p_task_id: t.id });
+        pendingChanges.current.delete(t.id);
+        if (failure) throw failure;
+        reload();
+        onChanged?.();
+      },
+      revert: () => { pendingChanges.current.delete(t.id); forget(); },
+      onError: (err) => ui.toast(`Couldn't mark it done, so it's back on the list. ${explain(err)}`),
+    });
+    pendingChanges.current.set(t.id, change);
+    ui.toast("Task marked done", { undo: () => change.undo() });
+  }
 
   const tasks = data?.tasks ?? [];
-  const open = tasks.filter((t) => t.status === "open");
+  const open = tasks.filter((t) => t.status === "open" && !doneHere.has(t.id));
   const shown = filter === "open" ? open : tasks.filter((t) => t.status !== "open").sort((a, b) => new Date(b.completed_at ?? b.created_at) - new Date(a.completed_at ?? a.created_at));
   const dups = data?.dups ?? [];
   const now = Date.now();
@@ -230,8 +259,41 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
         </section>
       )}
 
-      {loading && !data ? <p className="ba-muted">Loading…</p> : !shown.length ? (
+      {loading && !data ? (ui.phone ? <Skeleton label="Loading tasks" /> : <p className="ba-muted">Loading…</p>) : !shown.length ? (
         <Empty title={filter === "open" ? "All caught up" : "Nothing done yet"}>{filter === "open" ? "New tasks show up here." : "Finished tasks are kept here."}</Empty>
+      ) : ui.phone ? (
+        <>
+          {filter === "open" && <p className="pn-hint"><Icon name="swipe_left" />Swipe a task left to call back or mark it done</p>}
+          <ul className="pn-list pn-swipes">
+            {shown.map((t) => {
+              const person = data.people[t.customer_id];
+              const isOpen = t.status === "open";
+              const late = isOpen && t.due_at && new Date(t.due_at).getTime() < now;
+              const callable = isOpen && person?.phone && !person.do_not_call && !person.do_not_contact;
+              const actions = isOpen ? [
+                callable && { key: "call", label: "Call back", icon: "phone_callback", tone: "call", href: `tel:${person.phone}` },
+                { key: "done", label: "Done", icon: "check", tone: "done", onClick: () => quickDone(t) },
+              ].filter(Boolean) : [];
+              return (
+                <SwipeRow key={t.id} actions={actions}>
+                  <div className="pn-row">
+                    {isOpen && <button type="button" className="pn-check" aria-label={`Mark ${t.title} done`} onClick={() => quickDone(t)} />}
+                    <button type="button" className="pn-item" aria-haspopup="dialog" onClick={() => setRowMenu(t)}>
+                      <span className="pn-main">
+                        <strong>{t.title}</strong>
+                        <small>{[personName(person), t.body].filter(Boolean).join(", ") || (TASK_KIND[t.kind] ?? "Task")}</small>
+                      </span>
+                      <span className={`pn-meta ${late ? "late" : ""}`}>
+                        {isOpen ? (late ? "Overdue" : t.due_at ? formatDay(t.due_at, tz) : "") : t.status === "done" ? "Done" : "Canceled"}
+                      </span>
+                    </button>
+                    <button type="button" className="pn-more" aria-label={`More for ${t.title}`} aria-haspopup="dialog" onClick={() => setRowMenu(t)}><Icon name="more_horiz" /></button>
+                  </div>
+                </SwipeRow>
+              );
+            })}
+          </ul>
+        </>
       ) : (
         <div className="ba-stack">
           {shown.map((t) => {
@@ -265,6 +327,23 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
         </div>
       )}
       {adding && <NewTaskModal workspace={workspace} onClose={() => setAdding(false)} onSaved={(m) => { setAdding(false); onNotice(m); reload(); onChanged?.(); }} />}
+      {rowMenu && (() => {
+        const t = rowMenu;
+        const person = data?.people[t.customer_id];
+        const isOpen = t.status === "open" && !doneHere.has(t.id);
+        const close = () => setRowMenu(null);
+        return (
+          <BottomSheet title={t.title} description={t.status === "open" ? (t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time") : undefined} size="fit" onClose={close}>
+            {t.body && <div className="pn-sheet-section"><p>{t.body}</p></div>}
+            <div className="pn-menu-list">
+              {isOpen && <button type="button" className="pn-row-link" onClick={() => { close(); quickDone(t); }}><Icon name="check" /><span>Mark done</span></button>}
+              {isOpen && person?.phone && !person.do_not_call && !person.do_not_contact && <a className="pn-row-link" href={`tel:${person.phone}`}><Icon name="phone_callback" /><span>Call back {personName(person)}</span></a>}
+              {person && <button type="button" className="pn-row-link" onClick={() => { close(); onOpenPerson(person.id); }}><Icon name="person" /><span>Open {personName(person)}</span></button>}
+              {isOpen && <button type="button" className="pn-row-link" disabled={working === t.id} onClick={() => { close(); run(t.id, () => supabase.rpc("zella_complete_task", { p_task_id: t.id, p_cancel: true }), "Task dismissed."); }}><Icon name="do_not_disturb_on" /><span>Dismiss</span></button>}
+            </div>
+          </BottomSheet>
+        );
+      })()}
     </>
   );
 }

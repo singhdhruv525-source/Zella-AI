@@ -47,6 +47,16 @@ import { navigate, segments, usePath } from "./router";
 import { buildNavigation, capabilityOn, flatten } from "./navigation/navConfig";
 import { useWorkspaceNavigation } from "./navigation/useWorkspaceNavigation";
 import { BusinessSwitcher, ProfileMenu, ReceptionistCard, SidebarNav, SidebarState, TestVoiceModal } from "./navigation/Sidebar";
+// Phone navigation (under 768 wide, approved 25 Nov 2026): bottom bar, side panel, sheets (navigation/PhoneNav.jsx).
+import { crmTabs, selectedTab } from "./navigation/phoneTabs";
+import { createTabMemory, crmStrip } from "./navigation/phoneHelpers";
+import { useKeyboardOpen, usePhoneLayout, usePhoneRoot, usePullToRefresh, useRootFlag } from "./navigation/usePhoneLayout";
+import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, useTabScroll, useToast } from "./navigation/PhoneNav";
+import { useSheetEnhancer } from "./navigation/BottomSheet";
+import { PhoneUi, TodayTop } from "./navigation/phoneContext";
+import { BusinessButton, NeedsYouNow, QuickActionsSheet, SwitcherSheet, useCrmSignals } from "./navigation/CrmPhone";
+import { NewTaskModal } from "./BusinessWork";
+import { todayConfig } from "./todayConfig";
 
 // The CRM each client business uses (Stitch design). Routes:
 //   /welcome  set password from an invitation or reset email
@@ -133,7 +143,9 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const [refreshKey, setRefreshKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNoticeRaw] = useState("");
-  const setNotice = (message) => setNoticeRaw(warm(message, workspace));
+  // P21: on a phone, messages after an action appear above the bar (a toast) instead of the banner at the top.
+  // `phone` and `toaster` are set further down; this only runs later, from an event.
+  const setNotice = (message) => (phone && message ? toaster.show(warm(message, workspace)) : setNoticeRaw(warm(message, workspace)));
   const [search, setSearch] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [attentionState, setAttentionState] = useState(() => ({ ...ATTENTION_START, businessId: workspace.id }));
@@ -237,10 +249,134 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const searchLabel = current.key === "leads" ? "leads"
     : current.key.startsWith("rec:") ? current.label.toLowerCase() : term("customers").toLowerCase();
 
+  // ---------- Phone navigation (under 768 wide; P1 to P29, approved 25 Nov 2026) ----------
+  // Tablets and desktops never reach any of this: `phone` is false there and the sidebar and header draw as before.
+  const phone = usePhoneLayout();
+  usePhoneRoot(phone, "crm");
+  useKeyboardOpen(phone);
+  useSheetEnhancer(phone);
+  const toaster = useToast();
+  const [tabMemory] = useState(createTabMemory);
+  const [phoneSheet, setPhoneSheet] = useState(null);   // "switcher" | "quick"
+  const [searchOpen, setSearchOpen] = useState(false);
+  const tabs = phone && nav.status === "ready"
+    ? crmTabs({ groups, capabilities: caps, industry: nav.data?.industry?.slug, recordTypes: records.types }) : [];
+  const onTab = tabs.some((t) => t.key === current.key);
+  const panelOpen = phone && navOpen;
+  useTabScroll(phone, current.key, tabMemory, onTab);
+  const signals = useCrmSignals(workspace, { enabled: phone, attention, refreshKey });
+  const strip = phone && current.key !== "attention" ? crmStrip(attention, signals.oldest) : null;
+  const canLead = workspace.role !== "viewer";
+  const walkIn = canBook && todayConfig(nav.data?.industry?.slug).walkIn
+    ? { key: "walkin", label: nav.data?.industry?.slug === "restaurant" ? "Seat a walk in" : "Add a walk in", icon: "directions_walk", onClick: () => openBooking({ walkIn: true }) } : null;
+  // P10: one main action per page, in the thumb zone
+  const action = !phone ? null
+    : ["today", "calendar"].includes(current.key) && canBook ? { label: `New ${term("appointment").toLowerCase()}`, icon: "add", onClick: () => openBooking() }
+      : current.key === "today" && canLead ? { label: "Add lead", icon: "person_add", onClick: () => setModal("lead") }
+        : current.key === "tables" && walkIn ? walkIn
+          : current.key === "tasks" && canLead ? { label: "New task", icon: "add_task", onClick: () => setModal("task") }
+            : current.key === "leads" && canLead ? { label: "Add lead", icon: "person_add", onClick: () => setModal("lead") } : null;
+  const quick = [
+    walkIn,
+    canLead && { key: "lead", label: "Add lead", icon: "person_add", onClick: () => setModal("lead") },
+    canLead && { key: "task", label: "New task", icon: "add_task", onClick: () => setModal("task") },
+    ["owner", "admin", "manager"].includes(workspace.role) && { key: "tell", label: "Tell callers", icon: "campaign", onClick: () => setModal("live-notice") },
+  ].filter(Boolean);
+  useRootFlag("pn-has-action", Boolean(action));
+  useRootFlag("pn-has-strip", Boolean(strip));
+  // P17: pull to refresh on the lists. Today reloads in place (its own Refresh); the others read again.
+  const pullable = phone && ["today", "calendar", "inbox", "tasks", "leads"].includes(current.key);
+  const pull = usePullToRefresh({ enabled: pullable, onRefresh: () => {
+    const own = current.key === "today" && document.querySelector('.td-head [aria-label="Refresh"]');
+    if (own) own.click(); else setRefreshKey((k) => k + 1);
+    return countAttention();
+  } });
+  // P15, P16: tap the open tab to go back to the top; each tab keeps its scroll and its search
+  const selectTab = (key) => {
+    if (key === current.key) { scrollToTop(); return; }
+    if (onTab) tabMemory.save(current.key, { search });
+    setSearch(tabMemory.read(key).search ?? "");
+    setPage(key);
+  };
+  const goFromBell = (raw) => {
+    const key = raw?.startsWith("settings/") ? raw : pageFor(raw);
+    if (canGo(key) || key?.startsWith("settings/")) setPage(key);
+    else if (key) setNotice("That page isn't available with your access. Ask an owner or admin if you need it.");
+  };
+  const inboxKey = tabs.find((t) => ["inbox", "attention", "messages"].includes(t.key))?.key;
+  const phoneUi = { phone, toast: toaster.show };
+
+  // Every page, by key: drawn once on a desktop; on a phone the tab pages stay drawn (hidden) so they keep their state.
+  const pageView = (key) => (
+    <>
+      {key === "today" && (
+        <BusinessToday
+          key={refreshKey}
+          workspace={workspace}
+          userId={userId}
+          fallbackName={myName || fallbackName}
+          industry={nav.data?.industry?.slug}
+          operations={records.types}
+          capabilities={caps}
+          canEdit={workspace.role !== "viewer"}
+          onAddLead={() => setModal("lead")}
+          onBook={(opts) => openBooking(opts)}
+          onGo={(key) => (key.startsWith("settings/") ? navigate(`${base}/${key}`) : setPage(key))}
+          onNotice={setNotice}
+          onOpenPerson={openPerson}
+        />
+      )}
+      {key === "leads" && <LeadsPage workspace={workspace} query={search} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "money" && <MoneyPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "customers" && <CustomersPage workspace={workspace} query={search} refreshKey={refreshKey} onOpenPerson={openPerson} />}
+      {key === "calendar" && <CalendarPage workspace={workspace} industry={nav.data?.industry?.slug} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "calls" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "transcripts" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} transcriptsOnly />}
+      {key === "messages" && <MessagesPage workspace={workspace} refreshKey={refreshKey} onOpenPerson={openPerson} />}
+      {key === "receptionist" && <ReceptionistPage workspace={workspace} onNotice={setNotice} onReload={onReload} />}
+      {key === "automations" && <AutomationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "callbacks" && <CallbacksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
+      {key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "dispatch" && <DispatchPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "resources" && <ResourcesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "recurring" && <RecurringPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "follow" && <FollowThroughPage workspace={workspace} types={records.types} refreshKey={refreshKey} />}
+      {key === "tables" && <TablesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onBook={canBook ? () => openBooking() : undefined} />}
+      {key === "waitlist" && <WaitlistPage workspace={workspace} term={term} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "spam" && <SpamPage workspace={workspace} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "reviews" && <ReviewsPage workspace={workspace} onNotice={setNotice} />}
+      {key === "scorecards" && <ScorecardsPage workspace={workspace} />}
+      {key === "knowledge" && <KnowledgePage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key.startsWith("rec:") && records.types.find((t) => `rec:${t.key}` === key) && (
+        <RecordsPage workspace={workspace} type={records.types.find((t) => `rec:${t.key}` === key)} query={search} refreshKey={refreshKey}
+          canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onOpenPerson={openPerson}
+          onBook={canBook ? (record, customer) => openBooking({ record, customer }) : undefined} />
+      )}
+      {key === "record-settings" && (
+        <RecordSettingsPage workspace={workspace} types={records.types} loaded={records.loaded} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} loadError={records.error} />
+      )}
+      {key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "drafts" && <DraftsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "access" && <AccessPage workspace={workspace} userId={userId} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "approvals" && <ApprovalsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "failed" && <FailedWorkPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "security" && <SecurityLogPage workspace={workspace} refreshKey={refreshKey} />}
+      {key === "checkins" && <CheckInsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
+      {key === "attention" && <AttentionPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
+      {key === "inbox" && <InboxPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
+      {key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
+      {key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
+      {key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
+      {key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={onSignOut} signOutError={signOutError} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
+    </>
+  );
+
   return (
-    <div className="ba-root">
-      {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
-      <aside id="ba-sidebar" className={`ba-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
+    <PhoneUi.Provider value={phoneUi}>
+    <TodayTop.Provider value={phone ? <NeedsYouNow attention={attention} signals={signals} onGo={setPage} /> : null}>
+    <div className="ba-root" data-pn-action={action ? "" : undefined} data-pn-pull={pullable ? "" : undefined}>
+      {!phone && navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
+      {!phone && <aside id="ba-sidebar" className={`ba-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
         <SidebarBrand caption={`${nav.data?.industry?.name ?? workspace.industry ?? "Business"} CRM`} toggle={<DockToggle />} />
 
         {/* Only the menu scrolls: the logo stays at the top and the footer at the bottom */}
@@ -253,10 +389,50 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
         <div className="ba-sidebar-foot">
           <ReceptionistCard workspace={workspace} agent={agent} term={term} onTest={() => setModal("test-voice")} />
         </div>
-      </aside>
+      </aside>}
 
-      <div className="ba-main">
-        <header className="ba-header">
+      {phone && (
+        <SidePanel open={panelOpen} onClose={() => setNavOpenAt(null)}
+          head={<SidebarBrand caption={`${nav.data?.industry?.name ?? workspace.industry ?? "Business"} CRM`} />}>
+          <BusinessButton variant="card" workspace={workspace} config={nav.data} onClick={() => setPhoneSheet("switcher")} />
+          {nav.status === "ready"
+            ? <SidebarNav groups={groups} isActive={isActive} onOpen={(item) => { setNavOpenAt(null); openItem(item); }} badges={{ attention }} />
+            : <SidebarState status={nav.status} error={nav.error} onRetry={nav.retry} />}
+          <ReceptionistCard workspace={workspace} agent={agent} term={term} onTest={() => { setNavOpenAt(null); setModal("test-voice"); }} />
+          <PanelAccount name={myName || email} detail={workspace.role} initials={(myName || email || "?").split(/[\s@]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("")}
+            rows={[
+              { label: "My profile", icon: "person", onClick: () => { setNavOpenAt(null); navigate(`${base}/settings/me/profile`); } },
+              { label: "Password and security", icon: "lock", onClick: () => { setNavOpenAt(null); navigate(`${base}/settings/me/security`); } },
+              { label: "Appearance and theme", icon: "palette", onClick: () => { setNavOpenAt(null); navigate(`${base}/settings/me/appearance`); } },
+              { label: "Sign out", icon: "logout", onClick: () => { setNavOpenAt(null); onSignOut(); } },
+            ]} />
+        </SidePanel>
+      )}
+
+      <div className="ba-main" inert={panelOpen ? true : undefined}>
+        {phone && (
+          <PhoneTopBar searchOpen={searchOpen}
+            actions={<>
+              <button type="button" className="pn-iconbtn" aria-label={`Search ${searchLabel}`} aria-expanded={searchOpen} onClick={() => setSearchOpen((o) => !o)}>
+                <Icon name={searchOpen ? "close" : "search"} />
+              </button>
+              <NotificationsBell workspace={workspace} onGo={goFromBell} />
+            </>}
+            search={(
+              <label className="ba-search">
+                <Icon name="search" size="sm" />
+                <input autoFocus type="search" value={search} onChange={(e) => setSearch(e.target.value)} enterKeyHint="search"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setSearchOpen(false);
+                    if (e.key === "Enter" && !searchable && search.trim()) setPage("customers");
+                  }}
+                  placeholder={`Search ${searchable ? searchLabel : term("customers").toLowerCase()}`} aria-label={`Search ${searchLabel}`} />
+              </label>
+            )}>
+            <BusinessButton workspace={workspace} config={nav.data} expanded={phoneSheet === "switcher"} onClick={() => setPhoneSheet("switcher")} />
+          </PhoneTopBar>
+        )}
+        {!phone && <header className="ba-header">
           <button type="button" className="ba-btn ghost zella-menu-btn ba-menu-btn" aria-label="Open menu" aria-controls="ba-sidebar" aria-expanded={navOpen}
             onClick={() => setNavOpenAt(navOpen ? null : path)}>
             <Icon name="menu" />
@@ -297,9 +473,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             </button>}
             <ProfileMenu email={email} name={myName} role={workspace.role} onGo={(path) => navigate(`${base}/${path}`)} onSignOut={onSignOut} />
           </div>
-        </header>
+        </header>}
 
         <main className="ba-content">
+          {pullable && <PullIndicator distance={pull.distance} refreshing={pull.refreshing} />}
           <AppearanceSaveNotice />
           {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}
           <ErrorBoundary resetKey={`${workspace.id}:${path}`}>
@@ -329,13 +506,13 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               <button type="button" className="ba-btn sm" onClick={countAttention}>Try again</button>
             </div>
           )}
-          {attention > 0 && current.key !== "attention" && (
+          {attention > 0 && current.key !== "attention" && !phone && (
             <div className="ba-banner alert" role="alert">
               <span><strong>{attention === 1 ? "1 caller needs" : `${attention} callers need`} a person.</strong> Your AI receptionist handed them over.</span>
               <button type="button" className="ba-btn primary sm" onClick={() => setPage("attention")}>Open</button>
             </div>
           )}
-          {notice && (
+          {notice && !phone && (
             <div className="ba-banner success" role="status">
               <span>{notice}</span>
               <button type="button" className="ba-btn ghost sm" onClick={() => setNotice("")} aria-label="Dismiss">
@@ -357,7 +534,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
             </ErrorBoundary>
           )}
 
-          {missing === "loading" && <p className="ba-muted">Loading…</p>}
+          {missing === "loading" && (phone ? <Skeleton label="Loading the page" /> : <p className="ba-muted">Loading…</p>)}
           {missing === "config-error" && (
             <section className="ba-panel">
               <div className="ba-panel-body">
@@ -380,65 +557,12 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               </div>
             </section>
           )}
-          {current.key === "today" && (
-            <BusinessToday
-              key={refreshKey}
-              workspace={workspace}
-              userId={userId}
-              fallbackName={myName || fallbackName}
-              industry={nav.data?.industry?.slug}
-              operations={records.types}
-              capabilities={caps}
-              canEdit={workspace.role !== "viewer"}
-              onAddLead={() => setModal("lead")}
-              onBook={(opts) => openBooking(opts)}
-              onGo={(key) => (key.startsWith("settings/") ? navigate(`${base}/${key}`) : setPage(key))}
-              onNotice={setNotice}
-              onOpenPerson={openPerson}
-            />
-          )}
-          {current.key === "leads" && <LeadsPage workspace={workspace} query={search} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "money" && <MoneyPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "customers" && <CustomersPage workspace={workspace} query={search} refreshKey={refreshKey} onOpenPerson={openPerson} />}
-          {current.key === "calendar" && <CalendarPage workspace={workspace} industry={nav.data?.industry?.slug} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "calls" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "transcripts" && <CallsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} transcriptsOnly />}
-          {current.key === "messages" && <MessagesPage workspace={workspace} refreshKey={refreshKey} onOpenPerson={openPerson} />}
-          {current.key === "receptionist" && <ReceptionistPage workspace={workspace} onNotice={setNotice} onReload={onReload} />}
-          {current.key === "automations" && <AutomationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "callbacks" && <CallbacksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
-          {current.key === "tasks" && <TasksPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "dispatch" && <DispatchPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "resources" && <ResourcesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "recurring" && <RecurringPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "follow" && <FollowThroughPage workspace={workspace} types={records.types} refreshKey={refreshKey} />}
-          {current.key === "tables" && <TablesPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onBook={canBook ? () => openBooking() : undefined} />}
-          {current.key === "waitlist" && <WaitlistPage workspace={workspace} term={term} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "spam" && <SpamPage workspace={workspace} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "reviews" && <ReviewsPage workspace={workspace} onNotice={setNotice} />}
-          {current.key === "scorecards" && <ScorecardsPage workspace={workspace} />}
-          {current.key === "knowledge" && <KnowledgePage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key.startsWith("rec:") && records.types.find((t) => `rec:${t.key}` === current.key) && (
-            <RecordsPage workspace={workspace} type={records.types.find((t) => `rec:${t.key}` === current.key)} query={search} refreshKey={refreshKey}
-              canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onOpenPerson={openPerson}
-              onBook={canBook ? (record, customer) => openBooking({ record, customer }) : undefined} />
-          )}
-          {current.key === "record-settings" && (
-            <RecordSettingsPage workspace={workspace} types={records.types} loaded={records.loaded} canManage={["owner", "admin", "manager"].includes(workspace.role)} onNotice={setNotice} onChanged={records.reload} loadError={records.error} />
-          )}
-          {current.key === "team" && <TeamPage workspace={workspace} email={email} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "drafts" && <DraftsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "access" && <AccessPage workspace={workspace} userId={userId} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "approvals" && <ApprovalsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "failed" && <FailedWorkPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "security" && <SecurityLogPage workspace={workspace} refreshKey={refreshKey} />}
-          {current.key === "checkins" && <CheckInsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
-          {current.key === "attention" && <AttentionPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} onChanged={countAttention} />}
-          {current.key === "inbox" && <InboxPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} onOpenPerson={openPerson} />}
-          {current.key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
-          {current.key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
-          {current.key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-          {current.key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={onSignOut} signOutError={signOutError} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
+          {phone
+            ? <>
+              <TabStack tabs={tabs} active={onTab ? current.key : null} render={pageView} />
+              {!onTab && pageView(current.key)}
+            </>
+            : pageView(current.key)}
           </ErrorBoundary>
         </main>
       </div>
@@ -456,7 +580,36 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       {modal === "live-notice" && <LiveNoticeModal workspace={workspace} onClose={() => setModal(null)} onSaved={(m) => { setModal(null); setNotice(m); setRefreshKey((k) => k + 1); }} />}
       {modal === "book" && <BookAppointmentModal workspace={workspace} term={term} initial={bookInitial} onClose={() => setModal(null)} onSaved={saved} />}
       {modal === "test-voice" && <TestVoiceModal workspace={workspace} phone={nav.data?.phone} agent={agent} onClose={() => setModal(null)} onGo={(path) => navigate(`${base}/${path}`)} />}
+      {modal === "task" && <NewTaskModal workspace={workspace} onClose={() => setModal(null)} onSaved={saved} />}
+
+      {phone && (
+        <PhoneBottom hidden={panelOpen}
+          action={action && (
+            <>
+              <button type="button" className="ba-btn primary" onClick={action.onClick}><Icon name={action.icon} />{action.label}</button>
+              {current.key === "today" && quick.length > 0 && (
+                <button type="button" className="ba-btn pn-round" aria-label="Quick actions" aria-haspopup="dialog" onClick={() => setPhoneSheet("quick")}>
+                  <Icon name="bolt" />
+                </button>
+              )}
+            </>
+          )}
+          strip={strip && <LiveStrip {...strip} onAction={() => setPage("attention")} />}
+          bar={(
+            <BottomBar label="Main" tabs={tabs.map((t) => ({ ...t, count: t.key === inboxKey ? attention : 0, countNoun: "waiting" }))}
+              selected={panelOpen ? "more" : selectedTab(tabs, current.key)} onSelect={selectTab}
+              onMore={() => setNavOpenAt(panelOpen ? null : path)} moreOpen={panelOpen} moreCount={signals.spam} moreNoun="to review" />
+          )} />
+      )}
+      {phone && <Toast toast={toaster.toast} onDismiss={toaster.dismiss} />}
+      {phone && phoneSheet === "switcher" && (
+        <SwitcherSheet workspace={workspace} workspaces={workspaces} canManage={["owner", "admin"].includes(workspace.role)}
+          onSwitch={onSwitch} onGo={(p) => { setNavOpenAt(null); navigate(`${base}/${p}`); }} onClose={() => setPhoneSheet(null)} />
+      )}
+      {phone && phoneSheet === "quick" && <QuickActionsSheet actions={quick} onClose={() => setPhoneSheet(null)} />}
     </div>
+    </TodayTop.Provider>
+    </PhoneUi.Provider>
   );
 }
 

@@ -14,6 +14,8 @@ import './styles/motion.css'
 import './styles/motion.js'
 import { startAppearance } from './appearance'
 import { ErrorBoundary } from './BusinessUI'
+// Phone navigation for both apps (under 768 wide, approved 25 Nov 2026). Loaded last, so it sits on top of the polish.
+import './styles/phone-nav.css'
 
 startAppearance()
 
