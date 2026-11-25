@@ -528,8 +528,8 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.id]);
 
-  const notes = useMemo(() => (needsNow ? needsNowNotes({ waiting: needsNow.waiting, overdue: needsNow.overdue, spam: needsNow.spam, at: needsNow.at }) : []), [needsNow]);
-  const merged = useMemo(() => mergeBellNotes(rows, notes, readNotes, needsNow?.complete ?? {}), [rows, notes, readNotes, needsNow]);
+  const notes = useMemo(() => (needsNow ? needsNowNotes({ waiting: needsNow.waiting, waitingMore: needsNow.waitingMore, overdue: needsNow.overdue, spam: needsNow.spam, at: needsNow.at }) : []), [needsNow]);
+  const merged = useMemo(() => mergeBellNotes(rows, notes, readNotes, needsNow?.complete ?? {}, needsNow?.at), [rows, notes, readNotes, needsNow]);
   const shown = merged.rows;
   const unread = shown.filter((r) => !r.read_at);
   useEffect(() => { tabCount(unread.length); }, [unread.length]);
@@ -544,8 +544,12 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
   useEffect(() => {
     const ids = merged.stale.filter((id) => !staleTried.current.has(id));
     if (!ids.length) return;
-    ids.forEach((id) => staleTried.current.add(id));
-    supabase.rpc("zella_mark_notifications_read", { p_ids: ids }).then(() => load(), () => {});
+    // remembered only once the server has marked them read, so a failed attempt is tried again on a later poll
+    supabase.rpc("zella_mark_notifications_read", { p_ids: ids }).then(({ error }) => {
+      if (error) return;
+      ids.forEach((id) => staleTried.current.add(id));
+      load();
+    }, () => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merged.stale.join(",")]);
   const readHere = (keys) => setReadNotes((set) => { const next = new Set([...set, ...keys]); saveRead(workspace.id, next); return next; });

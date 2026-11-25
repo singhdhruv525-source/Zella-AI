@@ -15,10 +15,11 @@ const DAY = 864e5;
 // screen size, because the notification bell shows the same items (owner, 25 Nov 2026, crm/needsNowNotes.js); the
 // phone also uses them for the live strip, Today's block and the More count. Refreshed with the waiting count, on a
 // refresh and every minute.
-const WAITING_LIMIT = 50;
+const WAITING_PAGE = 100;   // read in pages up to a hard cap; callers past it share one summary note in the bell
+const WAITING_CAP = 500;
 const OVERDUE_LIMIT = 100;
 export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
-  const [signals, setSignals] = useState({ oldest: null, waiting: [], overdue: [], spam: 0, complete: {}, at: null });
+  const [signals, setSignals] = useState({ oldest: null, waiting: [], waitingMore: 0, overdue: [], spam: 0, complete: {}, at: null });
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!enabled) return undefined;
@@ -30,15 +31,31 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
     let live = true;
     const id = workspace.id;
     const now = new Date();
-    const waiting = supabase.from("calls_view").select("id, customer_id, from_number, summary, escalated_at, created_at").eq("business_id", id)
-      .eq("needs_human", true).is("escalation_resolved_at", null).order("escalated_at", { ascending: true, nullsFirst: false }).limit(WAITING_LIMIT);
+    // every waiting call, oldest first, a page at a time up to the cap; the first page also says how many there are
+    const page = (from, count) => supabase.from("calls_view").select("id, customer_id, from_number, summary, escalated_at, created_at", count ? { count: "exact" } : undefined)
+      .eq("business_id", id).eq("needs_human", true).is("escalation_resolved_at", null)
+      .order("escalated_at", { ascending: true, nullsFirst: false }).order("id", { ascending: true }).range(from, from + WAITING_PAGE - 1);
+    const waiting = (async () => {
+      const first = await page(0, true);
+      if (first.error) return first;
+      const rows = [...(first.data ?? [])];
+      const total = Number.isFinite(first.count) ? first.count : null;
+      let last = first.data ?? [];
+      while (last.length === WAITING_PAGE && rows.length < WAITING_CAP) {
+        const next = await page(rows.length, false);
+        if (next.error) return { data: rows, error: next.error, total };
+        last = next.data ?? [];
+        rows.push(...last);
+      }
+      return { data: rows.slice(0, WAITING_CAP), total, error: null };
+    })();
     const overdue = supabase.from("crm_tasks").select("id, title, due_at, customer_id").eq("business_id", id).eq("status", "open")
       .lt("due_at", now.toISOString()).order("due_at", { ascending: true }).limit(OVERDUE_LIMIT);
     const spam = SPAM_ROLES.includes(workspace.role)
       ? supabase.rpc("zella_spam_overview", { p_business_id: id, p_from: new Date(now.getTime() - 30 * DAY).toISOString(), p_to: now.toISOString() })
       : Promise.resolve({ data: null });
     Promise.all([waiting, overdue, spam].map((p) => Promise.resolve(p).catch((error) => ({ data: null, error })))).then(async ([w, o, s]) => {
-      const calls = w.error ? [] : w.data ?? [];
+      const calls = w.data ?? [];   // a page that failed part way keeps the ones read (the list is then not complete)
       const tasks = o.error ? [] : o.data ?? [];
       const ids = [...new Set([...calls, ...tasks].map((r) => r.customer_id).filter(Boolean))];
       const people = ids.length
@@ -50,10 +67,12 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
       setSignals({
         oldest: list[0] ?? null,
         waiting: list,
+        // callers past the cap (or a count that moved while reading): one summary note, so the bell counts them all
+        waitingMore: Number.isFinite(w.total) ? Math.max(0, w.total - list.length) : 0,
         overdue: tasks.map((t) => ({ ...t, who: nameOf[t.customer_id] ?? null })),
         spam: Number(s.data?.unreviewed) || 0,
         // a list read in full: anything missing from it has been dealt with
-        complete: { waiting: !w.error && Boolean(w.data) && calls.length < WAITING_LIMIT, task: !o.error && Boolean(o.data) && tasks.length < OVERDUE_LIMIT },
+        complete: { waiting: !w.error && Boolean(w.data) && Number.isFinite(w.total) && calls.length >= w.total, task: !o.error && Boolean(o.data) && tasks.length < OVERDUE_LIMIT },
         at: now.toISOString(),
       });
     });

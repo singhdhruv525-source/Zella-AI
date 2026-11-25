@@ -17,11 +17,12 @@ const lower = (s) => String(s).charAt(0).toLowerCase() + String(s).slice(1);
 /**
  * The bell notes for "Needs you now".
  *   waiting: calls waiting for a person [{ id, name, summary, since }]
+ *   waitingMore: callers waiting beyond the ones listed (the list has a hard cap): one summary note for them
  *   overdue: open tasks past their due time [{ id, title, who, due_at }]
  *   spam:    calls to review in Spam protection (a count)
  *   at:      when the signals were read (the time shown on the spam note)
  */
-export function needsNowNotes({ waiting = [], overdue = [], spam = 0, at = null, now = Date.now() } = {}) {
+export function needsNowNotes({ waiting = [], waitingMore = 0, overdue = [], spam = 0, at = null, now = Date.now() } = {}) {
   const notes = [];
   for (const c of waiting) {
     if (!c?.id) continue;
@@ -30,6 +31,14 @@ export function needsNowNotes({ waiting = [], overdue = [], spam = 0, at = null,
       title: c.name ? `${c.name} wants a person` : "A caller wants a person",
       body: c.summary ? `Asked about ${lower(c.summary)}. Waiting ${waitLabel(c.since, now)}` : `Your AI receptionist handed them over. Waiting ${waitLabel(c.since, now)}`,
       page_key: "attention", created_at: c.since ?? null,
+    });
+  }
+  if (waitingMore > 0) {
+    // every waiting caller is in the bell: the ones past the cap share one note, keyed by how many there are
+    notes.push({
+      key: `waiting-more:${waitingMore}`, group: "waiting-more", entity_id: null, derived: true, kind: "needs_you_now", icon: "support_agent", severity: "urgent",
+      title: waitingMore === 1 ? "And 1 more caller wants a person" : `And ${waitingMore} more callers want a person`,
+      body: "Open Needs attention to see them all", page_key: "attention", created_at: at,
     });
   }
   for (const t of overdue) {
@@ -59,10 +68,13 @@ export function needsNowNotes({ waiting = [], overdue = [], spam = 0, at = null,
  *   read:     Set of note keys read on this device
  *   complete: { waiting, task } true when that list was read in full (not cut off by its limit), so a server
  *             notification about something missing from it is known to be dealt with
+ *   at:       when that list was read. Only a server notification older than that read is cleared: one written
+ *             after it may be about an item the read hasn't seen yet
  * Returns { rows, unread, stale }: rows (the notes first, then the rest newest first) (each note has read_at set when read here), the unread count,
  * and the ids of server notifications to mark read because what they were about is dealt with.
  */
-export function mergeBellNotes(server = [], notes = [], read = new Set(), complete = {}) {
+export function mergeBellNotes(server = [], notes = [], read = new Set(), complete = {}, at = null) {
+  const readAt = new Date(at ?? NaN).getTime();
   const active = { waiting: new Set(), task: new Set() };
   for (const n of notes) if (active[n.group] && n.entity_id) active[n.group].add(n.entity_id);
   const stale = [];
@@ -70,7 +82,9 @@ export function mergeBellNotes(server = [], notes = [], read = new Set(), comple
     const group = COVERED_KINDS[r.kind];
     if (!group || !r.entity_id) return true;
     if (active[group].has(r.entity_id)) return false;              // the note here takes its place
-    if (complete[group] && !r.read_at) stale.push(r.id);           // dealt with: mark it read
+    const created = new Date(r.created_at ?? NaN).getTime();
+    // dealt with, by a read newer than the notification: mark it read
+    if (complete[group] && !r.read_at && Number.isFinite(readAt) && Number.isFinite(created) && created < readAt) stale.push(r.id);
     return true;
   });
   const shown = notes.map((n) => ({ ...n, id: n.key, read_at: read.has(n.key) ? "read" : null }));

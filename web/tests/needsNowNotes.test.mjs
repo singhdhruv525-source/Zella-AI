@@ -59,7 +59,7 @@ test("a server notification about the same call or task is not shown twice", () 
     { id: "s2", kind: "task_overdue", entity_id: "task-1", created_at: ago(1), read_at: null },
     { id: "s3", kind: "new_lead", entity_id: "lead-9", created_at: ago(3), read_at: null },
   ];
-  const { rows, unread, stale } = mergeBellNotes(server, notes, new Set(), { waiting: true, task: true });
+  const { rows, unread, stale } = mergeBellNotes(server, notes, new Set(), { waiting: true, task: true }, ago(0));
   assert.deepEqual(rows.map((r) => r.id).sort(), ["s3", "spam:1", "task:task-1", "task:task-2", "waiting:call-1", "waiting:call-2"]);
   assert.deepEqual(rows.slice(0, 4).map((r) => r.id), ["waiting:call-1", "waiting:call-2", "task:task-1", "task:task-2"], "callers, then tasks, as Today lists them");
   assert.equal(rows[4].id, "spam:1");
@@ -77,7 +77,7 @@ test("once the caller is handled or the task is done, the note leaves and the se
   ];
   // call-1 handled and task-1 done: neither is in "Needs you now" any more
   const notes = needsNowNotes({ waiting: [SIGNALS.waiting[1]], overdue: [SIGNALS.overdue[1]], now: NOW });
-  const { rows, unread, stale } = mergeBellNotes(server, notes, new Set(), { waiting: true, task: true });
+  const { rows, unread, stale } = mergeBellNotes(server, notes, new Set(), { waiting: true, task: true }, ago(0));
   assert.ok(!rows.some((r) => r.key === "waiting:call-1" || r.key === "task:task-1"));
   assert.deepEqual(stale.sort(), ["s1", "s2"]);
   assert.equal(rows.find((r) => r.id === "s1").read_at, "read");
@@ -85,7 +85,7 @@ test("once the caller is handled or the task is done, the note leaves and the se
   // a list cut off at its limit (or that failed to load) proves nothing: nothing is marked read
   assert.deepEqual(mergeBellNotes(server, notes, new Set(), { waiting: false, task: false }).stale, []);
   // an already read server notification isn't marked again
-  assert.deepEqual(mergeBellNotes([{ ...server[0], read_at: ago(0) }], [], new Set(), { waiting: true }).stale, []);
+  assert.deepEqual(mergeBellNotes([{ ...server[0], read_at: ago(0) }], [], new Set(), { waiting: true }, ago(0)).stale, []);
 });
 
 test("read on this device, counted out of the unread total, and forgotten once the item leaves", () => {
@@ -98,4 +98,33 @@ test("read on this device, counted out of the unread total, and forgotten once t
   // more spam to review than when it was read: a new, unread note
   const more = needsNowNotes({ spam: 2 });
   assert.equal(mergeBellNotes([], more, read).unread, 1);
+});
+
+test("a server notification is only cleared by a read newer than it", () => {
+  const row = { id: "s1", kind: "escalation_unacknowledged", entity_id: "call-7", created_at: ago(5), read_at: null };
+  // read after the notification was written, and the call isn't waiting any more: cleared
+  assert.deepEqual(mergeBellNotes([row], [], new Set(), { waiting: true }, ago(1)).stale, ["s1"]);
+  // read before it was written: that read can't have seen the call, so nothing is cleared
+  assert.deepEqual(mergeBellNotes([row], [], new Set(), { waiting: true }, ago(10)).stale, []);
+  // the same moment, no read time, or a row without a time: nothing is cleared
+  assert.deepEqual(mergeBellNotes([row], [], new Set(), { waiting: true }, ago(5)).stale, []);
+  assert.deepEqual(mergeBellNotes([row], [], new Set(), { waiting: true }).stale, []);
+  assert.deepEqual(mergeBellNotes([{ ...row, created_at: null }], [], new Set(), { waiting: true }, ago(0)).stale, []);
+  // still shown, unread, until it is cleared
+  assert.equal(mergeBellNotes([row], [], new Set(), { waiting: true }, ago(10)).unread, 1);
+});
+
+test("callers past the list's cap share one summary note, so every waiting caller is counted", () => {
+  const listed = Array.from({ length: 500 }, (_, n) => ({ id: `call-${n}`, name: null, since: ago(3) }));
+  const notes = needsNowNotes({ waiting: listed, waitingMore: 37, at: ago(0), now: NOW });
+  const callers = notes.filter((n) => n.page_key === "attention");
+  assert.equal(callers.length, 501);
+  const more = callers.at(-1);
+  assert.equal(more.key, "waiting-more:37");
+  assert.equal(more.title, "And 37 more callers want a person");
+  assert.equal(more.body, "Open Needs attention to see them all");
+  assert.equal(listed.length + 37, 537, "500 notes for the listed callers plus 37 in the summary");
+  assert.equal(mergeBellNotes([], notes, new Set()).unread, 501);
+  assert.equal(needsNowNotes({ waitingMore: 1 })[0].title, "And 1 more caller wants a person");
+  assert.deepEqual(needsNowNotes({ waiting: listed.slice(0, 3), waitingMore: 0 }).map((n) => n.key), ["waiting:call-0", "waiting:call-1", "waiting:call-2"]);
 });
