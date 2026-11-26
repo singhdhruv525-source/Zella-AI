@@ -76,6 +76,17 @@ reviews:
         Reports must match the evidence: test counts, what ran against mocks versus a real backend, and what was
         or wasn't deployed. Flag claims of legal or regulatory compliance.
 
+    - path: "legal-drafts/**/*.md"
+      instructions: >
+        Unpublished legal drafts for counsel. By the owner's decision, the public documents (Terms and its
+        schedules, Privacy Policy, DPA, Messaging Terms, Order Form, Consent and Carrier Registration Pack, Trust
+        and Security Overview) are written as the final versions for an operating service, with no build status
+        wording. Every gap between what they promise and what the product does today must be a launch blocker in
+        the counsel memo (section 4) and the Owner Action Pack (section 7), and no public document is published
+        until its blockers are cleared. So do not ask for "not yet", "planned" or status wording in the public
+        documents; instead flag a promise that is missing from the launch blockers, a blocker that is wrong or
+        incomplete, a wrong cross reference, a contradiction between documents, or a legal drafting error.
+
   tools:
     gitleaks:
       enabled: true

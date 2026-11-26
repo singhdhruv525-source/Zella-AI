@@ -121,7 +121,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   templates, the operations handbook, the consent and carrier pack, a counsel memo, and a separate owner action pack.
   None is published: `/privacy` and `/terms` still show the v0.1 drafts from `sql/zella_privacy_retention.sql`.
   Open before publishing: counsel review, the placeholders, retention after cancellation (30 days in the rulebook, 90
-  in v0.1 and the database fallback), and the claims that wait on features going live (memo section 4).
+  in v0.1 and the database fallback), and the 31 launch blockers (memo section 4, Owner Action Pack section 7).
+  **Owner's decision (26 Nov 2026):** the public documents are written as final versions for an operating service,
+  with no build status wording; every gap is a launch blocker, and no public document is published until its
+  blockers are cleared. Recording stays off until legal review, and card masking must work before any live call,
+  whatever the public text says. `.coderabbit.yaml` tells the reviewer this for `legal-drafts/` (owner approved).
 - **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
   CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
   **report only** until a release runs without reports, then rename the header to `Content-Security-Policy`. Live
