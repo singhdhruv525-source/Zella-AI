@@ -191,6 +191,13 @@ most often needed:
   change). The admin phone items (A27 to A30, A32, A53) wait for the phone navigation pull request (#122). Details in
   `docs/DESIGN_SYSTEM.md` "Admin pages polish"; architecture §23.1d.
 
+- **Card details in billing notices (owner, 27 Nov 2026, R59):** "brand and last 4". Billing emails may show the card
+  brand, last 4 digits and expiry month and year, read from Stripe ("your Visa ending 4242"), so Zella Voice keeps those
+  limited details in its billing records and email log; never a full card number or security code (`NN-9`), and Stripe
+  holds the card. Replaces "no card details of any kind" in `docs/PAYMENTS_ARCHITECTURE.md` §9. The held templates (A2,
+  A3, A4, A6, B1, B2, C1, C2, C3, D1, H2) are released once they use these fields; building that is legal launch
+  blocker 22. Recorded in the legal drafts (Terms 9.5, Privacy Policy 3.1 and 10, DPA Annex 3, Trust overview 5).
+
 - **Full review before every merge (owner, 25 Nov 2026):** "make sure coderabbit review everything". The last review
   before a merge is a full review of the final head ("@coderabbitai full review"), because an incremental review reads
   only commits it hasn't seen. `NN-5`, architecture §23.1.

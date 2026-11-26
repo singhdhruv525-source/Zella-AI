@@ -24,8 +24,9 @@ answer is now written (see the last section).
 | Missing (now added) | 1 |
 | Contradicted (now fixed) | 3 |
 | Answered by the owner on 25 Nov 2026 (now written) | 2 (R55, R56; the R26 conflict was settled the same day) |
+| Decided by the owner on 27 Nov 2026 (written with this entry) | 1 (R59; R57 and R58 are added by pull request 146) |
 | Skipped on purpose (another pull request) | 1 |
-| **Total** | **56** |
+| **Total** | **57** |
 
 ## The rules
 
@@ -87,6 +88,7 @@ answer is now written (see the last section).
 | R54 | 24 Nov | This should be in the architecture; I told you earlier, why wasn't it added? | Decisions given in chat are written into the docs when they are made | Process | **Missing** | `AGT-9`; `docs/ARCHITECTURE.md` §23.1d; `docs/MEMORY.md` §1, §6 |
 | R55 | 24 Nov, 25 Nov | 24 Nov: all limits and caps are set when creating the business from the admin dashboard. 25 Nov: the admin sets them, and the owner can lower them | Zella Voice admins set every plan limit and cap at Create Business (including the highest monthly spending limit) and can change them later; the owner may choose a lower spending limit and what happens at the limit, never above the plan | Billing, admin vs owner | Decided by the owner on 25 Nov (was: needs the owner); now written | REQ-BIL-01, REQ-BIL-23, REQ-BIL-32, D-44, §23.1d |
 | R56 | 24 Nov, 25 Nov | 24 Nov: 4 minutes is way too much, 1 minute with no voice is good. 25 Nov: a caller silent for 1 minute gets a polite goodbye | If the caller says nothing for 1 minute, the receptionist ends the call politely | Calls | Decided by the owner on 25 Nov (was: needs the owner); now written | REQ-VOX-13, `AI-24`, §23.1d |
+| R59 | 27 Nov | Brand and last 4: billing emails may show the card brand, last 4 digits and expiry, read from Stripe | Zella Voice keeps only the card brand, last 4 digits and expiry month and year from Stripe, for billing notices; never a full card number or security code; Stripe holds the card | Billing, privacy | Decided by the owner on 27 Nov 2026 (written with this entry) | `docs/PAYMENTS_ARCHITECTURE.md` §9 and lane F; `docs/BILLING_EMAILS.md`; `docs/MEMORY.md` §5; legal drafts (Terms 9.5, Privacy Policy 3.1 and 10, DPA Annex 3) |
 
 ## Code does not follow this yet
 
@@ -100,6 +102,7 @@ The documents now say these; the code does not do them yet. No code was changed 
 | R46 Bot check | Website forms have no bot check yet (deferred on purpose until the Zella Voice website) | `web/supabase/functions/website-lead` |
 | R56 Silent callers | **Built, not applied** (no longer missing in code): `sql/zella_silence_timeout.sql` (pull request #118) adds Vapi `customer.speech.timeout` hooks to `zella_assistant_config`: "Are you still there?" after 30 s of silence, then at 60 s the goodbye with the business's name (English or Spanish) spoken before the call ends; setting `voice_silence_timeout_seconds` = 60. Vapi's 3.0.0 types have no `silenceTimeoutSeconds` on an assistant, so hooks replace it. What is left: the owner's approval to apply it, then a test call to time it (`docs/VOICE_RELIABILITY.md`, Silent callers) | `sql/zella_silence_timeout.sql`, `zella_silence_hooks` |
 | R55 Limits and caps | Plans have no highest monthly spending limit: `business_plans` (`sql/zella_billing_allowances.sql`) stores no spending cap, and `zella_auto_reload_save` accepts any cap up to $100,000 whatever the plan; the owner's choice at the limit lives in `business_usage_preferences`. "Calls at once" (default 10) has no Create Business setting | `sql/zella_billing_allowances.sql` (`business_plans`, `zella_auto_reload_save`), Create Business plan step, `sql/zella_call_limits.sql` |
+| R59 Card brand and last 4 | Billing records don't store the card brand, last 4 digits or expiry yet, so the templates that need them stay held (`MISSING_FIELD:<code>:card`) | `sql/zella_stripe_emails.sql`, `_shared/billingEmails.ts`; legal launch blocker 22 |
 | R04 Urgent texts | No screen lets the business owner choose who receives urgent texts, and Settings, My profile says the mobile number is "used for urgent text alerts you switch on" | `web/src/settings/PersonalPanels.jsx`; the urgent text recipient rules |
 
 ## Answered by the owner on 25 Nov 2026
