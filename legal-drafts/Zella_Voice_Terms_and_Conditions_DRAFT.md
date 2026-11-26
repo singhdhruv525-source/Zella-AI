@@ -174,7 +174,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 10.5 **Packs and overage.** Used packs and pay as you go minutes are not refundable. An unused pack is refundable if requested within 14 days after purchase.
 
-10.6 **Other refunds.** Except as stated in this section 10 or section 22.2, or required by law, Fees are non refundable, and there are no refunds or credits for partial periods. A yearly renewal is refunded in full if Customer requests it within 7 days after the renewal charge. Zella Voice may, at its discretion, give a prorated refund of a yearly Plan after prolonged service failures.
+10.6 **Other refunds.** Except as stated in this section 10, sections 17.2, 18.2, 19.3 and 22.2, or Schedule 4, sections 4.6 and 4.7, or as required by law, Fees are non refundable, and there are no refunds or credits for partial periods. A yearly renewal is refunded in full if Customer requests it within 7 days after the renewal charge. Zella Voice may, at its discretion, give a prorated refund of a yearly Plan after prolonged service failures.
 
 10.7 **Process.** Refunds are requested in the Services. Zella Voice determines eligibility under this section 10, and pays refunds only to the original payment method through its payment processor.
 
@@ -585,13 +585,15 @@ This Schedule describes support, service status and service credits for the Serv
 
 4.2 **Request.** Customer must request the credit through support within 30 days after the affected day.
 
-4.3 **Limits.** Credits apply to Customer's next invoices, have no cash value, and are capped at one month's Fee in total for any billing period (for a yearly Plan, the yearly Fee divided by 12). **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
+4.3 **Limits.** Credits apply to Customer's next invoices, have no cash value except as section 4.7 provides, and are capped at one month's Fee in total for any billing period (for a yearly Plan, the yearly Fee divided by 12). **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
 
 4.4 **Exclusions.** No credit applies to unavailability caused by: (a) Customer, its Authorized Users, its equipment, its telephone carrier or its call forwarding; (b) suspension under section 16 of the Terms; (c) Beta Features or Live Features that are switched off; (d) events beyond Zella Voice's reasonable control under section 28.3 of the Terms; or (e) scheduled maintenance announced in advance on the status page.
 
 4.5 **Sole remedy.** Service credits are Customer's sole and exclusive remedy for unavailability of the Services, as stated in section 11 of the Terms, except as provided in section 4.6.
 
-4.6 **Chronic unavailability.** If a service credit becomes due under section 4.1 for at least **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]** days in each of 3 consecutive months, that is a material breach that Zella Voice has not corrected. Customer may then terminate the affected Services by written notice given within 30 days after the end of the third month, and Zella Voice will refund prepaid Fees for the unused part of the paid period, as section 18.2 of the Terms provides, in addition to any credits already earned. **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
+4.6 **Chronic unavailability.** If a service credit becomes due under section 4.1 for at least **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]** days in each of 3 consecutive months, that is a material breach that Zella Voice has not corrected. Customer may then terminate the affected Services by written notice given within 30 days after the end of the third month, and Zella Voice will refund prepaid Fees for the unused part of the paid period, as section 18.2 of the Terms provides, and will pay out any credits already earned and unapplied, under section 4.7. **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
+
+4.7 **Credits when Services end.** If the Agreement ends, or Customer ends all Services, for any reason while Customer holds credits earned under section 4.1 that have not been applied, and no further invoice will be issued, Zella Voice pays the unapplied credits to Customer's original payment method within **[CREDIT PAYOUT PERIOD]** days after the Services end, together with any refund then due. Earned credits are never forfeited. **[OWNER DECISION: CONFIRM THAT EARNED CREDITS ARE PAID OUT, NOT FORFEITED, WHEN SERVICES END]**
 
 ### 5. Changes
 
@@ -641,5 +643,7 @@ Placeholders in this document:
 - **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
 - **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]**
 - **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
+- **[CREDIT PAYOUT PERIOD]**
+- **[OWNER DECISION: CONFIRM THAT EARNED CREDITS ARE PAID OUT, NOT FORFEITED, WHEN SERVICES END]**
 
 <!-- PLACEHOLDERS END -->

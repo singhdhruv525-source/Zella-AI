@@ -15,17 +15,21 @@ Last updated: **[LAST UPDATED DATE]**
 
 ## 2. Web form and lead capture consent
 
-### 2.1 Service messages (required for automated calls and texts about an enquiry)
+### 2.1 Service messages (required for automated calls and texts about an inquiry)
 
 Unticked checkbox, shown next to the telephone number field:
 
-"I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out, HELP for help. See our Messaging Terms and Privacy Policy." **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
+"I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my inquiry. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out, HELP for help. See our Messaging Terms and Privacy Policy." **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 
-### 2.2 Marketing messages (separate, optional)
+### 2.2 Marketing calls and marketing texts (separate, optional)
 
-A second unticked checkbox, never combined with the first:
+Two further unticked checkboxes, one for each channel, never combined with each other or with the checkbox in section 2.1. Each is optional, and the form works with either, both or neither ticked. Each records a marketing consent for its own channel only.
 
-"I also agree to receive marketing calls and text messages, including offers, from {business} at the number I provided, which may use an automated or AI voice or an automatic system. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
+(a) Marketing calls: "I agree to receive marketing calls, including offers, from {business} at the number I provided, which may use an automated or AI voice. Consent is not a condition of purchase. I can withdraw it at any time by telling {business} or the AI Receptionist during a call."
+
+(b) Marketing texts: "I agree to receive marketing text messages, including offers, from {business} at the number I provided, which may be sent by an automatic system. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out, HELP for help."
+
+**[COUNSEL TO CONFIRM EACH CHECKBOX MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE, AND WHETHER MARKETING EMAILS NEED THEIR OWN CHECKBOX]**
 
 ### 2.3 What the Services record for every consent
 
@@ -37,12 +41,12 @@ The Services keep this evidence for each source:
 
 | Source | Consent basis | Evidence kept |
 |---|---|---|
-| Website forms and chat widget | The unticked checkbox in section 2.1 (and section 2.2 for marketing) | Form version, exact text shown, time, network address and checkbox state |
+| Website forms and chat widget | The unticked checkbox in section 2.1 for service calls and texts; for marketing, the separate checkbox for each channel in section 2.2 | Form version, exact text shown, time, network address and the state of each checkbox, with a separate consent record for each channel and purpose |
 | Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier, the disclosure version and the consent checkbox state from the source **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]** |
 | Inbound callers (verbal) | The caller asks to be called or texted back, or agrees when the AI Receptionist asks before any confirmation text is sent | The call identifier, the time and the caller's answer. No form, text version or checkbox applies |
 | Missed calls | **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** If counsel approves: the caller called the business, and one missed call text and the callback respond to that call. If counsel rejects: the call itself is not consent, and a missed caller receives a text only if they consented through another route in this section 2 | If approved: the call identifier. If rejected: the evidence for the other route |
 | Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically | The staff member, the time and the basis chosen |
-| Marketing (any source) | A separate, explicit opt in for each channel | As for the source through which it was given |
+| Marketing (any source) | A separate, explicit opt in for each channel (calls, texts or email); an opt in for one channel never covers another | As for the source through which it was given |
 
 ## 3. In call AI disclosure
 
@@ -83,8 +87,8 @@ Voicemail prompt: "Please leave your message after the tone. It will be recorded
 
 | Field | Entry |
 |---|---|
-| Use case | Mixed: customer care and account notifications (appointment confirmations and reminders, booking changes, missed call follow up, replies to enquiries). Add marketing only if the Customer collects marketing consent under section 2.2 |
-| Description | {business} uses the Zella Voice platform to send appointment confirmations and reminders, booking change confirmations, waitlist openings, replies and follow ups about a customer's own enquiry, and one text after a missed call. Messages go to people who gave their number to {business} and agreed to receive texts, and, for the single missed call text, to a caller whose call {business} missed, in response to that call. Message frequency varies. |
+| Use case | Mixed: customer care and account notifications (appointment confirmations and reminders, booking changes, missed call follow up, replies to inquiries). Add marketing only if the Customer collects marketing text consent under section 2.2(b) |
+| Description | {business} uses the Zella Voice platform to send appointment confirmations and reminders, booking change confirmations, waitlist openings, replies and follow ups about a customer's own inquiry, and one text after a missed call. Messages go to people who gave their number to {business} and agreed to receive texts, and, for the single missed call text, to a caller whose call {business} missed, in response to that call. Message frequency varies. |
 | Opt in flow | Customers opt in by ticking an unticked consent box on {business}'s website or lead form (wording in section 2.1), by agreeing during a call with {business}'s AI receptionist before any confirmation text is sent, or by texting {business} first. Separately, a caller whose call to {business} was missed may receive one text in response to that call, which identifies {business} and says how to opt out; this basis relies on the caller's own call (section 2.4). Consent is recorded with the time, the source and the evidence in section 2.4. **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]** |
 | Opt out | STOP, STOPALL, UNSUBSCRIBE, CANCEL, END and QUIT stop all texts from {business} immediately |
 | Help | HELP returns the help reply in section 5.4 |
@@ -107,13 +111,13 @@ Voicemail prompt: "Please leave your message after the tone. It will be recorded
 
 ### 5.3A Marketing campaign (only if the Customer runs marketing)
 
-Register a separate marketing campaign, or add marketing to the use case, only if the Customer collects prior express written consent for marketing under section 2.2 and keeps marketing consent separate from service consent. Marketing texts are sent only within the contact hours in section 4.2 of the Zella Voice Messaging Terms, and only once marketing sending is switched on for the Customer.
+Register a separate marketing campaign, or add marketing to the use case, only if the Customer collects prior express written consent for marketing texts under section 2.2(b) and keeps marketing consent separate from service consent. Marketing texts are sent only within the contact hours in section 4.2 of the Zella Voice Messaging Terms, and only once marketing sending is switched on for the Customer.
 
 | Field | Entry |
 |---|---|
 | Use case | Marketing |
 | Description | {business} uses the Zella Voice platform to send occasional marketing texts, such as checking in with past customers who have not been in touch and suggesting a related service after a visit, only to people who separately agreed in writing to receive marketing texts from {business}. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out. |
-| Opt in flow | A separate, unticked marketing checkbox on {business}'s website or lead form, with the wording in section 2.2, recorded with the evidence in section 2.4. **[ADD A SCREENSHOT OR PUBLIC URL OF THE MARKETING OPT IN]** |
+| Opt in flow | A separate, unticked marketing text checkbox on {business}'s website or lead form, with the wording in section 2.2(b), recorded with the evidence in section 2.4. **[ADD A SCREENSHOT OR PUBLIC URL OF THE MARKETING OPT IN]** |
 
 Sample marketing messages:
 
@@ -139,7 +143,7 @@ Placeholders in this document:
 
 - **[LAST UPDATED DATE]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
-- **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
+- **[COUNSEL TO CONFIRM EACH CHECKBOX MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE, AND WHETHER MARKETING EMAILS NEED THEIR OWN CHECKBOX]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]**
 - **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]**

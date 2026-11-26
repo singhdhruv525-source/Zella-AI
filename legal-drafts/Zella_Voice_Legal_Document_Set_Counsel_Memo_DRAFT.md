@@ -85,7 +85,7 @@ The separate files were removed after merging; their full text is inside the mer
 | 4 | Deletion after cancellation and after an account deletion request | Terms 12.7; Privacy Policy 10 and 11.3; DPA 12.2 and 12.3; Trust overview 5 | Decide the cancellation period (section 3.2), apply the account deletion migration, and schedule the purge |
 | 5 | A recorded consent or a stated consent basis before any automated service call or text; leads without a basis never contacted automatically | Terms 5.4; Schedule 2, 5.2; Messaging Terms 10.1 and 11.2; Privacy Policy 7.1; DPA Annex 2; Consent Pack 2.4 | Make zella_can_contact and the senders require a recorded consent or stated basis for service purposes, not only the absence of an opt out |
 | 6 | Frequency limit (one unprompted message a day unless the plan sets another) | Messaging Terms 4.1 and 11.2; Schedule 2, 5.2; Privacy Policy 7.1; DPA Annex 2 | Count earlier messages and calls per person and block at sending |
-| 7 | Contact hours in the recipient's time zone, with every window, and calls within the Customer's calling hours | Messaging Terms 4.2 and 11.2; Schedule 2, 5.2; Privacy Policy 7.1; DPA Annex 2; Consent Pack 5.3A | Enforce COM 3 in the text sender and the call claims (today: marketing texts only, 8 a.m. to 9 p.m. in the Business's time zone; calls 9 a.m. to 7 p.m. in the Business's time zone) |
+| 7 | Contact hours in the recipient's time zone, with every window, and calls within the Customer's calling hours | Messaging Terms 4.2 and 11.2; Schedule 2, 5.2; Privacy Policy 7.1; DPA Annex 2; Consent Pack 5.3A | Enforce COM 3 in the text sender and the call claims (today: marketing texts only, 8 a.m. to 9 p.m. in the Business's time zone; calls 9 a.m. to 7 p.m. in the Business's time zone), and make a message due outside its window move to the next allowed time in that window, as Messaging Terms 4.2 states, instead of being refused (today zella_prepare_sms refuses a marketing text outside its hours with the reason quiet_hours and does not reschedule it); verify with tests that nothing due outside its window is dropped |
 | 8 | "Don't call me" honored immediately, including for automatic callbacks; the AI Receptionist records it | Terms 5.6; Schedule 2, 5.2; Messaging Terms 6.4; Privacy Policy 7.2; DPA Annex 2 | Make zella_claim_callbacks check the do not call flag and call opt outs, and let the receptionist record the request |
 | 9 | Texts start only after 10DLC registration is approved | Terms 5.5; Messaging Terms 10.2; Consent Pack 1.3 | Add a per Customer registration check (or per Customer text switch) to the text sender |
 | 10 | STOP confirmation text; HELP reply with contact method sent to every number; START confirmation | Messaging Terms 6.1, 6.2 and 7; Consent Pack 5.4 | Build the STOP and START confirmations and change the HELP reply and its matching |
@@ -115,8 +115,10 @@ The separate files were removed after merging; their full text is inside the mer
 | 34 | Automatic payment switch: off from the next renewal; first payment after a trial always charged to the saved card | Terms 9.2 and 9.3; Order Form section 4 | Build the automatic payment switch (Stripe collection by invoice when off, as the payments architecture designs it), make it take effect from the next renewal, and verify that the first invoice at the end of a trial is always charged to the card saved at checkout; the billing emails in the code already say "from your next renewal" |
 | 35 | The file for one End User's request leaves out the transcripts of Customers in Regulated Industries | DPA 9.1; Privacy Policy 11.1 | zella_export_customer_data returns call summaries and transcripts for every business today. Change it (a new, version guarded migration with an exact rollback, applied with approval) to leave out transcripts when the business is in a Regulated Industry, test it on the isolated database, and verify the file; until then staff remove them by hand (Handbook B2 step 3) |
 | 36 | Emails from a Business come from its own address (verified domain or connected Gmail or Outlook mailbox), otherwise in its name from the Zella Voice no reply address with replies to the Business | Messaging Terms 1.3; Terms 15; Privacy Policy 8.1; DPA Annex 3 (Google and Microsoft mailbox row) | The no reply fallback with the Business's name and reply address is built (zella_prepare_email). Build and verify per business domain verification, mailbox connection for Gmail and Outlook and sending through either, with the fallback when a mailbox reaches its provider's daily cap; sign Google and Microsoft data processing terms for mailbox sending; if mailbox sending is not ready at launch, keep the "where enabled" rows and confirm the fallback on a test email to an owner controlled address |
-| 37 | Deletion suspended for a transcript or recording named in a pending return request under a BAA, until returned and for no longer than the BAA return period, including at the end of the export window and on account deletion | DPA 12.1, 12.2, 12.3 and S1.6.3 (DPA Schedule 1); Privacy Policy 6.3; Terms 12.7 | The retention, purge and account deletion jobs know legal holds (zella_retention_on_hold) but not BAA return requests. Build a per item return request suspension that every deletion path (90 day deletion, purge after cancellation, account deletion and Vapi deletion requests) checks, with the time limit, tested on the isolated database; do not offer the HIPAA option until it is verified |
+| 37 | Deletion suspended for a transcript or recording named in a pending return request under a BAA, until returned and for no longer than the BAA return period, including at the end of the export window and on account deletion | DPA 12.1, 12.2, 12.3 and S1.6.3 (DPA Schedule 1); Privacy Policy 6.3 and 11.3; Terms 12.7 | The retention, purge and account deletion jobs know legal holds (zella_retention_on_hold) but not BAA return requests. Build a per item return request suspension that every deletion path (90 day deletion, purge after cancellation, account deletion and Vapi deletion requests) checks, with the time limit, tested on the isolated database; do not offer the HIPAA option until it is verified |
 | 38 | Pro rata refund when a Customer cancels over an adverse amendment, effective the day before the amendment | Terms 22.2 | Decide the refund period; set up the cancellation on the chosen date and the pro rata refund through Stripe with the payments work (blocker 22), and verify it with an approved test before relying on it |
+| 39 | Separate, optional marketing checkboxes for calls and for texts, each recording a consent for its own channel only | Consent Pack 2.2 and 2.4 | The website form sends one marketing_consent flag, and zella_capture_web_lead records it as a marketing opt in for texts and for email, and none for calls. Change the form and the function (a new, version guarded migration with rollback, applied with approval) to carry one flag per channel and record each separately with the evidence in Consent Pack 2.4; record email marketing only from wording that names email (counsel to confirm, Consent Pack 2.2) |
+| 40 | Earned, unapplied service credits paid out when Services end | Terms Schedule 4, 4.3, 4.6 and 4.7 | Confirm the owner decision; set the credit payout period; track earned credits and pay them out through Stripe with the payments work (blocker 22) |
 
 ## 5. Open decisions for the owner
 
@@ -299,6 +301,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
 - **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]**
 - **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
+- **[CREDIT PAYOUT PERIOD]**
+- **[OWNER DECISION: CONFIRM THAT EARNED CREDITS ARE PAID OUT, NOT FORFEITED, WHEN SERVICES END]**
 
 ### Zella Voice Privacy Policy
 
@@ -509,6 +513,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**
+- **[EMERGENCY DECISION OWNER]**
+- **[COUNSEL TO CONFIRM THE LEGAL BASIS FOR EMERGENCY DISCLOSURE, INCLUDING 18 U.S.C. 2702 AND ANY STATE LAW]**
 - **[OWNER DECISION: WHETHER TO PUBLISH A TRANSPARENCY REPORT]**
 - **[COUNSEL TO ASSESS WHETHER THE GDPR OR UK GDPR APPLIES TO ZELLA VOICE, AND IF SO WHETHER ARTICLE 30 REQUIRES THIS RECORD OR ONE OF ITS EXCEPTIONS APPLIES; KEEPING OR REMOVING THE EU AND UK SECTIONS DOES NOT DECIDE THIS]**
 - **[LEGAL ENTITY NAME]**
@@ -527,7 +533,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 
 - **[LAST UPDATED DATE]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
-- **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
+- **[COUNSEL TO CONFIRM EACH CHECKBOX MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE, AND WHETHER MARKETING EMAILS NEED THEIR OWN CHECKBOX]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]**
 - **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]**

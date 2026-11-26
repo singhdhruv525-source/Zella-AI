@@ -22,7 +22,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 - appointment confirmations, reminders, reschedule and cancellation confirmations, and links to change your booking;
 - a text after you call the Business and the call is missed **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED; IF REJECTED, DELETE THIS ITEM AND THE MISSED CALL TEXT IN SECTION 4.2]**, and replies to your messages;
-- follow ups about your enquiry or a service you received;
+- follow ups about your inquiry or a service you received;
 - waitlist offers when a time frees up;
 - marketing messages, such as offers or suggestions of related services, only if you have separately agreed to receive marketing messages from that Business.
 
@@ -34,7 +34,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 3.2 Consent to marketing messages is separate from consent to service messages. **Consent is not a condition of purchase.**
 
-3.3 A typical website consent reads: "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO APPROVE THE CONSENT WORDING]**
+3.3 A typical website consent reads: "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my inquiry. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO APPROVE THE CONSENT WORDING]**
 
 ## 4. Message frequency and timing
 

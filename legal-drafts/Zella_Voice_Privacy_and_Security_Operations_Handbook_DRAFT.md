@@ -74,7 +74,7 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 
 1. **Log it.** Record the request in the CRM's data rights requests: the kind (access, export or erasure), the requester and a note. It is due 30 days after it is recorded, and a daily job is designed to remind the Owner before it is due **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**.
 2. **Verify identity.** The Customer confirms the requester's identity using information it already holds. A request is not acted on until the identity is verified.
-3. **Access or export.** Fulfil the request item by item; an export alone does not complete it.
+3. **Access or export.** Fulfill the request item by item; an export alone does not complete it.
    - **One End User's records (the file for the request):** an owner or admin opens the logged request in the CRM (on the person's customer record, or in Settings under the list of customer data requests) and carries it out. This produces a file of that person's records only: their customer record, appointments, texts, emails, calls with summaries and transcripts, callbacks, consent history and requests. Before sending it, for a Customer in a Regulated Industry, remove every call transcript from the file (the product does not yet leave them out: launch blocker 35 in the counsel memo); then, check that it holds only the requester's records. **Never use the CSV exports of all customers or call history, or the whole business export, for an End User's access or export request**: those files hold other people's data.
    - **Call transcripts and summaries:** these are in the request file above. Where a single call must also be shown, the person with access opens it in the CRM (Calls, call details): in a business outside the Regulated Industries, owners, admins and managers can open transcripts, and staff can too where the Owner has allowed staff to read call content in Settings, Call recording and privacy (the database checks this); viewers and other staff ask a manager. Deliver the file to the verified requester through **[SECURE DELIVERY CHANNEL FOR DATA SUBJECT REQUESTS]**, never by ordinary email attachment.
    - **Transcripts of Customers in Regulated Industries:** the public documents say every export leaves them out, including the request file (Privacy Policy 11.1, DPA 9.1). Until launch blocker 35 is cleared, the request file still contains them, so remove them before sending as above. In the CRM, owners, admins and managers can open them and staff never can, even if the Owner has allowed staff access; the whole business export leaves them out. Where the law gives the requester a right to see a regulated transcript, ask counsel how to provide it (counsel memo, owner decision 41) instead of sending it in the file.
@@ -110,11 +110,22 @@ C1.2 Zella Voice redirects requests for Customer Data to the Customer wherever p
 ### C2. Steps
 
 1. **Receive.** Requests go to **[LEGAL REQUESTS CONTACT]** and are forwarded to counsel.
-2. **Validate.** Counsel confirms the process is valid, properly served, issued by an authority with jurisdiction, and specific.
+2. **Validate.** Counsel confirms the process is valid, properly served, issued by an authority with jurisdiction, and specific. An emergency request without legal process follows section C2A instead of this step.
 3. **Narrow.** Zella Voice challenges or seeks to narrow requests that are overbroad, unclear or not legally binding, and discloses only the minimum data required.
 4. **Notify the Customer.** Zella Voice notifies the affected Customer before disclosing, unless the law or a court order prohibits notice, or notice would create a risk of death or serious harm. If notice is delayed, Zella Voice notifies the Customer when the restriction ends.
 5. **Disclose securely.** Data is produced through a secure channel, and the production is recorded.
 6. **Log.** Each request is recorded with: the requesting authority; the type of process; the date received; the data requested; the data disclosed; whether the Customer was notified and when; and counsel's sign off.
+
+### C2A. Emergency requests without legal process
+
+Use this procedure when a requester without legal process, for example law enforcement, says that disclosure is needed to prevent imminent death or serious physical harm. It replaces step 2 (Validate) of section C2; the other steps still apply as stated below.
+
+1. **Escalate at once.** The request goes to **[LEGAL REQUESTS CONTACT]** and to counsel immediately, at any hour.
+2. **Verify the requester.** Confirm the requester's identity and authority by calling back through an official number found independently, not one given in the request. Record the emergency as the requester describes it.
+3. **Decide.** Counsel, or **[EMERGENCY DECISION OWNER]** if counsel cannot be reached in time, decides in good faith whether the facts show an emergency involving danger of death or serious physical injury that requires disclosure without delay, and whether the law allows disclosure without legal process **[COUNSEL TO CONFIRM THE LEGAL BASIS FOR EMERGENCY DISCLOSURE, INCLUDING 18 U.S.C. 2702 AND ANY STATE LAW]**. Disclose only where both are true and the law allows it; otherwise tell the requester to obtain legal process under section C2.
+4. **Disclose the minimum.** Disclose only the data needed to deal with the emergency, through a secure channel.
+5. **Notify the Customer** under step 4 of section C2, as soon as notice no longer creates a risk of death or serious harm.
+6. **Log and review.** Record the request as step 6 of section C2 requires, and also the emergency described, the verification steps, who decided and the legal basis. Counsel reviews every emergency disclosure afterwards, and Zella Voice asks the requester to follow up with legal process where the law expects it.
 
 ### C3. Transparency
 
@@ -223,6 +234,8 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**
+- **[EMERGENCY DECISION OWNER]**
+- **[COUNSEL TO CONFIRM THE LEGAL BASIS FOR EMERGENCY DISCLOSURE, INCLUDING 18 U.S.C. 2702 AND ANY STATE LAW]**
 - **[OWNER DECISION: WHETHER TO PUBLISH A TRANSPARENCY REPORT]**
 - **[COUNSEL TO ASSESS WHETHER THE GDPR OR UK GDPR APPLIES TO ZELLA VOICE, AND IF SO WHETHER ARTICLE 30 REQUIRES THIS RECORD OR ONE OF ITS EXCEPTIONS APPLIES; KEEPING OR REMOVING THE EU AND UK SECTIONS DOES NOT DECIDE THIS]**
 - **[LEGAL ENTITY NAME]**
