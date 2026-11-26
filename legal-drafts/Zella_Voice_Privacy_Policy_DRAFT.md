@@ -42,7 +42,7 @@ Last updated: **[LAST UPDATED DATE]**
 A Customer keeps records about its End Users, which may include:
 
 - names, telephone numbers, email addresses, preferred language and time zone;
-- calls: calling and called numbers, time and length, what the AI Receptionist did, the outcome, a written summary and a transcript, and a recording only when the Customer has turned call recording on (section 6);
+- calls: calling and called numbers, time and length, what the AI Receptionist did, the outcome, a written summary and a transcript, and a recording only when the Customer has turned call recording on (section 6; whether recording is fully off at the voice provider today is unconfirmed, see section 6.1);
 - texts and emails sent or received for the Customer, with delivery status and replies;
 - appointments, reservations, jobs, waitlist entries, check ins and attendance;
 - requests, notes, tasks, follow ups, quotes and recorded payments (card numbers are never collected on purpose; a number a caller speaks may appear in a transcript until redaction is in place, see section 3.1);
@@ -97,7 +97,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 ## 6. Call recording and transcripts
 
-6.1 **Recording is off by default.** Call recording becomes available only after recording consent rules and caller disclosures have been legally reviewed. When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer is responsible for any consent the law requires. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+6.1 **Recording is intended to be off by default.** **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]** Call recording becomes available only after recording consent rules and caller disclosures have been legally reviewed. When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer is responsible for any consent the law requires. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 6.2 **Transcripts** are visible only to a Customer's owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
@@ -145,14 +145,14 @@ We keep Personal Data only as long as needed for the purposes in section 4. The 
 
 | Data | Retention |
 |---|---|
-| Call recordings (only when recording is on) | Scheduled for automatic deletion 90 days after the call |
+| Call recordings (only when recording is on; see section 6.1) | Scheduled for automatic deletion 90 days after the call |
 | Call transcripts | Scheduled for automatic removal 90 days after the call |
 | Copies of calls held by Vapi | Deleted at Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
 | Other Customer Data and Account Data | While the account is active |
-| After a Customer cancels | Data still held is available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window |
+| After a Customer cancels | Except as below (consent and opt out history, audit and security logs, and data under a legal hold), data still held is available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window |
 | Telephone numbers of a canceled Customer | Released 30 days after cancellation unless ported out |
 | Consent and opt out records | Kept after erasure so that opt outs continue to work |
 
@@ -160,9 +160,9 @@ We keep Personal Data only as long as needed for the purposes in section 4. The 
 
 11.1 **Export.** Owners can export customers and call history as CSV at any time and can request a whole business export, downloadable for 7 days. Recording links, and transcripts of Customers in Regulated Industries, are left out of that export. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept. Erasure needs a second person's approval at the Customer. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released. Erasure needs a second person's approval at the Customer. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. Audit history is kept without the Customer's details. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, and data under a legal hold is kept until the hold is released. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 ## 12. Your rights
 
@@ -172,7 +172,7 @@ Please contact the Customer you dealt with. The Customer handles your request in
 
 ### 12.2 Authorized Users and visitors
 
-You can see and correct most Account Data in Settings. To request access, correction, export or deletion, write to **[PRIVACY CONTACT EMAIL]**. We respond within 30 days, or sooner if the law requires, may need to verify your identity, and may keep data the law requires us to keep. If you have an account, we verify you through your sign in. If you do not (for example as a visitor to our public pages or a former user), we send a one time code or link to the email address we hold for you, or to the email address you gave when the data was collected, and ask for matching details we already hold. If we hold no email address for you, we use another reasonable method that matches details we already hold. **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]** We never ask for new sensitive information to verify you. If we cannot verify you, we tell you why and what we need, and we record the outcome.
+You can see and correct most Account Data in Settings. To request access, correction, export or deletion, write to **[PRIVACY CONTACT EMAIL]**. We respond within 30 days, or sooner if the law requires, may need to verify your identity. For a deletion request, we keep only data the law requires us to keep, consent and opt out history, audit and security logs, and data under a legal hold. If you have an account, we verify you through your sign in. If you do not (for example as a visitor to our public pages or a former user), we send a one time code or link to the email address we hold for you, or to the email address you gave when the data was collected, and ask for matching details we already hold. If we hold no email address for you, we use another reasonable method that matches details we already hold. **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]** We never ask for new sensitive information to verify you. If we cannot verify you, we tell you why and what we need, and we record the outcome.
 
 ### 12.3 European Economic Area, United Kingdom and Switzerland
 
@@ -275,6 +275,7 @@ Placeholders in this document:
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**

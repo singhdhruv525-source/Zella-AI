@@ -86,7 +86,7 @@ File in the US Copyright Office's online DMCA Designated Agent Directory:
 - The designation expires after 3 years and must be renewed: **[DMCA RENEWAL DUE DATE]**.
 - Publish the designated agent's name, address, telephone and email on the live public website in a location accessible to the public, as the Copyright Office requires, after the owner's explicit approval to publish that page (NN 3). **[ADDRESS OF THE LIVE PAGE THAT SHOWS THE DMCA AGENT]**
 - Updating the draft Terms Schedule 3, section 5.1, is not enough on its own: the details must be on the live site, and must match the directory filing.
-- Update the directory filing and the live page together whenever anything changes.
+- Update the directory filing and the live page together whenever anything changes. Every later update to the live page, not only the first publication, needs the owner's explicit approval for that specific change (NN 3).
 
 ## 3. Insurance broker brief
 

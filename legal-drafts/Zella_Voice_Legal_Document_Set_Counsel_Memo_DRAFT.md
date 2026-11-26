@@ -61,6 +61,8 @@ The separate files were removed after merging; their full text is inside the mer
 
 3.2 Every document in this set uses the placeholder **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** for this period, wherever it appears (Terms 12.7, Privacy Policy section 10, DPA 12.2, Trust overview section 5). The rulebook's 30 days is shown as the proposal. To resolve: decide the period, replace the placeholder with it everywhere it appears, and set the production database value to match through a reviewed migration, applied only with the owner's explicit approval for that specific change (NN 3, NN 4). Each kind of data keeps its own deletion schedule during the export window, so recordings and transcripts stay on their own draft 90 day schedule (the purge is built but not applied and its switch is off, so this is not yet an active guarantee) and the window covers only data still held.
 
+3.2.1 **Businesses already canceled.** The database stores each canceled business's deletion date (retention_until) once, at cancellation, from the retention_days value in force at that time. Changing the value later affects only later cancellations, unless a reviewed migration recomputes the stored dates for businesses already canceled. Owner decision, with counsel's input: whether a new period applies to businesses already canceled, and if so, run that migration only with the owner's explicit approval for that specific change (NN 3, NN 4). The documents should then say whether the period in force at cancellation applies.
+
 3.3 **Recordings: 90 days or 30 days.** The owner decided on 18 November 2026 that call recordings and transcripts are kept 90 days (architecture section 23.1c; rulebook PRV 4). The earlier proposal was recordings 30 days and transcripts 90 days. The per kind retention settings built on 16 November 2026 (not deployed) still default to that earlier proposal, recordings 30 days, while the privacy retention migration (not applied) sets both to 90 days. Every period is pending legal review. **The drafts use 90 days for recordings and transcripts.** Decide between 90 days (current owner decision) and 30 days (earlier proposal), and make the settings match before publishing, through a reviewed migration applied only with the owner's explicit approval for that specific change (NN 3, NN 4).
 
 3.4 **All automatic deletion is a draft schedule.** The purge jobs for recordings, transcripts and message contents, and the deletion of copies at Vapi, are built but not applied, and their switches are off. Every document therefore describes these periods as scheduled and carries **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** where the 90 day deletion is stated (Privacy Policy sections 6.3 and 10, DPA 12.1 and 12.2, Terms 12.7 and Schedule 2 section 4.5, Trust overview section 5).
@@ -128,6 +130,8 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 30. Custom trials: checkout supports only the platform's standard trial (5 days, 20 minutes, 5 texts, 5 emails); decide whether to build per business trials before offering one (Order Form section 4).
 31. First Billing Date without a trial: the start of the first paid period recorded at checkout (current code) or the Owner's first sign in (architecture REQ BIL 17); the Terms, Order Form and billing must use the same date.
 32. Objection period after an urgent Subprocessor replacement (DPA 8.3 and Annex 3).
+33. Whether a changed cancellation retention period applies to businesses already canceled, which needs a migration to recompute their stored deletion dates (section 3.2.1).
+34. Confirm, before publishing, that call recording is explicitly disabled at Vapi; every "off by default" statement in the set carries a placeholder until then.
 
 ## 6. Points for counsel
 
@@ -157,6 +161,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 24. **Messaging hours.** The Messaging Terms now state the rulebook COM 3 rule (recipient's time zone when known) with a condition that marketing and automated texts stay off until the sender enforces it. Confirm the hour ranges, whether marketing needs a narrower window, and whether reminders need quiet hours.
 25. **Missed call text basis** for 10DLC registration (Consent Pack section 5.2).
 26. **Spoken card numbers in transcripts.** Callers may speak card numbers, which may be stored in transcripts until redaction exists. Advise on PCI DSS scope and on the wording now used in the Privacy Policy, Terms 9.5 and DPA Annex 1.
+27. **Retention after cancellation for businesses already canceled** (section 3.2.1), and the retention basis for consent and opt out history after cancellation (DPA 12.5).
 
 ## 7. Owner actions that are not documents
 
@@ -169,7 +174,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 7. Get tax advice on sales tax for software (D 50).
 8. Engage counsel to review the set, starting with this memo.
 9. Turn on the measures the documents describe only with the owner's explicit approval for each specific action (NN 3), and confirm point in time recovery, leaked password protection and encryption at rest.
-10. Complete 10DLC registration for each Customer that will text. Publish security.txt and each public page only with the owner's explicit approval for that specific publication (NN 3); no document in this set is published by drafting or merging it.
+10. Complete 10DLC registration for each Customer that will text. Publish security.txt and each public page, and make every later update to them, only with the owner's explicit approval for that specific publication or change (NN 3); no document in this set is published by drafting or merging it.
 
 The details for each action are in the separate Owner Action Pack, in the second PDF, Zella_Voice_Owner_Actions_DRAFT_combined.pdf. Nothing in it has been filed, searched, bought or signed.
 
@@ -233,6 +238,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
+- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 - **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]**
@@ -275,6 +281,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
@@ -307,6 +314,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[BREACH NOTIFICATION HOURS]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[COUNSEL TO CONFIRM THE RETENTION BASIS FOR CONSENT AND OPT OUT HISTORY AFTER CANCELLATION]**
 - **[AUDIT NOTICE PERIOD]**
 - **[DATA HOSTING REGION]**
 - **[SCC MODULE TWO (CONTROLLER TO PROCESSOR) AND, WHERE APPLICABLE, MODULE THREE; OPTIONAL CLAUSES; GOVERNING LAW; COMPETENT SUPERVISORY AUTHORITY; SWISS ADJUSTMENTS]**
@@ -504,6 +512,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM]**
 - **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
+- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
 - **[CUSTOMER EIN]**

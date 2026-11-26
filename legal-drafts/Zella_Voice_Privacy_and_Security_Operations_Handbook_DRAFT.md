@@ -77,7 +77,7 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 5. **Check for a legal hold.** Before any erasure, check whether a legal hold applies to the customer or the business. Data under a hold is excluded from erasure and from deletion at Vapi or any other provider until the hold is released. If a hold applies, ask Zella Voice before continuing.
 6. **Erase.** The Owner erases the customer, except data under a hold. A second person must approve. Details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is queued; calls under a hold are not queued until the hold is released. Consent and opt out history is kept so that opt outs keep working. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 7. **Opt out.** Opt outs by STOP, unsubscribe link or "don't call me" take effect immediately for that business and need no request.
-8. **Report what was kept.** Tell the requester what was kept and why, including data under a legal hold (kept until the hold is released and then deleted on schedule), where the law allows.
+8. **Report what was kept (erasure requests).** For an erasure request, tell the requester what was kept and why, including consent and opt out history (kept so the opt out keeps working) and data under a legal hold (kept until the hold is released and then deleted on schedule), where the law allows.
 9. **Close.** Mark the request done. Every step is recorded in the audit log.
 
 ### B3. How Zella Voice handles an Account Data request
@@ -89,7 +89,7 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
    - **Authorized agents:** verify the agent's own identity by a reasonable method that does not depend on the principal's email (for example a one time code to the agent's own email or telephone, plus matching details of the agent), require a signed authorization from the principal or a valid power of attorney, and, where the law allows, confirm the request directly with the person the data is about. **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
    - If identity cannot be verified, tell the requester why and what is needed, and record the outcome.
 3. Search all Personal Data held about the requester, as the Privacy Policy describes it (sections 3.1 and 3.3): the account, invitations and acceptance records, billing records, identity verification records, support requests and correspondence, and technical and security data (network address and browser records, security and audit logs, and rate limit records). For a visitor without an account, search the technical and security data and any correspondence by the details the requester provides.
-4. Respond within 30 days, using the tools above where they apply. Keep only what the law requires.
+4. Respond within 30 days, using the tools above where they apply. For an access, correction or export request, keep the Account Data needed to provide the Services and correct it where asked. For a deletion request, delete the data and keep only what the law requires or the exceptions allow (consent and opt out history, audit and security logs, and data under a legal hold).
 5. For California, also honor authorized agent requests with proof of authority.
 
 ## Part C. Law Enforcement and Legal Request Policy

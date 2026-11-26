@@ -81,7 +81,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 5.2 **Disclosures to callers.** The AI Receptionist tells every caller at the start of each call that it is an AI receptionist for Customer. Customer may change the greeting but must not remove or obscure that disclosure, and must not cause the AI Receptionist to state or imply that it is a human. Schedule 2 applies.
 
-5.3 **Recording consent.** Call recording is off by default. Customer may enable call recording only after Zella Voice has made it available following legal review. If Customer enables recording, Customer is solely responsible for giving every notice and obtaining every consent that applicable law requires, including in states that require the consent of all parties to a call, and must not remove the recording notice.
+5.3 **Recording consent.** Call recording is intended to be off by default. **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]** Customer may enable call recording only after Zella Voice has made it available following legal review. If Customer enables recording, Customer is solely responsible for giving every notice and obtaining every consent that applicable law requires, including in states that require the consent of all parties to a call, and must not remove the recording notice.
 
 5.4 **Consent to contact.** Customer is solely responsible for obtaining, recording and honoring every consent that applicable law requires before the Services call, text or email any person for Customer, including prior express consent and prior express written consent under the Telephone Consumer Protection Act ("TCPA") for calls and texts that use an artificial or prerecorded voice or an automatic telephone dialing system, and compliance with the Telemarketing Sales Rule, the CAN SPAM Act, state telemarketing and mini TCPA laws, and do not call rules. Customer must state a consent basis for every lead it adds by hand or imports; the Services do not contact such a lead automatically without one.
 
@@ -196,7 +196,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 12.6 **Export.** The Owner may export customers and call history as CSV files at any time, and may request a whole business export of Customer Data. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**; after cancellation, Customer Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the export window is deleted on that date.
+12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**; after cancellation, Customer Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the export window is deleted on that date. These deletions are subject to the exceptions in DPA section 12.5, including consent and opt out history (kept so opt outs keep working), audit and security logs, and data under a legal hold.
 
 12.8 **Telephone numbers.** Customer may port telephone numbers into or out of the Services at no charge. Porting time depends on the carrier. Numbers provided by Zella Voice are released 30 days after cancellation unless ported out before then.
 
@@ -451,7 +451,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 ### 4. Call recording and consent
 
-4.1 **Off by default.** Call recording is off for every Customer by default. Zella Voice makes recording available only after recording consent rules and caller disclosures have been legally reviewed and Zella Voice has recorded that approval.
+4.1 **Off by default.** Call recording is intended to be off for every Customer by default. **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]** Zella Voice makes recording available only after recording consent rules and caller disclosures have been legally reviewed and Zella Voice has recorded that approval.
 
 4.2 **Notice when recording is on.** When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer must not remove that notice. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
@@ -459,7 +459,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 4.4 **Transcripts.** Calls are transcribed so that the Customer can see what was said and so that a summary can be written. Transcripts are visible only to owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-4.5 **Retention.** Recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**, as described in the Zella Voice Privacy Policy and the Zella Voice Data Processing Addendum.
+4.5 **Retention.** Subject to legal holds, recordings and transcripts are scheduled to be deleted 90 days after the call **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**, as described in the Zella Voice Privacy Policy and the Zella Voice Data Processing Addendum.
 
 ### 5. Outbound calls and messages
 
@@ -610,6 +610,7 @@ Placeholders in this document:
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
+- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 - **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]**

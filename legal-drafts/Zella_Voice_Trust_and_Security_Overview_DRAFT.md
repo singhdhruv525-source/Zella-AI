@@ -153,7 +153,7 @@ We review this statement **[ACCESSIBILITY STATEMENT REVIEW FREQUENCY]**. Last re
 
 ## 11. Before publishing
 
-This section is for the owner and counsel. Remove it before publishing. Change each "Built, going live" label to "Live" only once that measure is in production.
+This section is for the owner and counsel. Remove it before publishing. Change each "Built, going live" label to "Live" only once that measure is in production. Publishing this page, and every later update to it (including each label change and security.txt), needs the owner's explicit approval for that specific publication (NN 3).
 
 Placeholders in this document:
 

@@ -56,7 +56,7 @@ The evidence for each source below is what the architecture specifies (its conse
 
 ## 4. Recording disclosure options
 
-Call recording is off until legal review. If it is turned on, choose one option per Customer, with counsel's approval:
+Call recording is intended to stay off until legal review. **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]** If it is turned on, choose one option per Customer, with counsel's approval:
 
 | Option | Wording | Notes |
 |---|---|---|
@@ -147,6 +147,7 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM]**
 - **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
+- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
 - **[CUSTOMER EIN]**
