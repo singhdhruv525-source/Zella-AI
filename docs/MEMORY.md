@@ -114,6 +114,12 @@ rules for replies, mailboxes, limits, DNS and plans are decided (architecture §
 domain verification and mailbox connection are not built. Live steps, each with approval: set
 `support_email` to `support@zellavoice.com` (the setting does not exist yet) and redeploy `platform-emails`.
 
+**Business email address, part 1 (26 Nov 2026):** the data model and rules are built, not applied
+(`sql/zella_business_email.sql`, tested on an isolated copy of `sql/baseline` only, `tests/business_email/run.sh`):
+`business_email_senders`, the token only in Vault, one business per domain, two switches off
+(`business_email_routes`), the mailbox daily caps, and the server rules for who sends, the daily cap and provider
+refusals. Nothing uses them until the sending part. Apply only with the owner's approval.
+
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.

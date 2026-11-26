@@ -148,6 +148,7 @@ GROUPS = [
         "waitlist_entries": "People waiting for a time to free up.",
         "waitlist_offer_links": "Private links offering a freed time to someone on the waitlist.",
         "calendar_connections": "Connected Google or Outlook calendars (tokens in Vault, not here).",
+        "business_email_senders": "The business's own email address for emails to its customers: a verified domain (Resend) or a connected Gmail or Outlook mailbox (tokens in Vault, not here).",
         "calendar_sync_queue": "Calendar sync work waiting for the calendar worker.",
         "restaurant_tables": "A restaurant's tables and seats.",
         "table_combinations": "Tables that can be joined for larger parties.",

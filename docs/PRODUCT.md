@@ -574,6 +574,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 |---|---|
 | Appointment confirmations and reminders by text (Telnyx) | Built, off (`sms_live`) |
 | Appointment confirmations and reminders by email (Resend) | Built, off (`email_live`) |
+| Customer emails from the business's own address (owner, 26 Nov 2026): a verified business domain through Resend, or a connected Gmail or Outlook mailbox through the provider; until then the business name at Zella Voice's no reply address with Reply-To the business email. A mailbox's daily cap sends the rest of that day through the fallback and tells the business once | Data model and rules built, not applied (`sql/zella_business_email.sql`); sending, setup screens and the mailbox connection not built yet |
 | Follow-ups: no-show, thank-you, quote follow-up, reactivation (opted-in only), callback fallback, missed-call text, lead acknowledgement | Built, off |
 | Text ↔ email switching when one channel can't reach the person | Built |
 | "You might also need": after a service is completed, suggest a related service some days later (rules per business in Settings; marketing, so only to customers who opted in; one per appointment, the same rule at most once per customer every 90 days; `sql/zella_cross_sell.sql`). Chosen by the owner on 28 Oct 2026 | Built, off |

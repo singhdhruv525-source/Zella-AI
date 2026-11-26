@@ -1377,6 +1377,44 @@ sending through either. This settles open decision D-19 (Gmail/Outlook mailbox i
   website login. Until verified, the fallback is used.
 - **Plans:** available on every plan.
 
+**Business email address: how it is built** (built in steps, none applied or deployed; each needs the owner's approval).
+
+```mermaid
+flowchart TD
+  due([A customer email is due]) --> prep["zella_prepare_email<br/>consent, plan limit, template"]
+  prep --> who{"zella_business_email_sender"}
+  who -- "domain verified and<br/>business_email_routes.domain on" --> dom["From: business address<br/>through Resend"]
+  who -- "mailbox connected,<br/>routes.mailbox on,<br/>under its daily cap" --> mb["From: mailbox account<br/>through Gmail API or Graph sendMail"]
+  who -- otherwise --> fb["Fallback: business name at no reply,<br/>Reply-To the business email"]
+  mb -- "provider refuses:<br/>daily cap or sign in" --> ref["zella_business_email_mailbox_refused<br/>rest of the day by fallback,<br/>business told once a day"]
+  ref --> fb
+```
+
+- **Data** (`sql/zella_business_email.sql`): `business_email_senders`, one row per business that started a setup: the
+  route (`domain` or `mailbox`, one at a time; starting one clears the other), the domain's address, DNS records
+  (public values) and Resend's domain id, or the mailbox's provider (`gmail`, `outlook`) and account, with the refresh
+  token only in Vault (`zella_mail_<provider>_<business>`, like calendar connections). A domain belongs to one business
+  (unique index), so no business can send as another's domain (REQ-COM-ISO-02). Row security: owners, admins and
+  managers read their own row (not the Vault secret's name); nobody writes it directly.
+- **Who may set it up:** an active owner or admin of the business, or a Zella Voice admin with `businesses.manage`
+  (Create Business). The edge function derives the person from their own sign in and passes it to server only
+  functions (`TEN-3`, `TEN-4`). A mailbox is connected only by the business's own owner or admin, who signs in with
+  Google or Microsoft themselves (`zella_business_email_mailbox_can_connect`): the Zella Voice team never holds a
+  business's logins. Free mailbox domains (gmail.com, outlook.com and the like) and Zella Voice's own
+  domains can't be set up as a business domain. Every change is audited, never with a token.
+- **Switches** (`ARC-8`): `business_email_routes` = `{domain: false, mailbox: false}`. While a route's switch is off,
+  its business still uses the fallback. `email_live` still decides whether anything is sent at all.
+- **Limits:** the plan's email limit applies to every route (`zella_message_gate`, unchanged). A mailbox also has a
+  daily cap (`business_email_mailbox_caps`: Gmail 500, Google Workspace 2,000, Outlook.com 300, Microsoft 365 2,000,
+  under each provider's published limit), counted in the business's own day from the emails logged for that mailbox
+  (queued ones included). At the cap, or when the provider refuses for a quota reason
+  (`zella_business_email_mailbox_refused`), the rest of that business's day goes through the fallback; the refused
+  email's reminder or follow up goes back due now without using up a try, and owners and admins get one staff
+  notification that day. A refusal because the sign in no longer works marks the mailbox "reconnect needed" and uses
+  the fallback until it is reconnected.
+- **The token** is handed out only by `zella_business_email_mailbox_credentials`, for one outbound email that is
+  still queued, logged for that business's connected provider and from its account.
+
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
 until Stripe is live (billing step 4) and `email_live` is on, each switched on with the owner's approval.
