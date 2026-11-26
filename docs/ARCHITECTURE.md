@@ -1414,6 +1414,15 @@ flowchart TD
   the fallback until it is reconnected.
 - **The token** is handed out only by `zella_business_email_mailbox_credentials`, for one outbound email that is
   still queued, logged for that business's connected provider and from its account.
+- **Sending** (`sql/zella_business_email_send.sql`): `zella_prepare_email`, which every customer email goes through
+  (confirmations, reminders, follow ups, marketing), merges `zella_business_email_sender`'s answer into its own, so
+  `from`, `from_name` and `reply_to` come from the rule above, with `sender_route`, `transport` and `sender_note`. The
+  n8n Email Sender and Follow up Emails log the transport and route with each email (`email_messages.metadata`) and
+  send `resend` through Resend, so a verified domain needs no change in n8n: Resend sends from any domain verified in
+  the same Resend account. Replies go to the business's own inbox: the fallback's Reply-To is the business email
+  (it used to prefer the inbound address, `zella_inbound_email_address`; reading replies is not in scope, owner,
+  26 Nov 2026), and follow up emails now carry it too. When a failed email is tried again under the same key,
+  `zella_log_outbound_email` records what is sent this time (sender, content, transport).
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
