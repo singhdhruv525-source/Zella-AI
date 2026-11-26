@@ -103,7 +103,7 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 
 ### C1. Principles
 
-C1.1 Zella Voice discloses Customer Data or Account Data to a government authority or other third party only where valid and binding legal process requires it, such as a subpoena, court order or search warrant, or where the law permits disclosure to prevent imminent death or serious physical harm.
+C1.1 This policy applies to requests from a government authority, a court, a litigant or another third party for Customer Data or Account Data. In answer to such a request, Zella Voice discloses data only where valid and binding legal process requires it, such as a subpoena, court order or search warrant, or where the law permits disclosure to prevent imminent death or serious physical harm. This policy does not restrict authorized processing for providing the Services, including disclosures to Subprocessors and the other recipients listed in Part D (for example the billing provider), which are governed by the DPA and the Zella Voice Privacy Policy.
 
 C1.2 Zella Voice redirects requests for Customer Data to the Customer wherever possible.
 

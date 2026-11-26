@@ -34,7 +34,7 @@ Last updated: **[LAST UPDATED DATE]**
 - Sign in records: password (held only in protected form by our sign in provider), two step sign in records, sign in times and signed in devices.
 - Invitations, and acceptance of our legal documents (version, time and person).
 - Owner identity verification: a photo identification document and the Customer's business registration, uploaded to private storage and checked by the Zella Voice team. Where enabled, an identity verification provider may carry out the check (section 8).
-- Billing records: Plan, Fees, usage, invoices, refunds and payment status. **Payment card details are entered on our payment processor's pages and never reach Zella Voice.** Card numbers that a caller speaks on a call are masked in call transcripts and summaries.
+- Billing records: Plan, Fees, usage, invoices, refunds and payment status. **Payment card details are entered on our payment processor's pages and never reach Zella Voice.** Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings.
 - Support requests and correspondence.
 
 ### 3.2 Customer Personal Data
@@ -45,7 +45,7 @@ A Customer keeps records about its End Users, which may include:
 - calls: calling and called numbers, time and length, what the AI Receptionist did, the outcome, a written summary and a transcript, and a recording only when the Customer has turned call recording on (section 6);
 - texts and emails sent or received for the Customer, with delivery status and replies;
 - appointments, reservations, jobs, waitlist entries, check ins and attendance;
-- requests, notes, tasks, follow ups, quotes and recorded payments (never card numbers; see section 3.1);
+- requests, notes, tasks, follow ups, quotes and recorded payments (never card details; see section 3.1);
 - the records the Customer's industry uses, which may include uploaded files;
 - relationships the Customer records, such as a parent or guardian;
 - consent records, contact preferences, opt outs and do not contact flags;
@@ -101,7 +101,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 6.2 **Transcripts** are visible only to a Customer's owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-6.3 Recordings and transcripts are deleted 90 days after the call (section 10).
+6.3 Recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion (sections 10 and 11).
 
 ## 7. Messages, consent and opting out
 
@@ -145,8 +145,8 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 
 | Data | Retention |
 |---|---|
-| Call recordings (only when recording is on; see section 6.1) | 90 days after the call, then deleted automatically |
-| Call transcripts | 90 days after the call, then removed automatically |
+| Call recordings (only when recording is on; see section 6.1) | 90 days after the call, then deleted automatically, unless deleted earlier (sections 10 and 11) |
+| Call transcripts | 90 days after the call, then removed automatically, unless deleted earlier (sections 10 and 11) |
 | Copies of calls held by Vapi | A deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |

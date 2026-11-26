@@ -41,9 +41,9 @@ Last updated: **[LAST UPDATED DATE]**
 - Secrets are held only in the database vault and function secrets, never in code, logs or tables.
 - Logs hold no full telephone numbers, email addresses, message contents or transcripts.
 - Customer Data is never used to train AI models.
-- Payment card numbers that callers speak on calls are masked in call transcripts and summaries before they are stored.
+- Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings.
 - Each business can export its customers and call history and erase a customer's records; a whole business export is available on request.
-- Subject to legal holds, recordings and transcripts are deleted automatically 90 days after the call, and the copies held by the voice provider are deleted where technically possible. Data under a legal hold is kept until the hold is released and then deleted on schedule.
+- Subject to legal holds, recordings and transcripts are deleted automatically 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion, and the copies held by the voice provider are deleted where technically possible. Data under a legal hold is kept until the hold is released and then deleted on schedule.
 - After cancellation, data is deleted after **[CANCELLATION RETENTION PERIOD]**; an account deletion request takes effect after a 30 day grace period.
 - Backups allow point in time recovery.
 

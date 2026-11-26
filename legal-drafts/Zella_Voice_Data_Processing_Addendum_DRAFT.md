@@ -88,7 +88,7 @@ Taking into account the nature of processing and the information available to it
 
 ## 12. Deletion or return
 
-12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
+12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
 
 12.2 **After cancellation.** Customer Personal Data still held remains available for export, through the exports in section 9.1 and with the same exclusions (recording links, and transcripts of Customers in Regulated Industries, are not exported), for **[CANCELLATION RETENTION PERIOD]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days. The exceptions in section 12.5 apply.
 
@@ -98,7 +98,7 @@ Taking into account the nature of processing and the information available to it
 
 12.5 **Exceptions.** The deletions in sections 12.1 to 12.4 are subject to these exceptions. Zella Voice may retain: (a) the consent and opt out history for each telephone number or email address (channel, purpose, status, source and time), which is kept after erasure, cancellation and account deletion so that opt outs continue to work (section 9.1); (b) audit and security logs for 7 years, or longer if the law requires, which contain no message contents, transcripts or recordings and are kept without Customer's identifying details; (c) data under an active legal hold until the hold is released, after which it is deleted on schedule; and (d) data the law requires Zella Voice to keep. Retained data remains subject to this DPA. **[COUNSEL TO CONFIRM THE RETENTION BASIS FOR CONSENT AND OPT OUT HISTORY AFTER CANCELLATION]**
 
-12.6 **Certification.** On written request, Zella Voice will confirm in writing that deletion has been completed.
+12.6 **Certification.** On written request, Zella Voice will confirm in writing that deletion has been completed, and the confirmation will identify any copies held by Subprocessors that could not be deleted under section 12.4 and any data kept under the exceptions in section 12.5, with the reason for each and the expected deletion date where known.
 
 ## 13. Audits
 
@@ -152,7 +152,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Nature | Collection, recording, organization, storage, transcription, summarization, retrieval, use, transmission, restriction, export and erasure, including processing by artificial intelligence |
 | Purpose | Answering and routing Customer's calls with the AI Receptionist, answering questions from approved knowledge, booking and changing appointments, taking messages, transferring calls, sending messages Customer has set up, keeping Customer's CRM, lead intake, order lookup, calendar sync and review replies where connected and enabled, reporting, security, spam protection and support |
 | Data subjects | End Users: callers, clients, customers, patients, guests, members, students, tenants, policyholders and leads; relationships Customer records (such as parents and guardians); Customer's staff as named in bookings and rotas |
-| Types of Personal Data | Identity and contact details; call records, summaries and transcripts; recordings only when recording is on (off by default); texts and emails; appointments and attendance; CRM notes, requests, tasks, quotes and recorded payments (never card numbers; card numbers spoken on calls are masked in transcripts); industry records and uploaded files; lead details and consent evidence; consent and opt out history; order details; calendar entries; review text and approved replies |
+| Types of Personal Data | Identity and contact details; call records, summaries and transcripts; recordings only when recording is on (off by default); texts and emails; appointments and attendance; CRM notes, requests, tasks, quotes and recorded payments (never card details; card details spoken on calls, such as a card number, security code or expiry date, are masked in transcripts and summaries and are not kept in recordings); industry records and uploaded files; lead details and consent evidence; consent and opt out history; order details; calendar entries; review text and approved replies |
 | Special categories and sensitive data | Only where a Regulated Industry's records allow it: patient records (healthcare, dental), children's details (childcare), legal matters (legal), financial and insurance details (financial services, insurance), and private fields such as access codes and member numbers. Kept in private fields, never read aloud, transcripts never shown to staff in those industries |
 | Frequency | Continuous |
 | Retention | As in section 12 |
@@ -170,7 +170,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Encryption | Encryption in transit (HTTPS for the web application, the database service and voice provider webhooks) and encryption at rest |
 | Secrets | Held only in the database vault and function secrets; never in code, logs or tables |
 | Logging | No full telephone numbers, email addresses, message contents or transcripts in logs; masking where needed |
-| Payment card numbers | Card numbers that callers speak on calls are masked in call transcripts and summaries before they are stored |
+| Payment card details | Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. |
 | Entry points | Size limits, rate limits and authentication first at every public entry point; provider messages verified by signature, timestamp window and replay protection |
 | Storage and links | Private storage under each Customer's own path; files checked after upload; downloads by short lived signed links; customer links random, single purpose, expiring and stored only as hashes |
 | AI safeguards | Caller input treated as untrusted; the AI acts only through server checked tools that recheck the Customer and caller; no secrets or other Customers' data in prompts |
@@ -301,7 +301,7 @@ S1.6.1 **Term.** This BAA starts on the effective date above. Its term ends when
 
 S1.6.2 **Termination for breach.** If Covered Entity determines that Business Associate has violated a material term of this BAA, Covered Entity may give written notice and an opportunity to cure within 30 days, and may terminate this BAA and the affected Services if Business Associate does not cure. Business Associate has the same right if Covered Entity violates a material term.
 
-S1.6.3 **Return or destruction.** On the BAA End Date, and in any event when the Agreement ends, Business Associate will return or destroy all PHI that it still maintains in any form, consistent with the deletion process in section 12 of the DPA, and retain no copies. If return or destruction is infeasible, for example for backups that are cleared on a schedule or records under a legal hold, Business Associate will extend the protections of this BAA to that PHI and limit further Uses and Disclosures to the purposes that make return or destruction infeasible, for as long as it maintains the PHI.
+S1.6.3 **Return or destruction.** On the BAA End Date, and in any event when the Agreement ends, Business Associate will return or destroy all PHI that it still maintains in any form, consistent with the deletion process in section 12 of the DPA, and retain no copies, as follows. (a) Where the Agreement ends by cancellation, Business Associate returns PHI by making it available to Covered Entity through the exports in section 12.2 of the DPA during the export window after cancellation; PHI that those exports do not include (such as transcripts of Customers in Regulated Industries) is returned on Covered Entity's written request made within that window, through a secure delivery agreed by the parties. This BAA continues to apply in full to all PHI during the export window, and at the end of the window Business Associate destroys all PHI that remains. (b) Where this BAA ends but the Agreement continues, Business Associate returns or destroys the PHI within **[BAA RETURN PERIOD]** days after the BAA End Date, and Covered Entity must not submit further PHI to the Services. (c) If return or destruction is infeasible, for example for backups that are cleared on a schedule or records under a legal hold, Business Associate will extend the protections of this BAA to that PHI and limit further Uses and Disclosures to the purposes that make return or destruction infeasible, for as long as it maintains the PHI.
 
 ### S1.7 Miscellaneous
 
@@ -360,6 +360,7 @@ Placeholders in this document:
 - **[BAA BREACH NOTICE DAYS]**
 - **[BAA RESPONSE DAYS]**
 - **[OPTIONAL: DATA AGGREGATION SERVICES RELATING TO THE HEALTH CARE OPERATIONS OF COVERED ENTITY, IF COUNSEL APPROVES]**
+- **[BAA RETURN PERIOD]**
 - **[COUNSEL TO DECIDE WHETHER THE LIMITATION OF LIABILITY IN SECTION 20 OF THE ZELLA VOICE TERMS OF SERVICE APPLIES TO THIS BAA, OR A SEPARATE CAP]**
 - **[SIGNATORY NAME]**
 - **[SIGNATORY TITLE]**

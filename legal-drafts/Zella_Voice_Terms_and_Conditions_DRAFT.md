@@ -139,7 +139,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 9.4 **Automatic renewal.** **AT THE END OF EACH BILLING PERIOD, THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR A FURTHER BILLING PERIOD OF THE SAME LENGTH (MONTHLY OR YEARLY, AS STATED IN THE ORDER FORM) UNTIL CUSTOMER CANCELS UNDER SECTION 10.2.** Zella Voice sends a renewal notice 3 days before every renewal and, for yearly Plans, also 7 days before.
 
-9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Payment card details are entered on Stripe's hosted pages and are never received or stored by Zella Voice. Card numbers that a caller speaks on a call are masked in call transcripts and summaries. Customer must not configure the AI Receptionist to ask callers for card numbers.
+9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Payment card details are entered on Stripe's hosted pages and are never received or stored by Zella Voice. Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. Customer must not configure the AI Receptionist to ask callers for card details.
 
 9.6 **Usage and allowances.**
 
@@ -180,7 +180,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 ## 11. Service levels and support
 
-Support, service credits and status information are provided under Schedule 4. Service credits under Schedule 4 are Customer's sole and exclusive remedy for unavailability of the Services.
+Support, service credits and status information are provided under Schedule 4. Service credits under Schedule 4 are Customer's sole and exclusive remedy for unavailability of the Services, except for the right to terminate for chronic unavailability in Schedule 4, section 4.6, with the refund in section 18.2.
 
 ## 12. Customer Data
 
@@ -196,7 +196,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 12.6 **Export.** Owners, admins and managers may export customers and call history as CSV files at any time (the call history file holds no transcripts, summaries or recordings), and the Owner may request a whole business export of Customer Data, which leaves out recording links and the transcripts of Customers in Regulated Industries.
 
-12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call; after cancellation, Customer Data still held remains available for export, with the exclusions in section 12.6, for **[CANCELLATION RETENTION PERIOD]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the export window is deleted on that date. These deletions are subject to the exceptions in DPA section 12.5, including consent and opt out history (kept so opt outs keep working), audit and security logs, and data under a legal hold.
+12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion; after cancellation, Customer Data still held remains available for export, with the exclusions in section 12.6, for **[CANCELLATION RETENTION PERIOD]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the export window is deleted on that date. These deletions are subject to the exceptions in DPA section 12.5, including consent and opt out history (kept so opt outs keep working), audit and security logs, and data under a legal hold.
 
 12.8 **Telephone numbers.** Customer may port telephone numbers into or out of the Services at no charge. Porting time depends on the carrier. Numbers provided by Zella Voice are released 30 days after cancellation unless ported out before then.
 
@@ -204,7 +204,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 13.1 **Definition.** "Confidential Information" means nonpublic information that one party ("Discloser") discloses to the other ("Recipient") that is marked confidential or that a reasonable person would understand to be confidential. Customer Data is Customer's Confidential Information. Confidential Information does not include information that is or becomes public through no fault of Recipient, that Recipient already knew without restriction, that Recipient receives lawfully from a third party without restriction, or that Recipient develops independently.
 
-13.2 **Obligations.** Recipient must use Confidential Information only to perform under or exercise its rights under the Agreement, must protect it with at least reasonable care, and may disclose it only to its employees, contractors, Subprocessors and advisers who need it for that purpose and are bound by obligations of confidentiality at least as protective as this section.
+13.2 **Obligations.** Recipient must use Confidential Information only to perform under or exercise its rights under the Agreement, must protect it with at least reasonable care, and may disclose it only to its employees, contractors, Subprocessors and advisers who need it for that purpose and are bound by obligations of confidentiality at least as protective as this section. Zella Voice may also disclose Customer's Confidential Information to third party services, or to other persons, that Customer directs or connects under section 15, to the extent needed to carry out Customer's direction; those disclosures are governed by section 15.
 
 13.3 **Compelled disclosure.** Recipient may disclose Confidential Information when required by law, after giving Discloser prompt notice where legally permitted and reasonable help, at Discloser's cost, to seek protection.
 
@@ -240,7 +240,7 @@ Customer may connect third party services, such as Google or Microsoft calendars
 
 18.1 **Mutual.** Each party warrants that it has the authority to enter into the Agreement.
 
-18.2 **Zella Voice.** Zella Voice warrants that it will provide the Services with reasonable skill and care. If the Services materially fail to meet this warranty and Customer notifies Zella Voice within 30 days, Zella Voice will use reasonable efforts to correct the failure, and if it cannot do so within a reasonable time, either party may terminate the affected Services and Zella Voice will refund prepaid Fees for the unused part of the paid period. This is Customer's exclusive remedy for breach of this warranty. **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
+18.2 **Zella Voice.** Zella Voice warrants that it will provide the Services with reasonable skill and care. If the Services materially fail to meet this warranty and Customer notifies Zella Voice within 30 days, Zella Voice will use reasonable efforts to correct the failure, and if it cannot do so within a reasonable time, either party may terminate the affected Services and Zella Voice will refund prepaid Fees for the unused part of the paid period. This is Customer's exclusive remedy for breach of this warranty. Unavailability of the Services is governed by section 11 and Schedule 4: ordinary unavailability is remedied by service credits only, and chronic unavailability under Schedule 4, section 4.6, is a material breach that has not been corrected, for which Customer may terminate the affected Services and receive the refund described in this section. **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
 
 18.3 **Customer.** Customer warrants that it has all rights, notices and consents needed for Zella Voice to process Customer Data and to make each call, text and email that the Services make for Customer.
 
@@ -459,7 +459,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 4.4 **Transcripts.** Calls are transcribed so that the Customer can see what was said and so that a summary can be written. Transcripts are visible only to owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-4.5 **Retention.** Subject to legal holds, recordings and transcripts are deleted 90 days after the call, as described in the Zella Voice Privacy Policy and the Zella Voice Data Processing Addendum.
+4.5 **Retention.** Subject to legal holds, recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion (section 12.7 of the Terms), as described in the Zella Voice Privacy Policy and the Zella Voice Data Processing Addendum.
 
 ### 5. Outbound calls and messages
 
@@ -589,7 +589,9 @@ This Schedule describes support, service status and service credits for the Serv
 
 4.4 **Exclusions.** No credit applies to unavailability caused by: (a) Customer, its Authorized Users, its equipment, its telephone carrier or its call forwarding; (b) suspension under section 16 of the Terms; (c) Beta Features or Live Features that are switched off; (d) events beyond Zella Voice's reasonable control under section 28.3 of the Terms; or (e) scheduled maintenance announced in advance on the status page.
 
-4.5 **Sole remedy.** Service credits are Customer's sole and exclusive remedy for unavailability of the Services, as stated in section 11 of the Terms.
+4.5 **Sole remedy.** Service credits are Customer's sole and exclusive remedy for unavailability of the Services, as stated in section 11 of the Terms, except as provided in section 4.6.
+
+4.6 **Chronic unavailability.** If a service credit becomes due under section 4.1 for at least **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]** days in each of 3 consecutive months, that is a material breach that Zella Voice has not corrected. Customer may then terminate the affected Services by written notice given within 30 days after the end of the third month, and Zella Voice will refund prepaid Fees for the unused part of the paid period, as section 18.2 of the Terms provides, in addition to any credits already earned. **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
 
 ### 5. Changes
 
@@ -636,5 +638,7 @@ Placeholders in this document:
 - **[PLACEHOLDER FOR OWNER DECISION: WHETHER TO PUBLISH AN UPTIME TARGET, AND IF SO WHICH]**
 - **[CONFIRM THE CALENDAR DAY TIME ZONE AND HOW UNAVAILABILITY IS MEASURED]**
 - **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
+- **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]**
+- **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
 
 <!-- PLACEHOLDERS END -->
