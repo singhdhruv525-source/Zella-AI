@@ -1,4 +1,4 @@
-# Owner decisions audit (chat, 28 Oct to 24 Nov 2026)
+# Owner decisions audit (chat, 28 Oct to 24 Nov 2026, with the decisions of 27 Nov 2026)
 
 Every product rule or decision the Zella Voice owner gave in chat in the main build session, checked against the
 source of truth documents (`docs/ARCHITECTURE.md`, `ZELLA_VOICE_RULES.md`, `docs/PRODUCT.md`, `docs/MEMORY.md`, and
@@ -24,8 +24,9 @@ answer is now written (see the last section).
 | Missing (now added) | 1 |
 | Contradicted (now fixed) | 3 |
 | Answered by the owner on 25 Nov 2026 (now written) | 2 (R55, R56; the R26 conflict was settled the same day) |
+| Decided by the owner on 27 Nov 2026 (written and built with this entry) | 2 (R57, R58) |
 | Skipped on purpose (another pull request) | 1 |
-| **Total** | **56** |
+| **Total** | **58** |
 
 ## The rules
 
@@ -87,6 +88,8 @@ answer is now written (see the last section).
 | R54 | 24 Nov | This should be in the architecture; I told you earlier, why wasn't it added? | Decisions given in chat are written into the docs when they are made | Process | **Missing** | `AGT-9`; `docs/ARCHITECTURE.md` §23.1d; `docs/MEMORY.md` §1, §6 |
 | R55 | 24 Nov, 25 Nov | 24 Nov: all limits and caps are set when creating the business from the admin dashboard. 25 Nov: the admin sets them, and the owner can lower them | Zella Voice admins set every plan limit and cap at Create Business (including the highest monthly spending limit) and can change them later; the owner may choose a lower spending limit and what happens at the limit, never above the plan | Billing, admin vs owner | Decided by the owner on 25 Nov (was: needs the owner); now written | REQ-BIL-01, REQ-BIL-23, REQ-BIL-32, D-44, §23.1d |
 | R56 | 24 Nov, 25 Nov | 24 Nov: 4 minutes is way too much, 1 minute with no voice is good. 25 Nov: a caller silent for 1 minute gets a polite goodbye | If the caller says nothing for 1 minute, the receptionist ends the call politely | Calls | Decided by the owner on 25 Nov (was: needs the owner); now written | REQ-VOX-13, `AI-24`, §23.1d |
+| R57 | 27 Nov | Call routing conflict: "refuse and alert". When the called number and the Vapi phone ID point to different businesses, use neither; treat it like a call for an unknown business with a neutral message naming no business; load no business configuration, caller context or records; alert Zella Voice admins with the existing alert | A call whose number and Vapi phone ID belong to two businesses is answered for neither and alerted | Calls, isolation | Decided by the owner on 27 Nov; written and built in this pull request | REQ-VOX-ISO-06, D-52, §6.7, §23.1e; `docs/PRODUCT.md` §7.3; `docs/MEMORY.md` §4, §5 |
+| R58 | 27 Nov | The receptionist never takes card details: a platform rule for every business that businesses can't override. It never asks for, reads back or records card numbers, security codes or bank details; a caller who starts to give them is politely stopped and told the business will send a secure payment link or have a staff member follow up | No card or bank details on calls, for every business | Calls, payments | Decided by the owner on 27 Nov; written and built in this pull request | REQ-VOX-14, `AI-25`, `NN-9`, §23.1e; `docs/PRODUCT.md` §7.1; `docs/MEMORY.md` §4, §5 |
 
 ## Code does not follow this yet
 
@@ -97,6 +100,8 @@ The documents now say these; the code does not do them yet. No code was changed 
 | R34 Live usage | The usage card refreshes every minute, on focus and on a usage notice; it doesn't update within seconds of a call or message | `web/src/UsageLive.jsx` (`REFRESH_MS = 60000`); would need a Realtime subscription limited to the business |
 | R28 to R32 Billing | Nothing sends invoice, Paid or renewal emails, there is no auto debit setting or Pay now in the app, and no billing texts: Stripe isn't connected (billing step 4) | `web/src/settings/BillingPanels.jsx`, `billing-worker`, `billing-webhook`, `platform-emails` (design in `docs/BILLING_EMAILS.md`, `docs/PAYMENTS_ARCHITECTURE.md` §6.11) |
 | R02 Picture colours | The picture's colours apply only in the Glass look, behind "Match colours to the picture" | `web/src/appearance.js` (palette applied with Glass only) |
+| R57 Call routing conflict | **Built, not applied:** `sql/zella_call_routing_conflict.sql` (guarded on production's md5, rollback `sql/rollback/zella_call_routing_conflict_rollback.sql`); until it is applied a conflicting pair is still routed by the Vapi phone ID | `zella_business_for_number`; tests `tests/call_routing_conflict/run.sh` |
+| R58 No card details | **Built, not applied:** `sql/zella_no_card_details.sql` (guarded, rollback `sql/rollback/zella_no_card_details_rollback.sql`); until it is applied the receptionist's instructions say nothing about card or bank details | `zella_brain_prompt`; tests `tests/no_card_details/run.sh` |
 | R46 Bot check | Website forms have no bot check yet (deferred on purpose until the Zella Voice website) | `web/supabase/functions/website-lead` |
 | R56 Silent callers | **Built, not applied** (no longer missing in code): `sql/zella_silence_timeout.sql` (pull request #118) adds Vapi `customer.speech.timeout` hooks to `zella_assistant_config`: "Are you still there?" after 30 s of silence, then at 60 s the goodbye with the business's name (English or Spanish) spoken before the call ends; setting `voice_silence_timeout_seconds` = 60. Vapi's 3.0.0 types have no `silenceTimeoutSeconds` on an assistant, so hooks replace it. What is left: the owner's approval to apply it, then a test call to time it (`docs/VOICE_RELIABILITY.md`, Silent callers) | `sql/zella_silence_timeout.sql`, `zella_silence_hooks` |
 | R55 Limits and caps | Plans have no highest monthly spending limit: `business_plans` (`sql/zella_billing_allowances.sql`) stores no spending cap, and `zella_auto_reload_save` accepts any cap up to $100,000 whatever the plan; the owner's choice at the limit lives in `business_usage_preferences`. "Calls at once" (default 10) has no Create Business setting | `sql/zella_billing_allowances.sql` (`business_plans`, `zella_auto_reload_save`), Create Business plan step, `sql/zella_call_limits.sql` |

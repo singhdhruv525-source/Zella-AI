@@ -444,6 +444,25 @@ Each assistant loads only its own business's:
 | REQ-VOX-ISO-03 | Tool results contain only the bound business's data; customer lookups match only inside it. |
 | REQ-VOX-ISO-04 | Transfer numbers are resolved server-side from the bound business; the model never sees them. |
 | REQ-VOX-ISO-05 | Webhook replays and duplicates are idempotent per business and provider call ID. |
+| REQ-VOX-ISO-06 | **Refuse and alert (owner, 27 Nov 2026; D-52).** When an inbound call's called number and its Vapi phone ID name phone number rows of two different businesses (whatever the rows' status), the call belongs to **neither**: it is treated as a call for an unknown number, with the neutral line that names no business, no business configuration, caller context or record is loaded or written, the call settings' business id is not used, and Zella Voice admins get one urgent platform alert (`call_routing_conflict`) per pair of rows. The number alone, the ID alone and a matching pair resolve as before. `sql/zella_call_routing_conflict.sql`: built, not applied. |
+
+**Call routing (traced 27 Nov 2026).** One function maps a call to a business: `zella_business_for_number(called
+number, Vapi phone ID, call settings fallback)` (`sql/zella_phone_numbers.sql`, changed by
+`sql/zella_call_routing_conflict.sql`). A null answer means "no business", and every path refuses on it:
+
+| Path | Function | With no business |
+|---|---|---|
+| assistant-request (voice-rules) | `zella_assistant_for_call` | delivery `unknown_number`; voice-rules says "Sorry, we can't take your call right now. Please call again a little later." or hands the call to the platform's standby assistant when `assistant_fallback_id` is set; no business configuration is read |
+| tool-calls (voice-rules; n8n Brain Tools, Voice Rules, Assistant Tools, Appointment Booking) | `zella_ai_voice`, `zella_ai_tool`, `zella_report_unanswered`, `zella_store_lookup_begin`, with `p_business_id` null | refused (`UNKNOWN_BUSINESS` or `unknown_business`); nothing read or written |
+| status-update | `zella_record_call_status` | `unknown_business`, no call row |
+| transfer-destination-request | `zella_transfer_destination` | refused, no number |
+| end-of-call-report (voice-rules; n8n Call Results) | `zella_record_inbound_call` | `unknown_business`; no call row, caller, lead, callback or message |
+
+A call row is created only by `zella_record_call_status`, `zella_ai_voice` and `zella_record_inbound_call`, each only
+with a business, so a later step of the same call can't find a business through the call row either. The forward
+number check in `zella_call_gate` asks with the number alone (unchanged). Outbound calls carry their own business.
+A Vapi number that still has a fixed assistant set at Vapi (instead of the server URL) is outside this path: the
+caller hears that assistant's greeting, though every tool and record is still refused.
 
 ### 6.8 Appointment isolation and double-booking protection
 
@@ -994,6 +1013,7 @@ sequenceDiagram
 | REQ-VOX-09 | Call recording is **off** until recording consent and caller disclosures are legally reviewed [D-27]. When enabled, it follows the business's notice and consent settings. Retention: recordings and transcripts 90 days (owner, 18 Nov 2026, §23.1c; §20). |
 | REQ-VOX-10 | AI changes (prompt, tools, model, voice) pass the per-industry evaluation set before release. |
 | REQ-VOX-13 | **Silent callers (owner, 25 Nov 2026).** If the caller says nothing for **1 minute**, the receptionist ends the call politely (a short goodbye, then hang up). The assistant config ends the call after 60 seconds of caller silence (`voice_silence_timeout_seconds`), after one "Are you still there?" at 30 seconds, with the goodbye spoken first (Vapi `customer.speech.timeout` hooks, `sql/zella_silence_timeout.sql`: built, not applied; until it is applied the provider's default applies); a silent call is classified from the provider's end reason, never counted as answered. |
+| REQ-VOX-14 | **No card or bank details (owner, 27 Nov 2026; `NN-9`).** A platform rule for every business, which no business can change: the receptionist never asks for, reads back, writes down or saves payment card numbers, card security codes or bank details. If a caller starts to give them, it stops them politely and says the business will send a secure payment link or a member of staff will follow up, then offers a follow up request. It is the last section of every receptionist's instructions (`zella_brain_prompt`), after the business's own instructions and live notices. `sql/zella_no_card_details.sql`: built, not applied. |
 | REQ-VOX-11 | **Inbound voicemail.** A caller can leave a voicemail instead of talking to the assistant: on request ("I'd like to leave a message"), when a transfer fails, or through the standby assistant. The caller hears that they are leaving a recorded message. The voicemail is stored privately for that business, transcribed, shown on the customer timeline and in Callbacks, and creates one callback task. It is kept 30 days (as recordings, §20). A voicemail is the caller's own recorded message; it is separate from call recording, which stays off until legal review. |
 | REQ-VOX-12 | **Languages.** The receptionist speaks the languages the business's plan includes: English, Spanish, or both. With both, it answers in the business's primary language and switches when the caller speaks the other. Templates, knowledge and scripts exist per language; a missing translation falls back to the primary language. Until plans exist, English is the default and Spanish can be enabled per business by the Zella Voice team. Only the Zella Voice team (platform admins with businesses.manage) sets or changes a business's languages, within its plan. Business owners and staff can see them but cannot change them; the server refuses the change. A plan with 1 language means English only; a plan with 2 lets the team add Spanish; a business with no plan and no subscription has no limit, and the admin page says so. Voices follow the languages: a voice in one language (Cartesia English or Spanish) is offered and accepted only while the business speaks that language, a multilingual voice always; if a saved voice stops fitting (Spanish removed), calls use the platform default voice and the assistant configuration notes it (`sql/zella_admin_languages.sql`). |
 
@@ -2201,7 +2221,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-50 | Tax treatment for the Wyoming LLC: US state sales tax on software (Stripe Tax can calculate and collect it) | owner + accountant |
 | D-51 | Stripe account for the Wyoming LLC: verified (EIN, the owner's identity, business address, a US bank account for USD payouts), Billing enabled, sandbox keys made; then the sandbox proofs in `docs/PAYMENTS_ARCHITECTURE.md` §16.8 | owner |
 | D-54 | ~~Variable charges in USD~~ **Closed 13 Nov 2026 with the move to Stripe:** auto-reload and yearly pay as you go are off-session charges on the saved card; monthly pay as you go is an invoice item on the renewal invoice (`docs/PAYMENTS_ARCHITECTURE.md` §6.4, §6.9) | — |
-| D-52 | Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows (each is unique on its own): proposed, route only when both agree, otherwise treat as an unknown number | owner |
+| D-52 | ~~Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows~~ **Decided 27 Nov 2026 (refuse and alert):** neither business; treated as an unknown number; Zella Voice admins alerted (REQ-VOX-ISO-06, §23.1e) | — |
 | D-53 | Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only (`sql/zella_workflow_alert_email.sql`, merged, not applied) | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
@@ -2236,6 +2256,13 @@ Knowledge, Automations, Reports, Team, Settings.
 | Admin pages polish (25 Nov) | Every admin page except Overview ("yes to all A and C", items A1 to A59 without the phone items): real icons, the approved weights, no text under 12px, neutral notes, number colours as a small dot, corner steps, calm wizard motion, quiet row danger buttons, readable audit changes. Polish only: features, sections and their order stay; admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin pages polish" |
 
 | Admin and CRM page audits (25 Nov) | Every item approved, "yes to all A and C" (admin A1 to A59, CRM C1 to C51), built in batches. The wording batch: labels in sentence case, "and" for "&" in the CRM, the line above each title names its sidebar place, titles match the sidebar, times, phone numbers and time zones in words (`web/src/lib/format.js`), one ellipsis for "still working", failed loads say what didn't load with Try again, empty lists offer their add button, no file names or database talk on admin screens. Frontend wording only | `docs/ZELLA_COPY_CHANGELOG.md`, `docs/PRODUCT.md` §8 and §9, `AGT-9` |
+
+### 23.1e Decided by the owner (27 Nov 2026)
+
+| Topic | Decision | Applied in |
+|---|---|---|
+| Call routing conflict (27 Nov) | "Refuse and alert": when a call's number and Vapi phone ID point to different businesses, use neither; treat it as a call for an unknown business with a neutral message naming no business; load no business configuration, caller context or records; alert Zella Voice admins through the existing admin alert | REQ-VOX-ISO-06, D-52, `TEN-12`, `sql/zella_call_routing_conflict.sql` (built, not applied) |
+| No card details (27 Nov) | A platform rule for every business that businesses can't override: the receptionist never asks for, reads back or records payment card numbers, security codes or bank details; a caller who starts to give them is politely stopped and told the business will send a secure payment link or have a staff member follow up | REQ-VOX-14, `NN-9`, `AI-25`, `sql/zella_no_card_details.sql` (built, not applied) |
 
 ### 23.3 Rulebook alignment
 
@@ -2294,7 +2321,7 @@ Everything else in this document is specified. These items need a person's input
 
 | # | Item | Who | Needed by phase |
 |---|---|---|---|
-| 1 | Platform contact ceiling (D-38); open billing decisions D-45 to D-51; D-52, D-53 | owner | before charging |
+| 1 | Platform contact ceiling (D-38); open billing decisions D-45 to D-51; D-53 (D-52 decided 27 Nov 2026) | owner | before charging |
 | 2 | Review of the proposed consent wording (§34), templates (§33), voicemail and recording disclosures, retention periods and US calling and texting rules | counsel | 5, 6, 8, 11 |
 | 3 | Terms of service, privacy policy, data-processing terms and any agreements regulated industries require (§39) | owner + counsel | 12 |
 | 4 | Remaining open decisions in §23.2 | owner | as listed |
