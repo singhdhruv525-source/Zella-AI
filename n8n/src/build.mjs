@@ -164,6 +164,55 @@ const router = wf('Zella Voice - Event Router', [
 const finishNode = (name, pos) => rpcNode(name, pos, '', "={{ JSON.stringify($json.finish.body) }}",
   { full: true, urlExpr: `={{ '${SUPABASE}/rest/v1/rpc/' + $json.finish.rpc }}` });
 
+// The business's own mailbox (sql/zella_business_email.sql): the email workflows send an email whose transport is
+// gmail or outlook through that provider. The database hands out the mailbox's refresh token for that one queued email
+// (zella_business_email_mailbox_credentials); the token boxes exchange it for an access token with Zella Voice's own
+// app registration, kept in n8n credentials (Custom Auth: client_id and client_secret in the body), named here; the
+// send box itself ships with NO credential (the access token goes in its header). Because a token passes through
+// these runs, the email workflows keep no execution data (NO_SAVED_RUNS).
+const mailToken = (name, pos, provider) => node(name, 'n8n-nodes-base.httpRequest', 4.2, pos, {
+  method: 'POST', url: provider === 'outlook' ? 'https://login.microsoftonline.com/common/oauth2/v2.0/token' : 'https://oauth2.googleapis.com/token',
+  authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth',
+  sendHeaders: true, headerParameters: { parameters: [{ name: 'Content-Type', value: 'application/x-www-form-urlencoded' }] },
+  sendBody: true, contentType: 'form-urlencoded',
+  bodyParameters: { parameters: [
+    { name: 'grant_type', value: 'refresh_token' },
+    { name: 'refresh_token', value: "={{ $('Plan mailbox').item.json.token_form.refresh_token }}" },
+    ...(provider === 'outlook' ? [{ name: 'scope', value: 'offline_access Mail.Send' }] : []),
+  ] },
+  options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+}, { credentials: { httpCustomAuth: { id: '', name: provider === 'outlook' ? 'Zella Microsoft mail client' : 'Zella Google mail client' } } });
+const mailboxNodes = () => [
+  ifBool('Is mailbox', [2280, -100], "={{ $json.transport === 'gmail' || $json.transport === 'outlook' }}"),
+  rpcNode('Get mailbox key', [2400, -400], 'zella_business_email_mailbox_credentials', '={{ JSON.stringify({ p_message_id: $json.message_id }) }}', { full: true }),
+  code('Plan mailbox', [2520, -400], 'mailbox-plan.js'),
+  ifBool('Mailbox key ok', [2640, -400], '={{ !$json.mailbox_fail }}'),
+  ifBool('Mailbox is Outlook', [2760, -400], "={{ $json.provider === 'outlook' }}"),
+  mailToken('Get Google mail token', [2880, -340], 'gmail'),
+  mailToken('Get Microsoft mail token', [2880, -460], 'outlook'),
+  code('Build mailbox send', [3000, -400], 'mailbox-build.js'),
+  ifBool('Can send', [3120, -400], '={{ !$json.mailbox_fail }}'),
+  node('Send via mailbox', 'n8n-nodes-base.httpRequest', 4.2, [3240, -400], {
+    method: 'POST', url: '={{ $json.request.url }}', authentication: 'none',
+    sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }] },
+    sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.request.body) }}',
+    options: { response: { response: { fullResponse: true, neverError: true, responseFormat: 'json' } } },
+  }),
+];
+const mailboxConnections = (send) => ({
+  'Send for real': { main: [[link('Is mailbox')], [link(send.finishName)]] },
+  'Is mailbox': { main: [[link('Get mailbox key')], [link(send.k)]] },
+  'Get mailbox key': { main: [[link('Plan mailbox')]] },
+  'Plan mailbox': { main: [[link('Mailbox key ok')]] },
+  'Mailbox key ok': { main: [[link('Mailbox is Outlook')], [link('After send')]] },
+  'Mailbox is Outlook': { main: [[link('Get Microsoft mail token')], [link('Get Google mail token')]] },
+  'Get Google mail token': { main: [[link('Build mailbox send')]] },
+  'Get Microsoft mail token': { main: [[link('Build mailbox send')]] },
+  'Build mailbox send': { main: [[link('Can send')]] },
+  'Can send': { main: [[link('Send via mailbox')], [link('After send')]] },
+  'Send via mailbox': { main: [[link('After send')]] },
+});
+
 // The same safe pipeline serves reminders and follow-up texts. Only the claim step and the small
 // Code files differ (which id, which template, how the result is reported back).
 function smsFlow(name, { claim, claimName, finishName, files, runName, email = false }) {
@@ -199,6 +248,7 @@ function smsFlow(name, { claim, claimName, finishName, files, runName, email = f
     rpcNode('Update message', [2880, -100], k.updFn, '={{ JSON.stringify($json.update) }}', { full: true }),
     code('Restore result', [3120, -100], 'sms-restore.js'),
     finishNode(finishName, [3360, 200]),
+    ...(email ? mailboxNodes() : []),
   ], {
     'Run now': { main: [[link(C)]] },
     [C]: { main: [[link('Plan')]] },
@@ -214,7 +264,8 @@ function smsFlow(name, { claim, claimName, finishName, files, runName, email = f
     'After send': { main: [[link('Update message')]] },
     'Update message': { main: [[link('Restore result')]] },
     'Restore result': { main: [[link(finishName)]] },
-  });
+    ...(email ? mailboxConnections({ k: k.send, finishName }) : {}),
+  }, email ? NO_SAVED_RUNS : {});
 }
 
 const smsSender = smsFlow('Zella Voice - SMS Sender', {

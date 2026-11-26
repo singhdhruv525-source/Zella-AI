@@ -138,7 +138,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella Voice - Email Sender: read the answer from \"prepare\" and decide what happens to this reminder.\n// Either it goes on to be logged (and maybe sent), or it is finished here: skipped with a reason, or failed.\nconst plan = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst finishSkip = (reason) => ({ json: { reminder_id: plan.reminder_id, finish: { rpc: 'zella_skip_reminder', body: { p_reminder_id: plan.reminder_id, p_reason: reason } } } });\nconst finishFail = (reason) => ({ json: { reminder_id: plan.reminder_id, finish: { rpc: 'zella_complete_reminder', body: { p_reminder_id: plan.reminder_id, p_ok: false, p_error: reason } } } });\n\nif (!(status >= 200 && status < 300)) return finishFail('The database call zella_prepare_email returned ' + status + '.');\nif (b.allowed !== true) return finishSkip(String(b.reason || 'not_allowed').slice(0, 60));\nif (b.live === true && !b.from) return finishFail('sender_address_not_set');\n// Who sends (sql/zella_business_email_send.sql): the business's verified domain or the fallback, both through Resend,\n// or its connected mailbox. Sending through a mailbox isn't built in this workflow yet, so such an email is not sent.\nconst transport = typeof b.transport === 'string' && /^[a-z_]{1,20}$/.test(b.transport) ? b.transport : 'resend';\nif (b.live === true && transport !== 'resend') return finishFail('mailbox_sending_not_built');\nconst route = typeof b.sender_route === 'string' && /^[a-z_]{1,20}$/.test(b.sender_route) ? b.sender_route : 'fallback';\n\nreturn {\n  json: {\n    reminder_id: plan.reminder_id,\n    live: b.live === true,\n    transport,\n    from: b.from || null,\n    from_name: b.from_name || '',\n    reply_to: b.reply_to || null,\n    to: b.to,\n    subject: b.subject,\n    text: b.body_text,\n    html: b.body_html,\n    finish: null,\n    log: {\n      p_business_id: plan.business_id,\n      p_customer_id: plan.customer_id,\n      p_to: b.to,\n      p_from: b.from || '',\n      p_subject: b.subject,\n      p_body_text: b.body_text,\n      p_body_html: b.body_html,\n      p_dedupe_key: 'reminder:' + plan.reminder_id,\n      p_status: b.live === true ? 'queued' : 'dry_run',\n      p_meta: { reminder_id: plan.reminder_id, template_id: b.template_id, template_version: b.template_version, dry_run: b.live !== true, transport, sender_route: route },\n    },\n  },\n};\n"
+        "jsCode": "// Zella Voice - Email Sender: read the answer from \"prepare\" and decide what happens to this reminder.\n// Either it goes on to be logged (and maybe sent), or it is finished here: skipped with a reason, or failed.\nconst plan = $('Plan').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst finishSkip = (reason) => ({ json: { reminder_id: plan.reminder_id, finish: { rpc: 'zella_skip_reminder', body: { p_reminder_id: plan.reminder_id, p_reason: reason } } } });\nconst finishFail = (reason) => ({ json: { reminder_id: plan.reminder_id, finish: { rpc: 'zella_complete_reminder', body: { p_reminder_id: plan.reminder_id, p_ok: false, p_error: reason } } } });\n\nif (!(status >= 200 && status < 300)) return finishFail('The database call zella_prepare_email returned ' + status + '.');\nif (b.allowed !== true) return finishSkip(String(b.reason || 'not_allowed').slice(0, 60));\nif (b.live === true && !b.from) return finishFail('sender_address_not_set');\n// Who sends (sql/zella_business_email_send.sql): the business's verified domain or the fallback, both through Resend,\n// or its connected mailbox through Gmail or Microsoft Graph. Anything else is Resend.\nconst transport = b.transport === 'gmail' || b.transport === 'outlook' ? b.transport : 'resend';\nconst route = typeof b.sender_route === 'string' && /^[a-z_]{1,20}$/.test(b.sender_route) ? b.sender_route : 'fallback';\n\nreturn {\n  json: {\n    reminder_id: plan.reminder_id,\n    live: b.live === true,\n    transport,\n    from: b.from || null,\n    from_name: b.from_name || '',\n    reply_to: b.reply_to || null,\n    to: b.to,\n    subject: b.subject,\n    text: b.body_text,\n    html: b.body_html,\n    finish: null,\n    log: {\n      p_business_id: plan.business_id,\n      p_customer_id: plan.customer_id,\n      p_to: b.to,\n      p_from: b.from || '',\n      p_subject: b.subject,\n      p_body_text: b.body_text,\n      p_body_html: b.body_html,\n      p_dedupe_key: 'reminder:' + plan.reminder_id,\n      p_status: b.live === true ? 'queued' : 'dry_run',\n      p_meta: { reminder_id: plan.reminder_id, template_id: b.template_id, template_version: b.template_version, dry_run: b.live !== true, transport, sender_route: route },\n    },\n  },\n};\n"
       },
       "id": "a26b9b74-779f-41b0-8b15-7fe84ca0f28e",
       "name": "Decide",
@@ -220,7 +220,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella Voice - Email Sender: after the email is logged, decide whether to really send.\n// A repeat of the same reminder is never sent twice. In dry-run nothing is sent.\nconst d = $('Decide').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst done = (rpc, body) => ({ json: { reminder_id: d.reminder_id, finish: { rpc, body } } });\n\nif (!(status >= 200 && status < 300)) {\n  return done('zella_complete_reminder', { p_reminder_id: d.reminder_id, p_ok: false, p_error: 'The database call zella_log_outbound_email returned ' + status + '.' });\n}\nif (b.duplicate === true) {\n  if (b.status === 'sent' || b.status === 'delivered') return done('zella_complete_reminder', { p_reminder_id: d.reminder_id, p_ok: true });\n  return done('zella_skip_reminder', { p_reminder_id: d.reminder_id, p_reason: 'duplicate_suppressed' });\n}\nif (d.live !== true) return done('zella_skip_reminder', { p_reminder_id: d.reminder_id, p_reason: 'dry_run: no email was sent' });\n\nconst name = String(d.from_name || '').replace(/[\\r\\n\"<>]+/g, ' ').trim();\nconst resend = { from: name ? name + ' <' + d.from + '>' : d.from, to: [d.to], subject: d.subject, text: d.text, html: d.html };\nif (d.reply_to) resend.reply_to = d.reply_to;\nreturn { json: { reminder_id: d.reminder_id, message_id: b.id, finish: null, resend } };\n"
+        "jsCode": "// Zella Voice - Email Sender: after the email is logged, decide whether to really send.\n// A repeat of the same reminder is never sent twice. In dry-run nothing is sent.\nconst d = $('Decide').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst done = (rpc, body) => ({ json: { reminder_id: d.reminder_id, finish: { rpc, body } } });\n\nif (!(status >= 200 && status < 300)) {\n  return done('zella_complete_reminder', { p_reminder_id: d.reminder_id, p_ok: false, p_error: 'The database call zella_log_outbound_email returned ' + status + '.' });\n}\nif (b.duplicate === true) {\n  if (b.status === 'sent' || b.status === 'delivered') return done('zella_complete_reminder', { p_reminder_id: d.reminder_id, p_ok: true });\n  return done('zella_skip_reminder', { p_reminder_id: d.reminder_id, p_reason: 'duplicate_suppressed' });\n}\nif (d.live !== true) return done('zella_skip_reminder', { p_reminder_id: d.reminder_id, p_reason: 'dry_run: no email was sent' });\n\n// the business's own mailbox (Gmail, Outlook): the mailbox path sends it (mailbox-plan.js, mailbox-build.js)\nif (d.transport === 'gmail' || d.transport === 'outlook') {\n  return { json: { reminder_id: d.reminder_id, message_id: b.id, finish: null, transport: d.transport,\n    mail: { from: d.from, from_name: d.from_name, to: d.to, reply_to: d.reply_to, subject: d.subject, text: d.text, html: d.html } } };\n}\nconst name = String(d.from_name || '').replace(/[\\r\\n\"<>]+/g, ' ').trim();\nconst resend = { from: name ? name + ' <' + d.from + '>' : d.from, to: [d.to], subject: d.subject, text: d.text, html: d.html };\nif (d.reply_to) resend.reply_to = d.reply_to;\nreturn { json: { reminder_id: d.reminder_id, message_id: b.id, finish: null, transport: 'resend', resend } };\n"
       },
       "id": "3389b79f-e885-4824-82a9-7506f5e23600",
       "name": "After log",
@@ -295,7 +295,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Zella Voice - Email Sender: turn the provider's answer into the message update and the reminder result.\n// The provider's response text is never stored, only its status and a short error name.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nconst externalId = b.id ? String(b.id) : null;\nconst ok = status >= 200 && status < 300 && !!externalId;\nconst name = typeof b.name === 'string' && /^[a-z_]{1,40}$/.test(b.name) ? ' (' + b.name + ')' : '';\nconst error = ok ? null : 'The email provider returned ' + status + name + '.';\n\nreturn {\n  json: {\n    reminder_id: prev.reminder_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: { rpc: 'zella_complete_reminder', body: ok ? { p_reminder_id: prev.reminder_id, p_ok: true } : { p_reminder_id: prev.reminder_id, p_ok: false, p_error: error } },\n  },\n};\n"
+        "jsCode": "// Zella Voice - Email Sender: turn the provider's answer into the message update and the reminder result.\n// The provider's response text is never stored, only its status and a short error name. A mailbox that refused for its\n// daily limit or its sign in goes to zella_business_email_mailbox_refused: the reminder is due again at once, without\n// using up a try, and goes out through the fallback (sql/zella_business_email.sql).\n// Zella Voice - the business's own mailbox (Gmail, Outlook): what the provider's answer to one send means. Shared by the\n// Email Sender and Follow-up Emails (inlined into their After send steps). Only a status, a short name and our own id\n// are kept: never the provider's text. refused: \"quota\" (its daily sending limit: the rest of the business's day goes\n// through the fallback) or \"sign_in\" (the mailbox needs reconnecting); both go to zella_business_email_mailbox_refused.\nfunction mailboxResult(transport, status, body, fail, messageId) {\n  if (fail === 'sign_in') return { ok: false, refused: 'sign_in', external_id: null, error: 'The mailbox sign in no longer works; it needs reconnecting.' };\n  if (fail === 'not_connected') return { ok: false, refused: null, external_id: null, error: 'The mailbox is not connected any more; trying again.' };\n  if (fail) return { ok: false, refused: null, external_id: null, error: 'No answer from the mailbox sign in; trying again later.' };\n  const b = body && typeof body === 'object' ? body : {};\n  const err = b.error && typeof b.error === 'object' ? b.error : {};\n  const name = (s) => (typeof s === 'string' && /^[A-Za-z_]{1,60}$/.test(s) ? ' (' + s + ')' : '');\n  if (transport === 'gmail') {\n    if (status >= 200 && status < 300 && typeof b.id === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(b.id)) return { ok: true, refused: null, external_id: 'gmail:' + b.id, error: null };\n    const reasons = Array.isArray(err.errors) ? err.errors.map((e) => (e && typeof e.reason === 'string' ? e.reason : '')) : [];\n    if (status === 429 || err.status === 'RESOURCE_EXHAUSTED' || reasons.some((r) => ['dailyLimitExceeded', 'userRateLimitExceeded', 'rateLimitExceeded', 'quotaExceeded', 'limitExceeded'].includes(r))) {\n      return { ok: false, refused: 'quota', external_id: null, error: 'Gmail refused: its daily sending limit.' };\n    }\n    if (status === 401 || reasons.includes('authError') || reasons.includes('insufficientPermissions')) return { ok: false, refused: 'sign_in', external_id: null, error: 'Gmail refused the sign in; it needs reconnecting.' };\n    return { ok: false, refused: null, external_id: null, error: isNaN(status) ? 'No answer from Gmail (timed out); trying again later.' : 'Gmail returned ' + status + name(reasons[0]) + '.' };\n  }\n  // Microsoft Graph sendMail answers 202 Accepted with no body and no id: our own message id stands in for it\n  if (status >= 200 && status < 300) return { ok: true, refused: null, external_id: 'graph:' + String(messageId || '').replace(/[^0-9a-f-]/gi, '').slice(0, 40), error: null };\n  const code = typeof err.code === 'string' ? err.code : '';\n  if (status === 429 || ['ErrorExceededMessageLimit', 'ErrorQuotaExceeded', 'ErrorSubmissionQuotaExceeded'].includes(code)) {\n    return { ok: false, refused: 'quota', external_id: null, error: 'Outlook refused: its daily sending limit.' };\n  }\n  if (status === 401 || ['InvalidAuthenticationToken', 'ErrorAccessDenied', 'Authorization_RequestDenied'].includes(code)) return { ok: false, refused: 'sign_in', external_id: null, error: 'Outlook refused the sign in; it needs reconnecting.' };\n  return { ok: false, refused: null, external_id: null, error: isNaN(status) ? 'No answer from Outlook (timed out); trying again later.' : 'Outlook returned ' + status + name(code) + '.' };\n}\n\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nlet ok, externalId, error, refused = null;\nif (prev.transport === 'gmail' || prev.transport === 'outlook') {\n  const r = mailboxResult(prev.transport, status, $json.body, $json.mailbox_fail, prev.message_id);\n  ok = r.ok; externalId = r.external_id; error = r.error; refused = r.refused;\n} else {\n  externalId = b.id ? String(b.id) : null;\n  ok = status >= 200 && status < 300 && !!externalId;\n  const name = typeof b.name === 'string' && /^[a-z_]{1,40}$/.test(b.name) ? ' (' + b.name + ')' : '';\n  error = ok ? null : 'The email provider returned ' + status + name + '.';\n}\n\nreturn {\n  json: {\n    reminder_id: prev.reminder_id,\n    update: { p_id: prev.message_id, p_status: ok ? 'sent' : 'failed', p_external_id: externalId, p_error: error },\n    finish: refused ? { rpc: 'zella_business_email_mailbox_refused', body: { p_message_id: prev.message_id, p_reason: refused } }\n      : { rpc: 'zella_complete_reminder', body: ok ? { p_reminder_id: prev.reminder_id, p_ok: true } : { p_reminder_id: prev.reminder_id, p_ok: false, p_error: error } },\n  },\n};\n"
       },
       "id": "b7016995-6b2a-4faf-8e0b-8124952d1931",
       "name": "After send",
@@ -389,6 +389,352 @@
           "name": "Zella Supabase service role"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6defe9da-a7d2-48b6-83c9-52ed69adb8ee",
+              "leftValue": "={{ $json.transport === 'gmail' || $json.transport === 'outlook' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a726c4ec-961f-4cc5-87f2-7e5e3032eee0",
+      "name": "Is mailbox",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://pffqxlumqhjdbzvvoszm.supabase.co/rest/v1/rpc/zella_business_email_mailbox_credentials",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_message_id: $json.message_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "f100442e-cf21-46b1-860d-2b1704e66cc6",
+      "name": "Get mailbox key",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        -400
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Supabase service role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella Voice - the business's own mailbox: after the database handed out the mailbox's sign in for this one email\n// (zella_business_email_mailbox_credentials), get ready to ask the provider for a short lived access token.\n// The refresh token passes through this run only; these workflows keep no execution data.\nconst prev = $('After log').item.json;\nconst status = Number($json.statusCode);\nconst b = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (!(status >= 200 && status < 300) || b.ok !== true || typeof b.refresh_token !== 'string' || !b.refresh_token || b.provider !== prev.transport) {\n  return { json: { mailbox_fail: 'not_connected', provider: prev.transport, token_form: null } };\n}\nreturn { json: { mailbox_fail: null, provider: b.provider, token_form: { refresh_token: b.refresh_token } } };\n"
+      },
+      "id": "821e2f8b-1cd2-4037-8c02-07bdeca97505",
+      "name": "Plan mailbox",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2520,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "80ba570f-7eb2-4307-8142-1c36d67103b8",
+              "leftValue": "={{ !$json.mailbox_fail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "855b9ae9-bbbd-432f-887d-2173ac135904",
+      "name": "Mailbox key ok",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "89a44a05-e6f1-4a4e-8607-a0711b4d43f1",
+              "leftValue": "={{ $json.provider === 'outlook' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "63558945-64a2-4432-8fdd-7368ab0f45fd",
+      "name": "Mailbox is Outlook",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2760,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth2.googleapis.com/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $('Plan mailbox').item.json.token_form.refresh_token }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "77f5cc57-b816-42c4-8bab-1c4ec9ea2d47",
+      "name": "Get Google mail token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        -340
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Google mail client"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $('Plan mailbox').item.json.token_form.refresh_token }}"
+            },
+            {
+              "name": "scope",
+              "value": "offline_access Mail.Send"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "eaa685ce-db6e-4838-8c36-bcd0bacde2df",
+      "name": "Get Microsoft mail token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        -460
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "",
+          "name": "Zella Microsoft mail client"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Zella Voice - the business's own mailbox: with the access token, build the one send request. Gmail takes the whole\n// email (RFC 5322, base64url, users.messages.send); Microsoft Graph takes a message (sendMail; it sends from the signed\n// in account). Header values are made safe: no line breaks, a name that isn't plain ASCII is encoded.\nconst prev = $('After log').item.json;\nconst plan = $('Plan mailbox').item.json;\nconst status = Number($json.statusCode);\nconst t = $json.body && typeof $json.body === 'object' ? $json.body : {};\nif (!(status >= 200 && status < 300) || typeof t.access_token !== 'string' || !t.access_token) {\n  return { json: { mailbox_fail: t.error === 'invalid_grant' ? 'sign_in' : 'token_failed' } };\n}\nconst m = prev.mail || {};\nconst one = (s) => String(s == null ? '' : s).replace(/[\\r\\n]+/g, ' ').trim();\nconst addr = (s) => { const a = one(s).toLowerCase(); return /^[^@\\s,;<>\"]+@[^@\\s,;<>\"]+\\.[^@\\s,;<>\"]+$/.test(a) ? a : null; };\nconst to = addr(m.to), from = addr(m.from), replyTo = addr(m.reply_to);\nif (!to || !from) return { json: { mailbox_fail: 'token_failed' } };\n\nif (plan.provider === 'outlook') {\n  const message = { subject: one(m.subject).slice(0, 300), body: { contentType: 'HTML', content: String(m.html || '') }, toRecipients: [{ emailAddress: { address: to } }] };\n  if (replyTo) message.replyTo = [{ emailAddress: { address: replyTo } }];\n  return { json: { mailbox_fail: null, access_token: t.access_token, request: { url: 'https://graph.microsoft.com/v1.0/me/sendMail', body: { message, saveToSentItems: true } } } };\n}\n\nconst b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');\nconst word = (s) => (/^[\\x20-\\x7e]*$/.test(s) ? s : '=?UTF-8?B?' + b64(s) + '?=');\nconst wrap = (s) => s.replace(/.{1,76}/g, '$&\\r\\n');\nconst name = one(m.from_name).replace(/[\"<>\\\\]/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 80);\nconst boundary = 'zella_voice_' + String(prev.message_id || 'x').replace(/[^0-9a-z]/gi, '').slice(0, 40);\nconst headers = [\n  'From: ' + (name ? (/^[\\x20-\\x7e]*$/.test(name) ? '\"' + name + '\"' : word(name)) + ' <' + from + '>' : from),\n  'To: ' + to,\n  ...(replyTo ? ['Reply-To: ' + replyTo] : []),\n  'Subject: ' + word(one(m.subject).slice(0, 300)),\n  ...(typeof m.unsubscribe_url === 'string' && /^https:\\/\\/[^\\s<>]+$/.test(m.unsubscribe_url) ? ['List-Unsubscribe: <' + m.unsubscribe_url + '>'] : []),\n  'MIME-Version: 1.0',\n  'Content-Type: multipart/alternative; boundary=\"' + boundary + '\"',\n];\nconst mime = headers.join('\\r\\n') + '\\r\\n\\r\\n'\n  + '--' + boundary + '\\r\\nContent-Type: text/plain; charset=\"UTF-8\"\\r\\nContent-Transfer-Encoding: base64\\r\\n\\r\\n' + wrap(b64(m.text || ''))\n  + '--' + boundary + '\\r\\nContent-Type: text/html; charset=\"UTF-8\"\\r\\nContent-Transfer-Encoding: base64\\r\\n\\r\\n' + wrap(b64(m.html || ''))\n  + '--' + boundary + '--\\r\\n';\nconst raw = b64(mime).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');\nreturn { json: { mailbox_fail: null, access_token: t.access_token, request: { url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send', body: { raw } } } };\n"
+      },
+      "id": "b48f3ec0-9e01-4612-8e7d-6cc9c647d647",
+      "name": "Build mailbox send",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3000,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1784d700-061f-423a-8697-754d8873347d",
+              "leftValue": "={{ !$json.mailbox_fail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3e5974a3-cb76-418e-83e2-68419af6ddbb",
+      "name": "Can send",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.request.url }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "3d1c3969-826b-4dbb-8629-e930d4bdd989",
+      "name": "Send via mailbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3240,
+        -400
+      ]
     }
   ],
   "connections": {
@@ -509,7 +855,7 @@
       "main": [
         [
           {
-            "node": "Send via Resend",
+            "node": "Is mailbox",
             "type": "main",
             "index": 0
           }
@@ -566,6 +912,144 @@
           }
         ]
       ]
+    },
+    "Is mailbox": {
+      "main": [
+        [
+          {
+            "node": "Get mailbox key",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send via Resend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get mailbox key": {
+      "main": [
+        [
+          {
+            "node": "Plan mailbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan mailbox": {
+      "main": [
+        [
+          {
+            "node": "Mailbox key ok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mailbox key ok": {
+      "main": [
+        [
+          {
+            "node": "Mailbox is Outlook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "After send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mailbox is Outlook": {
+      "main": [
+        [
+          {
+            "node": "Get Microsoft mail token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Google mail token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Google mail token": {
+      "main": [
+        [
+          {
+            "node": "Build mailbox send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Microsoft mail token": {
+      "main": [
+        [
+          {
+            "node": "Build mailbox send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build mailbox send": {
+      "main": [
+        [
+          {
+            "node": "Can send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can send": {
+      "main": [
+        [
+          {
+            "node": "Send via mailbox",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "After send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via mailbox": {
+      "main": [
+        [
+          {
+            "node": "After send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -573,7 +1057,10 @@
     "executionOrder": "v1",
     "executionTimeout": 300,
     "errorWorkflow": "4faaad69-b218-457c-86b2-974fd4ad915f",
-    "saveDataSuccessExecution": "none"
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
   },
   "pinData": {},
   "meta": {

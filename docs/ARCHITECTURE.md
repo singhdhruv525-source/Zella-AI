@@ -1444,6 +1444,29 @@ flowchart TD
   permission is the edge function secret `RESEND_DOMAINS_API_KEY`, in the same Resend account as the sending key, so
   a verified domain can send. Every call to Resend has a 10 second limit; Resend's own error text never reaches the
   page.
+- **Connecting a mailbox** (`business-email`, `sql/zella_business_email_mailbox.sql`, Settings > SMS, email and
+  messages > Business email address): the calendar-connect pattern. Only the business's own owner or admin
+  (`zella_business_email_mailbox_can_connect`; never Zella Voice staff) starts it; a random value for this one sign in
+  is stored (hash only) in `oauth_states` under `gmail` or `outlook_mail`, kept apart from the calendar's `google` and
+  `outlook` (the signed state names them too, so the calendar's check refuses a mailbox state); the provider's page
+  asks for `gmail.send` (Google; never a read scope) or `Mail.Send` (Microsoft); the provider sends the person back,
+  the code goes on to the app in the address fragment, and the same signed in person finishes it: the value is used up
+  once, the code exchanged, the refresh token stored in Vault (`_mailbox_saved`) and a domain set up before removed at
+  Resend. The From address is the mailbox's own account (from the ID token). Secrets: `GOOGLE_MAIL_CLIENT_ID`,
+  `GOOGLE_MAIL_CLIENT_SECRET`, `MICROSOFT_MAIL_CLIENT_ID`, `MICROSOFT_MAIL_CLIENT_SECRET`, optional
+  `MAILBOX_REDIRECT_URL`.
+- **Sending through a mailbox** (n8n Email Sender and Follow up Emails): an email logged with transport `gmail` or
+  `outlook` goes `Is mailbox` → `Get mailbox key` (`zella_business_email_mailbox_credentials`, this queued email only)
+  → the provider's token box (Custom Auth credentials `Zella Google mail client`, `Zella Microsoft mail client`) →
+  `Build mailbox send` (Gmail: the whole email, RFC 5322, base64url, `users.messages.send`; Graph: `sendMail` with
+  Reply-To, saved to Sent Items; header values can't carry line breaks; a name that isn't plain ASCII is encoded) →
+  `Send via mailbox` (no credential; the access token in its header). Gmail's answer carries an id; Graph answers 202
+  with none, so the record keeps `graph:<our id>`. A quota refusal (Gmail 429, `dailyLimitExceeded` and the like,
+  `RESOURCE_EXHAUSTED`; Graph 429, `ErrorExceededMessageLimit`) or a sign in refusal (401, `invalid_grant` at the token
+  box) finishes with `zella_business_email_mailbox_refused`; anything else is a normal retry. Both workflows keep no
+  execution data (a token passes through). Graph can't add a List-Unsubscribe header (custom headers must start with
+  x-), so marketing through Outlook carries the unsubscribe link in the body only, and Graph sends with the account's
+  own display name rather than the business name.
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them

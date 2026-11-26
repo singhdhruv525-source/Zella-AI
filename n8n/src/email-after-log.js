@@ -14,7 +14,12 @@ if (b.duplicate === true) {
 }
 if (d.live !== true) return done('zella_skip_reminder', { p_reminder_id: d.reminder_id, p_reason: 'dry_run: no email was sent' });
 
+// the business's own mailbox (Gmail, Outlook): the mailbox path sends it (mailbox-plan.js, mailbox-build.js)
+if (d.transport === 'gmail' || d.transport === 'outlook') {
+  return { json: { reminder_id: d.reminder_id, message_id: b.id, finish: null, transport: d.transport,
+    mail: { from: d.from, from_name: d.from_name, to: d.to, reply_to: d.reply_to, subject: d.subject, text: d.text, html: d.html } } };
+}
 const name = String(d.from_name || '').replace(/[\r\n"<>]+/g, ' ').trim();
 const resend = { from: name ? name + ' <' + d.from + '>' : d.from, to: [d.to], subject: d.subject, text: d.text, html: d.html };
 if (d.reply_to) resend.reply_to = d.reply_to;
-return { json: { reminder_id: d.reminder_id, message_id: b.id, finish: null, resend } };
+return { json: { reminder_id: d.reminder_id, message_id: b.id, finish: null, transport: 'resend', resend } };

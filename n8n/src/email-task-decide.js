@@ -9,9 +9,8 @@ if (!(status >= 200 && status < 300)) return fail('The database call zella_prepa
 if (b.allowed !== true) return skip(String(b.reason || 'not_allowed').slice(0, 60));
 if (b.live === true && !b.from) return fail('sender_address_not_set');
 // Who sends (sql/zella_business_email_send.sql): the business's verified domain or the fallback, both through Resend,
-// or its connected mailbox. Sending through a mailbox isn't built in this workflow yet, so such an email is not sent.
-const transport = typeof b.transport === 'string' && /^[a-z_]{1,20}$/.test(b.transport) ? b.transport : 'resend';
-if (b.live === true && transport !== 'resend') return fail('mailbox_sending_not_built');
+// or its connected mailbox through Gmail or Microsoft Graph. Anything else is Resend.
+const transport = b.transport === 'gmail' || b.transport === 'outlook' ? b.transport : 'resend';
 const route = typeof b.sender_route === 'string' && /^[a-z_]{1,20}$/.test(b.sender_route) ? b.sender_route : 'fallback';
 
 return {

@@ -17,7 +17,9 @@ const settings = (rows: { key: string; value: unknown }[]) => {
 Deno.test("every secret the platform reads is listed, including the email key and the five calendar app names", () => {
   const keys = SERVER_SECRETS.map((s) => s.key);
   for (const k of ["ZELLA_APP_URL", "ZELLA_SERVER_SECRET_KEY", "RESEND_API_KEY", "N8N_WEBHOOK_URL", "VAPI_API_KEY", "TELNYX_API_KEY", "STRIPE_WEBHOOK_SECRET",
-    "GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "MICROSOFT_CALENDAR_CLIENT_ID", "MICROSOFT_CALENDAR_CLIENT_SECRET", "CALENDAR_REDIRECT_URL"]) {
+    "GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "MICROSOFT_CALENDAR_CLIENT_ID", "MICROSOFT_CALENDAR_CLIENT_SECRET", "CALENDAR_REDIRECT_URL",
+    // business-email
+    "RESEND_DOMAINS_API_KEY", "GOOGLE_MAIL_CLIENT_ID", "GOOGLE_MAIL_CLIENT_SECRET", "MICROSOFT_MAIL_CLIENT_ID", "MICROSOFT_MAIL_CLIENT_SECRET", "MAILBOX_REDIRECT_URL"]) {
     assert(keys.includes(k), `${k} missing`);
   }
   assertEquals(new Set(keys).size, keys.length, "no name twice");

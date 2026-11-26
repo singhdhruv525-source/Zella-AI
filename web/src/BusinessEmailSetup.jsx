@@ -77,7 +77,7 @@ export default function BusinessEmailSetup({ businessId, Badge }) {
       <div className="wiz-choice-row" role="group" aria-label="How the business sends">
         {[
           ["domain", "The business's own domain", "The business adds a few DNS records. Works with any mail service and has no daily limit."],
-          ["mailbox", "Gmail or Outlook mailbox", "The owner connects the mailbox after signing in to Zella Voice, in Settings, Business email. Not available yet."],
+          ["mailbox", "Gmail or Outlook mailbox", "The owner or an admin of the business connects it after signing in to Zella Voice: Settings, SMS, email and messages, Business email address."],
         ].map(([key, label, text]) => (
           <button type="button" key={key} className={`wiz-choice ${route === key ? "selected" : ""}`} aria-pressed={route === key} onClick={() => setRoute(key)}>
             <strong>{label}</strong>
@@ -151,7 +151,7 @@ export default function BusinessEmailSetup({ businessId, Badge }) {
       )}
 
       {route === "mailbox" && (
-        <p className="wiz-hint">Connecting Gmail or Outlook isn't available yet. Until then, use the business's own domain, or keep Zella Voice's address with replies going to the business.</p>
+        <p className="wiz-hint">The business signs in to its own Gmail or Outlook itself, from Settings, SMS, email and messages, Business email address, once its owner has accepted the invitation. Zella Voice never asks for that password. Until then, customer emails use Zella Voice's address with replies going to the business.</p>
       )}
 
       {notice && <p className="wiz-hint" role="status">{notice}</p>}

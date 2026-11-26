@@ -141,6 +141,18 @@ Resend). Owner steps: a Resend API key with domain permission (full access) in t
 key, saved as the edge function secret `RESEND_DOMAINS_API_KEY`; deploy `business-email` and the web app; each with
 approval.
 
+**Business email address, part 5 (26 Nov 2026):** connecting Gmail or Outlook and sending through it are built, not
+applied, deployed or imported (`sql/zella_business_email_mailbox.sql`, `tests/business_email_mailbox/run.sh`;
+`business-email` mailbox sign in, tested with Google, Microsoft, Auth and the database mocked; Settings > SMS, email
+and messages > Business email address; n8n Email Sender and Follow up Emails with the mailbox path and no saved run
+data). Only the business's own owner or admin connects a mailbox, never Zella Voice staff. Needs
+`sql/zella_oauth_states.sql` applied first. Owner steps (`n8n/GO-LIVE.md` 12a): Google Cloud OAuth client with
+`gmail.send` and Google's app verification for that scope; Microsoft Entra app with delegated `Mail.Send`; the secrets
+`GOOGLE_MAIL_CLIENT_ID`, `GOOGLE_MAIL_CLIENT_SECRET`, `MICROSOFT_MAIL_CLIENT_ID`, `MICROSOFT_MAIL_CLIENT_SECRET`
+(optional `MAILBOX_REDIRECT_URL`); the n8n credentials `Zella Google mail client` and `Zella Microsoft mail client`;
+then `business_email_routes.mailbox` on, with approval. Known limits: Graph can't set a List-Unsubscribe header or the
+business name as the sender name (the account's own display name shows).
+
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.

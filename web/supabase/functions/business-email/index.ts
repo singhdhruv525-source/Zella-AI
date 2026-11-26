@@ -7,14 +7,23 @@
 //        the setup page can show them step by step. A domain this business set up before is removed at Resend.
 //   POST { action: "domain_verify", business_id }            Resend checks the records again; Verified or not yet
 //   POST { action: "disconnect", business_id }               back to the fallback; the domain is removed at Resend
+//   Connecting a Gmail or Outlook mailbox (only the business's own owner or admin, who signs in themselves):
+//   POST { action: "mailbox_start", business_id, provider }  answers { url } for the provider's sign in; a random value
+//        for this one sign in is stored (its hash) for that person, business and mailbox, five minutes
+//   GET  ?code=...&state=...                                 the provider sends the person back; nothing is exchanged
+//        here: the code and state go on to the app in the address fragment (never sent to a server)
+//   POST { action: "mailbox_finish", code, state }           the SAME person, signed in: the stored value is used up once,
+//        the code is exchanged for a refresh token, which the database stores in Vault; a domain set up before is
+//        removed at Resend
 // Thin adapter (ARC-3): it authenticates, asks the database, calls Resend once or twice with a time limit, reports
 // to the database and answers in short names. Resend's own error text, the key and any token never leave it.
-// verify_jwt is off (config.toml) so the mailbox sign in can come back here later; the sign in is checked through Auth.
+// verify_jwt is off (config.toml): the provider's redirect carries no Supabase sign in. Every POST is checked through Auth.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { withCors } from "../_shared/cors.ts";
 import { checkLimits, idKey, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
 import { alreadyAdded, domainStatus, findDomain, readDomain, reason, RESEND, UUID } from "./logic.ts";
+import { accountEmail, MAIL, type Mailbox, MAILBOXES, mailAuthorizeUrl, mailTokenForm, newNonce, nonceHash, problem, signMailState, STATE_PROVIDER, STATE_SECONDS, verifyMailState } from "./oauth.ts";
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -64,13 +73,100 @@ async function resend(key: string, method: string, path: string, body?: unknown)
   } catch (error) { console.error("resend", method, error instanceof Error ? error.name : "unknown"); return { status: 0, body: null }; }
 }
 
+const mailClient = (p: Mailbox) => p === "gmail"
+  ? { id: env("GOOGLE_MAIL_CLIENT_ID"), secret: env("GOOGLE_MAIL_CLIENT_SECRET") }
+  : { id: env("MICROSOFT_MAIL_CLIENT_ID"), secret: env("MICROSOFT_MAIL_CLIENT_SECRET") };
+const mailRedirect = () => env("MAILBOX_REDIRECT_URL") || `${env("SUPABASE_URL")}/functions/v1/business-email`;
+
+// The mailbox sign in: start, the provider's redirect back, finish (the same pattern as calendar-connect).
+async function mailbox(req: Request, body: Record<string, unknown> | null, base: string, server: string, anon: string): Promise<Response> {
+  const linkSecret = env("ZELLA_LINK_SECRET"), app = env("ZELLA_APP_URL");
+  if (linkSecret.length < 32 || !app) return json({ ok: false, error: "not_configured" }, 503);
+  const page = `${app.replace(/\/+$/, "")}/app/settings/messages/business-email`;
+
+  if (req.method === "GET") {
+    const q = new URL(req.url).searchParams;
+    const back = (outcome: string, why?: string) => Response.redirect(`${page}?mailbox=${outcome}${why ? `&reason=${encodeURIComponent(why)}` : ""}`, 302);
+    const token = q.get("state") ?? "";
+    if (!(await verifyMailState(linkSecret, token))) return back("error", "link_expired");
+    if (q.get("error")) return back("cancelled", problem(q.get("error")));
+    const code = q.get("code");
+    if (!code || code.length > 4096) return back("error", "no_code");
+    // nothing is exchanged here: the signed in app finishes it (a fragment never reaches a server or a Referer)
+    return Response.redirect(`${page}#${new URLSearchParams({ mailbox_code: code, mailbox_state: token })}`, 302);
+  }
+
+  const who = await signedIn(req, base, anon, server);
+  if (!who.ok) return who.res;
+  const mine = await limit(base, server, [`business-email:user:${who.id}`, USER_LIMIT.max, USER_LIMIT.seconds]);
+  if (mine) return mine;
+
+  if (body?.action === "mailbox_start") {
+    const p = body.provider as Mailbox, biz = String(body.business_id ?? "");
+    if (!MAILBOXES.includes(p) || !UUID.test(biz)) return json({ ok: false, error: "bad_request" }, 400);
+    const can = await rpcValue(base, server, "zella_business_email_mailbox_can_connect", { p_business_id: biz, p_actor: who.id });
+    if (can === null) return json({ ok: false, error: "try_again" }, 502);
+    if (can !== true) return json({ ok: false, error: "not_allowed" }, 403);
+    const theirs = await limit(base, server, [`business-email:business:${idKey(biz)}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+    if (theirs) return theirs;
+    const c = mailClient(p);
+    if (!c.id || !c.secret) return json({ ok: false, error: "provider_not_configured", provider: p }, 503);
+    const n = newNonce();
+    const issued = await rpcValue(base, server, "zella_oauth_state_issue", { p_nonce_hash: await nonceHash(n), p_user_id: who.id, p_business_id: biz, p_provider: STATE_PROVIDER[p], p_seconds: STATE_SECONDS });
+    if (issued !== true) return json({ ok: false, error: "try_again" }, 502);
+    return json({ ok: true, url: mailAuthorizeUrl(p, c.id, mailRedirect(), await signMailState(linkSecret, { b: biz, p, u: who.id, n })) }, 200);
+  }
+
+  // mailbox_finish
+  const code = typeof body?.code === "string" ? body.code : "", token = typeof body?.state === "string" ? body.state : "";
+  if (!code || code.length > 4096 || !token || token.length > 2048) return json({ ok: false, error: "bad_request" }, 400);
+  const s = await verifyMailState(linkSecret, token);
+  if (!s) return json({ ok: false, error: "link_expired" }, 400);
+  // the person finishing must be the person who started: someone else approving another owner's sign in is refused
+  if (s.u !== who.id) return json({ ok: false, error: "not_your_sign_in" }, 403);
+  const theirs = await limit(base, server, [`business-email:business:${idKey(s.b)}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+  if (theirs) return theirs;
+  const used = await rpcValue(base, server, "zella_oauth_state_consume", { p_nonce_hash: await nonceHash(s.n), p_user_id: s.u, p_business_id: s.b, p_provider: STATE_PROVIDER[s.p] });
+  if (used === null) return json({ ok: false, error: "try_again" }, 502);
+  if (used !== true) return json({ ok: false, error: "link_expired" }, 400);   // used already, expired, or never issued
+  const c = mailClient(s.p);
+  if (!c.id || !c.secret) return json({ ok: false, error: "provider_not_configured" }, 503);
+  let t: Record<string, unknown> = {}, okExchange = false;
+  try {
+    const tok = await fetch(MAIL[s.p].token, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: mailTokenForm(s.p, c.id, c.secret, mailRedirect(), code), signal: AbortSignal.timeout(T) });
+    okExchange = tok.ok; t = await tok.json().catch(() => ({}));
+  } catch (error) { console.error("token exchange", error instanceof Error ? error.name : "unknown"); return json({ ok: false, error: "provider_unavailable" }, 502); }
+  if (!okExchange || typeof t.refresh_token !== "string") return json({ ok: false, error: okExchange ? "no_refresh_token" : problem(t.error ?? "token_exchange_failed") }, 400);
+  const account = accountEmail(t.id_token);
+  if (!account) return json({ ok: false, error: "no_account_email" }, 400);
+  const saved = await rpc(base, server, "zella_business_email_mailbox_saved", { p_business_id: s.b, p_actor: s.u, p_provider: s.p, p_account_email: account, p_refresh_token: t.refresh_token });
+  if (!saved) return json({ ok: false, error: "try_again" }, 502);
+  if (saved.ok !== true) return json({ ok: false, error: reason(saved.reason) }, saved.reason === "NOT_ALLOWED" ? 403 : 400);
+  // a domain this business set up before leaves Zella Voice's Resend account (best effort)
+  const key = env("RESEND_DOMAINS_API_KEY");
+  if (key && typeof saved.removed_domain_id === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(saved.removed_domain_id)) await resend(key, "DELETE", `/domains/${saved.removed_domain_id}`);
+  return json({ ok: true, account: saved.account ?? account }, 200);
+}
+
+// a database rule that answers a single value (true, false); null when it couldn't be reached
+async function rpcValue(base: string, server: string, name: string, body: unknown): Promise<unknown> {
+  try {
+    const r = await fetch(`${base}/rest/v1/rpc/${name}`, { method: "POST", headers: { "Content-Type": "application/json", apikey: server, Authorization: `Bearer ${server}` },
+      body: JSON.stringify(body), signal: AbortSignal.timeout(T) });
+    if (!r.ok) { await r.body?.cancel().catch(() => {}); return null; }
+    return await r.json();
+  } catch (error) { console.error("database call", name, error instanceof Error ? error.name : "unknown"); return null; }
+}
+
 export const handle = withCors(async (req: Request): Promise<Response> => {
   const base = env("SUPABASE_URL"), server = env("ZELLA_SERVER_SECRET_KEY"), anon = env("SUPABASE_ANON_KEY");
   if (!base || !server || !anon) return json({ ok: false, error: "not_configured" }, 503);
+  if (req.method === "GET") return mailbox(req, null, base, server, anon);
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const read = await readJsonLimited(req, 8_000);   // SEC-12
   if (!read.ok) return json({ ok: false, error: read.error }, read.error === "too_large" ? 413 : 400);
   const body = asObject(read.value);
+  if (body?.action === "mailbox_start" || body?.action === "mailbox_finish") return mailbox(req, body, base, server, anon);
   const action = body?.action, biz = typeof body?.business_id === "string" ? body.business_id : "";
   if (!body || !["domain_start", "domain_verify", "disconnect"].includes(String(action)) || !UUID.test(biz)) return json({ ok: false, error: "bad_request" }, 400);
   const address = typeof body.address === "string" ? body.address.trim() : "";

@@ -275,11 +275,11 @@ test('email: the sender route and transport go into the log', () => {
   assert.equal(d.transport, 'resend'); assert.equal(d.log.p_meta.transport, 'resend'); assert.equal(d.log.p_meta.sender_route, 'domain'); assert.equal(d.log.p_from, 'hello@salon.example');
 });
 test('email: an older database (no transport) still sends through Resend as the fallback', () => { const d = edecide(200, { ...okEmail, live: true, from: 'x@y.example' }); assert.equal(d.transport, 'resend'); assert.equal(d.log.p_meta.sender_route, 'fallback'); });
-test('email: a mailbox email is not sent by this workflow (not built here); a dry run is still logged', () => {
+test('email: a mailbox email is logged with its transport, queued when live and a dry run when not', () => {
   const live = edecide(200, { ...okEmail, live: true, from: 'salon@gmail.example', transport: 'gmail', sender_route: 'mailbox' });
-  assert.equal(live.finish.body.p_error, 'mailbox_sending_not_built'); assert.equal(live.log, undefined);
-  const dry = edecide(200, { ...okEmail, live: false, from: 'salon@gmail.example', transport: 'gmail', sender_route: 'mailbox' });
-  assert.equal(dry.log.p_status, 'dry_run'); assert.equal(dry.log.p_meta.transport, 'gmail');
+  assert.equal(live.finish, null); assert.equal(live.log.p_status, 'queued'); assert.equal(live.log.p_meta.transport, 'gmail'); assert.equal(live.transport, 'gmail');
+  const dry = edecide(200, { ...okEmail, live: false, from: 'salon@gmail.example', transport: 'outlook', sender_route: 'mailbox' });
+  assert.equal(dry.log.p_status, 'dry_run'); assert.equal(dry.log.p_meta.transport, 'outlook');
 });
 test('email: an odd transport value is not trusted', () => assert.equal(edecide(200, { ...okEmail, transport: 'x"; y' }).transport, 'resend'));
 const eAfterLog = (statusCode, body, d) => runCode('email-after-log.js', { json: { statusCode, body }, nodes: { Decide: { reminder_id: R.reminder_id, live: true, from: 'hello@zella.example', from_name: 'Test Salon', reply_to: null, to: 'ana@example.com', subject: 'Reminder', text: 'Hi', html: '<p>Hi</p>', ...d } } }).json;
@@ -312,8 +312,11 @@ test('only the Resend node talks to the email provider', () => {
   assert.deepEqual(t.map((n) => n.name), ['Send via Resend']);
 });
 test('Resend node can only be reached after the live check and ships with no credential', () => {
+  // Send for real (true) -> Is mailbox (false: a Resend email) -> Send via Resend
   const into = Object.entries(emFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Resend')).map(([k]) => k);
-  assert.deepEqual(into, ['Send for real']);
+  assert.deepEqual(into, ['Is mailbox']); assert.deepEqual(emFile.connections['Is mailbox'].main[1].map((l) => l.node), ['Send via Resend']);
+  assert.deepEqual(Object.entries(emFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Is mailbox')).map(([k]) => k), ['Send for real']);
+  assert.deepEqual(emFile.connections['Send for real'].main[0].map((l) => l.node), ['Is mailbox']);
   const n = emFile.nodes.find((x) => x.name === 'Send via Resend'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined);
 });
 test('email workflow uses the email database functions and no text ones', () => {
@@ -392,8 +395,9 @@ test('follow up email: the business email is the Reply-To, so replies reach its 
   assert.equal(teAfterLog(200, { id: 'm1', duplicate: false }, { reply_to: 'front@salon.example' }).resend.reply_to, 'front@salon.example');
   assert.equal(teAfterLog(200, { id: 'm1', duplicate: false }).resend.reply_to, undefined);
 });
-test('follow up email: a mailbox email is not sent by this workflow (not built here)', () => {
-  assert.equal(tedecide(200, { allowed: true, live: true, from: 's@gmail.example', to: 'a@b.example', subject: 'S', body_text: 'T', body_html: 'T', transport: 'outlook' }).finish.body.p_notes, 'mailbox_sending_not_built');
+test('follow up email: a mailbox email is logged with its transport', () => {
+  const d = tedecide(200, { allowed: true, live: true, from: 's@outlook.example', to: 'a@b.example', subject: 'S', body_text: 'T', body_html: 'T', transport: 'outlook' });
+  assert.equal(d.finish, null); assert.equal(d.log.p_meta.transport, 'outlook'); assert.equal(d.transport, 'outlook');
 });
 const teAfterSend = (statusCode, body) => runCode('email-task-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { task_id: T.task_id, message_id: 'm1' } } }).json;
 test('email task provider success completes as email_sent', () => { const a = teAfterSend(200, { id: 're-1' }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 're-1', p_error: null }); assert.equal(a.finish.body.p_outcome, 'email_sent'); });
@@ -409,7 +413,8 @@ test('follow-up email workflow claims email tasks only, for the listed kinds', (
 test('follow-up emails never claim the quick text replies', () => assert.ok(!feFile.nodes.find((x) => x.name === 'Claim follow-up emails').parameters.jsonBody.includes('reply_')));
 test('follow-up email Resend box is reachable only after the live check and ships with no credential', () => {
   const into = Object.entries(feFile.connections).filter(([, v]) => v.main.flat().some((l) => l.node === 'Send via Resend')).map(([k]) => k);
-  assert.deepEqual(into, ['Send for real']);
+  assert.deepEqual(into, ['Is mailbox']); assert.deepEqual(feFile.connections['Is mailbox'].main[1].map((l) => l.node), ['Send via Resend']);
+  assert.deepEqual(feFile.connections['Send for real'].main[0].map((l) => l.node), ['Is mailbox']);
   const n = feFile.nodes.find((x) => x.name === 'Send via Resend'); assert.equal(n.parameters.authentication, 'none'); assert.equal(n.credentials, undefined);
 });
 test('follow-up email workflow only uses task and email functions', () => {
@@ -449,9 +454,110 @@ for (const file of ['zella-event-gateway.json', 'zella-event-router.json', 'zell
     for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.code')) new Function('$json', '$', n.parameters.jsCode);
   });
   test(file + ': HTTP nodes use a credential, not pasted keys', () => {
-    for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest' && !['Send via Telnyx', 'Send via Resend'].includes(x.name))) {
+    // the provider send boxes ship with no credential on purpose (added by hand at go live, or, for the mailbox, the
+    // access token the token box just got goes in its header); each has its own test below
+    for (const n of w.nodes.filter((x) => x.type === 'n8n-nodes-base.httpRequest' && !['Send via Telnyx', 'Send via Resend', 'Send via mailbox'].includes(x.name))) {
       assert.equal(n.parameters.authentication, 'genericCredentialType'); assert.ok(n.credentials?.httpCustomAuth || n.credentials?.httpHeaderAuth);
     }
+  });
+}
+
+// ---------------- the business's own mailbox (Gmail, Outlook): sql/zella_business_email.sql
+const MB = { reminder_id: 'r1', task_id: 't1', message_id: '7d0f2d3e-0000-4000-8000-000000000001', finish: null, transport: 'gmail',
+  mail: { from: 'salon@gmail.example', from_name: 'Café "Ana" <x>', to: 'ana@example.com', reply_to: 'salon@gmail.example', subject: 'Reminder: café\r\nBcc: evil@x.example', text: 'Hi Ana', html: '<p>Hi Ana</p>' } };
+test('mailbox: the after log step hands the mailbox path the email, never a Resend payload', () => {
+  const a = eAfterLog(200, { id: 'm1', duplicate: false }, { transport: 'gmail', from: 'salon@gmail.example', reply_to: 'salon@gmail.example' });
+  assert.equal(a.resend, undefined); assert.equal(a.transport, 'gmail'); assert.deepEqual([a.mail.from, a.mail.to, a.mail.reply_to], ['salon@gmail.example', 'ana@example.com', 'salon@gmail.example']);
+  assert.equal(eAfterLog(200, { id: 'm1', duplicate: false }).transport, 'resend');
+  const t = teAfterLog(200, { id: 'm1', duplicate: false }, { transport: 'outlook', unsubscribe_url: 'https://app.example.com/u/' + 'a'.repeat(32) });
+  assert.equal(t.resend, undefined); assert.equal(t.mail.unsubscribe_url, 'https://app.example.com/u/' + 'a'.repeat(32));
+  const dry = eAfterLog(200, { id: 'm1', duplicate: false }, { transport: 'gmail', live: false });
+  assert.equal(dry.mail, undefined); assert.match(dry.finish.body.p_reason, /dry_run/);
+});
+const mplan = (statusCode, body, prev = MB) => runCode('mailbox-plan.js', { json: { statusCode, body }, nodes: { 'After log': prev } }).json;
+test('mailbox: the token is used only when the database handed it out for this provider', () => {
+  assert.deepEqual(mplan(200, { ok: true, provider: 'gmail', refresh_token: 'rt' }), { mailbox_fail: null, provider: 'gmail', token_form: { refresh_token: 'rt' } });
+  for (const [s, b] of [[200, { ok: false, reason: 'mailbox_not_connected' }], [500, {}], [200, { ok: true, provider: 'outlook', refresh_token: 'rt' }], [200, { ok: true, provider: 'gmail' }]]) assert.equal(mplan(s, b).mailbox_fail, 'not_connected');
+});
+const mbuild = (statusCode, body, provider = 'gmail', prev = MB) => runCode('mailbox-build.js', { json: { statusCode, body }, nodes: { 'After log': prev, 'Plan mailbox': { provider } } }).json;
+const decodeRaw = (raw) => Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+test('mailbox: Gmail gets one safe email (no header can be added through a value)', () => {
+  const r = mbuild(200, { access_token: 'at' });
+  assert.equal(r.request.url, 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'); assert.equal(r.access_token, 'at');
+  assert.match(r.request.body.raw, /^[A-Za-z0-9_-]+$/);
+  const mime = decodeRaw(r.request.body.raw);
+  const head = mime.split('\r\n\r\n')[0].split('\r\n');
+  assert.equal(head.filter((h) => /^bcc:/i.test(h)).length, 0);
+  assert.ok(head.includes('To: ana@example.com')); assert.ok(head.includes('Reply-To: salon@gmail.example'));
+  assert.ok(head.some((h) => /^From: =\?UTF-8\?B\?[A-Za-z0-9+/=]+\?= <salon@gmail\.example>$/.test(h)));   // a name that isn't plain ASCII is encoded
+  assert.ok(head.some((h) => /^Subject: =\?UTF-8\?B\?/.test(h)));
+  assert.equal(Buffer.from(head.find((h) => h.startsWith('Subject:')).slice(19, -2), 'base64').toString('utf8'), 'Reminder: café Bcc: evil@x.example');
+  assert.ok(mime.includes(Buffer.from('<p>Hi Ana</p>').toString('base64')) && mime.includes(Buffer.from('Hi Ana').toString('base64')));
+});
+test('mailbox: a plain ASCII name is quoted, and the unsubscribe header goes with marketing', () => {
+  const r = mbuild(200, { access_token: 'at' }, 'gmail', { ...MB, mail: { ...MB.mail, from_name: 'Test Salon', subject: 'Hi', unsubscribe_url: 'https://app.example.com/u/' + 'b'.repeat(32) } });
+  const head = decodeRaw(r.request.body.raw).split('\r\n\r\n')[0].split('\r\n');
+  assert.ok(head.includes('From: "Test Salon" <salon@gmail.example>')); assert.ok(head.includes('Subject: Hi'));
+  assert.ok(head.includes('List-Unsubscribe: <https://app.example.com/u/' + 'b'.repeat(32) + '>'));
+});
+test('mailbox: Outlook gets a Graph message (Reply-To, HTML) and saves it to Sent Items', () => {
+  const r = mbuild(200, { access_token: 'at' }, 'outlook');
+  assert.equal(r.request.url, 'https://graph.microsoft.com/v1.0/me/sendMail');
+  assert.deepEqual(r.request.body, { message: { subject: 'Reminder: café Bcc: evil@x.example', body: { contentType: 'HTML', content: '<p>Hi Ana</p>' }, toRecipients: [{ emailAddress: { address: 'ana@example.com' } }], replyTo: [{ emailAddress: { address: 'salon@gmail.example' } }] }, saveToSentItems: true });
+});
+test('mailbox: no access token means no send; a revoked sign in is told apart', () => {
+  assert.deepEqual(mbuild(400, { error: 'invalid_grant', error_description: 'PRIVATE' }), { mailbox_fail: 'sign_in' });
+  assert.deepEqual(mbuild(500, {}), { mailbox_fail: 'token_failed' });
+  assert.deepEqual(mbuild(200, { access_token: 'at' }, 'gmail', { ...MB, mail: { ...MB.mail, to: 'not an address' } }), { mailbox_fail: 'token_failed' });
+});
+const mAfter = (statusCode, body, transport = 'gmail', extra = {}) => runCode('email-after-send.js', { json: { statusCode, body, ...extra }, nodes: { 'After log': { ...MB, transport } } }).json;
+const mTaskAfter = (statusCode, body, transport = 'gmail', extra = {}) => runCode('email-task-after-send.js', { json: { statusCode, body, ...extra }, nodes: { 'After log': { ...MB, transport } } }).json;
+test('mailbox: Gmail accepted is sent, with its id', () => {
+  const a = mAfter(200, { id: '18c0abc' });
+  assert.deepEqual(a.update, { p_id: MB.message_id, p_status: 'sent', p_external_id: 'gmail:18c0abc', p_error: null }); assert.equal(a.finish.rpc, 'zella_complete_reminder'); assert.equal(a.finish.body.p_ok, true);
+});
+test('mailbox: Graph accepted (202, no body) is sent, with our own id', () => {
+  const a = mAfter(202, null, 'outlook');
+  assert.equal(a.update.p_status, 'sent'); assert.equal(a.update.p_external_id, 'graph:' + MB.message_id);
+});
+test('mailbox: the daily limit sends this email and the rest of the day through the fallback', () => {
+  for (const [s, b, t] of [[429, {}, 'gmail'], [403, { error: { errors: [{ reason: 'dailyLimitExceeded' }], message: 'PRIVATE' } }, 'gmail'], [400, { error: { status: 'RESOURCE_EXHAUSTED' } }, 'gmail'],
+    [429, null, 'outlook'], [403, { error: { code: 'ErrorExceededMessageLimit', message: 'PRIVATE' } }, 'outlook']]) {
+    const a = mAfter(s, b, t);
+    assert.equal(a.update.p_status, 'failed'); assert.deepEqual(a.finish, { rpc: 'zella_business_email_mailbox_refused', body: { p_message_id: MB.message_id, p_reason: 'quota' } }, t + s);
+    assert.equal(JSON.stringify(a).includes('PRIVATE'), false);
+  }
+  assert.deepEqual(mTaskAfter(429, {}).finish, { rpc: 'zella_business_email_mailbox_refused', body: { p_message_id: MB.message_id, p_reason: 'quota' } });
+});
+test('mailbox: a sign in that no longer works asks for a reconnect and uses the fallback', () => {
+  for (const [s, b, t, extra] of [[401, {}, 'gmail', {}], [401, { error: { code: 'InvalidAuthenticationToken' } }, 'outlook', {}], [undefined, undefined, 'gmail', { mailbox_fail: 'sign_in' }]]) {
+    assert.deepEqual(mAfter(s, b, t, extra).finish, { rpc: 'zella_business_email_mailbox_refused', body: { p_message_id: MB.message_id, p_reason: 'sign_in' } });
+  }
+});
+test('mailbox: any other failure is a normal retry (never a silent drop)', () => {
+  const a = mAfter(500, { error: { errors: [{ reason: 'backendError' }] } });
+  assert.equal(a.finish.rpc, 'zella_complete_reminder'); assert.equal(a.finish.body.p_ok, false); assert.match(a.update.p_error, /Gmail returned 500 \(backendError\)/);
+  assert.equal(mAfter(undefined, undefined, 'gmail', { mailbox_fail: 'not_connected' }).finish.rpc, 'zella_complete_reminder');
+  assert.equal(mAfter(undefined, undefined, 'gmail', { mailbox_fail: 'token_failed' }).finish.body.p_ok, false);
+  const t = mTaskAfter(503, {}, 'outlook'); assert.equal(t.finish.rpc, 'zella_complete_followup_task'); assert.equal(t.finish.body.p_outcome, 'failed');
+});
+test('Resend emails are read as before', () => { const a = mAfter(200, { id: 're-1' }, 'resend'); assert.equal(a.update.p_external_id, 're-1'); assert.equal(a.finish.body.p_ok, true); });
+for (const [label, w] of [['email sender', emFile], ['follow-up emails', feFile]]) {
+  test(label + ': the mailbox send box is reached only after the live check, a mailbox email, its key and a token', () => {
+    const into = (n) => Object.entries(w.connections).filter(([, v]) => v.main.flat().some((l) => l.node === n)).map(([k]) => k);
+    assert.deepEqual(into('Send via mailbox'), ['Can send']); assert.deepEqual(w.connections['Can send'].main[0].map((l) => l.node), ['Send via mailbox']);
+    assert.deepEqual(into('Can send'), ['Build mailbox send']); assert.deepEqual(into('Build mailbox send').sort(), ['Get Google mail token', 'Get Microsoft mail token']);
+    assert.deepEqual(into('Get mailbox key'), ['Is mailbox']); assert.deepEqual(w.connections['Is mailbox'].main[0].map((l) => l.node), ['Get mailbox key']);
+    const send = w.nodes.find((n) => n.name === 'Send via mailbox'); assert.equal(send.parameters.authentication, 'none'); assert.equal(send.credentials, undefined);
+  });
+  test(label + ': only the token boxes and the send box talk to Google and Microsoft, with the mail app credentials', () => {
+    const talk = w.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest' && /googleapis\.com|microsoftonline\.com|graph\.microsoft\.com/.test(JSON.stringify(n.parameters))).map((n) => n.name).sort();
+    assert.deepEqual(talk, ['Get Google mail token', 'Get Microsoft mail token']);   // the send box takes its address from the built request
+    assert.equal(w.nodes.find((n) => n.name === 'Get Google mail token').credentials.httpCustomAuth.name, 'Zella Google mail client');
+    assert.equal(w.nodes.find((n) => n.name === 'Get Microsoft mail token').credentials.httpCustomAuth.name, 'Zella Microsoft mail client');
+  });
+  test(label + ': a mailbox token passes through, so no run data is kept, failed or manual runs included', () => {
+    assert.deepEqual([w.settings.saveDataSuccessExecution, w.settings.saveDataErrorExecution, w.settings.saveManualExecutions, w.settings.saveExecutionProgress], ['none', 'none', false, false]);
   });
 }
 

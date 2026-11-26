@@ -13,10 +13,15 @@ if (b.duplicate === true) {
 }
 if (d.live !== true) return done('zella_skip_followup_task', { p_task_id: d.task_id, p_reason: 'dry_run: no email was sent' });
 
+// the business's own mailbox (Gmail, Outlook): the mailbox path sends it (mailbox-plan.js, mailbox-build.js)
+if (d.transport === 'gmail' || d.transport === 'outlook') {
+  return { json: { task_id: d.task_id, message_id: b.id, finish: null, transport: d.transport,
+    mail: { from: d.from, from_name: d.from_name, to: d.to, reply_to: d.reply_to, subject: d.subject, text: d.text, html: d.html, unsubscribe_url: d.unsubscribe_url } } };
+}
 const name = String(d.from_name || '').replace(/[\r\n"<>]+/g, ' ').trim();
 const resend = { from: name ? name + ' <' + d.from + '>' : d.from, to: [d.to], subject: d.subject, text: d.text, html: d.html };
 // Replies go to the business's own inbox (owner, 26 Nov 2026).
 if (d.reply_to) resend.reply_to = d.reply_to;
 // Marketing email carries an unsubscribe header for mail apps as well as the link in the body.
 if (d.unsubscribe_url) resend.headers = { 'List-Unsubscribe': '<' + d.unsubscribe_url + '>' };
-return { json: { task_id: d.task_id, message_id: b.id, finish: null, resend } };
+return { json: { task_id: d.task_id, message_id: b.id, finish: null, transport: 'resend', resend } };
