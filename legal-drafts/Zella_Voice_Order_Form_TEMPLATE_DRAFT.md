@@ -8,7 +8,7 @@ Order date: **[ORDER DATE]**
 
 ## 1. How this Order Form works
 
-1.1 This Order Form is between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company ("Zella Voice"), and the Customer named below. It is governed by the Zella Voice Terms of Service at **[LEGAL DOCUMENTS LOCATION]** ("Terms"), which together with their Schedules, this Order Form, the Zella Voice Data Processing Addendum and the Zella Voice Messaging Terms form the Agreement. Capitalized terms have the meanings given in section 2 of the Terms.
+1.1 This Order Form is between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company ("Zella Voice"), and the Customer named below. It is governed by the Zella Voice Terms of Service at **[LEGAL DOCUMENTS LOCATION]** ("Terms"), which together with their Schedules, this Order Form, the Zella Voice Data Processing Addendum, the Zella Voice Messaging Terms and, where signed, a Business Associate Agreement form the Agreement, as section 1.5 of the Terms provides. Capitalized terms have the meanings given in section 2 of the Terms.
 
 1.2 In the Services, the Plan that Zella Voice saves for Customer during account setup is shown to the Owner during onboarding, and the Owner accepts it there. That accepted plan summary is an Order Form. This template is for Customers that sign an Order Form instead, or that agree special terms.
 
