@@ -127,6 +127,27 @@ skipped because `email_live` is off; nothing was sent). The owner saved `zella_r
 domain, a full access key on "Fetch email", the `email.received` webhook and `zella_resend_inbound_signing_secret`), and
 an end to end test with a test business before `email_live` goes on (owner: the demo businesses are not used for this).
 
+**Google, Microsoft and Telnyx (26 and 27 Nov 2026, owner's approval; nothing switched on, nothing tested yet):**
+Google: a Google Cloud project with one OAuth client (redirect URIs for `calendar-connect` and `business-email`; scopes
+`openid`, `email`, `gmail.send`, `calendar.events`), app in Testing with test users; its client ID and secret saved by the
+owner as the Supabase secrets `GOOGLE_CALENDAR_CLIENT_ID/SECRET` and `GOOGLE_MAIL_CLIENT_ID/SECRET` and the n8n Custom Auth
+credentials "Zella Google calendar client" and "Zella Google mail client". Microsoft: a free Azure tenant (Default
+Directory) owned by support@; the app registration "Zella Voice" (any Entra tenant plus personal Microsoft accounts),
+the same two redirect URIs, delegated `offline_access`, `openid`, `email`, `Calendars.ReadWrite`, `Mail.Send`, `User.Read`
+(no admin consent), a 24 month client secret; saved as `MICROSOFT_CALENDAR_CLIENT_ID/SECRET` and
+`MICROSOFT_MAIL_CLIENT_ID/SECRET` and the n8n credentials "Zella Microsoft calendar client" (now on "Get Microsoft token"
+and "Get Microsoft pull token" in Calendar Sync, which stays unpublished) and "Zella Microsoft mail client". Domain:
+zellavoice.com verified in Entra (publisher domain set) and in Google Search Console (authorized domain added), with
+two TXT records at GoDaddy that must stay. Still to do (launch blockers 41 and 42): the Microsoft AI Cloud Partner
+Program for the verified publisher tick, and Google OAuth app verification once the privacy policy and terms are public.
+Telnyx: the owner made an API key, saved as the Supabase secret `TELNYX_API_KEY` and the n8n Header Auth credential
+"Zella Telnyx" (now on "Check Telnyx" in Connection Tests, unpublished; "Send via Telnyx" still has no credential on
+purpose), and a messaging profile "Zella Voice" (API V2, United States only, no inbound webhook yet, no Telnyx keyword
+auto replies because Zella Voice sends its own STOP and HELP replies with the business name), saved as
+`TELNYX_MESSAGING_PROFILE_ID`. No number bought; `sms_live` and `number_orders_enabled` stay off. Still to do: the
+Telnyx receiver and the profile's webhook, 10DLC registration (needs the public pages), Telnyx with Vapi, and the first
+test number (a billing action, needs the owner's approval).
+
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
 **Live switches (all off; read 15 Nov 2026):** `usage_enforcement` = calls off, messages off; `calls_live`, `sms_live`, `email_live`, `calendar_sync_live`, `reviews_live`,
