@@ -83,7 +83,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 5.3 **Recording consent.** Call recording is intended to be off by default. **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]** Customer may enable call recording only after Zella Voice has made it available following legal review. If Customer enables recording, Customer is solely responsible for giving every notice and obtaining every consent that applicable law requires, including in states that require the consent of all parties to a call, and must not remove the recording notice.
 
-5.4 **Consent to contact.** Customer is solely responsible for obtaining, recording and honoring every consent that applicable law requires before the Services call, text or email any person for Customer, including prior express consent and prior express written consent under the Telephone Consumer Protection Act ("TCPA") for calls and texts that use an artificial or prerecorded voice or an automatic telephone dialing system, and compliance with the Telemarketing Sales Rule, the CAN SPAM Act, state telemarketing and mini TCPA laws, and do not call rules. Customer must state a consent basis for every lead it adds by hand or imports; the Services do not contact such a lead automatically without one.
+5.4 **Consent to contact.** Customer is solely responsible for obtaining, recording and honoring every consent that applicable law requires before the Services call, text or email any person for Customer, including prior express consent and prior express written consent under the Telephone Consumer Protection Act ("TCPA") for calls and texts that use an artificial or prerecorded voice or an automatic telephone dialing system, and compliance with the Telemarketing Sales Rule, the CAN SPAM Act, state telemarketing and mini TCPA laws, and do not call rules. Customer must state a consent basis for every lead it adds by hand or imports, and must not let the Services contact such a lead automatically without one. The Services check opt outs and do not contact flags before every text and require a recorded opt in for marketing texts, but they do not yet enforce a recorded consent or a stated consent basis for service texts. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 
 5.5 **Carrier rules.** Customer must comply with the rules and codes of conduct of mobile carriers and industry bodies, including registration of Customer's brand and campaign for application to person texting (10DLC) and any carrier vetting. Texts to Customer's End Users start only after that registration is approved. The Zella Voice Messaging Terms apply.
 
@@ -465,7 +465,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 5.1 Outbound AI calls to new leads and AI callbacks to missed callers are Live Features. They are off unless Zella Voice has switched them on for live use and the Customer has enabled them.
 
-5.2 Before any outbound call or message, the Services check consent for that channel and purpose, opt outs and frequency limits, and contact hours as described in sections 4.2 and 4.3 of the Zella Voice Messaging Terms (not yet fully enforced for texts). A lead without a recorded consent basis is not called or texted automatically.
+5.2 Before any outbound call or message, the Services check consent for that channel and purpose, opt outs and frequency limits, and contact hours as described in sections 4.2 and 4.3 of the Zella Voice Messaging Terms (not yet fully enforced for texts). A lead without a recorded consent basis must not be called or texted automatically. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 
 5.3 Where the Services leave a voicemail on an outbound call, it is short and professional and contains no sensitive information.
 
@@ -485,7 +485,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 6.6 **Untrusted input.** Callers cannot change its rules or permissions, make it reveal its instructions or reach another Customer's data. Attempts are declined and may be flagged as spam.
 
-6.7 **Call length and capacity.** A single call is limited to **[MAXIMUM CALL LENGTH]** minutes, after which the AI Receptionist transfers the caller or ends the call politely. If a caller says nothing for 1 minute, it ends the call politely. The number of calls each Customer can have answered at the same time is limited (10 unless set otherwise for the Customer). **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+6.7 **Call length and capacity.** A single call is limited to **[MAXIMUM CALL LENGTH]** minutes, after which the AI Receptionist transfers the caller or ends the call politely. If a caller says nothing for 1 minute, it ends the call politely. The number of calls each Customer can have answered at the same time is limited: the limit set for that Customer, if any, otherwise the platform setting for concurrent calls (currently 10). The value 10 also applies as a fallback if the platform setting is invalid. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 6.8 **Regulated Industries.** In Regulated Industries the AI Receptionist uses stricter settings: it gives no advice of any kind, it never confirms whether a person is a patient or client, and private fields are never read aloud.
 
@@ -611,6 +611,7 @@ Placeholders in this document:
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
+- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**

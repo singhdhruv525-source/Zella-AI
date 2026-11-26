@@ -13,6 +13,8 @@ A1.1 This Mutual Non Disclosure Agreement ("NDA") is between **[LEGAL ENTITY NAM
 
 A1.2 The parties wish to share information to evaluate or pursue **[PURPOSE OF DISCLOSURE]** (the "Purpose").
 
+A1.3 This NDA takes effect on **[NDA EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]** (the "Effective Date").
+
 ### A2. Confidential Information
 
 A2.1 "Confidential Information" means nonpublic information that a party ("Discloser") discloses to the other ("Recipient"), in any form, that is marked confidential or that a reasonable person would understand to be confidential, including product plans, source code, designs, prompts, pricing, customer and business information and Personal Data.
@@ -31,7 +33,7 @@ A3.4 **Personal Data.** Neither party will disclose Personal Data under this NDA
 
 ### A4. Term, return and remedies
 
-A4.1 This NDA lasts **[NDA TERM]** from the effective date. Obligations for each disclosure last **[CONFIDENTIALITY PERIOD]** after the disclosure, and for trade secrets for as long as they remain trade secrets.
+A4.1 This NDA lasts **[NDA TERM]** from the Effective Date in section A1.3. Obligations for each disclosure last **[CONFIDENTIALITY PERIOD]** after the disclosure, and for trade secrets for as long as they remain trade secrets.
 
 A4.2 On request, Recipient must return or destroy Confidential Information, except copies kept under a routine backup or required by law, which remain confidential.
 
@@ -258,6 +260,7 @@ Placeholders in this document:
 - **[COUNTERPARTY LEGAL NAME]**
 - **[COUNTERPARTY ADDRESS]**
 - **[PURPOSE OF DISCLOSURE]**
+- **[NDA EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]**
 - **[NDA TERM]**
 - **[CONFIDENTIALITY PERIOD]**
 - **[GOVERNING LAW AND COURTS]**

@@ -41,7 +41,7 @@ The evidence for each source below is what the architecture specifies (its conse
 | Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier and the disclosure version from the source |
 | Inbound callers (verbal) | The caller asks to be called or texted back, or agrees when the AI Receptionist asks before any confirmation text is sent | The call identifier, the time and the caller's answer. No form, text version or checkbox applies |
 | Missed calls | The caller called the business; one missed call text and the callback respond to that call. **[COUNSEL TO CONFIRM]** | The call identifier |
-| Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically | The staff member, the time and the basis chosen |
+| Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person must not be called or texted automatically. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]** | The staff member, the time and the basis chosen |
 | Marketing (any source) | A separate, explicit opt in for each channel | As for the source through which it was given |
 
 ## 3. In call AI disclosure
@@ -123,7 +123,7 @@ Sample marketing messages:
 |---|---|---|
 | STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) | Opt out is recorded immediately for both service and marketing texts. **No confirmation text is sent today.** | "{business}: You are unsubscribed and will receive no further messages. Reply START to resubscribe." **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]** |
 | HELP | Reply: "{business}: for help please contact us directly. Reply STOP to opt out." Sent only when the number matches a known customer. | "{business}: For help, call {business_number} or visit {business_website}. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out." **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]** **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]** |
-| START (and UNSTOP, YES) | Restores service texts after an opt out | "{business}: You are resubscribed to messages. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out, HELP for help." **[CONFIRM WHETHER A START CONFIRMATION IS SENT]** |
+| START (and UNSTOP, YES) | Restores service texts after an opt out; marketing texts stay opted out until the person gives a new marketing opt in | "{business}: You will receive service messages again, such as appointment reminders. You remain unsubscribed from marketing messages. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out, HELP for help." **[CONFIRM WHETHER A START CONFIRMATION IS SENT]** |
 
 ### 5.5 Other mismatches to resolve
 
@@ -146,6 +146,7 @@ Placeholders in this document:
 - **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM]**
+- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 - **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
 - **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**

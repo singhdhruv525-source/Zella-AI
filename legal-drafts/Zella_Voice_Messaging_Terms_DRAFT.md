@@ -76,7 +76,7 @@ Carriers are not liable for delayed or undelivered messages. Delivery depends on
 
 ## 10. Customer obligations
 
-10.1 **Consent.** Customer must obtain and record, before any message is sent, every consent the law and carrier rules require, separately for service and marketing messages. The Services record consent with when and how it was given, for which channel and for which purpose, and do not send a message without it.
+10.1 **Consent.** Customer must obtain and record, before any message is sent, every consent the law and carrier rules require, separately for service and marketing messages. The Services record consent with when and how it was given, for which channel and for which purpose. They do not send a marketing text without a recorded opt in, and never send to a number that has opted out, but they do not yet require a recorded consent before a service text. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 
 10.2 **Registration.** Customer must register its brand and campaign for application to person texting (10DLC) or the equivalent, provide accurate sample messages and use cases, and send only messages that match the registered campaign. Texts to End Users start only after registration is approved.
 
@@ -88,7 +88,7 @@ Carriers are not liable for delayed or undelivered messages. Delivery depends on
 
 11.1 Every consent and opt out is recorded per Business, with the channel, purpose, time, source and the keyword or link used. Consent records are kept as an append only history.
 
-11.2 Before every message, the Services check consent, opt outs, frequency limits and duplicate protection at the time of sending, not only when the message was created. The contact hours in section 4.2 are checked in full only once the condition in section 4.3 is met; today the sender checks only marketing texts, in the Business's time zone.
+11.2 Before every message, the Services check opt outs and do not contact flags, a recorded opt in for marketing texts, frequency limits and duplicate protection at the time of sending, not only when the message was created. The contact hours in section 4.2 are checked in full only once the condition in section 4.3 is met; today the sender checks only marketing texts, in the Business's time zone.
 
 11.3 When a Business erases a person's data, the person's consent and opt out history is kept so that the opt out continues to work.
 
@@ -117,5 +117,6 @@ Placeholders in this document:
 - **[SUPPORT CONTACT EMAIL]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
+- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 
 <!-- PLACEHOLDERS END -->

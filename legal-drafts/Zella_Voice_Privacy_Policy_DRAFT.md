@@ -105,7 +105,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 ## 7. Messages, consent and opting out
 
-7.1 Before every message, the Services check consent for that channel and purpose (service or marketing), opt outs, contact hours in the recipient's time zone when known, otherwise the Customer's (Zella Voice Messaging Terms, sections 4.2 and 4.3; marketing and automated texts are not switched on until the sender enforces this), frequency limits and duplicates. Consent is recorded with when and how it was given.
+7.1 Before every message, the Services check opt outs and do not contact flags, a recorded opt in for marketing messages (service messages are not yet checked for a recorded consent), contact hours in the recipient's time zone when known, otherwise the Customer's (Zella Voice Messaging Terms, sections 4.2 and 4.3; marketing and automated texts are not switched on until the sender enforces this), frequency limits and duplicates. Consent is recorded with when and how it was given.
 
 7.2 Reply **STOP** to a text to stop texts from that Customer, use the unsubscribe link in a marketing email, or say "don't call me" to stop calls. Opt outs take effect immediately for that Customer. We keep the opt out record after other data is erased so that it keeps working. The Zella Voice Messaging Terms give more detail.
 
@@ -162,7 +162,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. The 
 
 11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**. Erasure needs a second person's approval at the Customer. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, and data under a legal hold is kept until the hold is released. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and a request to delete the copies held by Vapi is sent; Vapi deletes them where technically possible. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, and data under a legal hold is kept until the hold is released. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 ## 12. Your rights
 

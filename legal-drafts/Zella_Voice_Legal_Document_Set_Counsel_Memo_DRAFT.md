@@ -136,6 +136,8 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 35. Product fix: customer erasure (zella_erase_customer) must check the legal hold (zella_retention_on_hold) before deleting anything, keep held data, and not queue held calls for deletion at Vapi; until then staff check holds manually (Handbook B2 step 5) and the documents carry a "not yet enforced" marker.
 36. Trial and payment before going live: decide whether a trial enabled plan always uses trial checkout, or whether trials are blocked when payment is required before going live; the trial length is the platform's billing rules setting, not the Order Form.
 37. Confirm the daily data rights reminder job and the incident controls (Handbook A1.2) are switched on before relying on them.
+38. Product fix before automated texts go live: require a recorded consent (or a stated consent basis for leads added by hand or imported) before any automated service text, not only a recorded opt in for marketing; today zella_can_contact blocks only opt outs and do not contact flags for service texts.
+39. Name the legal hold control owner who rechecks holds before each erasure and completes held erasure requests after a hold is released (Handbook B2 steps 5 and 9).
 
 ## 6. Points for counsel
 
@@ -243,6 +245,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
+- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
@@ -358,6 +361,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUPPORT CONTACT EMAIL]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
+- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 
 ### Zella Voice Order Form (Template)
 
@@ -430,6 +434,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[COUNTERPARTY LEGAL NAME]**
 - **[COUNTERPARTY ADDRESS]**
 - **[PURPOSE OF DISCLOSURE]**
+- **[NDA EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]**
 - **[NDA TERM]**
 - **[CONFIDENTIALITY PERIOD]**
 - **[GOVERNING LAW AND COURTS]**
@@ -498,6 +503,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
+- **[LEGAL HOLD CONTROL OWNER]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
@@ -524,6 +530,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM]**
+- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 - **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
 - **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**

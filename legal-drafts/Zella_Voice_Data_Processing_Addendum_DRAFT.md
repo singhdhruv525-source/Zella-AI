@@ -92,7 +92,7 @@ Taking into account the nature of processing and the information available to it
 
 12.2 **After cancellation.** Customer Personal Data still held remains available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days. The exceptions in section 12.5 apply.
 
-12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** The exceptions in section 12.5 apply.
+12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and deletion of the copies held by Vapi is requested and carried out where technically possible, as section 12.4 provides. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** The exceptions in section 12.5 apply.
 
 12.4 **Provider copies.** Deletion extends to files and copies held by Subprocessors where technically possible.
 
@@ -173,7 +173,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Entry points | Size limits, rate limits and authentication first at every public entry point; provider messages verified by signature, timestamp window and replay protection |
 | Storage and links | Private storage under each Customer's own path; files checked after upload; downloads by short lived signed links; customer links random, single purpose, expiring and stored only as hashes |
 | AI safeguards | Caller input treated as untrusted; the AI acts only through server checked tools that recheck the Customer and caller; no secrets or other Customers' data in prompts |
-| Messaging safeguards | Consent, opt out, frequency and duplicate checks at the time of sending, and contact hours in the recipient's time zone when known (Zella Voice Messaging Terms, section 4.2). Marketing and automated texts stay off until the sender enforces the recipient's time zone (section 4.3 of those terms) |
+| Messaging safeguards | Opt out and do not contact checks, a recorded opt in for marketing texts (service texts are not yet checked for a recorded consent), frequency and duplicate checks at the time of sending, and contact hours in the recipient's time zone when known (Zella Voice Messaging Terms, section 4.2). Marketing and automated texts stay off until the sender enforces the recipient's time zone (section 4.3 of those terms) |
 | Resilience | Backups with point in time recovery **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**; a standby assistant takes messages if the database is unavailable; every Live Feature has a control |
 | Retention | Scheduled deletion per data class, legal holds, deletion reaching files and provider copies where possible |
 
