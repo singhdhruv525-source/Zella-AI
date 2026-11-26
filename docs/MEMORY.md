@@ -134,6 +134,13 @@ deployed (`sql/zella_email_action_buttons.sql`, `tests/email_action_buttons/run.
 asks first. Order: after `zella_business_email_send.sql`; deploy reschedule-appointment and the web app before (or
 with) the apply, or a pressed button reaches an older function that treats it as a lookup and changes nothing.
 
+**Business email address, part 4 (26 Nov 2026):** the Create Business setup screen and the `business-email` edge
+function (verified domain through Resend's domains API: add, show the DNS records, Verify, disconnect) are built, not
+deployed (tested with Auth, the database and Resend mocked: `business-email/*_test.ts`; never called against
+Resend). Owner steps: a Resend API key with domain permission (full access) in the same Resend account as the sending
+key, saved as the edge function secret `RESEND_DOMAINS_API_KEY`; deploy `business-email` and the web app; each with
+approval.
+
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.

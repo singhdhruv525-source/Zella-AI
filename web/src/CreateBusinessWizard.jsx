@@ -19,6 +19,7 @@ import { CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import "./settings/settings.css";
 import PlanStep, { loadPlanInfo } from "./PlanStep";
 import { VoiceSelect } from "./settings/VoiceSelect";
+import BusinessEmailSetup from "./BusinessEmailSetup";
 import { loadVoice } from "./settings/voiceApi";
 import { defaultVoiceName, languagesOf, unusedVoiceNote, voiceLabel, voiceSummary } from "./settings/voiceChoices";
 
@@ -890,7 +891,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
   );
 }
 
-function IntegrationsStep({ value, onChange, showErrors }) {
+function IntegrationsStep({ value, onChange, showErrors, businessId }) {
   const setPhone = (patch) => onChange({ ...value, phone: { ...value.phone, ...patch } });
   const setLead = (key, on) => onChange({ ...value, leadSources: { ...value.leadSources, [key]: on } });
 
@@ -969,7 +970,7 @@ function IntegrationsStep({ value, onChange, showErrors }) {
               <option value="outlook">Outlook Calendar</option>
             </select>
           </Field>
-          <Field label="Email">
+          <Field label="Mailbox the business uses" hint="Recorded for the team. The sending address is set up below.">
             <select value={value.email} onChange={(e) => onChange({ ...value, email: e.target.value })}>
               <option value="none">None yet</option>
               <option value="gmail">Gmail</option>
@@ -977,6 +978,10 @@ function IntegrationsStep({ value, onChange, showErrors }) {
             </select>
           </Field>
         </div>
+      </Section>
+
+      <Section title="Business email address" description="Emails to the business's customers (reminders, confirmations, follow ups, marketing) come from its own name and address, on every plan. Set up one way. Until then they come from the business name at Zella Voice's address, with replies going to the business's email.">
+        <BusinessEmailSetup businessId={businessId} Badge={Badge} />
       </Section>
 
       <Section title="Lead sources" description="New leads from these sources go into the CRM and can trigger an automatic AI callback.">
@@ -2351,7 +2356,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         {STEPS[step].key === "receptionist" && <ReceptionistStep value={setup.receptionist} onChange={update("receptionist")} terminology={terminology} showErrors={showErrors} faqPrompts={config.faqPrompts} voice={voiceInfo} />}
         {STEPS[step].key === "integrations" && (
           <>
-            <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} />
+            <IntegrationsStep value={setup.integrations} onChange={update("integrations")} showErrors={showErrors} businessId={businessId} />
             <SpamSection value={setup.spam} onChange={update("spam")} modules={setup.modules} config={config} available={setup.spamAvailable} />
           </>
         )}

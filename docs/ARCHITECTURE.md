@@ -1433,6 +1433,17 @@ flowchart TD
   with `zella_reschedule_lookup`, rechecks the appointment under its row lock (upcoming, booked; never a missed
   visit's rebook link) and does what a texted CONFIRM or CANCEL does (`zella_reminder_response`): the CRM shows it at
   once, and a cancellation withdraws its reminders, tells the team and offers the time to the waitlist.
+- **Setup in Create Business** (the `business-email` edge function, `BusinessEmailSetup.jsx` on the wizard's Phone &
+  integrations step): an admin with `businesses.manage` enters the business's address; `business-email` (signed in,
+  rate limited per person and per business) asks `zella_business_email_domain_begin` first, then adds the domain at
+  Resend (`POST /domains`, or finds the one Zella Voice's Resend account already has, by its exact name) and keeps its
+  DNS records (`_domain_saved`). The page shows them step by step (sign in at the domain's DNS host, add the records,
+  press Verify), with a Copy button for each value; the business adds them itself. Verify asks Resend to check again
+  (`POST /domains/{id}/verify`, then `GET /domains/{id}`) and records the answer (`_domain_checked`): Verified, or not
+  yet. Disconnecting goes back to the fallback and removes the domain at Resend. The Resend key with domain
+  permission is the edge function secret `RESEND_DOMAINS_API_KEY`, in the same Resend account as the sending key, so
+  a verified domain can send. Every call to Resend has a 10 second limit; Resend's own error text never reaches the
+  page.
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
