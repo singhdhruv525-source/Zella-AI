@@ -1364,6 +1364,11 @@ sending through either. This settles open decision D-19 (Gmail/Outlook mailbox i
   for connected mailboxes only (it needs extra mailbox permissions and provider review).
 - **Mailboxes at launch:** Gmail and Outlook. Any other mailbox (Yahoo, iCloud, the business's own mail server) uses the
   verified domain route or the fallback.
+- **Apple (owner, 26 Nov 2026):** Apple offers no sign in connection for iCloud Mail or iCloud Calendar, only an app
+  specific password, which would mean Zella Voice holding a business's login, so Apple is not connected at launch. An
+  iCloud+ business with its own domain uses the verified domain route; an `@icloud.com` or `@me.com` address uses the
+  fallback. Apple Calendar is not supported at launch (a business can share its iCloud calendar into a Google calendar);
+  it may be added later if businesses ask for it.
 - **Who sends, and the limits:** with a verified business domain, or the fallback, Zella Voice sends through its own
   email provider (Resend), so only the business's Zella Voice plan limit applies. With a connected Gmail or Outlook
   mailbox, the provider itself must send (an email claiming a gmail.com or outlook.com address from any other server is
@@ -2209,7 +2214,7 @@ Knowledge, Automations, Reports, Team, Settings.
 |---|---|---|
 | D-04 | Consent evidence required per lead source for AI-voice calls and automated texts under US rules | owner + counsel |
 | D-05 | Public website hosting and Zella Voice sales pipeline scope (the Growth page is later, §23.1a) | owner |
-| D-08 | Calendar providers at launch | owner |
+| D-08 | Calendar providers at launch (Apple Calendar is decided: not at launch, §14.4) | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
