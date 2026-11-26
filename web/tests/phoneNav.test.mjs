@@ -596,3 +596,27 @@ test("Support writes: a failed write doesn't hold up the next, and other tickets
   release();
   await slow;
 });
+
+test("Support panel save: a settled assignee plus a waiting Resolve, and an assignee only save keeps the Resolve", async () => {
+  const store = createPendingStore();
+  store.register("support");
+  const timers = fakeTimers();
+  const log = [];
+  // 1. Assign to yourself was sent: its assignee is settled (shown until a read acknowledges it)
+  const assign = deferChange({ commit: async () => { log.push("assign"); store.succeed("t1"); }, revert: () => store.rollback("t1"), timers });
+  store.add("t1", assign, { assigned_to: "u1", assignee: "me@zella.test" });
+  await timers.run();
+  // 2. Resolve is waiting in its Undo window
+  const resolve = deferChange({ commit: async () => { log.push("resolve"); store.succeed("t1"); }, revert: () => { log.push("undo"); store.rollback("t1"); }, timers });
+  store.add("t1", resolve, { status: "resolved" });
+  assert.deepEqual(store.views("support").get("t1"), { assigned_to: "u1", assignee: "me@zella.test", status: "resolved" }, "the row shows both");
+  assert.deepEqual(store.pendingView("t1"), { status: "resolved" }, "the waiting change's own fields only");
+  // 3. the panel saves only an assignee: compared with the waiting change, nothing is called off
+  const payload = { assignedTo: "u2" };
+  if (panelReplacesPending(store.pendingView("t1"), payload)) store.change("t1").undo();
+  assert.equal(resolve.state, "waiting");
+  assert.equal(panelReplacesPending(store.views("support").get("t1"), payload), true, "the merged view would have wrongly called it off");
+  await timers.run();
+  assert.deepEqual(log, ["assign", "resolve"], "the Resolve is still sent");
+  assert.equal(store.pendingView("t1"), null);
+});

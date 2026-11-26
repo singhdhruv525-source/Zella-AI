@@ -232,6 +232,8 @@ export function createPendingStore() {
   const store = {
     has: (id) => pending.has(id),
     change: (id) => pending.get(id)?.change ?? null,
+    // the waiting change's own fields only (never the row's settled ones): what that change would set if it is sent
+    pendingView: (id) => pending.get(id)?.view ?? null,
     add(id, change, view) { pending.set(id, { change, view, token: ++nextToken }); emit({ type: "add", id }); },
     // sent: its fields join the row's settled fields; a read that works clears them (clearSettledSnapshot)
     succeed(id) {

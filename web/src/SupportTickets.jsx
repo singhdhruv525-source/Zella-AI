@@ -128,7 +128,9 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
   async function update(payload) {
     // the admin's last explicit choice wins: a quick change still waiting for this ticket is called off when this sets
     // the same field (a status or an assignee); a note or a reply leaves it to go ahead
-    if (store.has(selectedId) && panelReplacesPending(store.views().get(selectedId), payload)) store.change(selectedId)?.undo();
+    // compared with the waiting change's own fields, not the row's merged view: an assignee already sent (settled)
+    // must not make an assignee only save call off a waiting Resolve
+    if (store.has(selectedId) && panelReplacesPending(store.pendingView(selectedId), payload)) store.change(selectedId)?.undo();
     setBusy(true);
     setError("");
     try {
