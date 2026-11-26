@@ -1355,7 +1355,7 @@ through Resend), and a business on Gmail or Outlook connects its mailbox and sen
 connected the email still goes out, as `<business name> <no-reply@zellavoice.com>` with the business's email as
 Reply-To, so reminders never stop and a customer's reply still reaches the business (`zella_prepare_email`, the
 fallback that is built today). **Not built yet:** domain verification per business, the mailbox connection, and
-sending through either.
+sending through either. This settles open decision D-19 (Gmail/Outlook mailbox integration: build).
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
@@ -2192,7 +2192,6 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-08 | Calendar providers at launch | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
-| D-19 | Gmail/Outlook mailbox integration: build or drop | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
