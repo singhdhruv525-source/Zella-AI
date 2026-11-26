@@ -124,6 +124,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 | n8n (n8n Cloud) | Scheduled and automatic tasks |
 | Cloudflare | Web hosting |
 | Google and Microsoft (where a Customer connects a calendar) | Calendar sync |
+| Google (Gmail) and Microsoft (Outlook) (where enabled and a Customer connects a mailbox) | Sending the Customer's emails from its own mailbox |
 | Google (where connected or enabled) | Ads lead forms; Business Profile review replies |
 | Meta (where enabled and connected) | Facebook and Instagram lead ads |
 | Shopify (where a store connects it) | Order lookup |
@@ -158,11 +159,11 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 
 ## 11. Export, erasure and account deletion
 
-11.1 **Export.** For a request from one End User, the Customer's owner or admin produces a file of that person's records only. Owners, admins and managers can export customers and call history as CSV files at any time; the call history file holds call details and outcomes but no transcripts, summaries or recordings. The Owner can also request a whole business export of all records and files, downloadable for 7 days; recording links, and transcripts of Customers in Regulated Industries, are left out of the whole business export. **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
+11.1 **Export.** For a request from one End User, the Customer's owner or admin produces a file of that person's records only, including call summaries and transcripts; as in every export, the transcripts of Customers in Regulated Industries are left out. Owners, admins and managers can export customers and call history as CSV files at any time; the call history file holds call details and outcomes but no transcripts, summaries or recordings. The Owner can also request a whole business export of all records and files, downloadable for 7 days; recording links, and transcripts of Customers in Regulated Industries, are left out of the whole business export. **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 9.1 AND 12.2 AND TERMS 12.6 TO MATCH]**
 
-11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, data under a legal hold is kept until the hold is released, and data the law requires us to keep is kept for as long as required. Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log.
+11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and for each call that is not under a legal hold a request to delete the call at Vapi is sent. Their consent and opt out history is kept, data under a legal hold (including the copy of a held call at Vapi) is kept, and not deleted at Vapi, until the hold is released, and data the law requires us to keep is kept for as long as required. Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log.
 
-11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and a request to delete the copies held by Vapi is sent; Vapi deletes them where technically possible. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, data under a legal hold is kept until the hold is released, and data the law requires us to keep is kept for as long as required.
+11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and for data not under a legal hold a request to delete the copies held by Vapi is sent; Vapi deletes them where technically possible. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, data under a legal hold (including any copy at Vapi) is kept, and not deleted at Vapi, until the hold is released, and data the law requires us to keep is kept for as long as required.
 
 ## 12. Your rights
 
@@ -279,7 +280,7 @@ Placeholders in this document:
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
 - **[CANCELLATION RETENTION PERIOD]**
-- **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
+- **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 9.1 AND 12.2 AND TERMS 12.6 TO MATCH]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**

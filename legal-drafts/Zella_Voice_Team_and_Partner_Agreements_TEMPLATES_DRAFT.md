@@ -197,9 +197,9 @@ E1.3 Partner is not exclusive, and Zella Voice may appoint other partners and se
 
 ### E2. Referrals and commissions
 
-E2.1 A referral is "qualified" when Partner registers it in writing before Zella Voice has had contact with the prospect, and the prospect signs an Order Form within **[REFERRAL WINDOW]** after registration.
+E2.1 **Referral model only.** Sections E2.1 and E2.2 apply only where the parties selected the referral model in section E1.2. A referral is "qualified" when Partner registers it in writing before Zella Voice has had contact with the prospect, and the prospect signs an Order Form within **[REFERRAL WINDOW]** after registration.
 
-E2.2 For each qualified referral, Zella Voice pays Partner **[COMMISSION RATE OR AMOUNT]** of the Plan Fees actually received from that customer for **[COMMISSION PERIOD]**, excluding taxes, setup fees, packs, refunds, credits and chargebacks. Commissions are paid **[COMMISSION PAYMENT TIMING]** and are reversed for any amount later refunded.
+E2.2 For each qualified referral, Zella Voice pays Partner **[COMMISSION RATE OR AMOUNT]** of the Plan Fees actually received from that customer for **[COMMISSION PERIOD]**, excluding taxes, setup fees, packs, refunds, credits and chargebacks. Commissions are paid **[COMMISSION PAYMENT TIMING]** and are reversed for any amount later refunded. Where the parties selected the resale model, no referral commission is earned, including when a prospect Partner registered signs an Order Form directly with Zella Voice; Partner's compensation under the resale model is only its margin under section E2.3.
 
 E2.3 For resale, Partner pays Zella Voice **[RESALE PRICE OR DISCOUNT]** within **[PAYMENT TERMS]**, whether or not Partner is paid by its customer.
 

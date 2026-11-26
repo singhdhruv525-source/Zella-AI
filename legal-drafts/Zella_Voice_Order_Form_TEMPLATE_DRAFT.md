@@ -48,13 +48,15 @@ Order date: **[ORDER DATE]**
 | Trial included | **[YES OR NO]** |
 | Trial length and allowances | 5 days, with 20 AI minutes, 5 texts and 5 emails |
 
-If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts 5 days. A payment method is saved on Stripe's hosted page at the start, and nothing is charged during the Trial Period: any setup fee is charged with the first paid billing period, and packs, automatic reload and pay as you go are available only once the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, and the first payment is charged to the payment method saved at checkout whatever the automatic payment setting (Terms, section 9.3), the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 9.7).
+If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts 5 days. A payment method is saved on Stripe's hosted page at the start, and nothing is charged during the Trial Period: any setup fee is charged with the first paid billing period, and packs, automatic reload and pay as you go are available only once the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, and the first payment is charged to the payment method saved at checkout whatever the automatic payment setting (Terms, section 9.3), the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 10.2(a)).
 
 ## 5. Term and renewal
 
 5.1 **Trial Period and Subscription Term.** Any Trial Period runs as stated in section 4 and is not part of the Subscription Term. The Subscription Term starts on the First Billing Date under section 9.3 of the Terms (the day the Trial Period ends or, without a trial, the day the Owner completes checkout) and consists of the first paid billing period above and each renewal period.
 
 5.2 **Automatic renewal.** **THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR SUCCESSIVE BILLING PERIODS UNTIL CANCELED UNDER SECTION 10.2 OF THE TERMS.** Zella Voice sends a renewal notice 3 days before each renewal and, for yearly Plans, also 7 days before.
+
+5.3 **Cancellation.** The Owner may cancel at any time in the Services, with no cancellation fee (Terms, section 10.2). Cancellation during a Trial Period takes effect immediately, before any paid subscription starts, and nothing is charged. Cancellation on or after the First Billing Date takes effect at the end of the current billing period, and Customer keeps access until then. The export window after cancellation runs from the day cancellation takes effect (Terms, sections 12.6 and 12.7).
 
 ## 6. Add ons
 

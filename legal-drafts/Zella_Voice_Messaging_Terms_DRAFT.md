@@ -12,6 +12,8 @@ Last updated: **[LAST UPDATED DATE]**
 
 1.2 Part A applies to people who receive messages. Part B applies to Customers that send messages through the Services, and forms part of the Agreement under section 1.5 of the Zella Voice Terms of Service ("Terms"). Capitalized terms not defined here have the meanings given in section 2 of the Terms.
 
+1.3 **Who emails come from.** An email from a Business comes from the Business's own email address, either on an email domain the Business has verified or through a Gmail or Outlook mailbox the Business has connected. Otherwise it is sent in the Business's name from a Zella Voice no reply address, with replies directed to the Business's email address. Replies go to the Business, not to Zella Voice.
+
 ## Part A. Terms for message recipients
 
 ## 2. Program description
