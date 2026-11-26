@@ -55,7 +55,7 @@ Last updated: **[LAST UPDATED DATE]**
 | Whole business export, and deletion of erased calls at the voice provider | Built, going live **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
 | Scheduled automatic deletion of recordings and transcripts 90 days after the call, and deletion of copies at the voice provider **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** | Built, going live (not yet switched on) |
 | Deletion after cancellation, after **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, and account deletion after a 30 day grace period | Built, going live |
-| Removal of payment card numbers that callers speak on calls from call transcripts | Not built; pending remediation |
+| Masking of payment card numbers that callers speak on calls | **Not in place.** Transcripts and summaries from the voice provider are stored as received; the platform's redaction function (zella_redact) does not detect card numbers and is not applied to transcripts; the copy held by the voice provider is not covered. Pending remediation, which needs the owner's approval |
 | Backups with point in time recovery | **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** |
 
 ## 6. Application and AI security

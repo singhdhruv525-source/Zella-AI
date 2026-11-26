@@ -122,7 +122,7 @@ Taking into account the nature of processing and the information available to it
 
 ## 15. India DPDP Act
 
-Where the DPDP Act applies, Zella Voice will, as Customer's Data Processor: process Customer Personal Data only under this DPA and Customer's instructions; implement reasonable security safeguards to prevent a personal data breach; notify Customer of a personal data breach under section 11; erase Customer Personal Data when Customer instructs, including when a data principal withdraws consent or the specified purpose is no longer served, subject to retention the law requires; and assist Customer in responding to data principals and the Data Protection Board of India.
+Where the DPDP Act applies, Zella Voice will, as Customer's Data Processor: process Customer Personal Data only under this DPA and Customer's instructions; implement reasonable security safeguards to prevent a personal data breach; notify Customer of a personal data breach under section 11; erase Customer Personal Data when Customer instructs, including when a data principal withdraws consent or the specified purpose is no longer served, subject to the retention permitted by section 12.5 (including the consent and opt out history kept so that opt outs continue to work, audit and security logs, and data under a legal hold) and to retention the law requires **[COUNSEL TO CONFIRM THE LEGAL BASIS UNDER THE DPDP ACT FOR KEEPING CONSENT AND OPT OUT HISTORY AFTER ERASURE]**; and assist Customer in responding to data principals and the Data Protection Board of India.
 
 ## 16. Protected health information
 
@@ -296,11 +296,11 @@ S1.5.4 remain responsible for obtaining any authorization, giving any notice and
 
 ### S1.6 Term and termination
 
-S1.6.1 **Term.** This BAA starts on the effective date above and ends when the Agreement ends and all PHI has been returned or destroyed under section S1.6.3.
+S1.6.1 **Term.** This BAA starts on the effective date above. Its term ends when the Agreement ends or when either party terminates this BAA under section S1.6.2, whichever is earlier (the "BAA End Date"). The obligations in this BAA continue after the BAA End Date for any PHI that Business Associate still maintains, until that PHI has been returned or destroyed under section S1.6.3, or for as long as section S1.6.3 extends protections to it.
 
 S1.6.2 **Termination for breach.** If Covered Entity determines that Business Associate has violated a material term of this BAA, Covered Entity may give written notice and an opportunity to cure within 30 days, and may terminate this BAA and the affected Services if Business Associate does not cure. Business Associate has the same right if Covered Entity violates a material term.
 
-S1.6.3 **Return or destruction.** On termination, Business Associate will return or destroy all PHI that it still maintains in any form, consistent with the deletion process in section 12 of the DPA, and retain no copies. If return or destruction is infeasible, for example for backups that are cleared on a schedule or records under a legal hold, Business Associate will extend the protections of this BAA to that PHI and limit further Uses and Disclosures to the purposes that make return or destruction infeasible, for as long as it maintains the PHI.
+S1.6.3 **Return or destruction.** On the BAA End Date, and in any event when the Agreement ends, Business Associate will return or destroy all PHI that it still maintains in any form, consistent with the deletion process in section 12 of the DPA, and retain no copies. If return or destruction is infeasible, for example for backups that are cleared on a schedule or records under a legal hold, Business Associate will extend the protections of this BAA to that PHI and limit further Uses and Disclosures to the purposes that make return or destruction infeasible, for as long as it maintains the PHI.
 
 ### S1.7 Miscellaneous
 
@@ -351,6 +351,7 @@ Placeholders in this document:
 - **[DATA HOSTING REGION]**
 - **[SCC MODULE TWO (CONTROLLER TO PROCESSOR) AND, WHERE APPLICABLE, MODULE THREE; OPTIONAL CLAUSES; GOVERNING LAW; COMPETENT SUPERVISORY AUTHORITY; SWISS ADJUSTMENTS]**
 - **[UK INTERNATIONAL DATA TRANSFER AGREEMENT OR UK ADDENDUM TO THE EU STANDARD CONTRACTUAL CLAUSES, WITH TABLES COMPLETED]**
+- **[COUNSEL TO CONFIRM THE LEGAL BASIS UNDER THE DPDP ACT FOR KEEPING CONSENT AND OPT OUT HISTORY AFTER ERASURE]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[DPO OR PRIVACY CONTACT]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**

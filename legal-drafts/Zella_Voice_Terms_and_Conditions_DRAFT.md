@@ -465,7 +465,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 5.1 Outbound AI calls to new leads and AI callbacks to missed callers are Live Features. They are off unless Zella Voice has switched them on for live use and the Customer has enabled them.
 
-5.2 Before any outbound call or message, the Services check consent for that channel and purpose, opt outs and frequency limits, and contact hours as described in sections 4.2 and 4.3 of the Zella Voice Messaging Terms (not yet fully enforced for texts). A lead without a recorded consent basis must not be called or texted automatically. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
+5.2 Before any outbound call or message, the Services check opt outs, do not contact flags and frequency limits, require a recorded opt in for marketing, and check contact hours as described in sections 4.2 and 4.3 of the Zella Voice Messaging Terms (not yet fully enforced for texts). Service calls and service texts do not yet require a recorded consent or a stated consent basis. A lead without a recorded consent basis must not be called or texted automatically, and the Customer must ensure this until the product enforces it. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
 
 5.3 Where the Services leave a voicemail on an outbound call, it is short and professional and contains no sensitive information.
 
@@ -503,7 +503,7 @@ Zella Voice may update this Schedule under section 22 of the Terms.
 
 1.1 Businesses that use Zella Voice ("Customers") can send texts and emails, approve replies to online reviews and configure what the AI Receptionist says. This Schedule explains how anyone can complain about such content, and what Zella Voice does. This Schedule forms part of the Zella Voice Terms of Service ("Terms"). Capitalized terms have the meanings given in section 2 of the Terms.
 
-1.2 **Customers are responsible for their content.** Each Customer is responsible for the content it provides, approves or sends in its name (Terms, section 7). Zella Voice provides the technology and does not write, review or endorse that content.
+1.2 **Customers are responsible for their content.** Each Customer is responsible for the content it provides, approves or sends in its name (Terms, section 7). Zella Voice provides the technology. Its AI features may suggest drafts, such as review replies, but a draft becomes Customer Content, and the Customer's own statement, only when the Customer approves it (Terms, section 7.2). Zella Voice does not approve, endorse or monitor Customer Content before it is sent or published, and it reviews content only when a complaint is made under this Schedule. Neither the suggestion of a draft nor the review of a complaint makes Zella Voice responsible for content the Customer approves or sends.
 
 1.3 **Where content appears.** Replies to reviews are published on the review site, for example Google, under the Customer's own account. Zella Voice cannot remove content from a third party site. It can stop further content being sent or published through the Services, and the Customer can edit or remove its own reply on that site.
 

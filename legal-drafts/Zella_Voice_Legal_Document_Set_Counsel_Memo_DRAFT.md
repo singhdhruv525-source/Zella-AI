@@ -125,7 +125,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 24. Reseller and referral model, commission rate, period and payment timing, and whether to include non solicitation.
 25. HR providers and retention periods for applicant, employee and payroll records.
 26. Product fix before texts go live: make the text sender use the recipient's time zone when known (rulebook COM 3) and enforce every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time); confirm the hour ranges.
-27. Product fix: redact payment card numbers that callers speak from call transcripts (and summaries), and check existing transcripts.
+27. Product fix (needs the owner's approval for that specific change): mask payment card numbers that callers speak. The control must detect card numbers (for example digit sequences that pass the card number check) and mask them in the call event handler before p_transcript and the summary are passed to the database (web/supabase/functions/_shared/vapi-call-events.js), and in the database before calls.transcript and calls.summary are written (sql/zella_inbound_calls.sql); zella_redact today only masks long tokens and is not applied to transcripts. It must also cover the copy held by Vapi (provider side redaction settings, or deleting the provider copy), and existing transcripts must be checked and masked.
 28. Trial start (checkout start in the payment design, or another point) and whether packs, automatic reload and pay as you go stay unavailable during the trial (Terms 9.2 and 9.7, Order Form section 4).
 29. Product fix before texts go live: send the HELP reply to every number that texts HELP, with the business name, a contact method and opt out instructions (Messaging Terms 7, Consent Pack 5.4).
 30. Custom trials: checkout supports only the platform's standard trial, stored in the billing rules setting (currently 5 days, 20 minutes, 5 texts, 5 emails); decide whether to build per business trials before offering one (Order Form section 4).
@@ -190,7 +190,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 2. "Regulated Industry" lists the industries the product marks regulated: childcare, dental, healthcare, legal, financial services and insurance.
 3. The AI Receptionist is described as using an Anthropic model, the default and the only provider checked against Vapi; the platform setting also accepts other providers.
 4. Speech providers ElevenLabs, Cartesia and Deepgram are listed "where enabled"; Cartesia is built, not applied.
-5. Stripe, Google Fonts, the identity provider and the email inbox provider appear in DPA Annex 3, Part A3.3 ("Other providers"), because they do not process Customer Personal Data.
+5. Stripe, Google Fonts and the identity provider appear in DPA Annex 3, Part A3.3 ("Other providers"), because they do not process Customer Personal Data. The email inbox provider is listed in Part A3.2 as a Subprocessor, because Zella Voice's support and data subject request inboxes can receive Customer Personal Data.
 6. Google Fonts is listed although it is not in the architecture's subprocessor table, because the web application loads the Inter typeface from it.
 7. Push notifications and WhatsApp and Messenger are omitted: push is only planned (D 40) and those Meta channels are undecided (D 39).
 8. Encryption at rest is a placeholder; the source documents do not state it.
@@ -330,6 +330,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[DATA HOSTING REGION]**
 - **[SCC MODULE TWO (CONTROLLER TO PROCESSOR) AND, WHERE APPLICABLE, MODULE THREE; OPTIONAL CLAUSES; GOVERNING LAW; COMPETENT SUPERVISORY AUTHORITY; SWISS ADJUSTMENTS]**
 - **[UK INTERNATIONAL DATA TRANSFER AGREEMENT OR UK ADDENDUM TO THE EU STANDARD CONTRACTUAL CLAUSES, WITH TABLES COMPLETED]**
+- **[COUNSEL TO CONFIRM THE LEGAL BASIS UNDER THE DPDP ACT FOR KEEPING CONSENT AND OPT OUT HISTORY AFTER ERASURE]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[DPO OR PRIVACY CONTACT]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
@@ -504,6 +505,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[LEGAL HOLD CONTROL OWNER]**
+- **[CONFIRM HOW A HOLD IS RECORDED AGAINST AN OPEN REQUEST: THE REQUEST NOTE CAN ONLY BE SET WHEN THE REQUEST IS LOGGED OR CLOSED]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
