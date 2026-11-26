@@ -150,7 +150,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 - At 100% of minutes, Customer's chosen option applies: stop (new calls go to the Fallback Number), automatic reload of a pack, or pay as you go at the per minute rate in the Order Form, where the Order Form sets one. A call in progress is not cut off. A spending limit applies to each period between monthly billing dates, set by the Owner at or below the Plan's limit.
 - At 100% of texts or emails, routine and marketing messages stop, while appointment confirmations and reminders continue within a reserve of 5% that Zella Voice does not charge for. At 105%, all texts or emails stop until Customer buys a pack or the allowances refresh on the next monthly billing date.
 
-9.7 **Packs, automatic reload and pay as you go.** These are available only during the Subscription Term, not during a Trial Period (section 9.2). Add on packs are charged when bought at the prices shown in the Services. Automatic reload is off by default; if Customer enables it, Customer sets the threshold, the pack and a spend cap for each period between monthly billing dates, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
+9.7 **Packs, automatic reload and pay as you go.** These are available only during the Subscription Term, not during a Trial Period (section 9.2). Add on packs are charged when bought at the prices stated in the Order Form, which are the prices shown in the Services; they change only under section 9.10. Automatic reload is off by default; if Customer enables it, Customer sets the threshold, the pack and a spend cap for each period between monthly billing dates, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
 
 9.8 **Plan changes.** Upgrades take effect immediately, and Customer pays the prorated difference for the rest of the period. Downgrades take effect on the next billing date.
 
@@ -174,7 +174,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 10.5 **Packs and overage.** Used packs and pay as you go minutes are not refundable. An unused pack is refundable if requested within 14 days after purchase.
 
-10.6 **Other refunds.** Except as stated in this section 10 or required by law, Fees are non refundable, and there are no refunds or credits for partial periods. A yearly renewal is refunded in full if Customer requests it within 7 days after the renewal charge. Zella Voice may, at its discretion, give a prorated refund of a yearly Plan after prolonged service failures.
+10.6 **Other refunds.** Except as stated in this section 10 or section 22.2, or required by law, Fees are non refundable, and there are no refunds or credits for partial periods. A yearly renewal is refunded in full if Customer requests it within 7 days after the renewal charge. Zella Voice may, at its discretion, give a prorated refund of a yearly Plan after prolonged service failures.
 
 10.7 **Process.** Refunds are requested in the Services. Zella Voice determines eligibility under this section 10, and pays refunds only to the original payment method through its payment processor.
 
@@ -282,7 +282,7 @@ Customer may connect third party services, such as Google or Microsoft calendars
 
 22.1 **Notice.** Zella Voice may amend these Terms or the Policies by posting the amended version with a new version number and date and notifying the Owner by email or in the Services at least **[NOTICE PERIOD FOR CHANGES]** before the amendment takes effect. Changes required by law, or that address security or abuse, may take effect sooner.
 
-22.2 **Acceptance.** An amendment takes effect on the date stated in the notice. Customer's continued use of the Services after that date is acceptance of the amendment. If a material amendment adversely affects Customer, Customer may cancel by notice before the effective date and receive a refund of prepaid Fees for the unused part of the paid period.
+22.2 **Acceptance.** An amendment takes effect on the date stated in the notice. Customer's continued use of the Services after that date is acceptance of the amendment. If a material amendment adversely affects Customer, Customer may cancel by notice given before the amendment's effective date. Despite section 10.2(b), that cancellation takes effect on the day before the amendment's effective date, so the amendment never applies to Customer; during a Trial Period, section 10.2(a) applies instead. Zella Voice refunds the prepaid Plan Fees, and any add on fees charged per billing period, for the unused part of the current billing period, calculated as the amount paid for that period multiplied by the number of whole days from the day cancellation takes effect to the end of the period, divided by the number of days in the period. Setup fees and packs are governed by sections 10.4 and 10.5. The refund is paid under section 10.7 to the original payment method within **[REFUND PERIOD]** days after cancellation takes effect.
 
 22.3 **Schedules 1 and 4.** Zella Voice may update Schedule 1 (Acceptable Use Policy) and Schedule 4 (Service Level and Support Policy) on notice under section 22.1, as with any other Policy. Schedules 2 and 3 describe how the Services and complaint handling work and are updated under the same process.
 
@@ -626,6 +626,7 @@ Placeholders in this document:
 - **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES FOR THE CHOSEN LAW]**
 - **[END OF OPTIONAL CLAUSE]**
 - **[NOTICE PERIOD FOR CHANGES]**
+- **[REFUND PERIOD]**
 - **[LEGAL NOTICES EMAIL OR ADDRESS]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
 - **[CONTENT COMPLAINTS CONTACT]**

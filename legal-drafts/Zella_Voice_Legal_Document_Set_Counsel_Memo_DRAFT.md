@@ -115,6 +115,8 @@ The separate files were removed after merging; their full text is inside the mer
 | 34 | Automatic payment switch: off from the next renewal; first payment after a trial always charged to the saved card | Terms 9.2 and 9.3; Order Form section 4 | Build the automatic payment switch (Stripe collection by invoice when off, as the payments architecture designs it), make it take effect from the next renewal, and verify that the first invoice at the end of a trial is always charged to the card saved at checkout; the billing emails in the code already say "from your next renewal" |
 | 35 | The file for one End User's request leaves out the transcripts of Customers in Regulated Industries | DPA 9.1; Privacy Policy 11.1 | zella_export_customer_data returns call summaries and transcripts for every business today. Change it (a new, version guarded migration with an exact rollback, applied with approval) to leave out transcripts when the business is in a Regulated Industry, test it on the isolated database, and verify the file; until then staff remove them by hand (Handbook B2 step 3) |
 | 36 | Emails from a Business come from its own address (verified domain or connected Gmail or Outlook mailbox), otherwise in its name from the Zella Voice no reply address with replies to the Business | Messaging Terms 1.3; Terms 15; Privacy Policy 8.1; DPA Annex 3 (Google and Microsoft mailbox row) | The no reply fallback with the Business's name and reply address is built (zella_prepare_email). Build and verify per business domain verification, mailbox connection for Gmail and Outlook and sending through either, with the fallback when a mailbox reaches its provider's daily cap; sign Google and Microsoft data processing terms for mailbox sending; if mailbox sending is not ready at launch, keep the "where enabled" rows and confirm the fallback on a test email to an owner controlled address |
+| 37 | Deletion suspended for a transcript or recording named in a pending return request under a BAA, until returned and for no longer than the BAA return period, including at the end of the export window and on account deletion | DPA 12.1, 12.2, 12.3 and S1.6.3 (DPA Schedule 1); Privacy Policy 6.3; Terms 12.7 | The retention, purge and account deletion jobs know legal holds (zella_retention_on_hold) but not BAA return requests. Build a per item return request suspension that every deletion path (90 day deletion, purge after cancellation, account deletion and Vapi deletion requests) checks, with the time limit, tested on the isolated database; do not offer the HIPAA option until it is verified |
+| 38 | Pro rata refund when a Customer cancels over an adverse amendment, effective the day before the amendment | Terms 22.2 | Decide the refund period; set up the cancellation on the chosen date and the pro rata refund through Stripe with the payments work (blocker 22), and verify it with an approved test before relying on it |
 
 ## 5. Open decisions for the owner
 
@@ -282,6 +284,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[OPTIONAL CLAUSE: USE ONLY IF COUNSEL APPROVES FOR THE CHOSEN LAW]**
 - **[END OF OPTIONAL CLAUSE]**
 - **[NOTICE PERIOD FOR CHANGES]**
+- **[REFUND PERIOD]**
 - **[LEGAL NOTICES EMAIL OR ADDRESS]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
 - **[CONTENT COMPLAINTS CONTACT]**
@@ -394,7 +397,6 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[PER MINUTE RATE OR NOT OFFERED]**
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
-- **[CONFIRM PACK PRICES BEFORE USE]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
 - **[SIGNATORY NAME]**

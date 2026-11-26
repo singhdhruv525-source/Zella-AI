@@ -148,7 +148,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 |---|---|
 | Call recordings (only when recording is on; see section 6.1) | 90 days after the call, then deleted automatically, unless deleted earlier (sections 10 and 11); deletion is suspended for an item named in a pending return request under a business associate agreement until it is returned, for a limited period |
 | Call transcripts | 90 days after the call, then removed automatically, unless deleted earlier (sections 10 and 11); deletion is suspended for an item named in a pending return request under a business associate agreement until it is returned, for a limited period |
-| Copies of calls held by Vapi | A deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible |
+| Copies of calls held by Vapi | For each call not under a legal hold, a deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible. For a call under a legal hold, no deletion request is sent and Vapi's copy is kept until the hold is released |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |

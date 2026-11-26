@@ -68,7 +68,7 @@ If a trial is included, the Trial Period starts when the Owner starts the paymen
 | Extra location | 30 per monthly billing period |
 | Extra Authorized User | 10 per monthly billing period |
 
-**[CONFIRM PACK PRICES BEFORE USE]**
+These are the add on prices shown in the Services (Terms, section 9.7). They change only with notice under section 9.10 of the Terms.
 
 ## 7. Special terms
 
@@ -123,7 +123,6 @@ Placeholders in this document:
 - **[PER MINUTE RATE OR NOT OFFERED]**
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
-- **[CONFIRM PACK PRICES BEFORE USE]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
 - **[SIGNATORY NAME]**
