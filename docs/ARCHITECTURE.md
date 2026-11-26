@@ -731,6 +731,16 @@ stateDiagram-v2
   - A stuck queue is woken less often, but any **newly due item** wakes the worker immediately.
   - The stuck item is also alerted and, after its retries, dead-lettered.
 - **REQ-AUT-12** A master switch stops all worker wake-ups; each queue has its own switch.
+- **Wake on insert (REQ-AUT-10), how it is built.** `zella_kick_dispatch()` runs AFTER INSERT on the eight queue tables
+  (`automation_events`, `followup_tasks`, `staff_notifications`, `appointment_reminders`, `meta_events`, `meta_outbox`,
+  `website_pages`, `website_sources`) and calls the dispatcher `zella_dispatch_n8n()`, which still calls a workflow only
+  when its queue has due work and honours the master switch `n8n_dispatch_enabled` (REQ-AUT-12). At most one kick every
+  2 seconds; a follow up due later doesn't kick (the once a minute safety net, the `zella_dispatch` job, wakes it). A
+  kick never blocks or fails the save: errors are caught, the kick row is taken with SKIP LOCKED, and the kick gives up
+  after a 2 second lock wait. The triggers are created switched off, like `zella_kick_platform_emails` (§14.4): switching
+  them on is a live switch for the owner. Source: `sql/zella_event_dispatch.sql` (built 26 Nov 2026, not applied).
+  Known gap: the dispatcher's back off (8 seconds after a call, 15 minutes for a queue whose count doesn't fall) also
+  holds back a newly due item, so REQ-AUT-11's "any newly due item wakes the worker immediately" is not met yet.
 
 ### 8.4 Automation catalogue (target)
 
