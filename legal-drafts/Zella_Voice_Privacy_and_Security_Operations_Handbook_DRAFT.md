@@ -12,7 +12,7 @@ Last reviewed: **[LAST REVIEWED DATE]**
 
 A1.1 This plan covers any event that may compromise the confidentiality, integrity or availability of Customer Data, Account Data or the Services, including a Personal Data Breach as defined in the Zella Voice Data Processing Addendum ("DPA"). Capitalized terms have the meanings given in the Zella Voice Terms of Service and the DPA.
 
-A1.2 It works alongside the product's own runbooks and live switches: every feature that reaches the outside world can be switched off, and the platform raises admin alerts for failures.
+A1.2 It works alongside the product's own runbooks and controls. Several incident controls are built but not yet live: per feature live switches for everything that reaches the outside world (all off in production today), pausing all automations for one business, signing an administrator out of every device, and admin alerts for failures. Until each is confirmed live, use only the controls the owner confirms are available today, which are expected to include the provider dashboards and the secret stores for rotating keys. **[CONFIRM WHICH INCIDENT CONTROLS ARE AVAILABLE TODAY]**
 
 ### A2. Roles
 
@@ -70,15 +70,15 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 
 ### B2. How a Customer handles an End User request in the Services
 
-1. **Log it.** Record the request in the CRM's data rights requests: the kind (access, export or erasure), the requester and a note. It is due 30 days after it is recorded, and a reminder is sent before it is due.
+1. **Log it.** Record the request in the CRM's data rights requests: the kind (access, export or erasure), the requester and a note. It is due 30 days after it is recorded, and a daily job is designed to remind the Owner before it is due **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**.
 2. **Verify identity.** The Customer confirms the requester's identity using information it already holds. A request is not acted on until the identity is verified.
 3. **Access or export.** The Owner exports the customer's records, or the customers and call history, as CSV. A whole business export can be requested from Zella Voice. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 4. **Correct.** Staff correct the record in the CRM.
-5. **Check for a legal hold.** Before any erasure, check whether a legal hold applies to the customer or the business. Data under a hold is excluded from erasure and from deletion at Vapi or any other provider until the hold is released. If a hold applies, ask Zella Voice before continuing.
-6. **Erase.** The Owner erases the customer, except data under a hold. A second person must approve. Details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is queued; calls under a hold are not queued until the hold is released. Consent and opt out history is kept so that opt outs keep working. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+5. **Check for a legal hold (manual).** Before any erasure, staff must check with Zella Voice whether a legal hold applies to the customer or the business. **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]** Data under a hold must be excluded from erasure and from deletion at Vapi or any other provider until the hold is released; until the product enforces this, do not run the erasure while a hold applies.
+6. **Erase.** The Owner erases the customer, only after step 5 confirms no hold applies. A second person must approve. Details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is queued; because erasure does not check holds today, the manual check in step 5 is what keeps held calls from being erased or queued (the Vapi deletion sender is designed to hold back calls of a business on hold, but it is not yet live). Consent and opt out history is kept so that opt outs keep working. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 7. **Opt out.** Opt outs by STOP, unsubscribe link or "don't call me" take effect immediately for that business and need no request.
 8. **Report what was kept (erasure requests).** For an erasure request, tell the requester what was kept and why, including consent and opt out history (kept so the opt out keeps working) and data under a legal hold (kept until the hold is released and then deleted on schedule), where the law allows.
-9. **Close.** Mark the request done. Every step is recorded in the audit log.
+9. **Close.** For an erasure request, keep the request open while the deletion at Vapi is pending, track the result, and mark it done only after the deletion succeeds or an exception (for example "not found at the provider" or a legal hold) is recorded. For other requests, mark the request done when answered. Every step is recorded in the audit log.
 
 ### B3. How Zella Voice handles an Account Data request
 
@@ -192,6 +192,7 @@ Placeholders in this document:
 
 - **[HANDBOOK OWNER ROLE]**
 - **[LAST REVIEWED DATE]**
+- **[CONFIRM WHICH INCIDENT CONTROLS ARE AVAILABLE TODAY]**
 - **[INCIDENT LEAD ROLE]**
 - **[TECHNICAL LEAD ROLE]**
 - **[COMMUNICATIONS LEAD ROLE]**
@@ -204,7 +205,9 @@ Placeholders in this document:
 - **[VENDOR CONTRACT NOTICE TERMS]**
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
+- **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**

@@ -93,6 +93,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 | Trust overview "Built, going live" items | Must be relabelled Live only once in production |
 | Contact hours in the recipient's time zone (Messaging Terms 4.2) | **Blocker for texts going live:** the text sender checks only marketing texts, only 8 a.m. to 9 p.m., and only in the Business's time zone; rulebook COM 3 requires the recipient's time zone when known and every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time). Marketing and automated texts must stay off until the sender enforces both the time zone basis and every window (Messaging Terms 4.3) |
 | HELP reply (Messaging Terms 7) | **Blocker for texts going live:** today the HELP reply is sent only when the number matches a known customer, and it has no contact method. It must be sent to every number, with the business name, a contact method and opt out instructions |
+| Legal holds respected on erasure | Not enforced: customer erasure does not check holds today; staff check manually (Handbook B2 step 5) until the product fix |
 | Card numbers never collected | Zella Voice never asks for them and payment is only through Stripe, but callers may speak card numbers and transcripts may store them; transcript redaction is not built (pending remediation) |
 | HIPAA BAA available | Offered only after BAAs with every vendor (D 49); not in place |
 
@@ -127,11 +128,14 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 27. Product fix: redact payment card numbers that callers speak from call transcripts (and summaries), and check existing transcripts.
 28. Trial start (checkout start in the payment design, or another point) and whether packs, automatic reload and pay as you go stay unavailable during the trial (Terms 9.2 and 9.7, Order Form section 4).
 29. Product fix before texts go live: send the HELP reply to every number that texts HELP, with the business name, a contact method and opt out instructions (Messaging Terms 7, Consent Pack 5.4).
-30. Custom trials: checkout supports only the platform's standard trial (5 days, 20 minutes, 5 texts, 5 emails); decide whether to build per business trials before offering one (Order Form section 4).
+30. Custom trials: checkout supports only the platform's standard trial, stored in the billing rules setting (currently 5 days, 20 minutes, 5 texts, 5 emails); decide whether to build per business trials before offering one (Order Form section 4).
 31. First Billing Date without a trial: the start of the first paid period recorded at checkout (current code) or the Owner's first sign in (architecture REQ BIL 17); the Terms, Order Form and billing must use the same date.
 32. Objection period after an urgent Subprocessor replacement (DPA 8.3 and Annex 3).
 33. Whether a changed cancellation retention period applies to businesses already canceled, which needs a migration to recompute their stored deletion dates (section 3.2.1).
 34. Confirm, before publishing, that call recording is explicitly disabled at Vapi; every "off by default" statement in the set carries a placeholder until then.
+35. Product fix: customer erasure (zella_erase_customer) must check the legal hold (zella_retention_on_hold) before deleting anything, keep held data, and not queue held calls for deletion at Vapi; until then staff check holds manually (Handbook B2 step 5) and the documents carry a "not yet enforced" marker.
+36. Trial and payment before going live: decide whether a trial enabled plan always uses trial checkout, or whether trials are blocked when payment is required before going live; the trial length is the platform's billing rules setting, not the Order Form.
+37. Confirm the daily data rights reminder job and the incident controls (Handbook A1.2) are switched on before relying on them.
 
 ## 6. Points for counsel
 
@@ -240,6 +244,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUPPORT CONTACT EMAIL]**
 - **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
+- **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 - **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]**
 - **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
@@ -289,6 +294,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
@@ -311,6 +317,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[URGENT REPLACEMENT OBJECTION PERIOD]**
+- **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
+- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[BREACH NOTIFICATION HOURS]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
@@ -324,8 +332,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[MONITORING PROVIDER NAME]**
-- **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
+- **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[OPTIONAL SCHEDULE: USE ONLY FOR APPROVED HEALTHCARE CUSTOMERS AND ONLY IF COUNSEL APPROVES]**
 - **[BAA EFFECTIVE DATE]**
 - **[CUSTOMER LEGAL NAME]**
@@ -349,6 +357,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[LEGAL DOCUMENTS LOCATION]**
+- **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
 
 ### Zella Voice Order Form (Template)
 
@@ -377,6 +386,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
 - **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]**
+- **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 - **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
 - **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
@@ -472,6 +482,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 
 - **[HANDBOOK OWNER ROLE]**
 - **[LAST REVIEWED DATE]**
+- **[CONFIRM WHICH INCIDENT CONTROLS ARE AVAILABLE TODAY]**
 - **[INCIDENT LEAD ROLE]**
 - **[TECHNICAL LEAD ROLE]**
 - **[COMMUNICATIONS LEAD ROLE]**
@@ -484,7 +495,9 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[VENDOR CONTRACT NOTICE TERMS]**
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
+- **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**

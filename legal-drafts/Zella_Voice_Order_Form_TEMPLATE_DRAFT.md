@@ -46,9 +46,9 @@ Order date: **[ORDER DATE]**
 | Item | Entry |
 |---|---|
 | Trial included | **[YES OR NO]** |
-| Trial length and allowances | 5 days, 20 AI minutes, 5 texts and 5 emails. A different trial is **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]** |
+| Trial length and allowances | The platform's standard trial, as stored in the platform's billing rules setting (currently 5 days, 20 AI minutes, 5 texts and 5 emails). It cannot be changed in this Order Form; a different trial is **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]** |
 
-If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts 5 days from then. A payment method is saved on Stripe's hosted page at the start, nothing is charged during the Trial Period (any setup fee is charged with the first paid billing period), and packs, automatic reload and pay as you go are not available until the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 9.7). **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
+If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts for the standard trial length in the platform's billing rules (currently 5 days). A plan with a trial is not charged during the Trial Period. **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]** A payment method is saved on Stripe's hosted page at the start, nothing is charged during the Trial Period (any setup fee is charged with the first paid billing period), and packs, automatic reload and pay as you go are not available until the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 9.7). **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 
 ## 5. Term and renewal
 
@@ -122,6 +122,7 @@ Placeholders in this document:
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
 - **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]**
+- **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 - **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
 - **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**

@@ -70,7 +70,7 @@ Carriers are not liable for delayed or undelivered messages. Delivery depends on
 
 9.1 The Business's own privacy policy explains how it uses your information. Zella Voice handles your information for the Business as described in the Zella Voice Privacy Policy at **[LEGAL DOCUMENTS LOCATION]**.
 
-9.2 **Mobile information is not sold, and is not shared with third parties or affiliates for their marketing or promotional purposes.** Text messaging opt in data and consent are not shared with any third party, except the providers that deliver the messages.
+9.2 **Mobile information is not sold, and is not shared with third parties or affiliates for their marketing or promotional purposes.** Text messaging opt in data and consent are not shared with any third party, except the service providers that deliver messages and run the Services for the Business. If you submit a lead form on Google or Meta, that platform collects your details under its own terms and passes your lead to the Business through Zella Voice; this is the platform sending your details in, and neither the Business nor Zella Voice shares your mobile information or consent back to those platforms for marketing. **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
 
 ## Part B. Terms for Customers that send messages
 
@@ -88,7 +88,7 @@ Carriers are not liable for delayed or undelivered messages. Delivery depends on
 
 11.1 Every consent and opt out is recorded per Business, with the channel, purpose, time, source and the keyword or link used. Consent records are kept as an append only history.
 
-11.2 Before every message, the Services check consent, opt outs, frequency limits, duplicate protection and the contact hours in section 4.2, at the time of sending, not only when the message was created.
+11.2 Before every message, the Services check consent, opt outs, frequency limits and duplicate protection at the time of sending, not only when the message was created. The contact hours in section 4.2 are checked in full only once the condition in section 4.3 is met; today the sender checks only marketing texts, in the Business's time zone.
 
 11.3 When a Business erases a person's data, the person's consent and opt out history is kept so that the opt out continues to work.
 
@@ -116,5 +116,6 @@ Placeholders in this document:
 - **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[LEGAL DOCUMENTS LOCATION]**
+- **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
 
 <!-- PLACEHOLDERS END -->

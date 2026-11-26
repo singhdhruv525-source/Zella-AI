@@ -131,7 +131,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 | Stripe (where enabled) | Payments for Customers' Plans |
 | Google Fonts (Google) | Typeface for the web application |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Owner identity checks |
-| **[EMAIL INBOX PROVIDER]** | Our own email inboxes |
+| **[EMAIL INBOX PROVIDER]** | Our own email inboxes, including support and privacy requests, which may contain Customer Personal Data |
 
 8.2 We may also disclose Personal Data where the law requires it, to protect the safety, rights or property of any person, or to a successor in a merger, acquisition or reorganization, which will remain bound by this policy. One Customer's data is never shown to another Customer.
 
@@ -147,7 +147,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. The 
 |---|---|
 | Call recordings (only when recording is on; see section 6.1) | Scheduled for automatic deletion 90 days after the call |
 | Call transcripts | Scheduled for automatic removal 90 days after the call |
-| Copies of calls held by Vapi | Deleted at Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion |
+| Copies of calls held by Vapi | A deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
@@ -160,7 +160,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. The 
 
 11.1 **Export.** Owners can export customers and call history as CSV at any time and can request a whole business export, downloadable for 7 days. Recording links, and transcripts of Customers in Regulated Industries, are left out of that export. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released. Erasure needs a second person's approval at the Customer. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**. Erasure needs a second person's approval at the Customer. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed and copies at Vapi are deleted. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, and data under a legal hold is kept until the hold is released. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
@@ -283,6 +283,7 @@ Placeholders in this document:
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**

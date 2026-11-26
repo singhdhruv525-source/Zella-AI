@@ -64,10 +64,10 @@ As Customer's service provider, Zella Voice will not: (a) sell or share Customer
 
 9.1 **Tools.** Taking into account the nature of the processing, Zella Voice will assist Customer by appropriate technical and organizational measures, insofar as possible, to respond to requests from data subjects. The Services provide these tools:
 
-- a request log in the CRM for access, export and erasure requests, each with a due date 30 days after it is recorded and a reminder before it is due;
+- a request log in the CRM for access, export and erasure requests, each with a due date 30 days after it is recorded, and a daily reminder to the Owner before it is due **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**;
 - export of customers and call history as CSV at any time, and a whole business export on request, downloadable for 7 days **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**;
 - correction of records in the CRM;
-- erasure of an End User: their details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is requested. Consent and opt out history is retained so that opt outs continue to work, and data under a legal hold is kept, and not deleted at Vapi, until the hold is released (section 12.5). Erasure needs a second person's approval at Customer **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**;
+- erasure of an End User: their details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is requested. Consent and opt out history is retained so that opt outs continue to work, and data under a legal hold is kept, and not deleted at Vapi, until the hold is released (section 12.5) **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**. Erasure needs a second person's approval at Customer **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**;
 - opt outs by STOP, unsubscribe link and "don't call me", honored immediately for Customer.
 
 9.2 **Requests received by Zella Voice.** If Zella Voice receives a request from a data subject about Customer Personal Data, it will promptly forward it to Customer and will not respond except to direct the data subject to Customer, unless Customer instructs otherwise or the law requires.
@@ -204,6 +204,7 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 | Meta (where enabled and connected) | Facebook and Instagram lead ads | Lead details |
 | Shopify (where a store connects it) | Order lookup | The order number and customer contact used for the lookup |
 | **[MONITORING PROVIDER NAME]** | Uptime checks, logs and alerts | Request information only; no Personal Data |
+| **[EMAIL INBOX PROVIDER]** | Zella Voice's own email inboxes, which receive support requests, data subject requests and other correspondence | The contents of emails sent to Zella Voice, which may include Customer Personal Data (for example a request forwarded by a Customer or sent by an End User) as well as Account Data |
 
 ### A3.3 Other providers (Account Data and website traffic)
 
@@ -212,7 +213,6 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 | Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Zella Voice never receives or stores the card data entered on Stripe's hosted pages; card numbers are never collected on purpose, but a number a caller speaks may appear in a transcript until redaction is in place (Annex 1) |
 | Google Fonts (Google) | Serves the typeface used by the web application | The visitor's network address and browser details when a page loads |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Verifying an Owner's identity | The Owner's identity documents and the check result |
-| **[EMAIL INBOX PROVIDER]** | Zella Voice's own email inboxes | The contents of emails sent to Zella Voice |
 
 ### A3.4 Location
 
@@ -341,6 +341,8 @@ Placeholders in this document:
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[URGENT REPLACEMENT OBJECTION PERIOD]**
+- **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
+- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[BREACH NOTIFICATION HOURS]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
@@ -354,8 +356,8 @@ Placeholders in this document:
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[MONITORING PROVIDER NAME]**
-- **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
+- **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[OPTIONAL SCHEDULE: USE ONLY FOR APPROVED HEALTHCARE CUSTOMERS AND ONLY IF COUNSEL APPROVES]**
 - **[BAA EFFECTIVE DATE]**
 - **[CUSTOMER LEGAL NAME]**
