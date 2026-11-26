@@ -110,7 +110,8 @@ setting `support_email` (a value that already has a name is kept). Emails from a
 from the business's own address (owner, 26 Nov): a verified business domain, or a connected Gmail or Outlook mailbox, set up as a step of Create
 Business;
 until connected, the built fallback sends as the business name at no-reply@ with Reply-To the business email. The
-domain verification and mailbox connection are not built (architecture §14.4). Live steps, each with approval: set
+rules for replies, mailboxes, limits, DNS and plans are decided (architecture §14.4, settles D-19 and D-19a). The
+domain verification and mailbox connection are not built. Live steps, each with approval: set
 `support_email` to `support@zellavoice.com` (the setting does not exist yet) and redeploy `platform-emails`.
 
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.

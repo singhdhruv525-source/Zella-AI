@@ -1358,6 +1358,25 @@ Reply-To, so reminders never stop and a customer's reply still reaches the busin
 fallback that is built today). **Not built yet:** domain verification per business, the mailbox connection, and
 sending through either. This settles open decision D-19 (Gmail/Outlook mailbox integration: build).
 
+**Business email address rules (owner, 26 Nov 2026; settles D-19a):**
+- **Replies** go to the business's own inbox. Every reminder and confirmation carries Confirm, Reschedule and Cancel
+  buttons that update the CRM at once, so no reply email has to be read. Reading replies into the CRM may come later,
+  for connected mailboxes only (it needs extra mailbox permissions and provider review).
+- **Mailboxes at launch:** Gmail and Outlook. Any other mailbox (Yahoo, iCloud, the business's own mail server) uses the
+  verified domain route or the fallback.
+- **Who sends, and the limits:** with a verified business domain, or the fallback, Zella Voice sends through its own
+  email provider (Resend), so only the business's Zella Voice plan limit applies. With a connected Gmail or Outlook
+  mailbox, the provider itself must send (an email claiming a gmail.com or outlook.com address from any other server is
+  rejected or marked as spam), so that provider's daily cap (about 500 a day for free Gmail, about 2,000 for Google
+  Workspace) applies on top of the plan limit. Zella Voice still decides what is sent and when.
+- **At a mailbox's daily cap:** the rest of that day's emails go out through the fallback (business name at
+  no-reply@, Reply-To the business email), so time sensitive reminders never stop; the business is told it reached the
+  cap and is pointed to the verified domain route, which has no provider cap.
+- **DNS records:** the business adds them itself, guided by the Zella Voice team during Create Business with a step by
+  step page; the setup screen shows Verified when they work. The Zella Voice team never holds a business's domain or
+  website login. Until verified, the fallback is used.
+- **Plans:** available on every plan.
+
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
 until Stripe is live (billing step 4) and `email_live` is on, each switched on with the owner's approval.
@@ -2193,7 +2212,6 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-08 | Calendar providers at launch | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
-| D-19a | Business email address (§14.4): whether replies to it also reach the CRM (decides if inbound reply handling is needed beyond the fallback); which mailboxes (Gmail and Outlook only, or others); what happens at a mailbox's daily sending limit (fallback or hold); who adds the DNS records (business or Zella Voice team); all plans or some | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
