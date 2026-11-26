@@ -1348,7 +1348,8 @@ Everything Zella Voice itself sends to a business (owner, billing contacts, team
 business or a customer go out from support@ (billing@ and info@ are aliases of it). Automatic emails come from a
 no reply address, `Zella Voice <no-reply@zellavoice.com>` (billing ones as set in `docs/BILLING_EMAILS.md`), always
 with Reply-To support@, so a reply is never lost. The sender name a business sees on these emails is always Zella Voice.
-Emails a business sends to its own customers (reminders, confirmations, follow ups; owner, 26 Nov 2026) come from the
+Every email a business sends to its own customers (reminders, confirmations, follow ups and marketing; owner, 26 Nov
+2026) comes from the
 **business's own email address**, with the business's name as the sender. It is set up as a step of Create Business
 (the admin wizard, with the business), one of two ways: a business with its own domain verifies it for sending (DNS records Zella Voice gives it, verified
 through Resend), and a business on Gmail or Outlook connects its mailbox and sends through it. Until the address is
@@ -2192,7 +2193,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-08 | Calendar providers at launch | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
-| D-19a | Business email address (§14.4): which customer emails use it (marketing too?); whether replies to it also reach the CRM (decides if inbound reply handling is needed beyond the fallback); which mailboxes (Gmail and Outlook only, or others); what happens at a mailbox's daily sending limit (fallback or hold); who adds the DNS records (business or Zella Voice team); all plans or some | owner |
+| D-19a | Business email address (§14.4): whether replies to it also reach the CRM (decides if inbound reply handling is needed beyond the fallback); which mailboxes (Gmail and Outlook only, or others); what happens at a mailbox's daily sending limit (fallback or hold); who adds the DNS records (business or Zella Voice team); all plans or some | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
