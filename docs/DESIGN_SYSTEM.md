@@ -100,6 +100,16 @@ items that people judge one at a time:
 fade into `--zella-bg` to show it scrolls, and the open tab is scrolled into view. Other pages' tabs (`adminOps.jsx`)
 are not changed by this.
 
+## Business email address setup (26 Nov 2026)
+
+- **`BusinessEmailSetup`** (`web/src/BusinessEmailSetup.jsx`, `.wiz-email*` in `CreateBusinessWizard.css`): sits in a
+  wizard `Section`. The current sender in a `.wiz-connection` row with a badge (Not set up, Waiting for DNS, Verified,
+  Not verified, Connected, Reconnect needed, Daily limit reached), the two ways as `.wiz-choice` cards, then the
+  numbered steps (`.wiz-email-steps`): each DNS record in an `.owner-table` with its value truncated
+  (`.owner-cell-truncate`, the full value in a `title`, in `--zella-font-mono`) and a Copy value button, so long DKIM
+  values never wrap mid word. One primary button per step. Stopping asks first, inline, with what changes. Its words
+  come from `businessEmailSetup.js` (tested).
+
 ## Components added with the owner onboarding journey
 
 - **Progress steps** (`web/src/onboarding/ProgressSteps.jsx`, `.zv-progress` in `onboarding/onboarding.css`): "Step 3 of 7" and the step's name, a mocha bar with `role="progressbar"` and an accessible value text, and one dot per step (done, here, to come). The words carry the meaning; the bar and dots back them up. Give it `screens` and the `current` index.

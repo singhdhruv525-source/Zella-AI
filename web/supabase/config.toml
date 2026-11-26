@@ -508,6 +508,14 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/calendar-connect/index.ts"
 
+# The business's own email address (docs/ARCHITECTURE.md §14.4): a verified domain through Resend's domains API.
+# Every request is checked with the person's own sign in through Auth, and the database decides who may (owners and
+# admins of the business, or a Zella Voice admin with businesses.manage); off at the gateway like calendar-connect.
+[functions.business-email]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/business-email/index.ts"
+
 # Connects a business's Shopify store (owners and admins; checked through the database, like staff-invite).
 [functions.store-connect]
 enabled = true

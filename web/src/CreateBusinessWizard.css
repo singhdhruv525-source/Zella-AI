@@ -1070,3 +1070,11 @@ button.wiz-chip:hover { border-color: var(--color-primary); color: var(--color-p
 .wiz-ladder { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; }
 .wiz-ladder li { padding: 4px 10px; border: 1px solid var(--zella-border, #d9d6cf); border-radius: 999px; font-size: 13px; color: var(--zella-text-secondary, #6b6b6b); }
 .wiz-ladder li.done { background: var(--zella-success-bg, #e7f4ea); border-color: transparent; color: var(--zella-success, #1f6b3a); font-weight: 600; }
+
+/* Business email address (BusinessEmailSetup.jsx): the setup steps, their actions and the DNS values */
+.wiz-email { display: grid; gap: var(--zella-space-3); }
+.wiz-email-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--zella-space-2); }
+.wiz-email-steps { display: grid; gap: var(--zella-space-3); margin: 0; padding-left: var(--zella-space-5); }
+.wiz-email-steps > li { display: grid; gap: var(--zella-space-2); color: var(--text-primary); }
+.wiz-email-steps > li > span { color: var(--text-secondary); font-size: 13px; }
+.wiz-email-value { font-family: var(--zella-font-mono); }
