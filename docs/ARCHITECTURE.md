@@ -1349,8 +1349,13 @@ business or a customer go out from support@ (billing@ and info@ are aliases of i
 no reply address, `Zella Voice <no-reply@zellavoice.com>` (billing ones as set in `docs/BILLING_EMAILS.md`), always
 with Reply-To support@, so a reply is never lost. The sender name a business sees on these emails is always Zella Voice.
 Emails a business sends to its own customers (reminders, confirmations, follow ups; owner, 26 Nov 2026) come from the
-same no reply address but show the business's name as the sender and carry the business's own email as Reply-To, so a
-customer's reply goes straight to the business (`zella_prepare_email`).
+**business's own email address**, with the business's name as the sender. Two ways to connect it, chosen by the
+business in setup: a business with its own domain verifies it for sending (DNS records Zella Voice gives it, verified
+through Resend), and a business on Gmail or Outlook connects its mailbox and sends through it. Until the address is
+connected the email still goes out, as `<business name> <no-reply@zellavoice.com>` with the business's email as
+Reply-To, so reminders never stop and a customer's reply still reaches the business (`zella_prepare_email`, the
+fallback that is built today). **Not built yet:** domain verification per business, the mailbox connection, and
+sending through either.
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
