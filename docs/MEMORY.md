@@ -153,6 +153,26 @@ data). Only the business's own owner or admin connects a mailbox, never Zella Vo
 then `business_email_routes.mailbox` on, with approval. Known limits: Graph can't set a List-Unsubscribe header or the
 business name as the sender name (the account's own display name shows).
 
+**Business email address, parts 6 to 8 (owner's decisions of 27 Nov 2026):** built, not applied, deployed or imported;
+tested on the isolated test database and with every provider mocked, never against Resend, Google or Microsoft.
+- Part 6, limits (`sql/zella_business_email_caps.sql`, `tests/business_email_caps/run.sh`): caps at 80% of the
+  provider's limit (free Gmail 400, Google Workspace 1,600, Outlook.com 240, Microsoft 365 8,000), 20 a minute, the
+  lowest cap for the provider when the type isn't known (the type comes from the sign in: Google's `hd`, Microsoft's
+  tenant). Pacing: `pace_until` from the sender, and the n8n Email Sender and Follow up Emails put the item back with
+  `zella_business_email_paced` (rebuilt, not re-imported; import them only after this file is applied).
+- Part 7, the owner's link (`sql/zella_business_email_mailbox_link.sql`, `tests/business_email_mailbox_link/run.sh`):
+  a Zella Voice admin emails the owner a one time "Connect your mailbox" link (email S8) from Create Business; hash only,
+  7 days, once, the owner only, the role checked on the server; queued in the platform outbox, held while `email_live`
+  is off. The admin never gets mailbox access.
+- Part 8, pending domains (`sql/zella_business_email_pending_domains.sql`, `tests/business_email_pending_domains/run.sh`):
+  reminders on day 2 and day 5 (warnings, emailed as N1), removal from day 7 (never sooner than 36 hours after the day 5
+  reminder), an admin's removal at once with a reason, and a removal queue for Resend. The daily job
+  `zella_business_email_pending_domains` is created **off**; `business_email_url` is empty and the Vault secret
+  `zella_business_email_jobs_secret` is made by the file. Turning the job on is a live switch (architecture §14.4).
+- Apply order, each with the owner's approval: the five earlier business email files, then caps, link, pending
+  domains; roll back in reverse (rehearsed on an isolated copy: all seven applied, rolled back in reverse and applied
+  again, every public function back exactly). Deploy `business-email` and the web app after the files are applied.
+
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
@@ -163,6 +183,15 @@ n8n workflows are not re-imported since PR #57. Deploying needs the owner's appr
 inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked 15 Nov 2026). So the hourly group, and with it the business moments, does not run until `zella_jobs_hourly` is switched on, with approval. `vapi_auth_mode` is `bearer`.
 
 ## 4. Open problems
+
+- **Mailbox refusals for sending too fast (27 Nov 2026, not decided):** the mailbox path still reads any Gmail or Graph
+  429 (and Gmail's `rateLimitExceeded`, `userRateLimitExceeded`) as the daily limit, so the rest of that business's day
+  goes through the fallback. Pacing at 20 a minute makes this rare but not impossible: the Email Sender and Follow up
+  Emails running in the same minute for one business can briefly send more than 20. Telling a per minute refusal apart
+  (put back for a minute instead) needs real provider answers to confirm, so it was not changed.
+- **Mailbox type of mailboxes connected before 27 Nov 2026:** none exist (nothing is applied). If any were connected
+  before `sql/zella_business_email_caps.sql` is applied, their type was guessed from the address's domain; reconnecting
+  reads it from the sign in.
 
 - **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
   CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
@@ -217,6 +246,18 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
+
+- **Business email address (owner, 27 Nov 2026; `docs/ARCHITECTURE.md` §14.4 and §23.1d, REQ-BEM-01 to REQ-BEM-26):**
+  - Who connects the mailbox: "owner, plus admin link". The owner connects Gmail or Outlook from CRM Settings at any
+    time; during Create Business a Zella Voice admin can also email the owner a one time link to that page (single use,
+    7 days, hash only, bound to the business and the owner, the role checked on the server, sent through the platform
+    email path and held while `email_live` is off). The admin never gets mailbox access.
+  - Daily limits: 80% of the provider's limit with pacing (free Gmail 400, Google Workspace 1,600, Outlook.com 240,
+    Microsoft 365 8,000, at most 20 a minute); a type that can't be determined gets the provider's lowest cap; at the
+    cap the emails go from Zella Voice's address with the business's name.
+  - Pending email domains expire after 7 days, with reminders on day 2 and day 5; a Zella Voice admin can remove one at
+    once; until then the business sends from Zella Voice's address with its own name. Every scheduled job is created
+    switched off.
 
 - **Phone navigation (owner, 25 Nov 2026, "Yes to all"; `docs/ARCHITECTURE.md` §23.1d, REQ-MOB-02 to REQ-MOB-11):**
   all of P1 to P29 approved for both apps. Built in the phone navigation pull request (not merged when written):

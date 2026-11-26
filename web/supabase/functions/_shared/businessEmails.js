@@ -35,7 +35,7 @@ export const SAMPLE = {
   attempt: 2, oldValue: "$200.00", newValue: "$300.00", changedBy: "Jordan", device: "Chrome on Windows, near Austin, Texas", time: "14 Nov 2026 at 09:12",
   phone: "(555) 010 2040", fallbackPhone: "(555) 010 3000", calls: 87, booked: 23, newLeads: 12, missed: 3, answeredRate: "97%",
   incident: "Some calls took longer to connect", started: "14 Nov 2026 at 10:05", resolved: "14 Nov 2026 at 10:40", refund: "$49.00", credit: "$12.60",
-  deletionDate: "21 Dec 2026", dataDays: 30, questions: 4, onCallFrom: "Saturday 18:00",
+  deletionDate: "21 Dec 2026", dataDays: 30, linkExpires: "4 Dec 2026", ownerInvited: false, linkPath: "/app/settings/messages/business-email#mailbox_link=sample", questions: 4, onCallFrom: "Saturday 18:00",
   title: "Gaps in this weekend's on call cover", body: "Nobody is on call from Saturday 18:00. Calls that need a person will go to voicemail then.",
   severity: "warning", pagePath: "/on-call",
   newRole: "Manager", busiestDay: "Tuesday", connection: "Website forms", spamCalls: 14, spamMessages: 6,
@@ -88,6 +88,18 @@ export const EMAILS = [
   e("S7", "setup", "Phone number connected", "a phone number is connected or moved", M, (d) => ({
     tone: "info", subject: `${d.phone} is connected`, heading: "Your number is connected",
     intro: [`${d.phone} now rings through to Zella Voice. Make a test call to hear your receptionist.`], button: ["Phone settings", L(d, "/settings/phone")] })),
+  // A Zella Voice admin sends the owner a one time link during Create Business (owner, 27 Nov 2026; ARCHITECTURE §14.4).
+  // Sent by the business-email function (action mailbox_link_send). linkPath carries the one time token (in the address
+  // fragment); the link works once, for 7 days, only for the owner signed in to Zella Voice.
+  e("S8", "setup", "Connect your mailbox", "a Zella Voice admin sends the owner a link to connect Gmail or Outlook", M, (d) => ({
+    tone: "brand", subject: `Send ${d.business}'s customer emails from your own address`, heading: "Connect your mailbox",
+    intro: ["Reminders and confirmations to your customers can come from your own Gmail or Outlook address.",
+      d.ownerInvited ? "First accept your invitation to Zella Voice, which came in its own email. Then open this link, sign in, and choose Gmail or Outlook. You sign in with Google or Microsoft on their own page and allow sending."
+        : "Open this link and sign in to Zella Voice, then choose Gmail or Outlook. You sign in with Google or Microsoft on their own page and allow sending.",
+      "Zella Voice never sees your password and never reads your mailbox. It only sends your reminders, confirmations and other emails to your customers."],
+    facts: [["Link works until", d.linkExpires], ["Works for", "You only, once"]],
+    outro: ["If you'd rather not, there is nothing to do. Customer emails keep coming from Zella Voice's address with your business name, and you can connect your mailbox later in Settings."],
+    button: ["Connect your mailbox", L(d, d.linkPath)] })),
 
   // ---- sign in and access
   e("K1", "security", "New sign in", "someone signs in from a new device", M, (d) => ({

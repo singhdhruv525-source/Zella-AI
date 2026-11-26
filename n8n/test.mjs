@@ -399,6 +399,30 @@ test('follow up email: a mailbox email is logged with its transport', () => {
   const d = tedecide(200, { allowed: true, live: true, from: 's@outlook.example', to: 'a@b.example', subject: 'S', body_text: 'T', body_html: 'T', transport: 'outlook' });
   assert.equal(d.finish, null); assert.equal(d.log.p_meta.transport, 'outlook'); assert.equal(d.transport, 'outlook');
 });
+// pacing (owner, 27 Nov 2026; sql/zella_business_email_caps.sql): at 20 mailbox emails a minute the database answers
+// pace_until; the reminder or follow up waits until then (its try given back), nothing is logged or sent, and it is
+// never sent from the fallback instead
+test('pacing: a paced mailbox reminder waits, with nothing logged or sent', () => {
+  const d = edecide(200, { ...okEmail, live: true, from: 'salon@gmail.example', transport: 'gmail', sender_route: 'mailbox', sender_note: 'mailbox_paced', pace_until: '2026-11-27T10:00:30.5+00:00' });
+  assert.deepEqual(d.finish, { rpc: 'zella_business_email_paced', body: { p_item: 'reminder', p_id: R.reminder_id, p_until: '2026-11-27T10:00:30.5+00:00' } });
+  assert.equal(d.log, undefined); assert.equal(d.transport, undefined);
+});
+test('pacing: a paced mailbox follow up waits the same way', () => {
+  const d = tedecide(200, { ...okEmail, live: true, from: 's@outlook.example', transport: 'outlook', sender_route: 'mailbox', pace_until: '2026-11-27T10:00:30+00:00' });
+  assert.deepEqual(d.finish, { rpc: 'zella_business_email_paced', body: { p_item: 'task', p_id: T.task_id, p_until: '2026-11-27T10:00:30+00:00' } });
+  assert.equal(d.log, undefined);
+});
+test('pacing: without pace_until (or an empty one) the email goes on as before; consent still comes first', () => {
+  assert.equal(edecide(200, { ...okEmail, live: true, from: 'salon@gmail.example', transport: 'gmail', pace_until: '' }).finish, null);
+  assert.equal(tedecide(200, { ...okEmail, live: true, from: 's@outlook.example', transport: 'outlook' }).finish, null);
+  assert.equal(edecide(200, { allowed: false, reason: 'no_consent', pace_until: '2026-11-27T10:00:30+00:00' }).finish.rpc, 'zella_skip_reminder');
+});
+test('pacing: both email workflows carry the paced step in their generated definitions', () => {
+  for (const f of ['zella-email-sender.json', 'zella-followup-emails.json']) {
+    const w = JSON.parse(readFileSync(new URL('./workflows/' + f, import.meta.url), 'utf8'));
+    assert.ok(w.nodes.find((n) => n.name === 'Decide').parameters.jsCode.includes('zella_business_email_paced'), f);
+  }
+});
 const teAfterSend = (statusCode, body) => runCode('email-task-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { task_id: T.task_id, message_id: 'm1' } } }).json;
 test('email task provider success completes as email_sent', () => { const a = teAfterSend(200, { id: 're-1' }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 're-1', p_error: null }); assert.equal(a.finish.body.p_outcome, 'email_sent'); });
 test('email task provider rejection fails and retries, keeping only a short error name', () => { const a = teAfterSend(422, { name: 'validation_error', message: 'PRIVATE' }); assert.equal(a.update.p_status, 'failed'); assert.equal(a.finish.body.p_outcome, 'failed'); assert.equal(a.finish.body.p_retry_in_minutes, 15); assert.equal(JSON.stringify(a).includes('PRIVATE'), false); });

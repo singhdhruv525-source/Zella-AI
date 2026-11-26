@@ -1368,7 +1368,8 @@ sending through either. This settles open decision D-19 (Gmail/Outlook mailbox i
   email provider (Resend), so only the business's Zella Voice plan limit applies. With a connected Gmail or Outlook
   mailbox, the provider itself must send (an email claiming a gmail.com or outlook.com address from any other server is
   rejected or marked as spam), so that provider's daily cap (about 500 a day for free Gmail, about 2,000 for Google
-  Workspace) applies on top of the plan limit. Zella Voice still decides what is sent and when.
+  Workspace) applies on top of the plan limit; Zella Voice stops at 80% of it, with pacing (owner, 27 Nov 2026,
+  below). Zella Voice still decides what is sent and when.
 - **At a mailbox's daily cap:** the rest of that day's emails go out through the fallback (business name at
   no-reply@, Reply-To the business email), so time sensitive reminders never stop; the business is told it reached the
   cap and is pointed to the verified domain route, which has no provider cap.
@@ -1377,6 +1378,25 @@ sending through either. This settles open decision D-19 (Gmail/Outlook mailbox i
   website login. Until verified, the fallback is used.
 - **Plans:** available on every plan.
 
+**Business email address: the owner's decisions of 27 Nov 2026** (built, not applied or deployed; see "how it is built"
+below and the requirements table at the end of this section):
+- **Who connects the mailbox: the owner, plus an admin link.** The business's owner connects Gmail or Outlook from CRM
+  Settings at any time, as built. In addition, during Create Business, a Zella Voice admin can send the owner a one
+  time "Connect your mailbox" link by email. The link opens the same connect flow for that business, so the owner signs
+  in with Google or Microsoft themselves and never shares a password. It works once, expires after 7 days, is bound to
+  that business and that owner, and the role is checked on the server; only a hash of its token is stored. The admin
+  never gets mailbox access. The link email goes through the platform email path, held while `email_live` is off.
+- **Daily limits: 80% of the provider's limit, with pacing.** Per connected mailbox: free Gmail 400 a day, Google
+  Workspace 1,600, Outlook.com (personal) 240, Microsoft 365 8,000, and at most 20 a minute for every type. A mailbox
+  whose type can't be determined gets the lowest cap for its provider. At the daily cap the rest of that day's emails go
+  from Zella Voice's address with the business's name, as decided on 26 Nov 2026; pacing makes the next email wait, it
+  never sends it from the fallback.
+- **Pending email domains expire after 7 days.** A domain registered with Resend but not verified is removed
+  automatically after 7 days. The business gets reminder emails on day 2 and day 5 through the platform email path, held
+  while `email_live` is off. A Zella Voice admin can remove a pending domain at once (for example when another business
+  proves it owns it). Until removal the business sends from Zella Voice's address with its own name. Removal calls the
+  Resend domains API through the existing code path. The daily job that does this is created switched off.
+
 **Business email address: how it is built** (built in steps, none applied or deployed; each needs the owner's approval).
 
 ```mermaid
@@ -1384,7 +1404,9 @@ flowchart TD
   due([A customer email is due]) --> prep["zella_prepare_email<br/>consent, plan limit, template"]
   prep --> who{"zella_business_email_sender"}
   who -- "domain verified and<br/>business_email_routes.domain on" --> dom["From: business address<br/>through Resend"]
-  who -- "mailbox connected,<br/>routes.mailbox on,<br/>under its daily cap" --> mb["From: mailbox account<br/>through Gmail API or Graph sendMail"]
+  who -- "mailbox connected,<br/>routes.mailbox on,<br/>under its daily cap" --> pace{"20 mailbox emails<br/>in the last minute?"}
+  pace -- no --> mb["From: mailbox account<br/>through Gmail API or Graph sendMail"]
+  pace -- "yes: pace_until" --> wait["zella_business_email_paced<br/>the reminder or follow up waits,<br/>its try given back"]
   who -- otherwise --> fb["Fallback: business name at no reply,<br/>Reply-To the business email"]
   mb -- "provider refuses:<br/>daily cap or sign in" --> ref["zella_business_email_mailbox_refused<br/>rest of the day by fallback,<br/>business told once a day"]
   ref --> fb
@@ -1400,14 +1422,26 @@ flowchart TD
   (Create Business). The edge function derives the person from their own sign in and passes it to server only
   functions (`TEN-3`, `TEN-4`). A mailbox is connected only by the business's own owner or admin, who signs in with
   Google or Microsoft themselves (`zella_business_email_mailbox_can_connect`): the Zella Voice team never holds a
-  business's logins. Free mailbox domains (gmail.com, outlook.com and the like) and Zella Voice's own
+  business's logins; it may only email the owner a one time link to that page (owner, 27 Nov 2026, below). Free mailbox domains (gmail.com, outlook.com and the like) and Zella Voice's own
   domains can't be set up as a business domain. Every change is audited, never with a token.
 - **Switches** (`ARC-8`): `business_email_routes` = `{domain: false, mailbox: false}`. While a route's switch is off,
   its business still uses the fallback. `email_live` still decides whether anything is sent at all.
 - **Limits:** the plan's email limit applies to every route (`zella_message_gate`, unchanged). A mailbox also has a
-  daily cap (`business_email_mailbox_caps`: Gmail 500, Google Workspace 2,000, Outlook.com 300, Microsoft 365 2,000,
-  under each provider's published limit), counted in the business's own day from the emails logged for that mailbox
-  (queued ones included). At the cap, or when the provider refuses for a quota reason
+  daily cap (`business_email_mailbox_caps`, owner, 27 Nov 2026, set by `sql/zella_business_email_caps.sql`: 80% of the
+  provider's limit, free Gmail 400, Google Workspace 1,600, Outlook.com 240, Microsoft 365 8,000, and `per_minute` 20;
+  it was 500, 2,000, 300 and 2,000 before), counted in the business's own day from the emails logged for that mailbox
+  (queued ones included). The mailbox's type comes from the provider's own sign in (`business-email`,
+  `mailboxKind`: Google's `hd` claim means Workspace, a gmail.com address free Gmail; Microsoft's consumer tenant means
+  Outlook.com, any other tenant Microsoft 365; free mail domains are always personal) and is passed to
+  `zella_business_email_mailbox_saved` as `p_mailbox_kind`; a type that can't be determined is stored as not known and
+  `zella_business_email_mailbox_cap` gives it the lowest cap for the provider. **Pacing:** under the daily cap, when the
+  mailbox already has 20 emails logged in the last 60 seconds, `zella_business_email_sender` answers `pace_until` (when
+  the oldest of them is a minute old) with note `mailbox_paced`; the Email Sender's and Follow up Emails' Decide step
+  then finishes with `zella_business_email_paced`, which puts the reminder or follow up back until then (at most two
+  minutes away) with its try given back, so nothing is logged or sent and nothing goes from the fallback because of
+  pacing. Each run claims at most 20 emails, so one run never goes over; the Email Sender and Follow up Emails running in
+  the same minute for one business can briefly go over by up to one run, and a provider refusal then takes the refusal
+  path below (which still reads any 429 as the daily limit: open, see `docs/MEMORY.md`). At the cap, or when the provider refuses for a quota reason
   (`zella_business_email_mailbox_refused`), the rest of that business's day goes through the fallback; the refused
   email's reminder or follow up goes back due now without using up a try, and owners and admins get one staff
   notification that day. A refusal because the sign in no longer works marks the mailbox "reconnect needed" and uses
@@ -1467,6 +1501,68 @@ flowchart TD
   execution data (a token passes through). Graph can't add a List-Unsubscribe header (custom headers must start with
   x-), so marketing through Outlook carries the unsubscribe link in the body only, and Graph sends with the account's
   own display name rather than the business name.
+- **The owner's "Connect your mailbox" link** (`sql/zella_business_email_mailbox_link.sql`, `business-email`, owner,
+  27 Nov 2026): in Create Business (`BusinessEmailSetup.jsx`, the mailbox choice) a Zella Voice admin with
+  `businesses.manage` (`zella_business_email_platform_admin`) presses "Email the owner a link". `business-email` makes a
+  32 byte random token, and `zella_business_email_mailbox_link_issue` stores only its SHA 256 hash in
+  `business_email_mailbox_links`, bound to the business and to its owner (an active owner first, else one still to
+  accept the invitation), expiring in 7 days; a new link replaces the open one, at most 5 a day per business, none while
+  a mailbox is connected; audited without the token or hash. `business-email` writes email S8 (Connect your mailbox,
+  `businessEmails.js`, strict) with the link `/app/settings/messages/business-email?business=<id>#mailbox_link=<token>`
+  (the token in the fragment, so it never reaches a server log or a Referer) and queues it with
+  `zella_queue_platform_email` (`email:S8:<link>:1`, always sent), so it is held as test mode while `email_live` is off.
+  The outbox copy of the email holds the link, like any emailed link; on its own it does nothing. The owner opens it,
+  signs in to Zella Voice, and Settings, Business email address calls `mailbox_link_open`:
+  `zella_business_email_mailbox_link_redeem` checks the hash, that it is open, not expired, bound to this person, and
+  that they are still an active owner of an active business (the role, on the server), then marks it used (once) and
+  answers the business. The page then offers the usual Connect Gmail and Connect Outlook, which is
+  `zella_business_email_mailbox_can_connect` as before: the admin who sent the link can never connect, start or finish
+  the mailbox sign in. The status read shows the latest link's state (open, used, expired, replaced) and dates only.
+- **Pending email domains** (`sql/zella_business_email_pending_domains.sql`, owner, 27 Nov 2026):
+  `business_email_senders.domain_pending_since` is set by a trigger when a domain is set up or becomes unverified
+  (pending or failed at Resend), kept while it stays unverified, and cleared once verified or gone; domains already
+  pending when the file is applied start their 7 days then. The daily job `zella_business_email_pending_domains_run()`
+  (pg_cron `zella_business_email_pending_domains`, 17:41 UTC, **created switched off**; at most 200 businesses a run)
+  sends the day 2 and day 5 reminders as warnings (`zella_notify`, kind `business_email_domain_pending`, to the bell and,
+  through `zella_claim_notification_emails` and the platform outbox, by email N1 to the owners and admins; held while
+  `email_live` is off), once each, with the date the domain is removed in the business's own time zone. From day 7, and
+  never sooner than 36 hours after the day 5 reminder (so a job switched on late still warns first), the domain is
+  removed from the business (`zella_business_email_domain_drop`: back to the fallback, audited
+  `business_email.domain_expired`, the business told) and its Resend domain is queued in
+  `business_email_domain_removals`. A Zella Voice admin with `businesses.manage` can remove an unverified domain at once
+  (`zella_business_email_domain_remove_pending`, reason required, audited `business_email.domain_removed_by_admin`, the
+  business told; never a verified domain), from the wizard's "Remove this pending domain now". The removal at Resend is
+  `business-email`'s existing `DELETE /domains/{id}` call: at once for an admin's removal, and for the job's through
+  `zella_business_email_kick_removals` (only when a removal is due, `business_email_url` is set and the Vault secret
+  `zella_business_email_jobs_secret` exists; the function checks it with `zella_business_email_jobs_check`). Each
+  removal is claimed with a token (`zella_business_email_domain_removals_claim`), finished with
+  `zella_business_email_domain_removal_done` (2xx or 404 is removed; otherwise tried again later, with a longer wait),
+  skipped when a business uses that Resend domain again, and failed with an admin alert
+  (`business_email_domain_removal_failed`) after 5 tries. The status read gives the removal date only while the job is
+  on, so the screen never promises a removal that will not happen. **To switch the job on** (a live switch, the owner's
+  approval first): set `business_email_url` to the business-email function's address, then
+  `select cron.alter_job(job_id := (select jobid from cron.job where jobname = 'zella_business_email_pending_domains'), active := true);`.
+
+| ID | Requirement (business email address, owner, 26 and 27 Nov 2026) |
+|---|---|
+| REQ-BEM-01 | The business's owner or admin connects Gmail or Outlook from CRM Settings at any time, signing in with Google or Microsoft on the provider's own page. Zella Voice never holds a business's password, and Zella Voice staff never connect a mailbox (`zella_business_email_mailbox_can_connect`). |
+| REQ-BEM-02 | During Create Business, a Zella Voice admin with `businesses.manage` can email the owner a one time "Connect your mailbox" link. It opens the existing connect flow for that business. |
+| REQ-BEM-03 | The link works once, expires after 7 days, is bound to one business and one owner, and is checked on the server against the signed in person and their current owner role. Only a SHA 256 hash of its token is stored; the token travels only in the email, in the address fragment. |
+| REQ-BEM-04 | The admin who sends the link never gets mailbox access: the link only lets the owner open the page where they connect the mailbox themselves. |
+| REQ-BEM-05 | The link email (S8) goes through the platform email path (`zella_queue_platform_email`), held as test mode while `email_live` is off. Sending, opening and every refusal are audited without the token. |
+| REQ-BEM-06 | A new link replaces the open one; at most 5 links a day per business; none while a mailbox is connected. |
+| REQ-BEM-10 | Each connected mailbox has a daily cap of 80% of its provider's limit: free Gmail 400, Google Workspace 1,600, Outlook.com 240, Microsoft 365 8,000. |
+| REQ-BEM-11 | A mailbox sends at most 20 emails a minute, whatever its type. The next email waits for the minute to pass; it is never sent from the fallback because of pacing. |
+| REQ-BEM-12 | The mailbox's type comes from the provider's own sign in; a type that can't be determined gets the lowest cap for that provider. |
+| REQ-BEM-13 | At a mailbox's daily cap the rest of that business's day goes from Zella Voice's address with the business's name, Reply-To the business email, and the business is told once that day. |
+| REQ-BEM-14 | The plan's email limit applies on top of every cap, on every route. |
+| REQ-BEM-20 | A domain registered with Resend and not verified is removed from the business automatically after 7 days, and from Zella Voice's Resend account through the existing Resend domains call. |
+| REQ-BEM-21 | The business's owners and admins get a reminder email on day 2 and on day 5 through the platform email path, held while `email_live` is off. A domain is never removed sooner than 36 hours after the day 5 reminder. |
+| REQ-BEM-22 | A Zella Voice admin with `businesses.manage` can remove an unverified domain at once, with a reason, audited; a verified domain is never removed this way. The business is told. |
+| REQ-BEM-23 | Until removal, and after it, the business's customer emails come from Zella Voice's address with the business's own name. Once removed, the domain is free for another business to set up. |
+| REQ-BEM-24 | Every removal at Resend is a recorded work item (`business_email_domain_removals`): claimed with a token, retried with a growing wait, skipped when the Resend domain is in use again, failed with an admin alert after 5 tries. |
+| REQ-BEM-25 | The daily job is created switched off; switching it on is a live switch for the owner. The screens show a removal date only while it is on. |
+| REQ-BEM-26 | Tests never call Resend, Google or Microsoft: the database suites run on the isolated test database, the edge function's tests mock every provider. |
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
@@ -2328,7 +2424,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-56 | Owners choosing their own phone tabs: decided as later work, not now (owner, 25 Nov 2026, §23.1d) | owner |
 | D-57 | Live call status for the phone's live strip ("Ava is on a call") and unread inbox counts: later, as their own task (owner, 25 Nov 2026, §23.1d) | owner |
 
-### 23.1d Decided by the owner (24 and 25 Nov 2026)
+### 23.1d Decided by the owner (24 to 27 Nov 2026)
 
 | Topic | Decision | Applied in |
 |---|---|---|
@@ -2354,6 +2450,9 @@ Knowledge, Automations, Reports, Team, Settings.
 | Admin pages polish (25 Nov) | Every admin page except Overview ("yes to all A and C", items A1 to A59 without the phone items): real icons, the approved weights, no text under 12px, neutral notes, number colours as a small dot, corner steps, calm wizard motion, quiet row danger buttons, readable audit changes. Polish only: features, sections and their order stay; admin only (the CRM does not change) | `docs/DESIGN_SYSTEM.md` "Admin pages polish" |
 
 | Admin and CRM page audits (25 Nov) | Every item approved, "yes to all A and C" (admin A1 to A59, CRM C1 to C51), built in batches. The wording batch: labels in sentence case, "and" for "&" in the CRM, the line above each title names its sidebar place, titles match the sidebar, times, phone numbers and time zones in words (`web/src/lib/format.js`), one ellipsis for "still working", failed loads say what didn't load with Try again, empty lists offer their add button, no file names or database talk on admin screens. Frontend wording only | `docs/ZELLA_COPY_CHANGELOG.md`, `docs/PRODUCT.md` §8 and §9, `AGT-9` |
+| Who connects the mailbox (27 Nov) | "Owner, plus admin link": the business's owner connects Gmail or Outlook from CRM Settings at any time; during Create Business a Zella Voice admin can also email the owner a one time "Connect your mailbox" link (single use, 7 days, a hash only, bound to the business and the owner, the role checked on the server; the admin never gets mailbox access; sent through the platform email path, held while `email_live` is off) | §14.4, REQ-BEM-01 to REQ-BEM-06 |
+| Mailbox daily limits (27 Nov) | 80% of the provider's limit with per minute pacing: free Gmail 400 a day, Google Workspace 1,600, Outlook.com 240, Microsoft 365 8,000, at most 20 a minute for all; a type that can't be determined gets the provider's lowest cap; at the cap the business's emails go from Zella Voice's address with its name | §14.4, REQ-BEM-10 to REQ-BEM-14 |
+| Pending email domains (27 Nov) | An unverified domain registered with Resend is removed automatically after 7 days, with reminder emails on day 2 and day 5 (platform email path, held while `email_live` is off); a Zella Voice admin can remove one at once; until removal the business sends from Zella Voice's address with its own name; any scheduled job is created switched off | §14.4, REQ-BEM-20 to REQ-BEM-26 |
 
 ### 23.3 Rulebook alignment
 

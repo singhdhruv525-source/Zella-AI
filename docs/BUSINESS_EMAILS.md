@@ -21,6 +21,27 @@ businesses) and the server sender render from the same file. Billing emails keep
 Status: the catalogue, layout and admin preview are built; the outbox (`sql/zella_platform_emails.sql`) is tested
 on the isolated database and **not applied**; no sender is connected and nothing has been sent.
 
+## Business email address emails (owner, 27 Nov 2026)
+
+- **S8 Connect your mailbox** goes to the business's owner only (an active owner, else one still to accept the
+  invitation), when a Zella Voice admin presses "Email the owner a link" in Create Business. The `business-email` edge
+  function writes it (strict: a missing fact stops it) and queues it under `email:S8:<link>:1`. Its button opens
+  `/app/settings/messages/business-email?business=<id>#mailbox_link=<token>`: the one time token is in the address
+  fragment, and only its hash is stored (`business_email_mailbox_links`). It works once, for 7 days, only for that owner
+  signed in; an invited owner is told to accept the invitation first. It says Zella Voice never sees the password or
+  reads the mailbox, and that doing nothing is fine (customer emails keep coming from Zella Voice's address with the
+  business name).
+- **Notices sent as N1** (a warning in the bell, emailed to the business's owners and admins through
+  `zella_claim_notification_emails`, so held as test mode while `email_live` is off):
+
+| Kind | Title | Sent when |
+|---|---|---|
+| `business_email_domain_pending` | Your email domain isn't verified yet | day 2 after an email domain was set up and is still not verified |
+| `business_email_domain_pending` | Your email domain still isn't verified | day 5 (or the first run after it, when the daily job was off), with the date it is removed |
+| `business_email_domain_removed` | Your email domain was removed from your setup | day 7, or when a Zella Voice admin removes it; customer emails keep coming from Zella Voice's address with the business name |
+| `business_email_daily_cap` | Your mailbox reached its daily sending limit | once a day, when a connected mailbox reaches its cap (80% of the provider's limit) or its provider refuses for its limit |
+| `business_email_reconnect` | Reconnect your mailbox to send from your own address | once a day, when the mailbox's sign in no longer works |
+
 ## Writing
 
 Creative but professional, the facts first, one clear button, the reason for the email in the footer. No dashes or
@@ -28,7 +49,7 @@ hyphens, no emoji, no caller data, card numbers only as the last 4 digits. Colou
 `web/src/styles/tokens.css` (email clients can't read CSS variables); a test checks they still match.
 
 
-## Every email (93)
+## Every email (94)
 
 ### Notifications
 
@@ -47,6 +68,7 @@ hyphens, no emoji, no caller data, card numbers only as the last 4 digits. Colou
 | S5 | Business verified | verification is approved | No, always sent |
 | S6 | Your AI receptionist is live | the receptionist starts answering real calls | No, always sent |
 | S7 | Phone number connected | a phone number is connected or moved | No, always sent |
+| S8 | Connect your mailbox | a Zella Voice admin sends the owner a one time link to connect Gmail or Outlook (Create Business) | No, always sent |
 
 ### Sign in and access
 

@@ -109,6 +109,12 @@ are not changed by this.
   (`.owner-cell-truncate`, the full value in a `title`, in `--zella-font-mono`) and a Copy value button, so long DKIM
   values never wrap mid word. One primary button per step. Stopping asks first, inline, with what changes. Its words
   come from `businessEmailSetup.js` (tested).
+- **27 Nov 2026 additions, no new component or token:** the mailbox choice has "Email the owner a link" as an
+  `.owner-secondary-button` (the primary stays the domain step's), with the last link's state as a `.wiz-hint` status
+  line; an unverified domain shows "Remove this pending domain now" (`.owner-secondary-button`), which asks first
+  inline in the same `.wiz-note` pattern as Stopping, with a required reason in an `.owner-field` and the
+  `.bd-danger-button`. In Settings, Business email address, the mailbox's limits are one more `Facts` row and the
+  opened link is a `Banner`.
 
 ## Components added with the owner onboarding journey
 
