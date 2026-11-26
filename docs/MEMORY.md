@@ -104,7 +104,15 @@ Not deployed yet from `main`: `billing-webhook`, `continue-plan`, `reschedule-ap
 
 <!-- /coderabbit-ai-generated:v1 -->
 
-n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
+**n8n sync (26 Nov 2026, owner's approval; all 30 workflows still unpublished, nothing run):** 18 live workflows now
+match `n8n/workflows/` on `main` (Knowledge, Spam Response, Review Replies, Call Intelligence, Appointment Booking,
+Assistant Tools, Calendar Sync, Call Results, Email Events, Event Router, Failure Alert, Inbound Email, Meta Sender, Meta
+Webhook, Outbound Calls, Receptionist Brain Tools, Voice Rules, Website Crawler). That brings the security fixes (H2,
+the Resend signature check, M9) and the newer tools to n8n. The other 12 differ only in brand text in code comments and
+their settings. The "Anthropic" credential (added by the owner) is on "Ask AI" in the four AI workflows; the AI switches
+stay off. Not done: the error workflow link to Failure Alert (n8n needs Failure Alert published first) and the
+credentials still to add by hand: Resend, Telnyx, Vapi, Google (reviews), and the Google and Microsoft calendar clients.
+Publishing any workflow needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
