@@ -44,7 +44,7 @@ Last updated: **[LAST UPDATED DATE]**
 - Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings.
 - Each business can export its customers and call history and erase a customer's records; a whole business export is available on request.
 - Subject to legal holds, recordings and transcripts are deleted automatically 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion, and the copies held by the voice provider are deleted where technically possible. Data under a legal hold is kept until the hold is released and then deleted on schedule.
-- After cancellation, data is deleted after **[CANCELLATION RETENTION PERIOD]**; an account deletion request takes effect after a 30 day grace period.
+- After cancellation, data is deleted after **[CANCELLATION RETENTION PERIOD]**, and an account deletion request takes effect after a 30 day grace period, in each case except consent and opt out history, audit and security logs, data under a legal hold, and data the law requires to be kept.
 - Backups allow point in time recovery.
 
 ## 6. Application and AI security

@@ -19,7 +19,7 @@ Last updated: **[LAST UPDATED DATE]**
 2.1 **What you may receive.** Depending on what you ask for and what the Business has set up, you may receive:
 
 - appointment confirmations, reminders, reschedule and cancellation confirmations, and links to change your booking;
-- a text after you call the Business and the call is missed, and replies to your messages;
+- a text after you call the Business and the call is missed **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED; IF REJECTED, DELETE THIS ITEM AND THE MISSED CALL TEXT IN SECTION 4.2]**, and replies to your messages;
 - follow ups about your enquiry or a service you received;
 - waitlist offers when a time frees up;
 - marketing messages, such as offers or suggestions of related services, only if you have separately agreed to receive marketing messages from that Business.
@@ -106,6 +106,7 @@ Placeholders in this document:
 
 - **[EFFECTIVE DATE]**
 - **[LAST UPDATED DATE]**
+- **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED; IF REJECTED, DELETE THIS ITEM AND THE MISSED CALL TEXT IN SECTION 4.2]**
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**

@@ -48,7 +48,7 @@ Order date: **[ORDER DATE]**
 | Trial included | **[YES OR NO]** |
 | Trial length and allowances | 5 days, with 20 AI minutes, 5 texts and 5 emails |
 
-If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts 5 days. A payment method is saved on Stripe's hosted page at the start, and nothing is charged during the Trial Period: any setup fee is charged with the first paid billing period, and packs, automatic reload and pay as you go are available only once the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 9.7).
+If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts 5 days. A payment method is saved on Stripe's hosted page at the start, and nothing is charged during the Trial Period: any setup fee is charged with the first paid billing period, and packs, automatic reload and pay as you go are available only once the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, and the first payment is charged to the payment method saved at checkout whatever the automatic payment setting (Terms, section 9.3), the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 9.7).
 
 ## 5. Term and renewal
 

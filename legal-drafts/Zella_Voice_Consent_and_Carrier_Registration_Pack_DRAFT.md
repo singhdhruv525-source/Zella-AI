@@ -40,7 +40,7 @@ The Services keep this evidence for each source:
 | Website forms and chat widget | The unticked checkbox in section 2.1 (and section 2.2 for marketing) | Form version, exact text shown, time, network address and checkbox state |
 | Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier and the disclosure version from the source |
 | Inbound callers (verbal) | The caller asks to be called or texted back, or agrees when the AI Receptionist asks before any confirmation text is sent | The call identifier, the time and the caller's answer. No form, text version or checkbox applies |
-| Missed calls | The caller called the business; one missed call text and the callback respond to that call. **[COUNSEL TO CONFIRM]** | The call identifier |
+| Missed calls | The caller called the business; one missed call text and the callback respond to that call. **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** | The call identifier |
 | Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically | The staff member, the time and the basis chosen |
 | Marketing (any source) | A separate, explicit opt in for each channel | As for the source through which it was given |
 
@@ -84,13 +84,17 @@ Voicemail prompt: "Please leave your message after the tone. It will be recorded
 | Field | Entry |
 |---|---|
 | Use case | Mixed: customer care and account notifications (appointment confirmations and reminders, booking changes, missed call follow up, replies to enquiries). Add marketing only if the Customer collects marketing consent under section 2.2 |
-| Description | {business} uses the Zella Voice platform to send appointment confirmations and reminders, booking change confirmations, waitlist openings, replies and follow ups about a customer's own enquiry, and one text after a missed call. Messages go to people who gave their number to {business} and agreed to receive texts, and, for the single missed call text, to a caller whose call {business} missed, in response to that call. Message frequency varies. **[COUNSEL TO CONFIRM THE MISSED CALL BASIS BEFORE REGISTRATION; IF NOT CONFIRMED, REMOVE THE MISSED CALL TEXT FROM THIS CAMPAIGN]** |
-| Opt in flow | Customers opt in by ticking an unticked consent box on {business}'s website or lead form (wording in section 2.1), by agreeing during a call with {business}'s AI receptionist before any confirmation text is sent, or by texting {business} first. Separately, a caller whose call to {business} was missed may receive one text in response to that call, which identifies {business} and says how to opt out; this basis relies on the caller's own call and is subject to counsel's confirmation (section 2.4). Consent is recorded with the time, the source and the evidence in section 2.4. **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]** |
+| Description | {business} uses the Zella Voice platform to send appointment confirmations and reminders, booking change confirmations, waitlist openings, replies and follow ups about a customer's own enquiry, and one text after a missed call. Messages go to people who gave their number to {business} and agreed to receive texts, and, for the single missed call text, to a caller whose call {business} missed, in response to that call. Message frequency varies. |
+| Opt in flow | Customers opt in by ticking an unticked consent box on {business}'s website or lead form (wording in section 2.1), by agreeing during a call with {business}'s AI receptionist before any confirmation text is sent, or by texting {business} first. Separately, a caller whose call to {business} was missed may receive one text in response to that call, which identifies {business} and says how to opt out; this basis relies on the caller's own call (section 2.4). Consent is recorded with the time, the source and the evidence in section 2.4. **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]** |
 | Opt out | STOP, STOPALL, UNSUBSCRIBE, CANCEL, END and QUIT stop all texts from {business} immediately |
 | Help | HELP returns the help reply in section 5.4 |
 | Embedded links | Yes: private reschedule and waitlist offer links on the business's own domain **[CONFIRM LINK DOMAIN]** |
 | Embedded phone numbers | **[YES OR NO]** |
 | Age gated or lending content | No |
+
+### 5.2A Missed call texts (counsel decision)
+
+**[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** The missed call text is included in this campaign only if counsel approves the missed call basis in section 2.4. If counsel rejects it: remove the missed call text from the campaign description, the use case and the opt in flow in section 5.2, and remove sample message 3 in section 5.3; the Customer's campaign must not send missed call texts; and missed callers receive a text only if they have consented by another route in section 2.
 
 ### 5.3 Sample messages (from the Services' templates)
 
@@ -137,13 +141,12 @@ Placeholders in this document:
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
-- **[COUNSEL TO CONFIRM]**
+- **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
 - **[CUSTOMER EIN]**
 - **[CUSTOMER WEBSITE]**
 - **[CUSTOMER INDUSTRY VERTICAL]**
-- **[COUNSEL TO CONFIRM THE MISSED CALL BASIS BEFORE REGISTRATION; IF NOT CONFIRMED, REMOVE THE MISSED CALL TEXT FROM THIS CAMPAIGN]**
 - **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]**
 - **[CONFIRM LINK DOMAIN]**
 - **[YES OR NO]**

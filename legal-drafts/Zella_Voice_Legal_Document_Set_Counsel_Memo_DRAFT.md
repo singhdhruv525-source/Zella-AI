@@ -73,7 +73,7 @@ The separate files were removed after merging; their full text is inside the mer
 
 ## 4. Launch blockers
 
-**The public documents must not be published until each blocker below is built and verified in the product, or the promise is removed from the public text.** No public text is published while it is untrue. Each fix that changes production needs the owner's explicit approval for that specific change (NN 3, NN 4). The Owner Action Pack lists the same items as owner actions before launch. **Exception for recording (blocker 1 and action 1):** removing the public promise is not an option. Call recording must stay disabled for every Customer until recording consent and caller disclosures have passed legal review, whatever the public text says, and the live Vapi recording setting must be confirmed, for the account and for each assistant, and the result recorded with the date and the person who checked.
+**The public documents must not be published until each blocker below is built and verified in the product, or the promise is removed from the public text.** No public text is published while it is untrue. Each fix that changes production needs the owner's explicit approval for that specific change (NN 3, NN 4). The Owner Action Pack lists the same items as owner actions before launch. **Exception for recording (blockers 1 and 33; actions 1 and 33):** removing the public promise is not an option for either. Call recording must stay disabled for every Customer until recording consent and caller disclosures have passed legal review, whatever the public text says, and the live Vapi recording setting must be confirmed, for the account and for each assistant, and the result recorded with the date and the person who checked (blocker and action 1). Before recording is enabled for any Customer, stored recordings must hold no spoken card details, including audio kept by Vapi and audio behind any stored recording link, with the control verified and legally reviewed (blocker and action 33); this is mandatory whatever happens to the public text.
 
 **Card details.** Zella Voice's policy is that payment card details are never collected or stored. Card masking (blocker 11) must therefore be built and verified before any live call is answered or placed, and blocker 33 before recording is enabled for any Customer, even if the public promise of masking were removed from the text, because callers may speak card numbers on any call.
 
@@ -112,6 +112,7 @@ The separate files were removed after merging; their full text is inside the mer
 | 31 | Separation between businesses | Trust overview 2; DPA Annex 2 | The public text now claims only the database policies and function checks. Before launch, build automated isolation tests that cover every table, view, function and endpoint and run them on every change (today the isolation tests exist in tests/security but there is no automated run on every change) |
 | 32 | Backups cleared within 90 days after cancellation | Terms 12.7; Privacy Policy 10; DPA 12.2 (all three state 90 days) | Set and verify an expiry policy for every backup copy (database backups, point in time recovery history, file storage and any provider backups), with evidence that each is cleared within 90 days after cancellation, or within whatever period the public documents finally state |
 | 33 | Call recordings keep no spoken card details | Terms 9.5; Privacy Policy 3.1; DPA Annex 1 and Annex 2 (payment card details row); Trust overview 5 | Before recording is enabled for any Customer, ensure stored recordings contain no spoken card details, including the audio kept by Vapi and the audio behind any stored recording link (technique chosen by the owner and engineering), verify the control, and obtain legal review; recording also stays disabled under blocker 1 until legal review |
+| 34 | Automatic payment switch: off from the next renewal; first payment after a trial always charged to the saved card | Terms 9.2 and 9.3; Order Form section 4 | Build the automatic payment switch (Stripe collection by invoice when off, as the payments architecture designs it), make it take effect from the next renewal, and verify that the first invoice at the end of a trial is always charged to the card saved at checkout; the billing emails in the code already say "from your next renewal" |
 
 ## 5. Open decisions for the owner
 
@@ -156,6 +157,8 @@ The separate files were removed after merging; their full text is inside the mer
 39. Name the legal hold control owner who rechecks holds before each erasure and completes held erasure requests after a hold is released (Handbook B2 steps 5 and 9).
 40. Product fixes before calls or automated texts go live: enforce a per person frequency limit at sending (the senders do not count earlier messages today); make automatic callbacks check the do not call flag and call opt outs, not only the do not contact flag (zella_claim_callbacks); hold calls to the Business's opening hours and the recipient's time zone as COM 3 requires (today 9 a.m. to 7 p.m. in the Business's time zone); and let the AI Receptionist record a caller's "don't call me".
 41. Counsel choice on exports of regulated industry transcripts (Privacy Policy section 11.1 and the cancellation row in section 10).
+42. Missed call texts: counsel's decision on the missed call basis (Consent Pack sections 2.4 and 5.2A). If rejected, remove missed call texts from the campaign description, opt in flow and sample messages, and switch the missed call text off for every Customer; if approved, keep them.
+43. Automatic payment and the first payment after a trial: the rule in Terms 9.2 and 9.3 (switching automatic payment off takes effect from the next renewal, and the first payment after a trial is charged to the card saved at checkout) matches the emails in the code but the switch itself is not built (launch blocker 34).
 
 ## 6. Points for counsel
 
@@ -239,7 +242,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **Retention:** 90 days (recordings and transcripts, subject to the decision in section 3.3; identity documents), 2 years (message contents), 7 years (audit logs), the cancellation period placeholder (after cancellation), 30 days (account deletion, number release, replaced identity copies) and 90 days (backups after cancellation) are identical in the Terms, Privacy Policy, DPA, Terms Schedule 2, the Trust overview and the Handbook.
 - **Contacts:** one placeholder each for privacy, support, legal notices, content complaints, security, legal requests and the DMCA agent. The Subprocessor List location is one placeholder, used in the Privacy Policy, the DPA and the Trust overview.
 - **Subprocessors:** the Privacy Policy summary table and DPA Annex 3 list the same providers.
-- **Claims:** the public documents carry no build status wording or status placeholders; every promise the product does not yet keep is a launch blocker in section 4 (33 items).
+- **Claims:** the public documents carry no build status wording or status placeholders; every promise the product does not yet keep is a launch blocker in section 4 (34 items).
 - **Style:** no dashes or hyphens in text, except the security.txt field names "Preferred-Languages" and "/.well-known/", which are fixed technical identifiers. "Zella Voice" is always in full. American spelling, except one exact quotation of a product template, which is flagged. No model IDs.
 
 ## 10. Every placeholder, by document
@@ -342,6 +345,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[BAA RESPONSE DAYS]**
 - **[OPTIONAL: DATA AGGREGATION SERVICES RELATING TO THE HEALTH CARE OPERATIONS OF COVERED ENTITY, IF COUNSEL APPROVES]**
 - **[BAA RETURN PERIOD]**
+- **[COUNSEL TO CONFIRM THE HIPAA RETENTION BASIS FOR CONSENT AND OPT OUT RECORDS CONTAINING PHI]**
 - **[COUNSEL TO DECIDE WHETHER THE LIMITATION OF LIABILITY IN SECTION 20 OF THE ZELLA VOICE TERMS OF SERVICE APPLIES TO THIS BAA, OR A SEPARATE CAP]**
 - **[SIGNATORY NAME]**
 - **[SIGNATORY TITLE]**
@@ -351,6 +355,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 
 - **[EFFECTIVE DATE]**
 - **[LAST UPDATED DATE]**
+- **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED; IF REJECTED, DELETE THIS ITEM AND THE MISSED CALL TEXT IN SECTION 4.2]**
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
@@ -489,7 +494,6 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SECURE DELIVERY CHANNEL FOR DATA SUBJECT REQUESTS]**
-- **[CONFIRM THE AUDITED ROUTE BY WHICH ZELLA VOICE RETRIEVES REGULATED INDUSTRY TRANSCRIPTS FOR A REQUEST]**
 - **[COUNSEL TO CONFIRM THE RESPONSE OWED FOR ITEMS THAT CANNOT BE PROVIDED]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[LEGAL HOLD CONTROL OWNER]**
@@ -518,13 +522,12 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
-- **[COUNSEL TO CONFIRM]**
+- **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
 - **[CUSTOMER EIN]**
 - **[CUSTOMER WEBSITE]**
 - **[CUSTOMER INDUSTRY VERTICAL]**
-- **[COUNSEL TO CONFIRM THE MISSED CALL BASIS BEFORE REGISTRATION; IF NOT CONFIRMED, REMOVE THE MISSED CALL TEXT FROM THIS CAMPAIGN]**
 - **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]**
 - **[CONFIRM LINK DOMAIN]**
 - **[YES OR NO]**
