@@ -309,18 +309,20 @@ export const scrollToTop = () => window.scrollTo({ top: 0, behavior: prefersRedu
 // The app's store of quick changes waiting for their Undo window (phoneHelpers createPendingStore). Each change still
 // goes out when its own window ends; closing the page sends what is waiting, and so does leaving the app.
 // One store per app ("crm", "admin"), kept for the life of the browser tab: switching business remounts the
-// workspace, and a change waiting then still has its full window and is sent by its own timer (never early). Only
-// closing the tab (pagehide) sends what is waiting at once; signing out sends it first, on purpose, so nothing is lost
-// (see sendWaitingChanges).
+// workspace, and a change waiting then still has its full window and is sent by its own timer (never early). Only a
+// real departure (pagehide, not kept in the back/forward cache) sends what is waiting at once; signing out sends it
+// first, on purpose, so nothing is lost (see sendWaitingChanges). A page kept in the back/forward cache sends nothing
+// early: back again (pageshow), the changes carry on to their original Undo deadlines.
 const STORES = {};
 export function pendingStoreFor(scope) {
   if (!STORES[scope]) {
     STORES[scope] = createPendingStore();
     if (typeof window !== "undefined") {
-      // closing the tab: each waiting change goes out as a keepalive request the browser lets finish (best effort)
-      window.addEventListener("pagehide", () => { STORES[scope].unloadAll(); });
-      // restored from the back/forward cache: what went out while the page was hidden is settled and read again
-      window.addEventListener("pageshow", (e) => { if (e.persisted) STORES[scope].settleSent(); });
+      // leaving for good: each waiting change goes out as a keepalive request the browser lets finish (best effort);
+      // kept in the back/forward cache: nothing is sent early
+      window.addEventListener("pagehide", (e) => { STORES[scope].onPageHide(e.persisted); });
+      // back from the back/forward cache: the waiting changes resume to their original deadlines
+      window.addEventListener("pageshow", (e) => { STORES[scope].onPageShow(e.persisted); });
       // a waiting change that can't be sent that way right now (no beacon, or no session token): the browser asks
       // before the tab closes
       window.addEventListener("beforeunload", (e) => {

@@ -165,9 +165,12 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
     // one toast whose Undo calls off every change still waiting, so an earlier one never loses its Undo
     ui.toast(pendingToastText(resolve ? "Ticket resolved" : "Ticket assigned to you", store.waiting()), { undo: () => undoAll(store.changes()) });
   }
+  // on a phone the detail sits under the list: bring the new ticket form, or the opened ticket, into view
   useEffect(() => {
-    if (ui.phone && selectedId) document.querySelector(".st-detail")?.scrollIntoView({ block: "start" });
-  }, [ui.phone, selectedId]);
+    if (!ui.phone) return;
+    if (creating) document.querySelector("form.st-detail")?.scrollIntoView({ block: "start" });
+    else if (selectedId) document.querySelector(".st-detail")?.scrollIntoView({ block: "start" });
+  }, [ui.phone, selectedId, creating]);
 
   async function create(event) {
     event.preventDefault();

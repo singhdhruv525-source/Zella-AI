@@ -553,7 +553,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
   useEffect(() => {
     // only after a round where every source was read: a source that failed must not make its read notes look gone
     if (!needsNow?.at || !needsNow.ready) return;
-    const kept = pruneRead(readNotes, notes);
+    const kept = pruneRead(readNotes, notes, { ...needsNow.complete, spam: needsNow.status?.spam === "ok" });
     if (kept.size !== readNotes.size) { setReadNotes(kept); saveRead(workspace.id, kept); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes]);

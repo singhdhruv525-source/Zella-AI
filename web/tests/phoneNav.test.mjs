@@ -523,3 +523,33 @@ test("keepalive: the preview and the placeholder business never send anything; a
   assert.equal(noToken.ready(), false);
   assert.equal(noToken.send("rpc", "x", {}), false);
 });
+
+test("the back/forward cache: nothing is sent early, and waiting changes resume to their original Undo deadlines", async () => {
+  let clock = 1000;
+  const scheduled = [];
+  const timers = { setTimeout: (fn, ms) => { const t = { fn, at: clock + ms }; scheduled.push(t); return t; }, clearTimeout: (t) => { const i = scheduled.indexOf(t); if (i >= 0) scheduled.splice(i, 1); } };
+  const store = createPendingStore();
+  const sent = [];
+  const make = (id) => { const c = deferChange({ commit: async () => { sent.push(id); store.succeed(id); }, beacon: () => { sent.push(`${id} keepalive`); return true; }, timers, now: () => clock }); store.add(id, c, {}); return c; };
+  const a = make("a");                                   // deadline 6000
+  clock = 3000;
+  store.onPageHide(true);                                // into the back/forward cache
+  assert.deepEqual(sent, [], "nothing sent early");
+  assert.equal(a.state, "waiting");
+  clock = 4000;
+  store.onPageShow(true);                                // back, 2 seconds left
+  assert.equal(a.state, "waiting");
+  assert.equal(scheduled.at(-1).at, 6000, "the original deadline, not a fresh 5 seconds");
+  assert.equal(a.undo(), true, "Undo still works");
+  const b = make("b");                                   // deadline 9000
+  store.onPageHide(true);
+  clock = 12000;                                         // back after the deadline passed
+  store.onPageShow(true);
+  await Promise.resolve();
+  assert.deepEqual(sent, ["b"], "past its deadline: sent on return, the ordinary way");
+  assert.equal(b.state, "sent");
+  const c = make("c");
+  store.onPageHide(false);                               // a real departure
+  assert.deepEqual(sent, ["b", "c keepalive"]);
+  assert.equal(c.state, "beaconed");
+});

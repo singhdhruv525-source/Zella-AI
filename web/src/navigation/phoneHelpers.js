@@ -138,8 +138,10 @@ const TIMERS = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (t) =
 //             it could start the send. Used only when the page is going away (unload()).
 //   beaconReady()  optional, no side effects: whether beacon() could send right now (config, a current access token,
 //             fetch). A change whose beacon isn't ready counts as one the browser must ask about before closing.
-export function deferChange({ apply, commit, revert, onError, beacon, beaconReady, ms = 5000, timers = TIMERS }) {
+//   now()     the clock (passed in by tests); the Undo deadline is fixed when the change is made
+export function deferChange({ apply, commit, revert, onError, beacon, beaconReady, ms = 5000, timers = TIMERS, now = () => Date.now() }) {
   let state = "waiting";
+  const deadline = now() + ms;
   let sending = null;   // the send in progress: a later flush() returns it, so signing out waits for it
   apply?.();
   const send = () => {
@@ -157,7 +159,7 @@ export function deferChange({ apply, commit, revert, onError, beacon, beaconRead
     })();
     return sending;
   };
-  const timer = timers.setTimeout(send, ms);
+  let timer = timers.setTimeout(send, ms);
   return {
     undo() {
       if (state !== "waiting") return false;
@@ -167,6 +169,15 @@ export function deferChange({ apply, commit, revert, onError, beacon, beaconRead
       return true;
     },
     flush() { timers.clearTimeout(timer); return send(); },
+    // back from the back/forward cache (pageshow, persisted): timers may have been frozen while the page was hidden,
+    // so the change waits until its original deadline, never a fresh window; already past it, it is sent now
+    resume() {
+      if (state !== "waiting") return;
+      timers.clearTimeout(timer);
+      const left = deadline - now();
+      if (left <= 0) send(); else timer = timers.setTimeout(send, left);
+    },
+    get deadline() { return deadline; },
     // the page is closing (pagehide): a request the browser keeps alive when it can, else the usual send
     unload() {
       if (state !== "waiting") return false;
@@ -287,8 +298,15 @@ export function createPendingStore() {
     // hidden are settled (open pages read their lists again, showing the real outcome); a normal send still in flight
     // settles itself when it finishes, or rolls back on failure
     settleSent() { [...pending].forEach(([id, e]) => { if (e.change.state === "beaconed") store.succeed(id); }); },
-    // the tab is closing: each waiting change goes out as a keepalive request where it can
+    // the tab is closing for good (pagehide, not kept in the back/forward cache): each waiting change goes out as a
+    // keepalive request where it can
     unloadAll() { [...pending.values()].forEach((e) => e.change.unload?.()); },
+    // the page is back from the back/forward cache: waiting changes carry on to their original Undo deadlines
+    resumeAll() { [...pending.values()].forEach((e) => e.change.resume?.()); },
+    // what the page does on pagehide and pageshow (PhoneNav.jsx pendingStoreFor): kept in the back/forward cache, the
+    // changes simply wait (nothing is sent early); a real departure sends them
+    onPageHide(persisted) { if (!persisted) store.unloadAll(); },
+    onPageShow(persisted) { if (persisted) { store.settleSent(); store.resumeAll(); } },
     // changes still waiting that can't be sent that way (the browser is asked to confirm leaving while there are any)
     waitingWithoutBeacon() { return [...pending.values()].filter((e) => e.change.state === "waiting" && !e.change.canBeacon).length; },
   };

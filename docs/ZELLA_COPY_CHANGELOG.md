@@ -2,8 +2,9 @@
 
 ## 25 November 2026: phone navigation (both apps)
 
-New words on phones only (under 768 wide); tablets and desktops show nothing new. Approved by the owner on 25 Nov
-2026 (`docs/ARCHITECTURE.md` §23.1d). Sources: `web/src/navigation/` and the phone parts of the pages named below.
+New words on phones (under 768 wide), except the "Needs you now" notes in the notification bell, which show on phones
+and desktops alike (owner, 25 Nov 2026, REQ-MOB-12; the bell rows below). Tablets show nothing new. Approved by the
+owner on 25 Nov 2026 (`docs/ARCHITECTURE.md` §23.1d). Sources: `web/src/navigation/` and the phone parts of the pages named below.
 
 | Where | Text | Why |
 |---|---|---|

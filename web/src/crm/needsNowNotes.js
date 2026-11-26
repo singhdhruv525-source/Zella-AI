@@ -109,9 +109,16 @@ export function mergeBellNotes(server = [], notes = [], read = new Set(), comple
 }
 
 // Read keys for notes that have left the bell are dropped, so a list kept on the device never grows.
-export function pruneRead(read, notes) {
+//   complete: { waiting, task } from the signals: a key is only forgotten when its list was read in full (a task past
+//   the overdue limit, left out of the list, is not dealt with). Spam and the summary notes follow their list.
+const KEY_GROUP = { waiting: "waiting", "waiting-more": "waiting", task: "task", "task-more": "task", spam: "spam" };
+export function pruneRead(read, notes, complete = { waiting: true, task: true, spam: true }) {
   const live = new Set(notes.map((n) => n.key));
-  return new Set([...read].filter((k) => live.has(k)));
+  return new Set([...read].filter((k) => {
+    if (live.has(k)) return true;
+    const group = KEY_GROUP[String(k).split(":")[0]];
+    return group ? !complete[group] : false;   // an incomplete list proves nothing: the key stays
+  }));
 }
 
 const READ_KEY = (businessId) => `zella.needsNow.read.${businessId}`;

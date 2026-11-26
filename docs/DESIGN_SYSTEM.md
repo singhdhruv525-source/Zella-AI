@@ -280,7 +280,7 @@ for dialogs that open outside it), so the CRM does not change. A shared componen
   springs, shines or ripples. A hover is a colour or border change, a press scales to 0.98, the page eases in once
   (40ms apart), menus open in 200ms, all on one curve `cubic-bezier(0.22, 1, 0.36, 1)`. A centred dialog
   (`.ba-modal`, `.zs-dialog`, `.bd-confirm`) opens with a 200ms fade only, no rise or scale. Two movements stay, as
-  approved: the phone bottom sheet (under 641px) slides up from the bottom edge in 300ms, and the booking side panel
+  approved: the phone bottom sheet (under 768px, the phone layout, REQ-MOB-06) slides up from the bottom edge in 300ms, and the booking side panel
   slides in from the side (`bp-slide`). The live dot and numbers counting up stay. Rules in `web/src/styles/crm-polish.css`, scoped to `html:has(.ba-root)`, so the
   admin dashboard is not affected.
 - Motion in both apps is calm since 25 Nov 2026 (the CRM motion rule above, and "Admin polish" below for the admin

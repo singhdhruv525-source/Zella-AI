@@ -65,10 +65,12 @@ export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
 // The waiting callers count from the same read the bell uses (signals.waiting and waitingMore), so the two always match.
 export function NeedsYouNow({ signals, onGo }) {
   const rows = needsNowRows({ waiting: signals.waiting.length + (signals.waitingMore ?? 0), oldest: signals.oldest, overdue: signals.overdue, overdueTotal: signals.overdueTotal, spam: signals.spam });
-  if (!rows.length && !signals.unavailable) return null;
+  // hidden only after every source read and found nothing; while reading it says so, a failure says that
+  if (!rows.length && !signals.unavailable && !signals.loading) return null;
   return (
     <section aria-labelledby="pn-now-title">
       <h2 id="pn-now-title" className="pn-list-label">Needs you now</h2>
+      {signals.loading && !rows.length && <p className="pn-hint" role="status"><Icon name="schedule" />Checking what needs you now…</p>}
       {signals.unavailable && <p className="pn-hint" role="status"><Icon name="info" />Some of this couldn't be checked just now. Zella Voice will try again shortly.</p>}
       {rows.length > 0 && <ul className="pn-list">
         {rows.map((r) => (

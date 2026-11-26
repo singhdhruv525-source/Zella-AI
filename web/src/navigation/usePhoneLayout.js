@@ -61,7 +61,8 @@ export function useKeyboardOpen(enabled) {
     const check = () => set(keyboardOpen(window.innerHeight, vv?.height));
     const typing = (el) => el?.matches?.('input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="date"]):not([type="time"]), textarea, [contenteditable="true"]');
     const onIn = (e) => { if (typing(e.target) && window.matchMedia("(pointer: coarse)").matches) set(true); };
-    const onOut = () => setTimeout(() => { if (!typing(document.activeElement)) check(); }, 0);
+    let outTimer = null;   // cleared when the hook stops, so check never runs after it
+    const onOut = () => { clearTimeout(outTimer); outTimer = setTimeout(() => { if (!typing(document.activeElement)) check(); }, 0); };
     vv?.addEventListener("resize", check);
     document.addEventListener("focusin", onIn);
     document.addEventListener("focusout", onOut);
@@ -71,6 +72,7 @@ export function useKeyboardOpen(enabled) {
       vv?.removeEventListener("resize", check);
       document.removeEventListener("focusin", onIn);
       document.removeEventListener("focusout", onOut);
+      clearTimeout(outTimer);
       root.classList.remove("pn-kb");
       setOpen(false);   // turned off: no keyboard state carries over to the next time it turns on
     };

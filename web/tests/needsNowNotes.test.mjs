@@ -414,3 +414,14 @@ test("acknowledgement is per page: Today's read can't clear what Tasks still sho
   leaveToday();
   assert.deepEqual(store.settledSnapshot(), [], "nobody else shows it any more");
 });
+
+test("read notes are only forgotten when their list was read in full", () => {
+  const read = new Set(["task:t101", "waiting:c9", "spam:2", "task:t1"]);
+  const notes = needsNowNotes({ overdue: [{ id: "t1", title: "A", due_at: ago(5) }], now: NOW });
+  // the overdue list was cut off at its limit: t101 may only be past it, not done
+  assert.deepEqual([...pruneRead(read, notes, { waiting: true, task: false, spam: true })].sort(), ["task:t1", "task:t101"]);
+  // every list complete: what left the bell is forgotten
+  assert.deepEqual([...pruneRead(read, notes, { waiting: true, task: true, spam: true })], ["task:t1"]);
+  // the waiting list incomplete, the spam source not read: their keys stay
+  assert.deepEqual([...pruneRead(read, notes, { waiting: false, task: true, spam: false })].sort(), ["spam:2", "task:t1", "waiting:c9"]);
+});
