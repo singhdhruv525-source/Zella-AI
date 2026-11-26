@@ -75,9 +75,9 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 1. **Log it.** Record the request in the CRM's data rights requests: the kind (access, export or erasure), the requester and a note. It is due 30 days after it is recorded, and a daily job is designed to remind the Owner before it is due **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**.
 2. **Verify identity.** The Customer confirms the requester's identity using information it already holds. A request is not acted on until the identity is verified.
 3. **Access or export.** Fulfil the request item by item; an export alone does not complete it.
-   - **Customer records:** an owner, admin or manager exports the customer's records, or the customers and call history, as CSV. The call history file holds call details and outcomes but no transcripts, summaries or recordings. A whole business export can be requested from Zella Voice; it leaves out recording links and the transcripts of Customers in Regulated Industries. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
-   - **Call transcripts and summaries:** in a business outside the Regulated Industries, owners, admins and managers can open transcripts, and staff can too where the Owner has allowed staff to read call content in Settings, Call recording and privacy (the database checks this). Viewers and other staff cannot, and ask a manager. The person with access opens each of the person's calls in the CRM (Calls, call details), copies the summary and transcript into a document, and delivers it to the verified requester through **[SECURE DELIVERY CHANNEL FOR DATA SUBJECT REQUESTS]**, never by ordinary email attachment.
-   - **Transcripts of Customers in Regulated Industries:** owners, admins and managers can open them in the CRM; staff never can, even if the Owner has allowed staff access, and the whole business export leaves them out. An owner, admin or manager therefore opens each call and delivers the transcript as above.
+   - **One End User's records (the file for the request):** an owner or admin opens the logged request in the CRM (on the person's customer record, or in Settings under the list of customer data requests) and carries it out. This produces a file of that person's records only: their customer record, appointments, texts, emails, calls with summaries and transcripts, callbacks, consent history and requests. Before sending it, check that it holds only the requester's records. **Never use the CSV exports of all customers or call history, or the whole business export, for an End User's access or export request**: those files hold other people's data.
+   - **Call transcripts and summaries:** these are in the request file above. Where a single call must also be shown, the person with access opens it in the CRM (Calls, call details): in a business outside the Regulated Industries, owners, admins and managers can open transcripts, and staff can too where the Owner has allowed staff to read call content in Settings, Call recording and privacy (the database checks this); viewers and other staff ask a manager. Deliver the file to the verified requester through **[SECURE DELIVERY CHANNEL FOR DATA SUBJECT REQUESTS]**, never by ordinary email attachment.
+   - **Transcripts of Customers in Regulated Industries:** they are included in the request file, which only an owner or admin can produce. In the CRM, owners, admins and managers can open them and staff never can, even if the Owner has allowed staff access; the whole business export leaves them out.
    - **Recordings:** where recording was on for the Customer, an owner, admin or manager plays the recording from the call details and, if it can be saved, delivers it as above; otherwise the Owner asks Zella Voice to retrieve it from the voice provider. Recording links themselves are never exported.
    - **Items that cannot be delivered:** if no route can deliver an item (for example a recording already deleted under the 90 day schedule, or an item held only by the voice provider that cannot be retrieved), record the exception and the reason in the request's closing note, tell the requester within the 30 day deadline which items were not provided and why, and how to raise a concern with the Customer. **[COUNSEL TO CONFIRM THE RESPONSE OWED FOR ITEMS THAT CANNOT BE PROVIDED]**
 4. **Correct.** Staff correct the record in the CRM.
@@ -213,12 +213,12 @@ Placeholders in this document:
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
 - **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SECURE DELIVERY CHANNEL FOR DATA SUBJECT REQUESTS]**
 - **[COUNSEL TO CONFIRM THE RESPONSE OWED FOR ITEMS THAT CANNOT BE PROVIDED]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[LEGAL HOLD CONTROL OWNER]**
 - **[CONFIRM HOW A HOLD IS RECORDED AGAINST AN OPEN REQUEST: THE REQUEST NOTE CAN ONLY BE SET WHEN THE REQUEST IS LOGGED OR CLOSED]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**

@@ -227,11 +227,12 @@ The details for each action are in the separate Owner Action Pack, in the second
 18. The Consent Pack quotes message templates exactly, including one British spelling that the product should fix.
 19. The Messaging Terms keep the architecture's proposed consent wording; the Consent Pack's recommended wording adds message frequency and HELP, for counsel to choose.
 20. Requirement and decision identifiers from the source documents are written with spaces (for example D 49, PRV 4) to keep the no dashes rule.
-21. The Terms separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends or, without a trial, the day the Owner completes checkout, which is what the checkout code stores; aligning the architecture's REQ BIL 17 is launch blocker 23). The Trial Period now starts when the Owner starts checkout during onboarding, after identity verification, matching the payment design (the Checkout Session sets the trial end 5 days after it is created). Nothing is charged during the trial: the setup fee goes on the first paid invoice, and packs, automatic reload and pay as you go are not available until the Subscription Term (a placeholder for the owner to confirm). Terms 9.2 and 9.7, the Order Form and the DPA duration ("any Trial Period") match. A custom trial in the Order Form is marked as not supported by checkout today; checkout uses only the platform's trial setting.
-22. Order Form special terms prevail only where they expressly override a named provision (Terms section 26 and Order Form section 7 use the same rule).
-23. Service credits for yearly Plans use the monthly equivalent: the yearly Fee divided by 12, then by 30, per affected day; the cap is the yearly Fee divided by 12.
-24. No payment card details may be entered anywhere in the Services; payment details go only on Stripe's hosted page (Terms 5.10 and Schedule 1).
-25. Consent evidence per source in the Consent Pack follows the architecture's proposed design; confirming the product stores it is launch blocker 26.
+21. The Terms separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends or, without a trial, the day the Owner completes checkout, which is what the checkout code stores; aligning the architecture's REQ BIL 17 is launch blocker 23). The Trial Period now starts when the Owner starts checkout during onboarding, after identity verification, matching the payment design (the Checkout Session sets the trial end 5 days after it is created). Nothing is charged during the trial: the setup fee goes on the first paid invoice, and packs, automatic reload and pay as you go are not available until the Subscription Term (a placeholder for the owner to confirm). Terms 9.2 and 9.7, the Order Form and the DPA duration ("any Trial Period") match. The Order Form records only the contractual trial terms: whether a trial is included (yes or no), the fixed 5 day length with 20 AI minutes, 5 texts and 5 emails, and that the trial starts when checkout starts.
+22. Checkout support for trials (separate from the contract text): the checkout code (sql/zella_stripe_checkout.sql) sets the trial end from the platform's trial_days billing setting and takes no per business trial, so a different trial length cannot be offered without a product change (owner decision 30).
+23. Order Form special terms prevail only where they expressly override a named provision (Terms section 26 and Order Form section 7 use the same rule).
+24. Service credits for yearly Plans use the monthly equivalent: the yearly Fee divided by 12, then by 30, per affected day; the cap is the yearly Fee divided by 12.
+25. No payment card details may be entered anywhere in the Services; payment details go only on Stripe's hosted page (Terms 5.10 and Schedule 1).
+26. Consent evidence per source in the Consent Pack follows the architecture's proposed design; confirming the product stores it is launch blocker 26.
 
 ## 9. Consistency check
 
@@ -326,6 +327,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[URGENT REPLACEMENT OBJECTION PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
+- **[BAA RETURN PERIOD]**
 - **[CANCELLATION RETENTION PERIOD]**
 - **[COUNSEL TO CONFIRM THE RETENTION BASIS FOR CONSENT AND OPT OUT HISTORY AFTER CANCELLATION]**
 - **[AUDIT NOTICE PERIOD]**
@@ -344,7 +346,6 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[BAA BREACH NOTICE DAYS]**
 - **[BAA RESPONSE DAYS]**
 - **[OPTIONAL: DATA AGGREGATION SERVICES RELATING TO THE HEALTH CARE OPERATIONS OF COVERED ENTITY, IF COUNSEL APPROVES]**
-- **[BAA RETURN PERIOD]**
 - **[COUNSEL TO CONFIRM THE HIPAA RETENTION BASIS FOR CONSENT AND OPT OUT RECORDS CONTAINING PHI]**
 - **[COUNSEL TO DECIDE WHETHER THE LIMITATION OF LIABILITY IN SECTION 20 OF THE ZELLA VOICE TERMS OF SERVICE APPLIES TO THIS BAA, OR A SEPARATE CAP]**
 - **[SIGNATORY NAME]**
@@ -492,12 +493,12 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[INCIDENT LOG RETENTION PERIOD]**
 - **[INCIDENT LOG LOCATION]**
 - **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SECURE DELIVERY CHANNEL FOR DATA SUBJECT REQUESTS]**
 - **[COUNSEL TO CONFIRM THE RESPONSE OWED FOR ITEMS THAT CANNOT BE PROVIDED]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[LEGAL HOLD CONTROL OWNER]**
 - **[CONFIRM HOW A HOLD IS RECORDED AGAINST AN OPEN REQUEST: THE REQUEST NOTE CAN ONLY BE SET WHEN THE REQUEST IS LOGGED OR CLOSED]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
@@ -522,6 +523,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
+- **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]**
 - **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**

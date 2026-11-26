@@ -101,7 +101,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 6.2 **Transcripts** are visible only to a Customer's owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-6.3 Recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion (sections 10 and 11).
+6.3 Recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion (sections 10 and 11). If a healthcare Customer has asked, under its business associate agreement, for a transcript or recording to be returned before it is deleted, its deletion is suspended until it is returned, for a limited period.
 
 ## 7. Messages, consent and opting out
 
@@ -145,8 +145,8 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 
 | Data | Retention |
 |---|---|
-| Call recordings (only when recording is on; see section 6.1) | 90 days after the call, then deleted automatically, unless deleted earlier (sections 10 and 11); deletion is suspended for an item named in a pending return request under a business associate agreement until it is returned |
-| Call transcripts | 90 days after the call, then removed automatically, unless deleted earlier (sections 10 and 11); deletion is suspended for an item named in a pending return request under a business associate agreement until it is returned |
+| Call recordings (only when recording is on; see section 6.1) | 90 days after the call, then deleted automatically, unless deleted earlier (sections 10 and 11); deletion is suspended for an item named in a pending return request under a business associate agreement until it is returned, for a limited period |
+| Call transcripts | 90 days after the call, then removed automatically, unless deleted earlier (sections 10 and 11); deletion is suspended for an item named in a pending return request under a business associate agreement until it is returned, for a limited period |
 | Copies of calls held by Vapi | A deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
@@ -158,7 +158,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 
 ## 11. Export, erasure and account deletion
 
-11.1 **Export.** Owners, admins and managers can export customers and call history as CSV files at any time; the call history file holds call details and outcomes but no transcripts, summaries or recordings. The Owner can also request a whole business export of all records and files, downloadable for 7 days; recording links, and transcripts of Customers in Regulated Industries, are left out of the whole business export. **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
+11.1 **Export.** For a request from one End User, the Customer's owner or admin produces a file of that person's records only. Owners, admins and managers can export customers and call history as CSV files at any time; the call history file holds call details and outcomes but no transcripts, summaries or recordings. The Owner can also request a whole business export of all records and files, downloadable for 7 days; recording links, and transcripts of Customers in Regulated Industries, are left out of the whole business export. **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
 
 11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, data under a legal hold is kept until the hold is released, and data the law requires us to keep is kept for as long as required. Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log.
 

@@ -38,9 +38,9 @@ The Services keep this evidence for each source:
 | Source | Consent basis | Evidence kept |
 |---|---|---|
 | Website forms and chat widget | The unticked checkbox in section 2.1 (and section 2.2 for marketing) | Form version, exact text shown, time, network address and checkbox state |
-| Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier and the disclosure version from the source |
+| Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier, the disclosure version and the consent checkbox state from the source **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]** |
 | Inbound callers (verbal) | The caller asks to be called or texted back, or agrees when the AI Receptionist asks before any confirmation text is sent | The call identifier, the time and the caller's answer. No form, text version or checkbox applies |
-| Missed calls | The caller called the business; one missed call text and the callback respond to that call. **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** | The call identifier |
+| Missed calls | **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** If counsel approves: the caller called the business, and one missed call text and the callback respond to that call. If counsel rejects: the call itself is not consent, and a missed caller receives a text only if they consented through another route in this section 2 | If approved: the call identifier. If rejected: the evidence for the other route |
 | Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically | The staff member, the time and the basis chosen |
 | Marketing (any source) | A separate, explicit opt in for each channel | As for the source through which it was given |
 
@@ -141,6 +141,7 @@ Placeholders in this document:
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
+- **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]**
 - **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
