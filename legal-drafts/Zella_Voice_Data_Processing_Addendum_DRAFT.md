@@ -213,7 +213,7 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 
 | Provider | Purpose | Data it receives |
 |---|---|---|
-| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Zella Voice never receives or stores card data |
+| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Stripe holds the card; Zella Voice never receives or stores full card numbers or security codes, and keeps only the card brand, last 4 digits and expiry, provided by Stripe, for billing notices |
 | Google Fonts (Google) | Serves the typeface used by the web application | The visitor's network address and browser details when a page loads |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Verifying an Owner's identity | The Owner's identity documents and the check result |
 

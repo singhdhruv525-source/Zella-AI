@@ -34,7 +34,7 @@ Last updated: **[LAST UPDATED DATE]**
 - Sign in records: password (held only in protected form by our sign in provider), two step sign in records, sign in times and signed in devices.
 - Invitations, and acceptance of our legal documents (version, time and person).
 - Owner identity verification: a photo identification document and the Customer's business registration, uploaded to private storage and checked by the Zella Voice team. Where enabled, an identity verification provider may carry out the check (section 8).
-- Billing records: Plan, Fees, usage, invoices, refunds and payment status. **Payment card details are entered on our payment processor's pages and never reach Zella Voice.** Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings.
+- Billing records: Plan, Fees, usage, invoices, refunds and payment status, and the brand, last 4 digits and expiry month and year of the saved payment card, which we receive from our payment processor, Stripe, so that billing notices can say which card will be charged (for example "your Visa ending 4242"). **Stripe holds the payment card. Full card numbers and security codes are entered only on Stripe's pages; Zella Voice never receives or stores them.** Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings.
 - Support requests and correspondence.
 
 ### 3.2 Customer Personal Data
@@ -69,7 +69,7 @@ We use Customer Personal Data only to provide the Services to the Customer under
 |---|---|
 | Creating and running accounts, onboarding and support | Performance of a contract |
 | Verifying Owners' identity to prevent fraud and impersonation | Legitimate interests; legal obligation where applicable |
-| Billing and accounting | Performance of a contract; legal obligation |
+| Billing and accounting, including billing notices that identify the card by its brand, last 4 digits and expiry | Performance of a contract; legal obligation |
 | Security, abuse and spam prevention, audit and incident response | Legitimate interests; legal obligation |
 | Service and account notices | Performance of a contract |
 | Improving the Services using Usage Data | Legitimate interests |
@@ -152,6 +152,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
+| Card brand, last 4 digits and expiry (for billing notices) | Kept in billing records and the billing email log while the account is active and, after that, for as long as billing records are kept, **[BILLING RECORDS RETENTION PERIOD]**; never full card numbers or security codes |
 | Other Customer Data and Account Data | While the account is active |
 | After a Customer cancels | Except as below (consent and opt out history, audit and security logs, data under a legal hold, and data the law requires us to keep, as DPA section 12.5 sets out), data still held is available for export, through the CSV exports and the whole business export described in section 11.1 and with the same exclusions (recording links, and transcripts of Customers in Regulated Industries, are not exported), for **[CANCELLATION RETENTION PERIOD]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window, except that a transcript or recording named in a pending return request under a healthcare Customer's business associate agreement (including the copy at Vapi) is kept until it is returned, and for no longer than the limited period in DPA section 12.1, and is then deleted, even after the export window ends |
 | Telephone numbers of a canceled Customer | Released 30 days after cancellation unless ported out |
@@ -279,6 +280,7 @@ Placeholders in this document:
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
+- **[BILLING RECORDS RETENTION PERIOD]**
 - **[CANCELLATION RETENTION PERIOD]**
 - **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 9.1 AND 12.2 AND TERMS 12.6 TO MATCH]**
 - **[PRIVACY CONTACT EMAIL]**

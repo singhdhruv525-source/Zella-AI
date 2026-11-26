@@ -142,7 +142,7 @@ Use this procedure when a requester without legal process, for example law enfor
 | Controller | **[LEGAL ENTITY NAME]**, **[REGISTERED ADDRESS]**; contact **[PRIVACY CONTACT EMAIL]**; representative **[EU REPRESENTATIVE, IF REQUIRED]** |
 | Purposes | Accounts and onboarding; Owner identity verification; billing; security and abuse prevention; support; service notices; legal compliance |
 | Data subjects | Authorized Users; Customer billing and other contacts; visitors to public pages |
-| Data categories | Identity and contact details; sign in and security records; identity documents; billing records; support correspondence; network and browser data |
+| Data categories | Identity and contact details; sign in and security records; identity documents; billing records (including the card brand, last 4 digits and expiry from Stripe; never full card numbers or security codes); support correspondence; network and browser data |
 | Recipients | Providers in Annex 3 of the DPA, including Stripe (where enabled), Google Fonts, the identity verification provider (where enabled) and the email inbox provider |
 | Transfers | To the United States and provider locations, under **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]** |
 | Retention | As in section 10 of the Zella Voice Privacy Policy |

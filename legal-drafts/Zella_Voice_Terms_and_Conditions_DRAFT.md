@@ -139,7 +139,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 9.4 **Automatic renewal.** **AT THE END OF EACH BILLING PERIOD, THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR A FURTHER BILLING PERIOD OF THE SAME LENGTH (MONTHLY OR YEARLY, AS STATED IN THE ORDER FORM) UNTIL CUSTOMER CANCELS UNDER SECTION 10.2.** Zella Voice sends a renewal notice 3 days before every renewal and, for yearly Plans, also 7 days before.
 
-9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Payment card details are entered on Stripe's hosted pages and are never received or stored by Zella Voice. Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. Customer must not configure the AI Receptionist to ask callers for card details.
+9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Stripe holds the payment card. Full card numbers and security codes are entered only on Stripe's hosted pages and are never received or stored by Zella Voice. Zella Voice keeps only the card brand, last 4 digits and expiry month and year, provided by Stripe, to identify the card in billing notices. Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. Customer must not configure the AI Receptionist to ask callers for card details.
 
 9.6 **Usage and allowances.**
 
@@ -585,15 +585,15 @@ This Schedule describes support, service status and service credits for the Serv
 
 4.2 **Request.** Customer must request the credit through support within 30 days after the affected day.
 
-4.3 **Limits.** Credits apply to Customer's next invoices, have no cash value except as section 4.7 provides, and are capped (the cap limits credits only; affected days above it still count under section 4.6) at one month's Fee in total for any billing period (for a yearly Plan, the yearly Fee divided by 12). **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
+4.3 **Limits.** Credits apply to Customer's next invoices, have no cash value except as section 4.7 provides, are forfeited in the cases in section 4.7, and are capped (the cap limits credits only; affected days above it still count under section 4.6) at one month's Fee in total for any billing period (for a yearly Plan, the yearly Fee divided by 12). **[CONFIRM WHETHER THE CAP APPLIES PER BILLING PERIOD]**
 
 4.4 **Exclusions.** No credit applies to unavailability caused by: (a) Customer, its Authorized Users, its equipment, its telephone carrier or its call forwarding; (b) suspension under section 16 of the Terms; (c) Beta Features or Live Features that are switched off; (d) events beyond Zella Voice's reasonable control under section 28.3 of the Terms; or (e) scheduled maintenance announced in advance on the status page.
 
 4.5 **Sole remedy.** Service credits are Customer's sole and exclusive remedy for unavailability of the Services, as stated in section 11 of the Terms, except as provided in section 4.6.
 
-4.6 **Chronic unavailability.** If AI answering is unavailable, as described in section 4.1, on at least **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]** days in each of 3 consecutive months, counting every affected day that meets section 4.1 even where the cap in section 4.3 means no further credit is given for it, that is a material breach that Zella Voice has not corrected. Customer may then terminate the affected Services by written notice given within 30 days after the end of the third month, and Zella Voice will refund prepaid Fees for the unused part of the paid period, as section 18.2 of the Terms provides, and will pay out any credits already earned and unapplied, under section 4.7. **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
+4.6 **Chronic unavailability.** If AI answering is unavailable, as described in section 4.1, on at least **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]** days in each of 3 consecutive months, counting every affected day that meets section 4.1 even where the cap in section 4.3 means no further credit is given for it, that is a material breach that Zella Voice has not corrected. Customer may then terminate the affected Services by written notice given within 30 days after the end of the third month, and Zella Voice will refund prepaid Fees for the unused part of the paid period, as section 18.2 of the Terms provides, and will pay out any credits already earned and unapplied, as section 4.7 provides. **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
 
-4.7 **Credits when Services end.** Zella Voice pays credits earned under section 4.1 that have not been applied to Customer's original payment method, together with any refund then due, within **[CREDIT PAYOUT PERIOD]** days after: (a) the Agreement ends, or Customer ends all Services, for any reason, where no further invoice will be issued; or (b) Customer terminates the affected Services under section 4.6, even if other Services continue. Earned credits are never forfeited. **[OWNER DECISION: CONFIRM THAT EARNED CREDITS ARE PAID OUT, NOT FORFEITED, WHEN SERVICES END]**
+4.7 **Credits when Services end.** (a) **Paid out.** Zella Voice pays credits earned under section 4.1 that have not been applied to Customer's original payment method, together with any refund then due, within **[CREDIT PAYOUT PERIOD]** days after the termination takes effect, where: (i) Customer terminates the affected Services under section 4.6, even if other Services continue; (ii) Customer cancels under section 22.2 of the Terms; (iii) Customer terminates the Agreement or the affected Services for Zella Voice's breach, under section 17.1 or 18.2 of the Terms; or (iv) Zella Voice ends the Agreement or the affected Services for any reason other than Customer's breach, for example under section 17.2 or 19.3 of the Terms. (b) **Forfeited.** In every other case, including where Customer ends the Agreement or any Services by its own choice, for convenience or by not renewing, earned credits that have not been applied when the Services end are forfeited. **[COUNSEL TO CONFIRM WHETHER FORFEITURE OF EARNED CREDITS IS ENFORCEABLE IN EACH LAUNCH JURISDICTION]**
 
 ### 5. Changes
 
@@ -644,6 +644,6 @@ Placeholders in this document:
 - **[CHRONIC UNAVAILABILITY THRESHOLD: NUMBER OF AFFECTED DAYS IN A MONTH]**
 - **[COUNSEL TO CONFIRM THE CHRONIC UNAVAILABILITY THRESHOLD]**
 - **[CREDIT PAYOUT PERIOD]**
-- **[OWNER DECISION: CONFIRM THAT EARNED CREDITS ARE PAID OUT, NOT FORFEITED, WHEN SERVICES END]**
+- **[COUNSEL TO CONFIRM WHETHER FORFEITURE OF EARNED CREDITS IS ENFORCEABLE IN EACH LAUNCH JURISDICTION]**
 
 <!-- PLACEHOLDERS END -->
