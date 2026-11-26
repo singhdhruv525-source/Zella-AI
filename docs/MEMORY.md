@@ -113,6 +113,13 @@ their settings. The "Anthropic" credential (added by the owner) is on "Ask AI" i
 stay off. Not done: the error workflow link to Failure Alert (n8n needs Failure Alert published first) and the
 credentials still to add by hand: Resend, Telnyx, Vapi, Google (reviews), and the Google and Microsoft calendar clients.
 Publishing any workflow needs the owner's approval.
+**Resend (26 Nov 2026, owner's approval):** the owner added a sending access Resend key as the n8n credential "Resend"
+(Header Auth, `Authorization: Bearer ...`) and as the Supabase function secret `RESEND_API_KEY` (every function's
+version went up by one, which confirms a secret was saved). The "Resend" credential is on "Send via Resend" in Email
+Sender, Follow up Emails and Admin Alerts, and on "Check Resend" in Connection Tests (all still unpublished).
+`email_from_address` is now `no-reply@zellavoice.com` (decision R14: Reply-To support@). `email_live` stays off. Still
+to do for email: Inbound Email's "Fetch email" needs a full access key, the Resend webhooks and their Vault signing
+secrets, `platform_emails_url`, the platform email triggers, and a test before `email_live` goes on.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
