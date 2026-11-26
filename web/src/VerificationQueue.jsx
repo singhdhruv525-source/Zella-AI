@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SheetGrip } from "./navigation/SheetGrip";
+import { trapTab } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -56,15 +58,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     const onKey = (e) => {
       if (e.key === "Escape" && !inFlight.current) closeDialog();
       if (e.key !== "Tab" || !dialog.current) return;
-      const focusable = [...dialog.current.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')];
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first) { e.preventDefault(); dialog.current.focus(); return; }
-      if (!dialog.current.contains(document.activeElement) ||
-          (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
-      }
+      trapTab(e, dialog.current, [...dialog.current.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -237,6 +231,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       {rejecting && createPortal(
         <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
           <div className="bd-confirm owner-modal danger" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Reject document">
+            <SheetGrip />
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="gpp_bad" /></span>
               <h3>Reject {KIND[rejecting.kind] ?? "document"}?</h3>
@@ -261,6 +256,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       {verifying && createPortal(
         <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeDialog()}>
           <div className="bd-confirm owner-modal" ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="vq-verify-title" aria-describedby="vq-verify-body" data-dialog="verify">
+            <SheetGrip />
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="verified" /></span>
               <h3 id="vq-verify-title">Mark this document verified?</h3>

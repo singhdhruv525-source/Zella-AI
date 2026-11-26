@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { SheetGrip } from "../navigation/SheetGrip";
 import { useDialogFocus } from "../useDialogFocus";
 import { createPortal } from "react-dom";
 import "../OwnerPages.css";
@@ -323,6 +324,7 @@ export function Drawer({ title, eyebrow, status, onClose, footer, children }) {
   return createPortal(
     <div className="owner-modal-overlay ao-drawer-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <aside ref={dialogRef} tabIndex={-1} className={`owner-modal sa-drawer ao-drawer${footer ? " has-foot" : ""}`} role="dialog" aria-modal="true" aria-label={label}>
+        <SheetGrip />
         <div className="ao-drawer-head">
           <div className="ao-drawer-title">
             {eyebrow && <span className="ao-drawer-eyebrow">{eyebrow}</span>}
@@ -365,6 +367,7 @@ export function ReasonDialog({ title, icon = "edit", children, confirmLabel = "C
   return createPortal(
     <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div ref={dialogRef} tabIndex={-1} className={`bd-confirm owner-modal${danger ? " danger" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+        <SheetGrip />
         <div className="ao-dialog-head">
           <span className="ao-dialog-icon"><Icon name={icon} /></span>
           <h3>{title}</h3>

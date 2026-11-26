@@ -31,6 +31,14 @@ import { navigate, segments, usePath } from "./router";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import { ACCESS, hasPermission, useAdminAccess } from "./adminPermissions";
 import { friendlyError } from "./admin/adminOps";
+// Phone navigation (under 768 wide, approved 25 Nov 2026): bottom bar, side panel, sheets (navigation/PhoneNav.jsx).
+import { adminTabs, selectedTab } from "./navigation/phoneTabs";
+import { adminStripFor, createTabMemory, signalCount } from "./navigation/phoneHelpers";
+import { useKeyboardOpen, usePhoneLayout, usePhoneRoot, usePullToRefresh, useRootFlag, useScrolledPast } from "./navigation/usePhoneLayout";
+import { BottomBar, LiveStrip, PanelAccount, PhoneBottom, PhoneTopBar, PullIndicator, SidePanel, Skeleton, TabStack, Toast, scrollToTop, sendWaitingChanges, usePendingStore, useTabScroll, useToast } from "./navigation/PhoneNav";
+import { useSheetEnhancer } from "./navigation/BottomSheet";
+import { PhoneUi } from "./navigation/phoneContext";
+import { BusinessSheet, useAdminSignals } from "./navigation/AdminPhone";
 
 loadBusinessFonts();
 
@@ -201,11 +209,110 @@ export default function OwnerDashboard({ onSignOut }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [navOpen]);
 
+  // The admin pages in the sidebar's groups; the same list fills the phone's side panel.
+  const navList = (onPick) => (
+    <nav className="owner-nav" aria-label="Admin pages">
+      {NAV_GROUPS.map((group) => {
+        const items = NAVIGATION.filter((item) => item.group === group && allowed(item));
+        if (!items.length) return null;
+        return (
+          <div key={group ?? "top"} className="owner-nav-group">
+            {group && <div className="owner-nav-label">{group}</div>}
+            {items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={`owner-nav-item ${isCurrent(item) ? "active" : ""}`}
+                onClick={() => onPick(item.label)}
+                title={item.title ?? item.label}
+                aria-current={isCurrent(item) ? "page" : undefined}
+              >
+                <span className="owner-nav-icon"><Icon name={item.icon} /></span>
+                <span>{item.title ?? item.label}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })}
+    </nav>
+  );
+
+  // ---------- Phone navigation (under 768 wide; P1 to P29, approved 25 Nov 2026) ----------
+  // The admin gets the full version too. From 600 to 767 the phone layout replaces the icon rail (owner decision 7);
+  // 768 and wider never reach any of this.
+  const phone = usePhoneLayout();
+  usePhoneRoot(phone, "admin");
+  useKeyboardOpen(phone);
+  useSheetEnhancer(phone);
+  const toaster = useToast("admin");
+  const pendingStore = usePendingStore("admin");   // quick changes waiting for their Undo window, kept across pages
+  // signing out sends the changes still waiting first (on purpose: nothing chosen is lost by signing out)
+  const signOut = async () => { await sendWaitingChanges(pendingStore); return onSignOut(); };
+  const [tabMemory] = useState(createTabMemory);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [bizSheet, setBizSheet] = useState(null);
+  const tabs = phone && authorized ? adminTabs(NAVIGATION, can) : [];
+  const phoneTabbed = phone && authorized && !blocked && !wizard && !detailId && tabs.some((t) => t.key === activePage);
+  const tabKey = phoneTabbed ? activePage : `page:${path}`;
+  const panelOpen = phone && navOpen;
+  useTabScroll(phone, tabKey, tabMemory, phoneTabbed);
+  const signals = useAdminSignals({ enabled: phone && authorized, can });
+  // only with businesses.view (platform incidents are part of it); a failed read says so, never looks calm
+  const strip = phone && authorized && can("businesses.view") && activePage !== "Platform Operations" ? adminStripFor(signals.incidents) : null;
+  const action = phoneTabbed && ["Overview", "Businesses"].includes(activePage) && can("businesses.manage")
+    ? { label: "Create business", icon: "add", onClick: () => setWizard({ businessId: null }) } : null;
+  useRootFlag("pn-has-action", Boolean(action));
+  useRootFlag("pn-has-strip", Boolean(strip));
+  const scrolled = useScrolledPast(phone);
+  // P17: pull to refresh on Overview, Businesses and Support; each page reads again with its own Refresh
+  const pullable = phoneTabbed && ["Overview", "Businesses", "Support"].includes(activePage);
+  // each page hands over its own refresh (a promise), so the indicator stays until the read has finished
+  const pageRefresh = useRef({});
+  const overviewRefresh = useCallback((fn) => { pageRefresh.current.Overview = fn; }, []);
+  const supportRefresh = useCallback((fn) => { pageRefresh.current.Support = fn; }, []);
+  const pull = usePullToRefresh({ enabled: pullable, onRefresh: () => {
+    if (activePage === "Businesses") return businessList.reload({ fresh: true });
+    return pageRefresh.current[activePage]?.();
+  } });
+  const selectTab = (key) => {
+    if (key === activePage && phoneTabbed) { scrollToTop(); return; }
+    goTo(key);
+  };
+  const countOf = (key) => (key === "Support" ? signalCount(signals.tickets) : key === "Platform Operations" ? signalCount(signals.alerts) : { count: 0, state: "ok" });
+  const countFor = (key) => countOf(key).count;
+  const nounFor = (key) => (key === "Support" ? "open" : countFor(key) === 1 ? "open alert" : "open alerts");
+  const tabView = (label) => (
+    label === "Overview" ? (
+      <OwnerOverview
+        onCreateBusiness={can("businesses.manage") ? () => setWizard({ businessId: null }) : null}
+        onOpenBusiness={setDetailId}
+        onContinueSetup={can("businesses.manage") ? (id) => setWizard({ businessId: id }) : null}
+        onNavigate={setActivePage}
+        refreshRef={overviewRefresh}
+      />
+    ) : label === "Businesses" ? (
+      <BusinessesPage
+        state={businessList}
+        search={search}
+        onSearch={setSearch}
+        canManage={can("businesses.manage")}
+        onCreate={() => setWizard({ businessId: null })}
+        onOpen={(id) => setBizSheet(id)}
+        onSetup={(id) => setWizard({ businessId: id })}
+      />
+    ) : label === "Support" ? <SupportTickets onOpenBusiness={setDetailId} myEmail={email} refreshRef={supportRefresh} />
+      : label === "Platform Operations" ? <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
+        : label === "Verification" ? <VerificationQueue onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
+          : label === "Audit Logs" ? <AuditLogs onOpenBusiness={setDetailId} /> : null
+  );
+  const sheetRow = bizSheet ? businessList.list?.rows?.find((r) => r.id === bizSheet) : null;
+
   return (
-    <div className="owner-app">
-      {navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
+    <PhoneUi.Provider value={{ phone, toast: toaster.show, pending: pendingStore }}>
+    <div className="owner-app" data-pn-action={action ? "" : undefined} data-pn-pull={pullable ? "" : undefined}>
+      {!phone && navOpen && <button type="button" className="zella-nav-backdrop" aria-label="Close menu" onClick={() => setNavOpenAt(null)} />}
       {/* The column carries the sidebar's background and border down the whole page; only the nav inside is sticky. */}
-      <div className="owner-sidebar-col">
+      {!phone && <div className="owner-sidebar-col">
       <aside id="owner-sidebar" className={`owner-sidebar ${navOpen ? "open" : ""}`} aria-label="Main navigation">
         <SidebarBrand caption="Platform control" toggle={<DockToggle />} />
 
@@ -217,30 +324,7 @@ export default function OwnerDashboard({ onSignOut }) {
           </div>
         </div>
 
-        <nav className="owner-nav" aria-label="Admin pages">
-          {NAV_GROUPS.map((group) => {
-            const items = NAVIGATION.filter((item) => item.group === group && allowed(item));
-            if (!items.length) return null;
-            return (
-              <div key={group ?? "top"} className="owner-nav-group">
-                {group && <div className="owner-nav-label">{group}</div>}
-                {items.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    className={`owner-nav-item ${isCurrent(item) ? "active" : ""}`}
-                    onClick={() => goTo(item.label)}
-                    title={item.title ?? item.label}
-                    aria-current={isCurrent(item) ? "page" : undefined}
-                  >
-                    <span className="owner-nav-icon"><Icon name={item.icon} /></span>
-                    <span>{item.title ?? item.label}</span>
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </nav>
+        {navList(goTo)}
 
         {can("businesses.view") && <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform Operations")}
           aria-label="Platform status: view system health" title="Platform status">
@@ -251,10 +335,59 @@ export default function OwnerDashboard({ onSignOut }) {
           </div>
         </button>}
       </aside>
-      </div>
+      </div>}
 
-      <main className="owner-main">
-        <header className="owner-topbar">
+      {phone && (
+        <SidePanel open={panelOpen} onClose={() => setNavOpenAt(null)} head={<SidebarBrand caption="Platform control" />}>
+          <div className="pn-card-btn" role="group" aria-label="Platform">
+            <span className="owner-workspace-icon" aria-hidden="true">Z</span>
+            <span><strong>Zella Voice Platform</strong><small>{me?.roleLabel ?? (access.state === ACCESS.LOADING ? "Loading role…" : "Role not loaded")}</small></span>
+          </div>
+          {authorized && navList((label) => { setNavOpenAt(null); goTo(label); })}
+          {can("businesses.view") && <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => { setNavOpenAt(null); goTo("Platform Operations"); }}
+            aria-label="Platform status: view system health">
+            <div className="owner-status-dot" />
+            <div><strong>Platform status</strong><span>View system health</span></div>
+          </button>}
+          <PanelAccount name={email || "Platform admin"} detail={me?.roleLabel} initials={(email || "A").slice(0, 1).toUpperCase()}
+            rows={[
+              { label: "My profile", icon: "person", onClick: () => { setNavOpenAt(null); navigate("/settings/profile/me"); } },
+              { label: "Password and security", icon: "lock", onClick: () => { setNavOpenAt(null); navigate("/settings/profile/security"); } },
+              { label: "Appearance and theme", icon: "palette", onClick: () => { setNavOpenAt(null); navigate("/settings/profile/appearance"); } },
+              { label: "Sign out", icon: "logout", onClick: () => { setNavOpenAt(null); signOut(); } },
+            ]} />
+        </SidePanel>
+      )}
+
+      <main className="owner-main" inert={panelOpen ? true : undefined}>
+        {phone && (
+          <PhoneTopBar searchOpen={searchOpen}
+            actions={<>
+              {can("businesses.view") && (
+                <button type="button" className="pn-iconbtn" aria-label="Search businesses" aria-expanded={searchOpen} onClick={() => setSearchOpen((o) => !o)}>
+                  <Icon name={searchOpen ? "close" : "search"} />
+                </button>
+              )}
+              {can("businesses.view") && <AdminAlertsBell onOpenMonitoring={() => goTo("Platform Operations")} />}
+            </>}
+            search={(
+              <div className="owner-search">
+                <Icon name="search" size="sm" />
+                <input autoFocus type="search" value={search} enterKeyHint="search" aria-label="Search businesses" placeholder="Search businesses"
+                  onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false); }}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    if (event.target.value.trim() && !wizard && (activePage !== "Businesses" || detailId)) goTo("Businesses");
+                  }} />
+              </div>
+            )}>
+            <div className={`pn-title ${scrolled ? "scrolled" : ""}`}>
+              <img src="/brand/zella-two-bars.svg" alt="Zella Voice" />
+              <span aria-hidden={scrolled ? undefined : true}>{activePage ? (currentItem?.title ?? activePage) : "Page not found"}</span>
+            </div>
+          </PhoneTopBar>
+        )}
+        {!phone && <header className="owner-topbar">
           <button type="button" className="owner-icon-button zella-menu-btn owner-menu-btn" aria-label="Open menu" aria-controls="owner-sidebar" aria-expanded={navOpen}
             onClick={() => setNavOpenAt(navOpen ? null : path)}>
             <Icon name="menu" />
@@ -290,17 +423,21 @@ export default function OwnerDashboard({ onSignOut }) {
             <div className="owner-avatar" title={[email, me?.roleLabel].filter(Boolean).join(" · ") || "Platform admin"}>
               {(email || "A").slice(0, 1).toUpperCase()}
             </div>
-            <button className="owner-signout" type="button" onClick={onSignOut}>
+            <button className="owner-signout" type="button" onClick={signOut}>
               Sign out
             </button>
           </div>
-        </header>
+        </header>}
 
         <div className="owner-content">
+          {pullable && <PullIndicator distance={pull.distance} refreshing={pull.refreshing} />}
           <AppearanceSaveNotice />
           <ErrorBoundary resetKey={path}>
           {notice && <div className="owner-form-error op-gap" role="status">{notice}</div>}
-          {access.state === ACCESS.LOADING ? (
+          {phone && authorized && <TabStack tabs={tabs} active={phoneTabbed ? activePage : null} render={tabView} />}
+          {phoneTabbed ? null : access.state === ACCESS.LOADING && phone ? (
+            <Skeleton label="Checking your access" />
+          ) : access.state === ACCESS.LOADING ? (
             <div className="owner-empty-state" role="status" aria-busy="true" data-access="loading">
               <strong>Checking your access…</strong>
               <p>Your admin pages appear once your role has loaded.</p>
@@ -310,13 +447,15 @@ export default function OwnerDashboard({ onSignOut }) {
               <strong>Your admin permissions couldn't be loaded</strong>
               <p>Nothing is shown until they are. Check your connection and try again.</p>
               <button type="button" className="owner-primary-button" onClick={retryAccess}>Try again</button>
+              {/* a phone has no top bar Sign out: keep it reachable here (the admin pages stay closed) */}
+              {phone && <button type="button" className="owner-secondary-button" onClick={signOut}>Sign out</button>}
             </div>
           ) : access.state === ACCESS.UNAUTHORIZED ? (
             <div className="owner-empty-state" role="alert" data-access="unauthorized">
               <strong>No admin access</strong>
               <p>{access.reason === "MFA_REQUIRED" ? "Enter the code from your authenticator app: sign out and sign in again."
                 : "This account isn't allowed to use the Zella Voice admin, or its access has changed. Sign out and sign in with an admin account, or ask a Zella Voice owner."}</p>
-              <button type="button" className="owner-primary-button" onClick={onSignOut}>Sign out</button>
+              <button type="button" className="owner-primary-button" onClick={signOut}>Sign out</button>
             </div>
           ) : blocked ? (
             <div className="owner-empty-state" role="status" data-access="denied">
@@ -384,7 +523,7 @@ export default function OwnerDashboard({ onSignOut }) {
           ) : activePage === "Integrations" ? (
             <IntegrationsPage onOpenBusiness={setDetailId} />
           ) : activePage === "Support" ? (
-            <SupportTickets onOpenBusiness={setDetailId} />
+            <SupportTickets onOpenBusiness={setDetailId} myEmail={email} />
           ) : activePage === "Plans & Subscriptions" ? (
             <PlansPage onOpenBusiness={setDetailId} />
           ) : activePage === "Offers & Promotions" ? (
@@ -398,7 +537,7 @@ export default function OwnerDashboard({ onSignOut }) {
           ) : activePage === "Automations" ? (
             <AutomationsPage me={me} sub={sub} onOpenBusiness={setDetailId} />
           ) : activePage === "Settings" ? (
-            <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={onSignOut}
+            <SettingsPage onNavigate={goTo} section={section} sub={sub} onSignOut={signOut}
               onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
           ) : isBusinesses ? (
             <BusinessesPage
@@ -428,6 +567,24 @@ export default function OwnerDashboard({ onSignOut }) {
         </div>
       </main>
 
+      {phone && (
+        <PhoneBottom hidden={panelOpen}
+          action={action && <button type="button" className="owner-primary-button" onClick={action.onClick}><Icon name={action.icon} />{action.label}</button>}
+          strip={strip && <LiveStrip {...strip} onAction={() => goTo("Platform Operations")} />}
+          bar={tabs.length > 0 && (
+            <BottomBar label="Admin" tabs={tabs.map((t) => ({ ...t, count: countFor(t.key), countState: countOf(t.key).state, countNoun: nounFor(t.key) }))}
+              selected={panelOpen ? "more" : selectedTab(tabs, phoneTabbed || detailId || wizard ? activePage : null)} onSelect={selectTab}
+              onMore={() => setNavOpenAt(panelOpen ? null : path)} moreOpen={panelOpen} />
+          )} />
+      )}
+      {/* the same toast store in every layout: an Undo still in its time stays reachable past the phone width */}
+      {(phone || toaster.toast) && <Toast toast={toaster.toast} onDismiss={toaster.dismiss} />}
+      {/* fail closed: only for a signed in admin who may see businesses */}
+      {phone && authorized && can("businesses.view") && sheetRow && (
+        <BusinessSheet b={sheetRow} canManage={can("businesses.manage")} onClose={() => setBizSheet(null)}
+          onOpen={(id, tab) => navigate(tab ? `/businesses/${id}/${tab}` : `/businesses/${id}`)} onSetup={(id) => setWizard({ businessId: id })} />
+      )}
     </div>
+    </PhoneUi.Provider>
   );
 }

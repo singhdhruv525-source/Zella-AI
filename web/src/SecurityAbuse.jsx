@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { DialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
@@ -291,6 +292,7 @@ function IncidentDrawer({ id, onClose, onOpenBusiness }) {
   return createPortal(
     <DialogFocus onClose={onClose} busy={false}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="owner-modal sa-drawer" role="dialog" aria-modal="true" aria-label="Incident">
+        <SheetGrip />
         <div className="zs-dialog-head">
           <span className="zs-dialog-icon"><Icon name="gpp_maybe" /></span>
           <h3>{inc ? `${CHANNEL[inc.channel] ?? inc.channel} from ${inc.sender}` : "Incident"}</h3>
@@ -520,6 +522,7 @@ function Rules({ canManage, onChanged }) {
       {removing && createPortal(
         <DialogFocus onClose={() => setRemoving(null)} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && setRemoving(null)}>
           <div className="bd-confirm owner-modal danger" role="dialog" aria-modal="true" aria-label="Remove rule">
+            <SheetGrip />
             <div className="zs-dialog-head">
               <span className="zs-dialog-icon"><Icon name="lock_open" /></span>
               <h3>Remove the rule for {removing.value}?</h3>
@@ -610,6 +613,7 @@ function Automation({ info, canSave, onSaved }) {
       {confirmLive && createPortal(
         <DialogFocus onClose={closeConfirm} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeConfirm()}>
           <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-label="Switch on the Spam Response workflow">
+            <SheetGrip />
             <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="warning" /></span><h3>Switch on live spam alerts?</h3></div>
             <p>From now on, medium and high incidents for <strong>every business</strong> are queued for the Spam Response workflow in n8n, which sends
               real alerts to the businesses' teams. Make sure the workflow is published and tested in n8n first. You can switch it off again at any time.
@@ -628,6 +632,7 @@ function Automation({ info, canSave, onSaved }) {
       {confirmAi && createPortal(
         <DialogFocus onClose={closeConfirm} busy={busy}><div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && closeConfirm()}>
           <div className="bd-confirm owner-modal" role="dialog" aria-modal="true" aria-label="Switch on AI second opinion">
+            <SheetGrip />
             <div className="zs-dialog-head"><span className="zs-dialog-icon"><Icon name="psychology" /></span><h3>Switch on AI second opinion?</h3></div>
             <p>For businesses that opt in, medium risk texts and emails are sent to the AI provider (Anthropic) with names, numbers and email addresses removed first.
               The answer is shown to the team as a suggestion and never blocks anyone. Add the Anthropic key to the "Ask AI" box in n8n first.

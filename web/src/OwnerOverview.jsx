@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
 import { actionLabel, stageLabel, stageTone, timeAgo, formatDate } from "./ownerFormat";
@@ -40,11 +41,13 @@ const loadOverview = () => callOwnerFunction("overview_data");
 
 // onCreateBusiness and onContinueSetup are null for a role without businesses.manage: those buttons are not shown
 // (the server refuses the writes anyway).
-export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onContinueSetup, onNavigate }) {
+// refreshRef: given the page's refresh (a promise that settles when the read has finished), for pull to refresh
+export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onContinueSetup, onNavigate, refreshRef }) {
   // the last good answer stays on screen when a refresh fails, marked as possibly out of date (admin/loadState.jsx)
   const r = useRefreshable(loadOverview);
   const { data, loading } = r;
   const load = r.reload;
+  useEffect(() => { refreshRef?.(() => r.reload()); return () => refreshRef?.(undefined); }, [refreshRef, r.reload]);
 
   const s = data?.stats;
   // a missing or unloaded number shows "—", never a made-up 0; counts get the locale's thousands separator (3,182)

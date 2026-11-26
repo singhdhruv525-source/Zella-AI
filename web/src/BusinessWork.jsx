@@ -8,6 +8,12 @@ import { validatePhone } from "./formValidation";
 import { noteIcon, noteStyle, pickQuiet, voiceTitle } from "./zellaVoice";
 import { chime, desktopAlert, deviceAlerts, tabCount, unlockAlerts } from "./liveAlerts";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
+import { usePhoneUi } from "./navigation/phoneContext";
+import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
+import { BottomSheet } from "./navigation/BottomSheet";
+import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
+import { loadRead, mergeBellNotes, needsNowNotes, pruneRead, saveRead } from "./crm/needsNowNotes";
 
 /* ------------------------------------------------------------------ */
 /* Shared bits                                                         */
@@ -149,7 +155,7 @@ const TASK_KIND = {
   staff_unavailable: "Staff unavailable", appointment_request: "Appointment request", reactivation: "Win back", other: "Task",
 };
 
-function NewTaskModal({ workspace, onClose, onSaved }) {
+export function NewTaskModal({ workspace, onClose, onSaved }) {
   const [person, setPerson] = useState(null);
   const [form, setForm] = useState({ title: "", date: "", time: "", priority: "normal" });
   const [busy, setBusy] = useState(false);
@@ -187,23 +193,61 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
   const [filter, setFilter] = useState("open");
   const [adding, setAdding] = useState(false);
   const { data, error, loading, reload } = useLoad(async () => {
+    // every read (opening, Refresh, pull to refresh, a refresh key, a reload after a change) notes the quick changes
+    // already settled when it starts; once its data is on screen (the effect below), exactly those give way
+    const settledBefore = store.settledSnapshot();
     const tasks = orThrow(await supabase.from("crm_tasks").select("*").eq("business_id", workspace.id).order("due_at", { ascending: true, nullsFirst: false }).limit(300));
     const dups = orThrow(await supabase.from("duplicate_reviews").select("*").eq("business_id", workspace.id).eq("status", "open").order("created_at", { ascending: false }).limit(50));
-    return { tasks, dups, people: await loadPeople([...tasks.map((t) => t.customer_id), ...dups.map((d) => d.customer_id)]) };
+    return { tasks, dups, people: await loadPeople([...tasks.map((t) => t.customer_id), ...dups.map((d) => d.customer_id)]), settledBefore };
   }, [workspace.id, refreshKey]);
   const { working, error: actionError, run } = useAction(onNotice, reload, onChanged);
+  // On a phone (approved 25 Nov 2026, P19 and P20): a task marked done leaves the list at once, with Undo. It is only
+  // sent once the Undo window has passed, so Undo never needs to reopen anything; if sending fails it comes back.
+  const ui = usePhoneUi();
+  // the app keeps the waiting changes (navigation/PhoneNav.jsx usePendingStore): leaving Tasks neither sends them early
+  // nor loses their Undo; a page outside the app (no store given) keeps its own
+  const [ownStore] = useState(createPendingStore);
+  const store = ui.pending ?? ownStore;
+  // a task sent while this page is open stays hidden until the list has been read fresh: a failed refresh would
+  // otherwise bring the completed or dismissed task back next to the error
+  const views = usePendingViews(store, () => { reload(); }, "tasks");
+  // useLoad only puts data on screen from a read that worked and wasn't overtaken: that read's snapshot is acknowledged
+  // (a failed read leaves the data, and so the settled tasks, as they were)
+  useEffect(() => { if (data?.settledBefore) store.clearSettledSnapshot(data.settledBefore, "tasks"); }, [data, store]);
+  useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
+  const [rowMenu, setRowMenu] = useState(null);
+  // done, or dismissed (cancel): both leave the list at once with Undo and are sent after the Undo window
+  function quickDone(t, cancel = false) {
+    if (store.has(t.id)) return;
+    const change = deferChange({
+      commit: async () => {
+        const { error: failure } = await supabase.rpc("zella_complete_task", cancel ? { p_task_id: t.id, p_cancel: true } : { p_task_id: t.id });
+        if (failure) throw failure;
+        store.succeed(t.id);
+        onChanged?.();
+      },
+      revert: () => store.rollback(t.id),   // this change only: an earlier settled one stays until a read acknowledges it
+      beacon: () => sendKeepalive("rpc", "zella_complete_task", cancel ? { p_task_id: t.id, p_cancel: true } : { p_task_id: t.id }),
+      beaconReady: keepaliveReady,
+      onError: (err) => ui.toast(`Couldn't ${cancel ? "dismiss it" : "mark it done"}, so it's back on the list. ${explain(err)}`),
+    });
+    store.add(t.id, change, { hidden: true });
+    ui.toast(pendingToastText(cancel ? "Task dismissed" : "Task marked done", store.waiting()), { undo: () => undoAll(store.changes()) });
+  }
+  const doneHere = { has: (id) => Boolean(views.get(id)?.hidden) };
 
   const tasks = data?.tasks ?? [];
-  const open = tasks.filter((t) => t.status === "open");
+  const open = tasks.filter((t) => t.status === "open" && !doneHere.has(t.id));
   const shown = filter === "open" ? open : tasks.filter((t) => t.status !== "open").sort((a, b) => new Date(b.completed_at ?? b.created_at) - new Date(a.completed_at ?? a.created_at));
   const dups = data?.dups ?? [];
   const now = Date.now();
 
   return (
     <>
-      <PageHead crumb="Workspace / Tasks and follow ups" title="Tasks and follow ups" sub={open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella Voice adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
+      {/* counts and "nothing waiting" only from a read that worked: before it, or after a failed first read, no count */}
+      <PageHead crumb="Workspace / Tasks and follow ups" title="Tasks and follow ups" sub={!data ? undefined : open.length ? `${plural(open.length, "thing")} to do.` : "Nothing waiting. Zella Voice adds tasks when a lead needs contacting, a quote is open or a booking needs rearranging."}>
         <button type="button" className="ba-btn primary" onClick={() => setAdding(true)}><Icon name="add_task" size="sm" />Add task</button>
-        <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", `To do (${open.length})`], ["done", "Done"]]} />
+        <Segment label="Task filter" value={filter} onChange={setFilter} options={[["open", data ? `To do (${open.length})` : "To do"], ["done", "Done"]]} />
       </PageHead>
       <Notice error={error || actionError} onRetry={reload} />
 
@@ -230,8 +274,43 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
         </section>
       )}
 
-      {loading && !data ? <p className="ba-muted">Loading…</p> : !shown.length ? (
+      {loading && !data ? (ui.phone ? <Skeleton label="Loading tasks" /> : <p className="ba-muted">Loading…</p>)
+        // a failed first read: only the error and its Try again above, never "All caught up"
+        : !data ? null : !shown.length ? (
         <Empty title={filter === "open" ? "All caught up" : "Nothing done yet"}>{filter === "open" ? "New tasks show up here." : "Finished tasks are kept here."}</Empty>
+      ) : ui.phone ? (
+        <>
+          {filter === "open" && <p className="pn-hint"><Icon name="swipe_left" />Swipe a task left to call back or mark it done</p>}
+          <ul className="pn-list pn-swipes">
+            {shown.map((t) => {
+              const person = data.people[t.customer_id];
+              const isOpen = t.status === "open";
+              const late = isOpen && t.due_at && new Date(t.due_at).getTime() < now;
+              const callable = isOpen && person?.phone && !person.do_not_call && !person.do_not_contact;
+              const actions = isOpen ? [
+                callable && { key: "call", label: "Call back", icon: "phone_callback", tone: "call", href: `tel:${person.phone}` },
+                { key: "done", label: "Done", icon: "check", tone: "done", onClick: () => quickDone(t) },
+              ].filter(Boolean) : [];
+              return (
+                <SwipeRow key={t.id} actions={actions}>
+                  <div className="pn-row">
+                    {isOpen && <button type="button" className="pn-check" aria-label={`Mark ${t.title} done`} onClick={() => quickDone(t)} />}
+                    <button type="button" className="pn-item" aria-haspopup="dialog" onClick={() => setRowMenu(t)}>
+                      <span className="pn-main">
+                        <strong>{t.title}</strong>
+                        <small>{[personName(person), t.body].filter(Boolean).join(", ") || (TASK_KIND[t.kind] ?? "Task")}</small>
+                      </span>
+                      <span className={`pn-meta ${late ? "late" : ""}`}>
+                        {isOpen ? (late ? "Overdue" : t.due_at ? formatDay(t.due_at, tz) : "") : t.status === "done" ? "Done" : "Canceled"}
+                      </span>
+                    </button>
+                    <button type="button" className="pn-more" aria-label={`More for ${t.title}`} aria-haspopup="dialog" onClick={() => setRowMenu(t)}><Icon name="more_horiz" /></button>
+                  </div>
+                </SwipeRow>
+              );
+            })}
+          </ul>
+        </>
       ) : (
         <div className="ba-stack">
           {shown.map((t) => {
@@ -265,6 +344,23 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
         </div>
       )}
       {adding && <NewTaskModal workspace={workspace} onClose={() => setAdding(false)} onSaved={(m) => { setAdding(false); onNotice(m); reload(); onChanged?.(); }} />}
+      {rowMenu && (() => {
+        const t = rowMenu;
+        const person = data?.people[t.customer_id];
+        const isOpen = t.status === "open" && !doneHere.has(t.id);
+        const close = () => setRowMenu(null);
+        return (
+          <BottomSheet title={t.title} description={t.status === "open" ? (t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time") : undefined} size="fit" onClose={close}>
+            {t.body && <div className="pn-sheet-section"><p>{t.body}</p></div>}
+            <div className="pn-menu-list">
+              {isOpen && <button type="button" className="pn-row-link" onClick={() => { close(); quickDone(t); }}><Icon name="check" /><span>Mark done</span></button>}
+              {isOpen && person?.phone && !person.do_not_call && !person.do_not_contact && <a className="pn-row-link" href={`tel:${person.phone}`}><Icon name="phone_callback" /><span>Call back {personName(person)}</span></a>}
+              {person && <button type="button" className="pn-row-link" onClick={() => { close(); onOpenPerson(person.id); }}><Icon name="person" /><span>Open {personName(person)}</span></button>}
+              {isOpen && <button type="button" className="pn-row-link" onClick={() => { close(); quickDone(t, true); }}><Icon name="do_not_disturb_on" /><span>Dismiss</span></button>}
+            </div>
+          </BottomSheet>
+        );
+      })()}
     </>
   );
 }
@@ -398,11 +494,15 @@ function NoteToasts({ toasts, workspace, onOpen, onClose }) {
     </div>, host);
 }
 
-export function NotificationsBell({ workspace, onGo }) {
+export function NotificationsBell({ workspace, onGo, needsNow }) {
   const [open, setOpen] = useState(false);
+  // "Needs you now" in the bell (owner, 25 Nov 2026; crm/needsNowNotes.js): in the app only, one note per item, gone
+  // once it is dealt with. Read state is kept on this device.
+  const [readNotes, setReadNotes] = useState(() => loadRead(workspace.id));
   const [rows, setRows] = useState([]);
   const [missing, setMissing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);   // a read of the notifications has worked
   const [toasts, setToasts] = useState([]);
   const [quiet] = useState(() => pickQuiet());
   const seen = useRef(null);
@@ -415,7 +515,7 @@ export function NotificationsBell({ workspace, onGo }) {
       else setFailed(true);
       return;
     }
-    setMissing(false); setFailed(false);
+    setMissing(false); setFailed(false); setLoaded(true);
     const list = data ?? [];
     // Anything new since the last look (not on the first load) announces itself.
     if (seen.current) {
@@ -444,15 +544,41 @@ export function NotificationsBell({ workspace, onGo }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.id]);
 
-  const unread = rows.filter((r) => !r.read_at);
+  const notes = useMemo(() => (needsNow ? needsNowNotes({ waiting: needsNow.waiting, waitingMore: needsNow.waitingMore, overdue: needsNow.overdue, overdueMore: needsNow.overdueMore, spam: needsNow.spam, at: needsNow.at }) : []), [needsNow]);
+  const merged = useMemo(() => mergeBellNotes(rows, notes, readNotes, needsNow?.complete ?? {}, needsNow?.at), [rows, notes, readNotes, needsNow]);
+  const shown = merged.rows;
+  const unread = shown.filter((r) => !r.read_at);
   useEffect(() => { tabCount(unread.length); }, [unread.length]);
+  // forget read notes that have left the bell, and mark read the server notifications whose call or task is dealt with
+  useEffect(() => {
+    // only after a round where every source was read: a source that failed must not make its read notes look gone
+    if (!needsNow?.at || !needsNow.ready) return;
+    const kept = pruneRead(readNotes, notes, { ...needsNow.complete, spam: needsNow.status?.spam === "ok" });
+    if (kept.size !== readNotes.size) { setReadNotes(kept); saveRead(workspace.id, kept); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes]);
+  const staleTried = useRef(new Set());
+  const staleSending = useRef(new Set());
+  useEffect(() => {
+    const ids = merged.stale.filter((id) => !staleTried.current.has(id) && !staleSending.current.has(id));
+    if (!ids.length) return;
+    // remembered only once the server has marked them read; a failed attempt is tried again on a later poll (this
+    // runs again whenever the notifications or the "Needs you now" signals are read again)
+    ids.forEach((id) => staleSending.current.add(id));
+    const done = (ok) => { ids.forEach((id) => { staleSending.current.delete(id); if (ok) staleTried.current.add(id); }); if (ok) load(); };
+    supabase.rpc("zella_mark_notifications_read", { p_ids: ids }).then(({ error }) => done(!error), () => done(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merged.stale.join(","), rows, needsNow?.at]);
+  const readHere = (keys) => setReadNotes((set) => { const next = new Set([...set, ...keys]); saveRead(workspace.id, next); return next; });
   async function markAll() {
-    const ids = unread.map((r) => r.id);
+    readHere(unread.filter((r) => r.derived).map((r) => r.key));
+    const ids = unread.filter((r) => !r.derived).map((r) => r.id);
     if (!ids.length) return;
     await supabase.rpc("zella_mark_notifications_read", { p_ids: ids });
     load();
   }
   async function go(note) {
+    if (note.derived) { readHere([note.key]); setOpen(false); onGo(note.page_key); return; }
     setToasts((t) => t.filter((x) => x.id !== note.id));
     if (!note.read_at) await supabase.rpc("zella_mark_notifications_read", { p_ids: [note.id] });
     setOpen(false);
@@ -460,31 +586,35 @@ export function NotificationsBell({ workspace, onGo }) {
     load();
   }
   const closeToast = useMemo(() => (id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
-  if (missing) return null;
+  if (missing && !notes.length) return null;   // no notifications table yet: the bell still shows "Needs you now"
 
   return (
     <div className="ba-bell">
       <button type="button" className={`ba-btn icon ${toasts.length ? "ringing" : ""}`} aria-label={unread.length ? `${unread.length} unread notifications` : "Notifications"} aria-expanded={open} onClick={() => { setOpen(!open); if (!open) load(); }}>
         <Icon name="notifications" />
-        {unread.length > 0 && <span className={`ba-count ${unread.some((n) => n.severity === "urgent") ? "urgent" : ""}`}>{unread.length > 9 ? "9+" : unread.length}</span>}
+        {unread.length > 0 && <span className={`ba-count ${unread.some((n) => n.severity === "urgent") ? "urgent" : ""}`} aria-hidden="true">{unread.length > 9 ? "9+" : unread.length}</span>}
       </button>
       {open && (
         <div className="ba-bell-panel" role="dialog" aria-label="Notifications">
           <div className="ba-bell-head"><strong>Notifications</strong>{unread.length > 0 && <button type="button" className="ba-link" onClick={markAll}>Mark all read</button>}</div>
           {failed && <p className="ba-muted pad" role="status">Notifications couldn't be checked just now. Zella Voice will try again shortly.</p>}
-          {!rows.length ? (!failed && <p className="ba-muted pad">{quiet}</p>) : (
+          {needsNow?.unavailable && <p className="ba-muted pad" role="status">Some of what needs you now couldn't be checked just now. Zella Voice will try again shortly.</p>}
+          {/* quiet only once every source has read and found nothing; "checking" while any is still reading */}
+          {!shown.length && (!loaded || needsNow?.loading) && !failed && !needsNow?.unavailable && <p className="ba-muted pad" role="status">Checking what needs you now…</p>}
+          {!shown.length ? (loaded && !failed && !needsNow?.unavailable && !needsNow?.loading && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
-              {rows.map((n) => {
-                const { icon, tone, kicker } = noteStyle(n);
+              {shown.map((n) => {
+                const style = noteStyle(n);
+                const { icon, tone, kicker } = n.derived ? { icon: n.icon, tone: style.tone, kicker: "Needs you now" } : style;
                 return (
                   <li key={n.id} className={`${n.read_at ? "" : "unread"} ${n.severity === "urgent" ? "urgent" : ""}`}>
                     <button type="button" onClick={() => go(n)}>
                       <span className={`ba-note-icon tone-${tone}`}><Icon name={icon} size="sm" /></span>
                       <span className="ba-note-text">
                         <span className={`ba-kicker tone-${tone}`}>{kicker}</span>
-                        <strong>{voiceTitle(n, workspace)}</strong>
+                        <strong>{n.derived ? n.title : voiceTitle(n, workspace)}</strong>
                         {n.body && <small>{n.body}</small>}
-                        <small>{timeAgo(n.created_at)}</small>
+                        {n.created_at && <small>{timeAgo(n.created_at)}</small>}
                       </span>
                     </button>
                   </li>

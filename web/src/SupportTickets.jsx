@@ -7,6 +7,12 @@ import { Pill } from "./OwnerOverview";
 import { formatDateTime, timeAgo } from "./ownerFormat";
 import { friendlyError } from "./admin/adminOps";
 import { businessHoursText } from "./adminAccess";
+import { readTickets } from "./admin/ticketsRead";
+import { usePhoneUi } from "./navigation/phoneContext";
+import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
+import { BottomSheet } from "./navigation/BottomSheet";
+import { createKeyedQueue, createPendingStore, deferChange, panelReplacesPending, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
 const PRIORITIES = [["low", "Low"], ["normal", "Normal"], ["high", "High"], ["urgent", "Urgent"]];
@@ -23,7 +29,20 @@ const firstReplyText = (h) => (Number.isFinite(h) && h < 1 ? "First reply: withi
 
 const EMPTY_TICKET = { businessId: "", subject: "", description: "", category: "", priority: "normal" };
 
-export default function SupportTickets({ onOpenBusiness }) {
+// refreshRef: given the page's refresh (a promise that settles when the read has finished), for pull to refresh
+export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) {
+  // On a phone the list is rows you can swipe (approved 25 Nov 2026, P19 and P20): Assign to yourself or Resolve, shown
+  // at once with Undo, and only sent once the Undo window has passed (navigation/phoneHelpers.js deferChange).
+  const ui = usePhoneUi();
+  // the app keeps the waiting changes (navigation/PhoneNav.jsx usePendingStore), so leaving Support neither sends them
+  // early nor loses their Undo; outside the app (no store given) the page keeps its own
+  const [ownStore] = useState(createPendingStore);
+  const store = ui.pending ?? ownStore;
+  // every ticket_update for a ticket goes out in the order it was chosen, one at a time (the server has no version
+  // check): a slow detail save can't land after, and overwrite, a later quick Resolve or Assign
+  const [writes] = useState(createKeyedQueue);
+  const [rowMenu, setRowMenu] = useState(null);
+  useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -44,27 +63,40 @@ export default function SupportTickets({ onOpenBusiness }) {
   // Waiting too long asks the server for the overdue tickets themselves (every waiting ticket is judged there), not
   // a filter of the newest tickets loaded for the other tabs
   const overdueTab = statusFilter === "overdue";
+  // resolves true only when this read put fresh tickets on screen (a failed or overtaken read resolves false)
   const load = useCallback(async () => {
     const mine = ++request.current;
+    // quick changes already settled when this read starts: once it puts fresh tickets on screen they are in it, so
+    // their shown values give way (any read that works, not only the one after the send; never a change settled later)
+    const settledBefore = store.settledSnapshot();
     setLoading(true);
     setError("");
     try {
-      const next = await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {});
-      if (mine === request.current) setData({ ...next, overdueOnly: overdueTab });
+      // an answer without a ticket list throws here: the catch keeps the earlier list and nothing settled is cleared
+      const next = readTickets(await callOwnerFunction("tickets_list", overdueTab ? { overdue: true } : {}));
+      if (mine !== request.current) return false;
+      setData({ ...next, overdueOnly: overdueTab });
+      store.clearSettledSnapshot(settledBefore, "support");
+      return true;
     } catch (err) {
       if (mine === request.current) setError(friendlyError(err));
+      return false;
     } finally {
       if (mine === request.current) setLoading(false);
     }
-  }, [overdueTab]);
+  }, [overdueTab, store]);
 
   useEffect(() => {
     load();
   }, [load]);
+  useEffect(() => { refreshRef?.(() => load()); return () => refreshRef?.(undefined); }, [refreshRef, load]);
   // a refresh after a change uses the tab shown when it finishes, not the one shown when the change was sent
   const loadRef = useRef(load);
   const overdueRef = useRef(overdueTab);
   useEffect(() => { loadRef.current = load; overdueRef.current = overdueTab; }, [load, overdueTab]);
+  // a quick change sent while this page is open: read the list again, then its shown values give way to the real ones
+  // (load clears the settled values itself, only after a read that worked: a failed read keeps them)
+  const pendingViews = usePendingViews(store, () => { loadRef.current(); }, "support");
   // Opened when a successful regular list holding it arrives. Switching to Waiting too long while the refresh after
   // creating is still running sends the page back once; after that refresh (or if it fails) tabs switch freely.
   const createRefresh = useRef(false);
@@ -86,7 +118,7 @@ export default function SupportTickets({ onOpenBusiness }) {
   const emptyIsCurrent = listMatches && !loading && !error;
   // without reply times (sql/zella_support_replies.sql not applied) the server can't tell which tickets are overdue
   const overdueUnknown = overdueTab && listMatches && !timesKnown;
-  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).filter((t) =>
+  const tickets = (listMatches && !overdueUnknown ? data.tickets ?? [] : []).map((t) => (pendingViews.get(t.id) ? { ...t, ...pendingViews.get(t.id) } : t)).filter((t) =>
     statusFilter === "all" ? true : statusFilter === "overdue" ? t.overdue === true : statusFilter === "active" ? ["open", "in_progress"].includes(t.status) : t.status === statusFilter
   );
   const selected = data?.tickets?.find((t) => t.id === selectedId) ?? null;
@@ -94,10 +126,16 @@ export default function SupportTickets({ onOpenBusiness }) {
   const detailOpen = Boolean(selected || creating);
 
   async function update(payload) {
+    // the admin's last explicit choice wins: a quick change still waiting for this ticket is called off when this sets
+    // the same field (a status or an assignee); a note or a reply leaves it to go ahead
+    // compared with the waiting change's own fields, not the row's merged view: an assignee already sent (settled)
+    // must not make an assignee only save call off a waiting Resolve
+    if (store.has(selectedId) && panelReplacesPending(store.pendingView(selectedId), payload)) store.change(selectedId)?.undo();
     setBusy(true);
     setError("");
     try {
-      const r = await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
+      const id = selectedId;
+      const r = await writes.run(id, () => callOwnerFunction("ticket_update", { ticketId: id, ...payload }));
       // clear only the text that was sent; anything typed since stays
       if (payload.note) setNote((current) => (current === payload.note ? "" : current));
       // the other changes were saved but the reply wasn't: say so, and keep the reply to send again on its own
@@ -110,6 +148,35 @@ export default function SupportTickets({ onOpenBusiness }) {
       setBusy(false);
     }
   }
+
+  // The signed in admin in the list of people a ticket can be assigned to.
+  const me = (data?.assignees ?? []).find((a) => a.email && myEmail && a.email.toLowerCase() === myEmail.toLowerCase()) ?? null;
+  function quickChange(t, kind) {
+    // one quick change per ticket at a time (the others are disabled while it waits); never a silent drop
+    if (store.has(t.id)) { ui.toast("A change to this ticket is still being saved. Try again in a moment."); return; }
+    const resolve = kind === "resolve";
+    const shown = resolve ? { status: "resolved" } : { assigned_to: me.id, assignee: me.email };
+    const sent = resolve ? { status: "resolved" } : { assignedTo: me.id };
+    const change = deferChange({
+      commit: async () => {
+        await writes.run(t.id, () => callOwnerFunction("ticket_update", { ticketId: t.id, ...sent }));
+        store.succeed(t.id);
+      },
+      revert: () => store.rollback(t.id),   // this change only: an earlier settled one stays until a read acknowledges it
+      beacon: () => sendKeepalive("function", "owner-provision-business", { action: "ticket_update", ticketId: t.id, ...sent }),
+      beaconReady: keepaliveReady,
+      onError: (err) => ui.toast(`Couldn't save that change, so it's back as it was. ${friendlyError(err)}`),
+    });
+    store.add(t.id, change, shown);
+    // one toast whose Undo calls off every change still waiting, so an earlier one never loses its Undo
+    ui.toast(pendingToastText(resolve ? "Ticket resolved" : "Ticket assigned to you", store.waiting()), { undo: () => undoAll(store.changes()) });
+  }
+  // on a phone the detail sits under the list: bring the new ticket form, or the opened ticket, into view
+  useEffect(() => {
+    if (!ui.phone) return;
+    if (creating) document.querySelector("form.st-detail")?.scrollIntoView({ block: "start" });
+    else if (selectedId) document.querySelector(".st-detail")?.scrollIntoView({ block: "start" });
+  }, [ui.phone, selectedId, creating]);
 
   async function create(event) {
     event.preventDefault();
@@ -160,6 +227,36 @@ export default function SupportTickets({ onOpenBusiness }) {
       </div>
 
       <div className={`st-layout ${detailOpen ? "with-detail" : ""}`}>
+        {ui.phone ? (
+          <section aria-label="Tickets">
+            {tickets.length > 0 && <p className="pn-hint"><Icon name="swipe_left" />Swipe a ticket left to assign it to you or resolve it</p>}
+            {!tickets.length ? (loading && !data ? <Skeleton label="Loading tickets" /> : (
+              <div className="op-empty">{overdueUnknown ? "Overdue tracking is unavailable until reply times are recorded (a database update is needed)." : emptyIsCurrent ? "No tickets here." : loading ? "Loading tickets..." : "Couldn't load this list. Pull down to try again, or reload the page."}</div>
+            )) : (
+              <ul className="pn-list pn-swipes">
+                {tickets.map((t) => {
+                  const done = ["resolved", "closed"].includes(t.status);
+                  const waiting = store.has(t.id);   // a quick change still waiting: no other one until it is saved
+                  const actions = waiting ? [] : [
+                    me && t.assigned_to !== me.id && !done && { key: "assign", label: "Assign", icon: "person_add", tone: "call", onClick: () => quickChange(t, "assign") },
+                    !done && { key: "resolve", label: "Resolve", icon: "check", tone: "done", onClick: () => quickChange(t, "resolve") },
+                  ].filter(Boolean);
+                  return (
+                    <SwipeRow key={t.id} actions={actions}>
+                      <div className="pn-row">
+                        <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); else document.querySelector(".st-detail")?.scrollIntoView({ block: "start" }); setCreating(false); }}>
+                          <span className="pn-main"><strong>{t.subject}</strong><small>{t.business_name} · {t.assignee ?? "Unassigned"} · {timeAgo(t.created_at)}</small></span>
+                          <span className={`pn-meta ${!waiting && timesKnown && t.overdue === true ? "late" : ""}`}>{waiting ? "Saving" : timesKnown && t.overdue === true ? "No reply yet" : label(STATUSES, t.status)}</span>
+                        </button>
+                        <button type="button" className="pn-more" aria-label={`More for ${t.subject}`} aria-haspopup="dialog" onClick={() => setRowMenu(t)}><Icon name="more_horiz" /></button>
+                      </div>
+                    </SwipeRow>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        ) : (
         <section className="owner-panel">
           <div className="owner-table-wrap" tabIndex={0}>
             <table className="owner-table">
@@ -205,6 +302,7 @@ export default function SupportTickets({ onOpenBusiness }) {
             </table>
           </div>
         </section>
+        )}
 
         {creating && (
           <form className="wiz-section st-detail" onSubmit={create}>
@@ -332,6 +430,21 @@ export default function SupportTickets({ onOpenBusiness }) {
           </aside>
         )}
       </div>
+      {rowMenu && (
+        <BottomSheet title={rowMenu.subject} description={`${rowMenu.business_name} · ${label(STATUSES, rowMenu.status)}`} size="fit" onClose={() => setRowMenu(null)}>
+          <div className="pn-menu-list">
+            <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); selectTicket(t.id); setCreating(false); }}><Icon name="open_in_new" /><span>Open ticket</span></button>
+            {store.has(rowMenu.id) && <p className="pn-hint" role="status"><Icon name="schedule" />A change to this ticket is about to be saved. Undo it from the message, or wait a moment.</p>}
+            {!store.has(rowMenu.id) && me && rowMenu.assigned_to !== me.id && !["resolved", "closed"].includes(rowMenu.status) && (
+              <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); quickChange(t, "assign"); }}><Icon name="person_add" /><span>Assign to me</span></button>
+            )}
+            {!store.has(rowMenu.id) && !["resolved", "closed"].includes(rowMenu.status) && (
+              <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); quickChange(t, "resolve"); }}><Icon name="check" /><span>Resolve</span></button>
+            )}
+            <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); onOpenBusiness(t.business_id); }}><Icon name="storefront" /><span>Open {rowMenu.business_name}</span></button>
+          </div>
+        </BottomSheet>
+      )}
     </section>
   );
 }

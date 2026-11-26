@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import "./PlansPage.css";
@@ -36,6 +37,7 @@ function PlanDrawerFrame({ eyebrow, title, status, footer, onClose, children }) 
   return createPortal(
     <div className="owner-modal-overlay ao-drawer-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <aside ref={dialogRef} tabIndex={-1} className="owner-modal ao-drawer pp-drawer" role="dialog" aria-modal="true" aria-label={`${eyebrow}: ${title}`}>
+        <SheetGrip />
         <header className="pp-drawer-head">
           <div className="pp-drawer-titles">
             <div className="pp-drawer-eyebrow">{eyebrow}</div>

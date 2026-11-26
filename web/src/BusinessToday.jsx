@@ -1,3 +1,7 @@
+import { TodayTopSlot, usePhoneUi } from "./navigation/phoneContext";
+import { usePendingViews } from "./navigation/PhoneNav";
+import { createPendingStore, deferChange, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import UsageLive from "./UsageLive";
 import { supabase } from "./supabase";
@@ -74,7 +78,7 @@ function Kpi({ icon, label, value, change, loading, unavailable }) {
 // Spam: suspected spam incidents for the selected day, how many still need a look, and the same day last week.
 // Real counts from zella_spam_overview (owners, admins and managers only); the whole card opens Spam protection.
 const SPAM_ROLES = ["owner", "admin", "manager"];
-function SpamKpi({ workspace, day, tz, onOpen }) {
+function SpamKpi({ workspace, day, tz, refresh, onOpen }) {
   const [state, setState] = useState({ loading: true });
   const allowed = SPAM_ROLES.includes(workspace.role);
   useEffect(() => {
@@ -93,7 +97,7 @@ function SpamKpi({ workspace, day, tz, onOpen }) {
       }
     });
     return () => { live = false; };
-  }, [allowed, workspace.id, day, tz]);
+  }, [allowed, workspace.id, day, tz, refresh]);
   if (!allowed) return null;
   const d = state.data;
   const change = d && state.prev && trend(d.total, state.prev.total, false);
@@ -251,12 +255,16 @@ function Empty({ title, children }) {
   return <div className="ba-empty">{title && <strong>{title}</strong>}{children}</div>;
 }
 
-export default function BusinessToday({ workspace, industry, operations = [], capabilities, canEdit = true, onAddLead, onBook, onGo, onNotice, onOpenPerson }) {
+// refresh: changes when the workspace asks for fresh data (Refresh, pull to refresh); Today reads again without being
+// remounted, so its chosen day and filter stay. onTaskDone: after a task is completed here (the bell and "Needs you
+// now" read again).
+export default function BusinessToday({ workspace, industry, operations = [], capabilities, canEdit = true, onAddLead, onBook, onGo, onNotice, onOpenPerson, refresh = 0, onTaskDone }) {
   // What this business does (zella_capabilities). A shop or a firm without bookings gets no booking cards or buttons.
   const scheduling = capabilityOn(capabilities, "scheduling");
   const checkinsOn = scheduling && capabilityOn(capabilities, "checkins");
   const tablesOn = scheduling && capabilityOn(capabilities, "tables");
   const [tableNames, setTableNames] = useState(null);   // null until loaded; "failed" if the lookup failed
+  const [tableRound, setTableRound] = useState(0);      // bumped by the page Refresh and Try again to read table names again
   useEffect(() => {
     if (!tablesOn) return undefined;
     let live = true;
@@ -264,7 +272,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       if (live) setTableNames(error ? "failed" : Object.fromEntries((data ?? []).map((t) => [t.id, t.name])));
     });
     return () => { live = false; };
-  }, [tablesOn, workspace.id]);
+  }, [tablesOn, workspace.id, refresh, tableRound]);   // any refresh also reloads the table names (a table added since Today opened)
   const tz = workspace.timezone;
   const term = makeTerm(workspace);
   const cfg = todayConfig(industry);
@@ -281,10 +289,16 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   const [moving, setMoving] = useState(null);
   const opsKeys = useMemo(() => operations.filter((t) => t.enabled && capabilityOn(capabilities, t.capability)).slice(0, 2).map((t) => t.key), [operations, capabilities]);
 
+  // On a phone a task ticked here goes through the app's quick change store, like Tasks: hidden at once, Undo for 5
+  // seconds, sent after (navigation/PhoneNav.jsx usePendingStore). A desktop completes it at once, as before.
+  const ui = usePhoneUi();
+  const [ownStore] = useState(createPendingStore);
+  const store = ui.pending ?? ownStore;
   // A newer load (another day, a refresh) wins: an older one that finishes later must not overwrite it.
   const loadSeq = useRef(0);
   const load = useCallback(async () => {
     const request = ++loadSeq.current;
+    const settledBefore = store.settledSnapshot();   // acknowledged once this read's data is on screen
     setLoading(true);
     setError("");
     const id = workspace.id;
@@ -348,6 +362,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       const missedOpen = (rows) => rows.filter((c) => c.status === "missed" && !c.metadata?.followed_up_at).length;
 
       if (request !== loadSeq.current) return;
+      store.clearSettledSnapshot(settledBefore, "today");
       setData({
         appts: appts.map((a) => ({ ...withPerson(a), forTitle: forTitle[a.record_id] })),
         prev: {
@@ -379,18 +394,22 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
     } finally {
       if (request === loadSeq.current) setLoading(false);
     }
-  }, [workspace.id, day, tz, opsKeys, cfg.staffColumn]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace.id, day, tz, opsKeys, cfg.staffColumn, refresh]);
 
   useEffect(() => { load(); }, [load]);
+  // the page Refresh and Try again read the table names again too, not only the bookings
+  const reloadAll = useCallback(() => { setTableRound((n) => n + 1); load(); }, [load]);
 
   async function act(key, run, message) {
     setWorking(key);
     setActionError("");
     const { error: e } = await run();
     setWorking(null);
-    if (e) { setActionError(friendly(e)); return; }
+    if (e) { setActionError(friendly(e)); return false; }
     if (message) onNotice(message);
     load();
+    return true;
   }
   async function markNoShow(a) {
     setWorking(`appt-${a.id}`);
@@ -403,7 +422,29 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
   }
   const setStatus = (a, status, done) => act(`appt-${a.id}`, () => changed(supabase.from("appointments").update({ status, updated_at: new Date().toISOString() }).eq("id", a.id)), done);
   const checkIn = (a) => act(`appt-${a.id}`, () => setCheckIn(a.id, !a.checked_in_at), a.checked_in_at ? "Undone." : `${personName(a.customer) ?? a.title}: ${cfg.arrived.toLowerCase()}.`);
-  const completeTask = (t) => act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.");
+  const views = usePendingViews(store, () => { load(); }, "today");
+  const completeTask = (t) => {
+    if (!(ui.phone && ui.pending)) {
+      return act(`task-${t.id}`, () => supabase.rpc("zella_complete_task", { p_task_id: t.id }), "Task done.").then((ok) => { if (ok) onTaskDone?.(); });
+    }
+    if (store.has(t.id)) return undefined;
+    const change = deferChange({
+      commit: async () => {
+        const { error: failure } = await supabase.rpc("zella_complete_task", { p_task_id: t.id });
+        if (failure) throw failure;
+        store.succeed(t.id);
+        onTaskDone?.();
+      },
+      revert: () => store.rollback(t.id),
+      beacon: () => sendKeepalive("rpc", "zella_complete_task", { p_task_id: t.id }),
+      beaconReady: keepaliveReady,
+      onError: (err) => ui.toast(`Couldn't mark it done, so it's back on the list. ${friendly(err)}`),
+    });
+    store.add(t.id, change, { hidden: true });
+    ui.toast(pendingToastText("Task marked done", store.waiting()), { undo: () => undoAll(store.changes()) });
+    return undefined;
+  };
+  const todayTasks = (data?.tasks ?? []).filter((t) => !views.get(t.id)?.hidden);
   const person = (id, label) => (id && onOpenPerson ? <button type="button" className="ba-namebtn" onClick={() => onOpenPerson(id)}>{label}</button> : <span>{label}</span>);
 
   const now = Date.now();
@@ -444,13 +485,15 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
           {canEdit && (scheduling && cfg.walkIn
             ? <button type="button" className="ba-btn" onClick={() => onBook({ walkIn: true })}><Icon name="directions_walk" size="sm" />Walk in</button>
             : <button type="button" className={`ba-btn ${scheduling ? "" : "primary"}`} onClick={onAddLead}><Icon name="person_add" size="sm" />Add lead</button>)}
-          <button type="button" className="ba-btn ghost" onClick={load} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
+          <button type="button" className="ba-btn ghost" onClick={reloadAll} disabled={loading} aria-label="Refresh"><Icon name="refresh" size="sm" /></button>
         </div>
       </div>
 
-      {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={load}>Try again</button></div>}
+      {error && <div className="ba-banner error">Couldn't load everything: {error} <button type="button" className="ba-link" onClick={reloadAll}>Try again</button></div>}
       {actionError && <div className="ba-banner error" role="alert">{actionError}</div>}
-      {isToday && <UsageLive workspace={workspace} onGo={onGo} />}
+      {/* On a phone: "Needs you now" (approved 25 Nov 2026, P14). Nothing on a tablet or desktop. */}
+      <TodayTopSlot />
+      {isToday && <UsageLive key={refresh} workspace={workspace} onGo={onGo} />}
 
       <div className="td-kpis">
         {scheduling && <Kpi icon="event" label={`${bookingWord} ${isToday ? "today" : ""}`.trim()} value={active.length} loading={loading && !data} unavailable={!data && !loading} change={p && trend(active.length, p.bookings)} />}
@@ -459,7 +502,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
         <Kpi icon="person_add" label="New leads" value={data?.leads.length ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.leads.length, p.leads)} />
         <Kpi icon="smart_toy" label="AI answered calls" value={data?.aiCalls ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.aiCalls, p.aiCalls)} />
         <Kpi icon="phone_missed" label="Missed calls" value={data?.missed ?? 0} loading={loading && !data} unavailable={!data && !loading} change={p && trend(data.missed, p.missed, false)} />
-        <SpamKpi workspace={workspace} day={day} tz={tz} onOpen={() => onGo("spam")} />
+        <SpamKpi workspace={workspace} day={day} tz={tz} refresh={refresh} onOpen={() => onGo("spam")} />
       </div>
 
       <div className="td-grid">
@@ -598,9 +641,9 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
         </Card>}
 
         <Card title="Tasks and follow ups" action={<button type="button" className="ba-btn sm" onClick={() => onGo("tasks")}>View all</button>}>
-          {data?.tasks.length ? (
+          {todayTasks.length ? (
             <ul className="td-list">
-              {data.tasks.map((t) => {
+              {todayTasks.map((t) => {
                 const overdue = t.due_at && new Date(t.due_at).getTime() < now;
                 return (
                   <li key={t.id}>

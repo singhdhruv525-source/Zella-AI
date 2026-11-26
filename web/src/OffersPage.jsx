@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SheetGrip } from "./navigation/SheetGrip";
 import { Icon } from "./BusinessUI";
 import { useDialogFocus } from "./useDialogFocus";
 import { createPortal } from "react-dom";
@@ -135,6 +136,7 @@ function Overlay({ title, onClose, busy, children, footer, wide }) {
   return createPortal(
     <div className="owner-modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div ref={dialogRef} tabIndex={-1} className={`owner-modal of-modal ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+        <SheetGrip />
         <div className="owner-modal-header of-modal-head">
           <h2>{title}</h2>
           <button type="button" className="owner-modal-close" aria-label="Close" onClick={onClose} disabled={busy}><Icon name="close" size="sm" /></button>

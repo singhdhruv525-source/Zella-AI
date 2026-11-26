@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
-import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
+import { timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, useLoad } from "./BusinessShared";
 import { ATTEMPT_LABEL, CB_CLOSED, CB_REASON, CB_STATUS, NewCallbackModal, PRIORITY_TONE, when } from "./BusinessWork";
 import { Assignee, useRoster } from "./BusinessLeads";
+import { usePhoneUi } from "./navigation/phoneContext";
+import { Skeleton, SwipeRow } from "./navigation/PhoneNav";
 
 /* The callback work queue: what is due now, what is coming, what slipped, and
    what needs a person. Zella Voice's own retries follow the business's rules (tries
@@ -218,6 +220,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
   const shown = groups[active];
   const changed = () => { reload(); onChanged?.(); };
   const needPerson = groups.person.length;
+  const ui = usePhoneUi();
 
   async function callNow(cb) {
     // Starting a call by hand marks it in progress so the try is counted once.
@@ -238,12 +241,47 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
           options={TABS.map(([k, l]) => [k, groups[k].length && k !== "done" ? `${l} (${groups[k].length})` : l])} />
       </div>
       <Notice error={error} onRetry={reload} />
-      {loading && !data ? <p className="ba-muted">Loading…</p> : !shown.length ? (
+      {loading && !data ? (ui.phone ? <Skeleton label="Loading callbacks" /> : <p className="ba-muted">Loading…</p>)
+        // no successful read yet (the first one failed): only the error and its Try again above, never "Nothing here"
+        : !data ? null : !shown.length ? (
         <Empty title={active === "done" ? "Nothing finished yet" : "Nothing here"}>
           {active === "person" ? "When Zella Voice can't reach someone after its tries, or you escalate one, it shows up here."
             : active === "done" ? "Finished callbacks are kept here, with what happened."
             : "Missed calls, requests for a call back and failed transfers appear here with a time to call."}
         </Empty>
+      ) : ui.phone ? (
+        // On a phone (approved 25 Nov 2026, P20): swipe a callback left to Call or mark it Called. Called opens the same
+        // "how did it go" form as on a desktop (it needs an outcome, so it is never done blind); the round button and
+        // the "more" button on every row do the same without swiping.
+        <>
+          {active !== "done" && <p className="pn-hint"><Icon name="swipe_left" />Swipe a callback left to call or mark it called</p>}
+          <ul className="pn-list pn-swipes">
+            {shown.map((c) => {
+              const person = data.people[c.customer_id];
+              const name = personName(person) ?? c.contact_number ?? "Unknown caller";
+              const closed = CB_CLOSED.includes(c.status);
+              const blocked = optedOut(person);
+              const late = active === "overdue" || (active === "now" && new Date(c.due_at).getTime() < now);
+              const actions = closed ? [] : [
+                c.contact_number && !blocked && { key: "call", label: "Call", icon: "call", tone: "call", href: `tel:${c.contact_number}`, onClick: () => callNow(c) },
+                { key: "called", label: "Called", icon: "check", tone: "done", onClick: () => setOpen({ cb: c, finishing: true }) },
+              ].filter(Boolean);
+              return (
+                <SwipeRow key={c.id} actions={actions}>
+                  <div className="pn-row">
+                    {!closed && <button type="button" className="pn-check" aria-label={`Mark ${name} called`} onClick={() => setOpen({ cb: c, finishing: true })} />}
+                    <button type="button" className="pn-item" aria-haspopup="dialog" onClick={() => setOpen({ cb: c })}>
+                      {closed && <span className="pn-lead" aria-hidden="true">{initials(name)}</span>}
+                      <span className="pn-main"><strong>{name}</strong><small>{[CB_REASON[c.reason] ?? "Call back", blocked ? "Do not contact" : "", c.summary].filter(Boolean).join(", ")}</small></span>
+                      <span className={`pn-meta wide ${late ? "late" : ""}`}>{closed ? timeAgo(c.completed_at ?? c.updated_at) : late ? "Overdue" : when(c.due_at, tz)}</span>
+                    </button>
+                    <button type="button" className="pn-more" aria-label={`More for ${name}`} aria-haspopup="dialog" onClick={() => setOpen({ cb: c })}><Icon name="more_horiz" /></button>
+                  </div>
+                </SwipeRow>
+              );
+            })}
+          </ul>
+        </>
       ) : (
         <section className="ba-panel">
           <div className="ba-table-wrap" tabIndex={0}>

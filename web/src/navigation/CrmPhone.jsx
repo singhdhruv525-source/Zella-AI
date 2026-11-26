@@ -1,0 +1,159 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { supabase } from "../supabase";
+import { Icon, personName } from "../BusinessUI";
+import { BottomSheet } from "./BottomSheet";
+import { needsNowRows } from "./phoneHelpers.js";
+import { OVERDUE_LIMIT, SOURCES_START, WAITING_CAP, listRead, nextSources, signalsFrom, spamRead } from "../crm/needsNowSignals.js";
+
+// The CRM's phone parts (approved 25 Nov 2026): the "Needs you now" block on Today (P14), the business switcher and
+// Quick actions as sheets (P10, P12), and the data the live strip and the More count read (P5, P13). Everything is
+// read with the member's own session, so row level security keeps it to this business.
+
+const SPAM_ROLES = ["owner", "admin", "manager"];
+const DAY = 864e5;
+
+// Live signals for "Needs you now": the callers waiting for a person, overdue tasks and spam to review. Read on every
+// screen size, because the notification bell shows the same items (owner, 25 Nov 2026, crm/needsNowNotes.js); the
+// phone also uses them for the live strip, Today's block and the More count. Refreshed with the waiting count, on a
+// refresh and every minute. A source whose read fails keeps its last good value and says so
+// (crm/needsNowSignals.js), never shown as "nothing waiting".
+export function useCrmSignals(workspace, { enabled, attention, refreshKey }) {
+  const [state, setState] = useState({ sources: SOURCES_START, at: null });
+  const [tick, setTick] = useState(0);
+  // a page that changes one of these (a task done or dismissed) reads them again at once, not at the next minute
+  const refresh = useCallback(() => setTick((n) => n + 1), []);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const timer = setInterval(() => setTick((n) => n + 1), 60000);
+    return () => clearInterval(timer);
+  }, [enabled]);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let live = true;
+    const id = workspace.id;
+    const now = new Date();
+    const spamAllowed = SPAM_ROLES.includes(workspace.role);
+    // the waiting calls, oldest first, in one request with an exact count (crm/needsNowSignals.js listRead)
+    const waiting = supabase.from("calls_view").select("id, customer_id, from_number, summary, escalated_at, created_at", { count: "exact" })
+      .eq("business_id", id).eq("needs_human", true).is("escalation_resolved_at", null)
+      .order("escalated_at", { ascending: true, nullsFirst: false }).order("id", { ascending: true }).range(0, WAITING_CAP - 1);
+    // the oldest overdue tasks, with the exact number of overdue tasks (the rest share one bell note)
+    const overdue = supabase.from("crm_tasks").select("id, title, due_at, customer_id", { count: "exact" }).eq("business_id", id).eq("status", "open")
+      .lt("due_at", now.toISOString()).order("due_at", { ascending: true }).limit(OVERDUE_LIMIT);
+    const spam = spamAllowed
+      ? supabase.rpc("zella_spam_overview", { p_business_id: id, p_from: new Date(now.getTime() - 30 * DAY).toISOString(), p_to: now.toISOString() })
+      : Promise.resolve({ data: null });
+    Promise.all([waiting, overdue, spam].map((p) => Promise.resolve(p).catch((error) => ({ data: null, error })))).then(async ([w, o, s]) => {
+      const events = { waiting: listRead(w), overdue: listRead(o), spam: spamRead(s, spamAllowed) };
+      const rows = [...(events.waiting.value?.rows ?? []), ...(events.overdue.value?.rows ?? [])];
+      const ids = [...new Set(rows.map((r) => r.customer_id).filter(Boolean))];
+      const people = ids.length
+        ? await Promise.resolve(supabase.from("customers").select("id, first_name, last_name, company_name").in("id", ids)).catch(() => ({ data: [] }))
+        : { data: [] };
+      const nameOf = Object.fromEntries((people.data ?? []).map((p) => [p.id, personName(p)]));
+      if (!live) return;
+      if (events.waiting.value) events.waiting.value.rows = events.waiting.value.rows.map((c) => ({ id: c.id, name: nameOf[c.customer_id] ?? c.from_number ?? null, since: c.escalated_at ?? c.created_at, summary: c.summary }));
+      if (events.overdue.value) events.overdue.value.rows = events.overdue.value.rows.map((t) => ({ ...t, who: nameOf[t.customer_id] ?? null }));
+      setState((prev) => ({ sources: nextSources(prev.sources, events), at: now.toISOString() }));
+    });
+    return () => { live = false; };
+  }, [enabled, workspace.id, workspace.role, attention, refreshKey, tick]);
+  return useMemo(() => ({ ...signalsFrom(state.sources, state.at), refresh }), [state, refresh]);
+}
+
+// P14: the top of Today. Shown only when something needs the owner.
+// The waiting callers count from the same read the bell uses (signals.waiting and waitingMore), so the two always match.
+export function NeedsYouNow({ signals, onGo }) {
+  const rows = needsNowRows({ waiting: signals.waiting.length + (signals.waitingMore ?? 0), oldest: signals.oldest, overdue: signals.overdue, overdueTotal: signals.overdueTotal, spam: signals.spam });
+  // hidden only after every source read and found nothing; while reading it says so, a failure says that
+  if (!rows.length && !signals.unavailable && !signals.loading) return null;
+  return (
+    <section aria-labelledby="pn-now-title">
+      <h2 id="pn-now-title" className="pn-list-label">Needs you now</h2>
+      {signals.loading && !rows.length && <p className="pn-hint" role="status"><Icon name="schedule" />Checking what needs you now…</p>}
+      {signals.unavailable && <p className="pn-hint" role="status"><Icon name="info" />Some of this couldn't be checked just now. Zella Voice will try again shortly.</p>}
+      {rows.length > 0 && <ul className="pn-list">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <button type="button" className="pn-item" onClick={() => onGo(r.page)}>
+              <span className={`pn-lead ${r.tone}`}><Icon name={r.icon} /></span>
+              <span className="pn-main"><strong>{r.title}</strong><small>{r.sub}</small></span>
+              {r.meta && <span className="pn-meta">{r.meta}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>}
+    </section>
+  );
+}
+
+const initialsOf = (name) => (name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+
+// The business button in the phone top bar and at the top of the side panel.
+export function BusinessButton({ workspace, config, onClick, variant = "top", expanded }) {
+  const subtitle = [config?.industry?.name ?? workspace.industry, config?.location].filter(Boolean).join(", ");
+  const logo = config?.logo_url ? <img src={config.logo_url} alt="" className="ba-switcher-logo" /> : <span className="ba-switcher-logo" aria-hidden="true">{initialsOf(workspace.name)}</span>;
+  if (variant === "card") {
+    return (
+      <button type="button" className="pn-card-btn" onClick={onClick} aria-haspopup="dialog">
+        {logo}
+        <span><strong>{workspace.name}</strong>{subtitle && <small>{subtitle}</small>}</span>
+        <span className="pn-card-end">Switch</span>
+      </button>
+    );
+  }
+  return (
+    <button type="button" className="pn-biz" onClick={onClick} aria-haspopup="dialog" aria-expanded={expanded}
+      aria-label={`${workspace.name}. Switch business or open its settings`}>
+      {logo}
+      <span><strong>{workspace.name}</strong>{subtitle && <small>{subtitle}</small>}</span>
+      <Icon name="expand_more" />
+    </button>
+  );
+}
+
+// The business switcher as a sheet (P9, P12): the other businesses, then this one's settings (the same as the
+// desktop switcher menu).
+export function SwitcherSheet({ workspace, workspaces, canManage, onSwitch, onGo, onClose }) {
+  const others = workspaces.filter((w) => w.id !== workspace.id);
+  const go = (path) => { onClose(); onGo(path); };
+  return (
+    <BottomSheet title={workspace.name} description="Switch business or open its settings" size="fit" onClose={onClose}>
+      {others.length > 0 && (
+        <div className="pn-sheet-section">
+          <h3>Switch business</h3>
+          <div className="pn-menu-list">
+            {others.map((w) => (
+              <button key={w.id} type="button" className="pn-row-link" onClick={() => { onClose(); onSwitch(w.id); }}>
+                <span className="ba-switcher-logo sm" aria-hidden="true">{initialsOf(w.name)}</span>
+                <span>{w.name}<small className="ba-muted"> · {w.industry ?? "Industry not set"}</small></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="pn-menu-list">
+        <button type="button" className="pn-row-link" onClick={() => go("settings/profile/info")}><Icon name="storefront" /><span>Business profile</span></button>
+        <button type="button" className="pn-row-link" onClick={() => go("settings/industry/modules")}><Icon name="widgets" /><span>Modules and industry</span></button>
+        {canManage && <button type="button" className="pn-row-link" onClick={() => go("settings/team/members")}><Icon name="group_add" /><span>Team members</span></button>}
+        <button type="button" className="pn-row-link" onClick={() => go("settings/billing/plan")}><Icon name="credit_card" /><span>Plan and billing</span></button>
+      </div>
+    </BottomSheet>
+  );
+}
+
+// Quick actions from Today's round button (P10): Seat a walk in, Add lead, New task, Tell callers. Only the ones this
+// person may use are offered.
+export function QuickActionsSheet({ actions, onClose }) {
+  return (
+    <BottomSheet title="Quick actions" size="fit" onClose={onClose}>
+      <div className="pn-sheet-actions" style={{ "--pn-sa": Math.min(4, actions.length) }}>
+        {actions.map((a) => (
+          <button key={a.key} type="button" onClick={() => { onClose(); a.onClick(); }}>
+            <Icon name={a.icon} /><span>{a.label}</span>
+          </button>
+        ))}
+      </div>
+    </BottomSheet>
+  );
+}

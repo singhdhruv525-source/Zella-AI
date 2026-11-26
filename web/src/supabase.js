@@ -37,6 +37,14 @@ async function previewFetch(input, init) {
   return fetch(input, init);
 }
 
+// The address and publishable key, for the few requests sent outside the client (navigation/keepalive.js: a change
+// sent while the tab closes). The publishable key is public by design; it is never logged.
+export const supabaseConfig = { url: supabaseUrl, key: supabasePublishableKey };
+// The development preview and its placeholder business: requests sent outside the client follow the same rule as
+// the client's own (previewFetch), so nothing from the preview ever leaves the browser.
+export const previewActive = () => isPreview();
+export const PLACEHOLDER_BUSINESS_ID = PREVIEW_ID;
+
 export const supabase = createClient(
   supabaseUrl,
   supabasePublishableKey,

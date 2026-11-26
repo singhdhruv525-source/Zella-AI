@@ -20,6 +20,8 @@ import './styles/admin-polish.css'
 import './styles/crm-look.css'
 import { startAppearance } from './appearance'
 import { ErrorBoundary } from './BusinessUI'
+// Phone navigation for both apps (under 768 wide, approved 25 Nov 2026). Loaded last, so it sits on top of the polish.
+import './styles/phone-nav.css'
 
 startAppearance()
 
