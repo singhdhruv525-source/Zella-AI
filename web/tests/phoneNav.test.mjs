@@ -6,7 +6,7 @@ import { createScrollLock } from "../src/navigation/bodyScrollLock.js";
 import assert from "node:assert/strict";
 import { buildNavigation, flatten } from "../src/navigation/navConfig.js";
 import { MORE_TAB, PHONE_QUERY, adminTabs, badgeText, crmTabs, selectedTab, tabName } from "../src/navigation/phoneTabs.js";
-import { SIGNAL_START, adminStripFor, createKeepaliveSender, createPendingStore, createToastStore, keepaliveRequest, panelReplacesPending, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
+import { SIGNAL_START, adminStripFor, createKeepaliveSender, createKeyedQueue, createPendingStore, createToastStore, keepaliveRequest, panelReplacesPending, pendingToastText, signalCount, signalReduce, undoAll } from "../src/navigation/phoneHelpers.js";
 import {
   adminStrip, createTabMemory, crmStrip, deferChange, keyboardOpen, needsNowRows, panelDrag, panelReleaseCloses,
   pullDistance, pullReleaseRefreshes, rowDrag, rowReleaseOpens, sheetRelease, waitLabel,
@@ -552,4 +552,47 @@ test("the back/forward cache: nothing is sent early, and waiting changes resume 
   store.onPageHide(false);                               // a real departure
   assert.deepEqual(sent, ["b", "c keepalive"]);
   assert.equal(c.state, "beaconed");
+});
+
+// Support: ticket_update has no version check, so the page sends a ticket's writes one at a time in the order chosen.
+test("Support writes: a slow detail status save can't overwrite a later quick Resolve", async () => {
+  const server = { status: "open" };
+  const arrived = [];
+  let finishDetail;
+  const send = (payload, wait) => new Promise((resolve) => {
+    const land = () => { arrived.push(payload.status); server.status = payload.status; resolve({ ok: true }); };
+    if (wait) finishDetail = land; else land();
+  });
+  const writes = createKeyedQueue();
+  const timers = fakeTimers();
+  // 1. the detail panel saves "In progress", and that request is slow
+  const detail = writes.run("t1", () => send({ status: "in_progress" }, true));
+  // 2. Resolve is chosen on the row, and its Undo window passes
+  const resolve = deferChange({ commit: () => writes.run("t1", () => send({ status: "resolved" })), revert: () => {}, timers, ms: 5000 });
+  const sending = timers.run();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(arrived, [], "the Resolve waits for the earlier write to the same ticket");
+  assert.equal(writes.busy("t1"), true);
+  // 3. the slow detail save completes: only then does the Resolve go out, so it lands last
+  finishDetail();
+  await detail;
+  await sending;
+  assert.deepEqual(arrived, ["in_progress", "resolved"]);
+  assert.equal(server.status, "resolved", "the later choice is kept");
+  assert.equal(resolve.state, "sent");
+  assert.equal(writes.busy("t1"), false);
+});
+
+test("Support writes: a failed write doesn't hold up the next, and other tickets never wait", async () => {
+  const writes = createKeyedQueue();
+  const log = [];
+  const failed = writes.run("a", async () => { throw new Error("offline"); });
+  let release;
+  const slow = writes.run("b", () => new Promise((r) => { release = r; }));
+  const next = writes.run("a", async () => log.push("a2"));
+  await assert.rejects(failed, /offline/);
+  await next;
+  assert.deepEqual(log, ["a2"], "ticket a went on although ticket b is still sending");
+  release();
+  await slow;
 });

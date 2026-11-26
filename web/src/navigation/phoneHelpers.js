@@ -393,3 +393,22 @@ export function createKeepaliveSender({ getConfig, getToken, isPreview = () => f
     },
   };
 }
+
+// Writes to one record, one at a time and in the order they were chosen. ticket_update has no version or updated at
+// check, so two writes to a ticket in flight together could land in either order and an earlier choice (a slow detail
+// save) could overwrite a later one (a quick Resolve). run(key, fn) starts fn once every earlier write for that key
+// has finished (whether it worked or not) and returns fn's result; writes to other keys never wait.
+export function createKeyedQueue() {
+  const tails = new Map();
+  return {
+    run(key, fn) {
+      const before = tails.get(key) ?? Promise.resolve();
+      const result = before.then(() => fn());
+      const tail = result.then(() => {}, () => {});
+      tails.set(key, tail);
+      tail.then(() => { if (tails.get(key) === tail) tails.delete(key); });
+      return result;
+    },
+    busy: (key) => tails.has(key),
+  };
+}

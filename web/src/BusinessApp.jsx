@@ -612,7 +612,9 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
               onMore={() => setNavOpenAt(panelOpen ? null : path)} moreOpen={panelOpen} moreCount={signals.spam} moreNoun="to review" />
           )} />
       )}
-      {phone && <Toast toast={toaster.toast} onDismiss={toaster.dismiss} />}
+      {/* the same toast store in every layout: an Undo still in its time stays reachable when the screen is resized past
+          the phone width (its deadline unchanged) */}
+      {(phone || toaster.toast) && <Toast toast={toaster.toast} onDismiss={toaster.dismiss} />}
       {phone && phoneSheet === "switcher" && (
         <SwitcherSheet workspace={workspace} workspaces={workspaces} canManage={["owner", "admin"].includes(workspace.role)}
           onSwitch={onSwitch} onGo={(p) => { setNavOpenAt(null); navigate(`${base}/${p}`); }} onClose={() => setPhoneSheet(null)} />

@@ -96,6 +96,13 @@ export function BusinessSheet({ b, canManage, onOpen, onSetup, onClose }) {
           <p>{problems.detail || problems.label}</p>
         </div>
       )}
+      {/* problems couldn't be looked up: say so (like the Plan row), never "no problems" */}
+      {problems.count == null && (
+        <div className="pn-sheet-section">
+          <h3>Problems</h3>
+          <p>{problems.label}</p>
+        </div>
+      )}
       {stage.note && <div className="pn-sheet-section"><h3>Setup</h3><p>{stage.note}</p></div>}
     </BottomSheet>
   );

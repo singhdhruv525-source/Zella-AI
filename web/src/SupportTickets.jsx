@@ -11,7 +11,7 @@ import { readTickets } from "./admin/ticketsRead";
 import { usePhoneUi } from "./navigation/phoneContext";
 import { Skeleton, SwipeRow, usePendingViews } from "./navigation/PhoneNav";
 import { BottomSheet } from "./navigation/BottomSheet";
-import { createPendingStore, deferChange, panelReplacesPending, pendingToastText, undoAll } from "./navigation/phoneHelpers";
+import { createKeyedQueue, createPendingStore, deferChange, panelReplacesPending, pendingToastText, undoAll } from "./navigation/phoneHelpers";
 import { keepaliveReady, sendKeepalive } from "./navigation/keepalive";
 
 const STATUSES = [["open", "Open"], ["in_progress", "In progress"], ["resolved", "Resolved"], ["closed", "Closed"]];
@@ -38,6 +38,9 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
   // early nor loses their Undo; outside the app (no store given) the page keeps its own
   const [ownStore] = useState(createPendingStore);
   const store = ui.pending ?? ownStore;
+  // every ticket_update for a ticket goes out in the order it was chosen, one at a time (the server has no version
+  // check): a slow detail save can't land after, and overwrite, a later quick Resolve or Assign
+  const [writes] = useState(createKeyedQueue);
   const [rowMenu, setRowMenu] = useState(null);
   useEffect(() => (store === ownStore ? () => { ownStore.flushAll(); } : undefined), [store, ownStore]);
   const [data, setData] = useState(null);
@@ -129,7 +132,8 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
     setBusy(true);
     setError("");
     try {
-      const r = await callOwnerFunction("ticket_update", { ticketId: selectedId, ...payload });
+      const id = selectedId;
+      const r = await writes.run(id, () => callOwnerFunction("ticket_update", { ticketId: id, ...payload }));
       // clear only the text that was sent; anything typed since stays
       if (payload.note) setNote((current) => (current === payload.note ? "" : current));
       // the other changes were saved but the reply wasn't: say so, and keep the reply to send again on its own
@@ -153,7 +157,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
     const sent = resolve ? { status: "resolved" } : { assignedTo: me.id };
     const change = deferChange({
       commit: async () => {
-        await callOwnerFunction("ticket_update", { ticketId: t.id, ...sent });
+        await writes.run(t.id, () => callOwnerFunction("ticket_update", { ticketId: t.id, ...sent }));
         store.succeed(t.id);
       },
       revert: () => store.rollback(t.id),   // this change only: an earlier settled one stays until a read acknowledges it
@@ -238,7 +242,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
                   return (
                     <SwipeRow key={t.id} actions={actions}>
                       <div className="pn-row">
-                        <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); setCreating(false); }}>
+                        <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); else document.querySelector(".st-detail")?.scrollIntoView({ block: "start" }); setCreating(false); }}>
                           <span className="pn-main"><strong>{t.subject}</strong><small>{t.business_name} · {t.assignee ?? "Unassigned"} · {timeAgo(t.created_at)}</small></span>
                           <span className={`pn-meta ${!waiting && timesKnown && t.overdue === true ? "late" : ""}`}>{waiting ? "Saving" : timesKnown && t.overdue === true ? "No reply yet" : label(STATUSES, t.status)}</span>
                         </button>

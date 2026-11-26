@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SheetGrip } from "./navigation/SheetGrip";
+import { trapTab } from "./useDialogFocus";
 import { supabase } from "./supabase";
 import { friendlyError } from "./admin/adminOps";
 import "./billing.css";
@@ -292,10 +293,7 @@ function ReviewDialog({ review, setReview, onConfirm, onClose, error }) {
     const onKey = (event) => {
       if (event.key === "Escape") { event.preventDefault(); if (!busyRef.current) closeRef.current(); return; }
       if (event.key !== "Tab") return;
-      const items = [...ref.current.querySelectorAll("textarea, button:not(:disabled)")];
-      const first = items[0], last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      trapTab(event, ref.current, [...ref.current.querySelectorAll("textarea, button:not(:disabled)")]);
     };
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("keydown", onKey); before?.focus?.(); };

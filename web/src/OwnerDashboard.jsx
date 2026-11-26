@@ -577,7 +577,8 @@ export default function OwnerDashboard({ onSignOut }) {
               onMore={() => setNavOpenAt(panelOpen ? null : path)} moreOpen={panelOpen} />
           )} />
       )}
-      {phone && <Toast toast={toaster.toast} onDismiss={toaster.dismiss} />}
+      {/* the same toast store in every layout: an Undo still in its time stays reachable past the phone width */}
+      {(phone || toaster.toast) && <Toast toast={toaster.toast} onDismiss={toaster.dismiss} />}
       {/* fail closed: only for a signed in admin who may see businesses */}
       {phone && authorized && can("businesses.view") && sheetRow && (
         <BusinessSheet b={sheetRow} canManage={can("businesses.manage")} onClose={() => setBizSheet(null)}

@@ -9,6 +9,27 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([t
 // keeps the keyboard and the drawer underneath doesn't pull focus back out of it.
 const OPEN = [];
 
+// Controls outside a dialog that stay in its Tab order: an element marked data-dialog-companion (the Undo toast), so
+// an Undo still in its time can be reached from the keyboard while a dialog or sheet is open.
+export function companionControls(doc = typeof document !== "undefined" ? document : null) {
+  if (!doc) return [];
+  return [...doc.querySelectorAll("[data-dialog-companion]")]
+    .flatMap((el) => [...el.querySelectorAll(FOCUSABLE)])
+    .filter((el) => el.offsetParent !== null || el === doc.activeElement);
+}
+
+// Tab and Shift+Tab inside a dialog: through its own controls `list`, then the companion controls, then back round.
+// Focus anywhere else (outside, or on the dialog box itself) goes to the first, or with Shift the last. Shared by every dialog with its own Tab handling.
+export function trapTab(event, box, list, doc = document) {
+  const all = [...list, ...companionControls(doc).filter((el) => !list.includes(el))];
+  if (!all.length) { event.preventDefault(); box?.focus?.(); return; }
+  // moved here, not left to the browser: a dialog and the toast can sit anywhere in the page's order
+  event.preventDefault();
+  const at = all.indexOf(doc.activeElement);
+  if (at < 0) { (event.shiftKey ? all[all.length - 1] : all[0]).focus(); return; }
+  all[(at + (event.shiftKey ? all.length - 1 : 1)) % all.length].focus();
+}
+
 export function useDialogFocus(onClose, busy = false) {
   const ref = useRef(null);
   const close = useRef(onClose);
@@ -39,11 +60,7 @@ export function useDialogFocus(onClose, busy = false) {
         return;
       }
       if (event.key !== "Tab" || !box) return;
-      const list = items();
-      if (!list.length) { event.preventDefault(); return; }
-      const first = list[0], last = list[list.length - 1];
-      if (event.shiftKey && (document.activeElement === first || !box.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && (document.activeElement === last || !box.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+      trapTab(event, box, items());
     };
     document.addEventListener("keydown", onKey, true);
     return () => {

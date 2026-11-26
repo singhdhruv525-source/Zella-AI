@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SheetGrip } from "./navigation/SheetGrip";
+import { trapTab } from "./useDialogFocus";
 import { createPortal } from "react-dom";
 import "./OwnerPages.css";
 import { callOwnerFunction } from "./CreateBusinessWizard";
@@ -57,15 +58,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
     const onKey = (e) => {
       if (e.key === "Escape" && !inFlight.current) closeDialog();
       if (e.key !== "Tab" || !dialog.current) return;
-      const focusable = [...dialog.current.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')];
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first) { e.preventDefault(); dialog.current.focus(); return; }
-      if (!dialog.current.contains(document.activeElement) ||
-          (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
-      }
+      trapTab(e, dialog.current, [...dialog.current.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

@@ -1,5 +1,6 @@
 import { automationDefaultsFor, emptyAutomations } from "./industryAutomations";
 import { SheetGrip } from "./navigation/SheetGrip";
+import { trapTab } from "./useDialogFocus";
 import { CATALOG, NOTIFY_OPTIONS, isPreferred, orderTypes } from "./automationCatalog";
 import { EmailField, PhoneField, TimeZoneSelect, UrlField } from "./formFields";
 import { checkEmail, checkUrl, countryList, validatePhone } from "./formValidation";
@@ -1860,10 +1861,7 @@ function UnsavedDialog({ stepLabel, closing, onSave, onDiscard, onStay }) {
     const onKey = (event) => {
       if (event.key === "Escape") { event.preventDefault(); onStay(); return; }
       if (event.key !== "Tab") return;
-      const buttons = [...box.current.querySelectorAll("button")];
-      const first = buttons[0], last = buttons[buttons.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      trapTab(event, box.current, [...box.current.querySelectorAll("button")]);
     };
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("keydown", onKey); before?.focus?.(); };

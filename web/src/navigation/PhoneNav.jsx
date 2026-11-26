@@ -100,6 +100,13 @@ export function SidePanel({ open, onClose, children, head }) {
     setDrag(0);
     if (s.horizontal && panelReleaseCloses(dx)) onClose();
   };
+  // the browser took the gesture over: the drag is forgotten, the panel stays open (decisions are made on release)
+  const cancel = (e) => {
+    const s = start.current;
+    if (!s || s.id !== e.pointerId) return;
+    start.current = null;
+    setDrag(0);
+  };
   return (
     <>
       {/* pointer only: the panel has its own Close button, so the backdrop is hidden from screen readers and inert
@@ -109,7 +116,7 @@ export function SidePanel({ open, onClose, children, head }) {
       <aside ref={box} id="pn-panel" className={`pn-panel ${open ? "on" : ""} ${drag ? "dragging" : ""}`}
         role="dialog" aria-modal="true" aria-label="Menu" aria-hidden={open ? undefined : true} inert={open ? undefined : true}
         tabIndex={-1} style={drag ? { "--pn-drag": `${drag}px` } : undefined}
-        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel}>
         <div className="pn-panel-head">
           {head}
           <button type="button" className="pn-iconbtn pn-panel-close" onClick={onClose} aria-label="Close menu" data-autofocus>
@@ -176,7 +183,9 @@ export function useToast(scope = "app") {
 
 export function Toast({ toast, onDismiss }) {
   return (
-    <div className={`pn-toast ${toast ? "on" : ""} ${toast?.tone ?? ""}`} role="status" aria-live="polite">
+    // a companion of any open dialog (useDialogFocus): above dialogs and sheets, and in their Tab order, so its Undo
+    // stays reachable while a dialog is open
+    <div className={`pn-toast ${toast ? "on" : ""} ${toast?.tone ?? ""}`} role="status" aria-live="polite" data-dialog-companion>
       {toast && (
         <>
           <span>{toast.text}</span>
@@ -247,6 +256,14 @@ export function SwipeRow({ actions = [], children, className = "", label }) {
     setOpen(opens);
     setOffset(opens ? -tray : 0);
   };
+  // cancelled by the browser: the row goes back to where it was (open or closed), nothing is decided
+  const cancel = (e) => {
+    const s = start.current;
+    if (!s || s.id !== e.pointerId) return;
+    start.current = null;
+    setDragging(false);
+    setOffset(open ? -tray : 0);
+  };
   return (
     <li className={`pn-swipe ${open ? "open" : ""} ${className}`} aria-label={label}>
       {tray > 0 && (
@@ -260,7 +277,7 @@ export function SwipeRow({ actions = [], children, className = "", label }) {
       )}
       <div className={`pn-item-wrap ${dragging ? "dragging" : ""}`}
         style={offset ? { transform: `translateX(${offset}px)` } : undefined}
-        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel}
         onClickCapture={(e) => {
           // the click that ends a drag is not a tap on the row; a tap while the tray is open just closes it
           if (suppressClick.current) { e.preventDefault(); e.stopPropagation(); return; }

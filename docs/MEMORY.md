@@ -185,6 +185,10 @@ most often needed:
     requests, best effort) and signing out (sent first, then signed out). A page kept in the back/forward cache sends
     nothing early and resumes to the original deadlines when it comes back. The window governs every other send, including leaving the page or switching
     business.
+  - Lesson: `ticket_update` has no version check, so two writes to one ticket in flight together can land in either
+    order. Support sends a ticket's writes one at a time, in the order chosen (`createKeyedQueue`), so a slow panel save
+    can't overwrite a later quick Resolve. The Undo toast sits above every dialog and is in its Tab order, and it stays
+    shown with the same deadline when the window is widened past the phone width.
   - **"Needs you now should show in the notification" (owner, 25 Nov 2026, REQ-MOB-12):** every "Needs you now"
     item is also in the CRM bell and its unread count, phone and desktop, opening the same page. Built in the app
     (`web/src/crm/needsNowNotes.js`), no migration: `staff_notifications` rows are delivered by email, text and push,
