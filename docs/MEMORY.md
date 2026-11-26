@@ -117,9 +117,15 @@ Publishing any workflow needs the owner's approval.
 (Header Auth, `Authorization: Bearer ...`) and as the Supabase function secret `RESEND_API_KEY` (every function's
 version went up by one, which confirms a secret was saved). The "Resend" credential is on "Send via Resend" in Email
 Sender, Follow up Emails and Admin Alerts, and on "Check Resend" in Connection Tests (all still unpublished).
-`email_from_address` is now `no-reply@zellavoice.com` (decision R14: Reply-To support@). `email_live` stays off. Still
-to do for email: Inbound Email's "Fetch email" needs a full access key, the Resend webhooks and their Vault signing
-secrets, `platform_emails_url`, the platform email triggers, and a test before `email_live` goes on.
+`email_from_address` is now `no-reply@zellavoice.com` (decision R14: Reply-To support@). `email_live` stays off. Then,
+with the owner's approval: `platform_emails_url` set to the `platform-emails` function, both `zella_kick_platform_emails`
+triggers and the `zella_platform_emails` job switched on (first runs succeeded; the 6 waiting notifications became
+skipped because `email_live` is off; nothing was sent). The owner saved `zella_resend_webhook_key` and
+`zella_resend_signing_secret` in Vault and added the Resend webhook (delivered, bounced, complained) to n8n's
+`/webhook/zella/resend`. Published in n8n: Email Events, Email Sender, Follow up Emails. Still to do for email:
+`zella_n8n_secret` in Vault and the `zella_dispatch` job (nothing wakes the n8n senders yet), inbound replies (receiving
+domain, a full access key on "Fetch email", the `email.received` webhook and `zella_resend_inbound_signing_secret`), and
+an end to end test with a test business before `email_live` goes on (owner: the demo businesses are not used for this).
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
