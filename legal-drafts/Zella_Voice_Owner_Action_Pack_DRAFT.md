@@ -40,7 +40,7 @@ Counsel should conform each identification to the USPTO Trademark ID Manual word
 
 - A screenshot of the live sign up or sales page, or the sign in page, that shows ZELLA VOICE next to a description of the service and a way to buy or sign up, with the page address and the date visible.
 - The mark must be shown as used for the services, not only as a company name or in a domain.
-- Mockups, drafts and pages not available to the public are not acceptable.
+- Mockups, drafts and pages not available to the public are not acceptable. A use based filing or statement of use therefore needs a live public page, which is published only with the owner's explicit approval for that specific publication (NN 3).
 
 ### 1.5 Clearance search checklist
 
@@ -84,7 +84,9 @@ File in the US Copyright Office's online DMCA Designated Agent Directory:
 ### 2.2 After filing
 
 - The designation expires after 3 years and must be renewed: **[DMCA RENEWAL DUE DATE]**.
-- Put the same agent details in Terms Schedule 3, section 5.1, and update both when anything changes.
+- Publish the designated agent's name, address, telephone and email on the live public website in a location accessible to the public, as the Copyright Office requires, after the owner's explicit approval to publish that page (NN 3). **[ADDRESS OF THE LIVE PAGE THAT SHOWS THE DMCA AGENT]**
+- Updating the draft Terms Schedule 3, section 5.1, is not enough on its own: the details must be on the live site, and must match the directory filing.
+- Update the directory filing and the live page together whenever anything changes.
 
 ## 3. Insurance broker brief
 
@@ -118,7 +120,7 @@ Enterprise customers may require certificates of insurance naming them as certif
 
 ## 4. Vendor agreements checklist
 
-For each provider: accept or sign its data processing agreement; ask whether a business associate agreement is available (only needed if the HIPAA option is ever offered); confirm settings that prevent training on Customer Data and limit retention. **Do not assume any vendor offers a BAA or a given setting; check with the vendor.**
+For each provider: accept or sign its data processing agreement; ask whether a business associate agreement is available (only needed if the HIPAA option is ever offered); confirm settings that prevent training on Customer Data and limit retention. **Do not assume any vendor offers a BAA or a given setting; check with the vendor.** Changing any provider setting (for example turning recording off at Vapi) is a production change and needs the owner's explicit approval for that specific change (NN 3, NN 4).
 
 | Provider | Data processing agreement | BAA | No training and retention settings to confirm | Status |
 |---|---|---|---|---|
@@ -203,6 +205,7 @@ Placeholders in this document:
 - **[DMCA DESIGNATED AGENT NAME, ADDRESS, PHONE AND EMAIL]**
 - **[CHECK CURRENT COPYRIGHT OFFICE FEE]**
 - **[DMCA RENEWAL DUE DATE]**
+- **[ADDRESS OF THE LIVE PAGE THAT SHOWS THE DMCA AGENT]**
 - **[CYBER LIMIT]**
 - **[TECHNOLOGY E AND O LIMIT]**
 - **[GENERAL LIABILITY LIMIT]**

@@ -31,15 +31,15 @@ Order date: **[ORDER DATE]**
 | Billing period | **[MONTHLY OR YEARLY]** |
 | Plan Fee (USD, per billing period, in advance) | **[PLAN FEE]** |
 | One time setup fee (USD) | **[SETUP FEE OR NONE]** |
-| AI minutes per month | **[MINUTES]** |
-| Texts per month | **[TEXTS]** |
-| Emails per month | **[EMAILS]** |
+| AI minutes per monthly billing period | **[MINUTES]** |
+| Texts per monthly billing period | **[TEXTS]** |
+| Emails per monthly billing period | **[EMAILS]** |
 | Seats (Authorized Users) | **[SEATS]** |
 | Telephone numbers | **[NUMBERS]** |
 | Locations | **[LOCATIONS]** |
 | Languages | **[ENGLISH, SPANISH OR BOTH]** |
 | Pay as you go rate per extra minute (USD), if offered | **[PER MINUTE RATE OR NOT OFFERED]** |
-| Monthly spending limit (USD) | **[MONTHLY SPENDING LIMIT]** |
+| Spending limit per monthly billing period (USD) | **[MONTHLY SPENDING LIMIT]** |
 
 ## 4. Trial
 
@@ -63,8 +63,8 @@ If a trial is included, the Trial Period starts when the Owner starts the paymen
 | Minutes packs | 100 for 29; 250 for 89; 500 for 149; 1,000 for 269 |
 | Text packs | 500 for 18; 1,000 for 34; 2,500 for 80; 5,000 for 150 |
 | Email packs | 10,000 for 25; 25,000 for 59; 50,000 for 115 |
-| Extra location | 30 per month |
-| Extra Authorized User | 10 per month |
+| Extra location | 30 per monthly billing period |
+| Extra Authorized User | 10 per monthly billing period |
 
 **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
 

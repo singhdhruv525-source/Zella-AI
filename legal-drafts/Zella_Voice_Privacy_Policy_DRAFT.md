@@ -97,7 +97,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 ## 6. Call recording and transcripts
 
-6.1 **Recording is off by default.** Call recording becomes available only after recording consent rules and caller disclosures have been legally reviewed. When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer is responsible for any consent the law requires.
+6.1 **Recording is off by default.** Call recording becomes available only after recording consent rules and caller disclosures have been legally reviewed. When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer is responsible for any consent the law requires. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 6.2 **Transcripts** are visible only to a Customer's owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 

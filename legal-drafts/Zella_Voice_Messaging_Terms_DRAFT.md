@@ -32,7 +32,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 3.2 Consent to marketing messages is separate from consent to service messages. **Consent is not a condition of purchase.**
 
-3.3 A typical website consent reads: "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO APPROVE THE CONSENT WORDING]**
+3.3 The proposed website consent wording (from the architecture's consent design, not yet in use) reads: "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO APPROVE THE CONSENT WORDING]**
 
 ## 4. Message frequency and timing
 

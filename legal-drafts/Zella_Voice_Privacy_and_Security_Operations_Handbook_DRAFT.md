@@ -36,7 +36,7 @@ A1.2 It works alongside the product's own runbooks and live switches: every feat
 
 1. **Detect and record.** Open an incident log entry (section A6) as soon as an incident is suspected.
 2. **Assess.** Assign a severity and the roles above. For Severity 1 or 2, inform the owner and counsel at once.
-3. **Contain.** Use the narrowest control that stops harm: switch off the affected live feature, pause automations for a business, suspend a business, revoke sessions, or rotate the exposed secret immediately and record the rotation.
+3. **Contain.** Use the narrowest control that stops harm: switch off the affected live feature, pause automations for a business, suspend a business, revoke sessions, or rotate the exposed secret immediately and record the rotation. Switching features off, suspending a business or changing production follows the owner's explicit approval for that action (NN 3, NN 4); for Severity 1, obtain it at once, by the fastest channel, and record it. Rotating an exposed secret is done immediately, as the rulebook requires (SEC 3), and recorded.
 4. **Preserve evidence.** Keep audit logs and provider records. Place a legal hold where counsel asks, so that scheduled deletion does not remove evidence.
 5. **Investigate.** Establish what happened, which Customers, data subjects and records are affected, and when.
 6. **Notify.** Follow section A5.
@@ -88,7 +88,7 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
    - **Requesters without an account** (visitors to public pages, former Authorized Users, and billing contacts): send a one time verification link or code to the email address on record, or the email address the requester gave when the data was collected, and ask for matching details that Zella Voice already holds (for example the business name, the approximate dates of contact or the last digits of an invoice number). Ask for no more information than is needed, and never for new sensitive data. For a request to delete or to see specific pieces of information, require a higher degree of matching. **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
    - **Authorized agents:** verify the agent's own identity by a reasonable method that does not depend on the principal's email (for example a one time code to the agent's own email or telephone, plus matching details of the agent), require a signed authorization from the principal or a valid power of attorney, and, where the law allows, confirm the request directly with the person the data is about. **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
    - If identity cannot be verified, tell the requester why and what is needed, and record the outcome.
-3. Search Account Data across the account, billing records, identity verification records and support records.
+3. Search all Personal Data held about the requester, as the Privacy Policy describes it (sections 3.1 and 3.3): the account, invitations and acceptance records, billing records, identity verification records, support requests and correspondence, and technical and security data (network address and browser records, security and audit logs, and rate limit records). For a visitor without an account, search the technical and security data and any correspondence by the details the requester provides.
 4. Respond within 30 days, using the tools above where they apply. Keep only what the law requires.
 5. For California, also honor authorized agent requests with proof of authority.
 

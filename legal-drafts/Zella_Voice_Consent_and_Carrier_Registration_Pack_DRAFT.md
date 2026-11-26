@@ -9,19 +9,19 @@ Last updated: **[LAST UPDATED DATE]**
 
 1.1 This pack gives ready wording for the places where the Services collect consent or make disclosures, and the text needed to register a Customer's brand and campaign for application to person texting (10DLC). Capitalized terms have the meanings given in section 2 of the Zella Voice Terms of Service ("Terms"). The Zella Voice Messaging Terms are the program terms that this pack points to.
 
-1.2 Every message template quoted here is taken from the Services' own templates. Placeholders in curly braces, such as {business} and {first_name}, are filled in by the Services. Bold bracketed placeholders are for the owner or counsel.
+1.2 Wording in this pack is of two kinds, labeled where it appears. **Product text** is quoted exactly from the Services' own templates or code (the sample messages in section 5.3, the reactivation sample in 5.3A, the default greeting, the recording line, and the current replies in the "Current behavior" column of section 5.4). **Proposed text** is drafted for the owner and counsel and is not sent by the Services today (the consent checkboxes in section 2, the suggested consent line in section 3.4, recording options B and C in section 4, and every reply in the "Recommended registration text" column of section 5.4, including the STOP and START confirmations). Proposed text must not be presented to carriers as current behavior until the product sends it. Placeholders in curly braces, such as {business} and {first_name}, are filled in by the Services. Bold bracketed placeholders are for the owner or counsel.
 
 1.3 Texts to a Customer's End Users start only after the Customer's registration is approved (Terms, section 5.5). Texts and emails are Live Features and are off until switched on.
 
 ## 2. Web form and lead capture consent
 
-### 2.1 Service messages (required for automated calls and texts about an enquiry)
+### 2.1 Service messages (proposed text; required for automated calls and texts about an enquiry)
 
 Unticked checkbox, shown next to the telephone number field:
 
 "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out, HELP for help. See our Messaging Terms and Privacy Policy." **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 
-### 2.2 Marketing messages (separate, optional)
+### 2.2 Marketing messages (proposed text; separate, optional)
 
 A second unticked checkbox, never combined with the first:
 
@@ -46,13 +46,13 @@ The evidence for each source below is what the architecture specifies (its conse
 
 ## 3. In call AI disclosure
 
-3.1 **Default greeting:** "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"
+3.1 **Default greeting (product text):** "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"
 
 3.2 **Rule:** a Customer may change the greeting, but the AI disclosure cannot be removed; where a custom greeting leaves it out, the disclosure is added in the caller's language. (Built, going live.)
 
 3.3 **If asked whether it is a person:** the AI Receptionist says it is an AI assistant.
 
-3.4 **Consent for confirmation texts during a call (suggested line):** "Would you like me to text you a confirmation at this number? Message and data rates may apply, and you can reply STOP at any time." **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
+3.4 **Consent for confirmation texts during a call (proposed text):** "Would you like me to text you a confirmation at this number? Message and data rates may apply, and you can reply STOP at any time." **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
 
 ## 4. Recording disclosure options
 
@@ -60,13 +60,13 @@ Call recording is off until legal review. If it is turned on, choose one option 
 
 | Option | Wording | Notes |
 |---|---|---|
-| A. Notice (current product line) | "This call is recorded." | Notice only. May not be enough in states that require the consent of all parties |
-| B. Notice with implied consent | "This call is recorded. By staying on the line, you agree to the recording." | Counsel to confirm for each state where callers are located |
-| C. Active consent | "This call may be recorded. Is that okay with you?" If the caller says no, the call continues without recording | Strongest; needs a product change so that a "no" turns recording off |
+| A. Notice (product text, built, not yet live) | "This call is recorded." | Notice only. May not be enough in states that require the consent of all parties |
+| B. Notice with implied consent (proposed text) | "This call is recorded. By staying on the line, you agree to the recording." | Counsel to confirm for each state where callers are located |
+| C. Notice followed by an active consent question (proposed text) | "This call is recorded." (the required notice, which cannot be removed under Terms Schedule 2, section 4.2, and Terms section 5.3), followed by: "Is that okay with you? If not, I can continue without recording." If the caller says no, the call continues without recording | Strongest; needs a product change so that a "no" turns recording off |
 
 **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 
-Inbound voicemail prompt (designed in the architecture; the voicemail feature is not yet available): "Please leave your message after the tone. It will be recorded and passed to the team." A voicemail is the caller's own recorded message and is separate from call recording.
+Inbound voicemail prompt (proposed text from the architecture; the voicemail feature is not yet available): "Please leave your message after the tone. It will be recorded and passed to the team." A voicemail is the caller's own recorded message and is separate from call recording.
 
 ## 5. 10DLC brand and campaign registration text
 
@@ -96,7 +96,7 @@ Inbound voicemail prompt (designed in the architecture; the voicemail feature is
 
 1. Booking confirmation: "Hi {first_name}, your {appointment} with {business} is booked for {date} at {time}. Reply STOP to opt out."
 2. Reminder: "Hi {first_name}, a reminder of your {appointment} with {business} on {date} at {time}.{reschedule_line} Reply STOP to opt out."
-3. Missed call: "Hi, this is {business}. Sorry we missed your call. We can help you shortly. How can we assist? Reply STOP to opt out."
+3. Missed call: "Hi, this is {business}. We missed your call. Reply here and we will get back to you. Reply STOP to opt out."
 4. Lead acknowledgment: "Hi {first_name}, thanks for getting in touch with {business}. We will be in contact shortly. Reply STOP to opt out."
 5. Waitlist opening: "Hi {first_name}, good news from {business}: a spot opened up on {date} at {time}.{offer_line} It goes to the first person who takes it. Reply STOP to opt out."
 6. Cancellation: "Hi {first_name}, your appointment with {business} has been cancelled. Reply here if you would like to book a new time. Reply STOP to opt out."
@@ -119,7 +119,7 @@ Sample marketing messages:
 
 ### 5.4 Keyword replies
 
-| Keyword | Current behavior | Recommended registration text |
+| Keyword | Current behavior (product text) | Recommended registration text (proposed text; not sent today) |
 |---|---|---|
 | STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) | Opt out is recorded immediately for both service and marketing texts. **No confirmation text is sent today.** | "{business}: You are unsubscribed and will receive no further messages. Reply START to resubscribe." **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]** |
 | HELP | Reply: "{business}: for help please contact us directly. Reply STOP to opt out." Sent only when the number matches a known customer. | "{business}: For help, call {business_number} or visit {business_website}. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out." **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]** **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]** |

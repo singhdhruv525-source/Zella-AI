@@ -147,10 +147,10 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 - Customer is not charged for failures caused by Zella Voice, such as dropped calls, duplicate events or Zella Voice outages.
 - Allowances refresh on each monthly billing date, including for yearly Plans. Up to 20% of the Plan's minutes, and up to 20% of each minutes pack's size, roll over for one billing period and then expire. Texts and emails do not roll over.
 - Zella Voice alerts the Owner at 80% and 100% of minutes, texts and emails.
-- At 100% of minutes, Customer's chosen option applies: stop (new calls go to the Fallback Number), automatic reload of a pack, or pay as you go at the per minute rate in the Order Form, where the Order Form sets one. A call in progress is not cut off. A monthly spending limit applies.
-- At 100% of texts or emails, routine and marketing messages stop, while appointment confirmations and reminders continue within a reserve of 5% that Zella Voice does not charge for. At 105%, all texts or emails stop until Customer buys a pack or the next month starts.
+- At 100% of minutes, Customer's chosen option applies: stop (new calls go to the Fallback Number), automatic reload of a pack, or pay as you go at the per minute rate in the Order Form, where the Order Form sets one. A call in progress is not cut off. A spending limit applies to each period between monthly billing dates, set by the Owner at or below the Plan's limit.
+- At 100% of texts or emails, routine and marketing messages stop, while appointment confirmations and reminders continue within a reserve of 5% that Zella Voice does not charge for. At 105%, all texts or emails stop until Customer buys a pack or the allowances refresh on the next monthly billing date.
 
-9.7 **Packs, automatic reload and pay as you go.** These are available only during the Subscription Term, not during a Trial Period (section 9.2). Add on packs are charged when bought at the prices shown in the Services. Automatic reload is off by default; if Customer enables it, Customer sets the threshold, the pack and a monthly spend cap, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
+9.7 **Packs, automatic reload and pay as you go.** These are available only during the Subscription Term, not during a Trial Period (section 9.2). Add on packs are charged when bought at the prices shown in the Services. Automatic reload is off by default; if Customer enables it, Customer sets the threshold, the pack and a spend cap for each period between monthly billing dates, and each reload is charged when made. Pay as you go minutes are billed at the end of the billing period.
 
 9.8 **Plan changes.** Upgrades take effect immediately, and Customer pays the prorated difference for the rest of the period. Downgrades take effect on the next billing date.
 
@@ -441,7 +441,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 ### 3. Disclosure to callers
 
-3.1 **AI disclosure on every call.** At the start of every call, the AI Receptionist tells the caller that it is an AI receptionist for the Customer, using the name the Customer has chosen. The default greeting is: "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"
+3.1 **AI disclosure on every call.** At the start of every call, the AI Receptionist tells the caller that it is an AI receptionist for the Customer, using the name the Customer has chosen. The default greeting is: "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?" **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 3.2 **Customer greetings.** A Customer may change its greeting but may not remove the AI disclosure. The Services check this on the server, and where a custom greeting leaves the disclosure out, the disclosure is added in the caller's language. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
@@ -453,7 +453,7 @@ Zella Voice may update this Schedule on notice under section 22 of the Terms.
 
 4.1 **Off by default.** Call recording is off for every Customer by default. Zella Voice makes recording available only after recording consent rules and caller disclosures have been legally reviewed and Zella Voice has recorded that approval.
 
-4.2 **Notice when recording is on.** When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer must not remove that notice.
+4.2 **Notice when recording is on.** When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer must not remove that notice. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 4.3 **Customer responsibility.** The Customer is solely responsible for deciding whether to record calls and for complying with every law that applies to recording, including laws in states that require the consent of all parties to a call, and laws that apply where the caller is located. Where the law requires consent rather than notice, the Customer must ensure that consent is obtained before recording continues.
 
