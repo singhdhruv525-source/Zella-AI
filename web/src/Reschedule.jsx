@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import "./OwnerDashboard.css";
 import "./OwnerPages.css";
 import { supabase } from "./supabase";
+import { ATTEND_ACTION, attendOutcome, pageAction } from "./rescheduleAction";
 
-// Page opened from the Reschedule link in appointment texts and emails (/r/<code>).
-// The customer isn't signed in. The private code in the link identifies one appointment.
+// Page opened from the Reschedule link in appointment texts and emails (/r/<code>), and from the Confirm and Cancel
+// buttons in confirmation and reminder emails (/r/<code>?do=confirm, ?do=cancel; rescheduleAction.js). The customer
+// isn't signed in. The private code in the link identifies one appointment. Confirm and Cancel ask first: opening the
+// link changes nothing.
 
 async function call(token, action, extra = {}) {
   const { data, error } = await supabase.functions.invoke("reschedule-appointment", {
@@ -54,6 +57,9 @@ export default function Reschedule() {
   const [picked, setPicked] = useState("");
   const [working, setWorking] = useState(false);
   const [done, setDone] = useState(null);
+  // "confirm" or "cancel" from an email button, until the customer chooses to pick a new time instead
+  const [mode, setMode] = useState(() => pageAction(typeof window === "undefined" ? "" : window.location.search));
+  const [attended, setAttended] = useState(null);   // "confirmed", "already_confirmed" or "cancelled", once the server says so
 
   useEffect(() => {
     if (!token) return;
@@ -67,9 +73,11 @@ export default function Reschedule() {
           if (looked.business) setInfo({ business: looked.business });
           return;
         }
+        setInfo(looked);
+        // the free times are only needed to pick a new time
+        if (mode !== "reschedule") return;
         const free = await call(token, "slots");
         if (!active) return;
-        setInfo(looked);
         setSlots(free.ok ? free.slots : []);
         setSlotsFailed(!free.ok);
       } catch (err) {
@@ -79,7 +87,7 @@ export default function Reschedule() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, mode]);
 
   const tz = info?.timezone || "America/New_York";
   const days = useMemo(() => {
@@ -126,6 +134,26 @@ export default function Reschedule() {
     }
   }
 
+  async function attend() {
+    setWorking(true);
+    setError("");
+    try {
+      const outcome = attendOutcome(await call(token, ATTEND_ACTION[mode]));
+      if (outcome.done) setAttended(outcome.done);
+      else setProblem(outcome.problem);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  function pickInstead() {
+    setError("");
+    setMode("reschedule");
+    window.history.replaceState(null, "", window.location.pathname);
+  }
+
   const stop = PROBLEMS[problem];
   const todaySlots = days.find(([key]) => key === day)?.[1] || [];
 
@@ -161,7 +189,37 @@ export default function Reschedule() {
           </>
         )}
 
-        {info?.appointment && !stop && !done && (
+        {attended && (
+          <>
+            <div className="cp-icon ok">✓</div>
+            <h1>{attended === "cancelled" ? "Your visit is canceled" : attended === "already_confirmed" ? "Your visit was already confirmed" : "Your visit is confirmed"}</h1>
+            <p>
+              {attended === "cancelled"
+                ? <>{info.business} has been told. To book again, please contact {info.business}.</>
+                : <>See you on {longDay(info.appointment.start, tz)} at {clock(info.appointment.start, tz)}. {info.business} can see you confirmed.</>}
+            </p>
+          </>
+        )}
+
+        {info?.appointment && !stop && !done && !attended && mode !== "reschedule" && (
+          <>
+            <h1>{mode === "cancel" ? "Cancel your visit?" : "Confirm your visit"}</h1>
+            <p>
+              Your {info.appointment.title || "appointment"} with {info.business} is on{" "}
+              <strong>{longDay(info.appointment.start, tz)} at {clock(info.appointment.start, tz)}</strong>.
+              {mode === "cancel" && <> {info.business} will be told, and the time may be offered to someone else.</>}
+            </p>
+            {error && <div className="owner-form-error" role="alert">{error}</div>}
+            <button type="button" className={`${mode === "cancel" ? "bd-danger-button" : "owner-primary-button"} cp-button`} disabled={working} onClick={attend}>
+              {working ? "Saving…" : mode === "cancel" ? "Cancel my visit" : "Confirm my visit"}
+            </button>
+            <p className="cp-small">
+              Need a different time? <button type="button" className="ba-link" onClick={pickInstead} disabled={working}>Pick a new time instead</button>
+            </p>
+          </>
+        )}
+
+        {info?.appointment && !stop && !done && !attended && mode === "reschedule" && (
           <>
             <h1>{info.missed ? `${info.first_name ? `${info.first_name}, w` : "W"}e missed you` : "Pick a new time"}</h1>
             {info.missed ? (

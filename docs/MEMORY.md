@@ -128,6 +128,12 @@ inbox). Order: `zella_business_email.sql`, then this file; `sql/zella_caller_ver
 before it (its guard knows only production's `zella_prepare_email` and its own), or have its guard extended.
 Until `business_email_routes.domain` is switched on (owner's approval), every business keeps the fallback.
 
+**Business email address, part 3 (26 Nov 2026):** Confirm, Reschedule and Cancel buttons are built, not applied or
+deployed (`sql/zella_email_action_buttons.sql`, `tests/email_action_buttons/run.sh`; reschedule-appointment and the
+`/r/<code>` page; n8n Email Sender rebuilt). They reuse the reschedule link (`/r/<code>?do=confirm|cancel`); the page
+asks first. Order: after `zella_business_email_send.sql`; deploy reschedule-appointment and the web app before (or
+with) the apply, or a pressed button reaches an older function that treats it as a lookup and changes nothing.
+
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
