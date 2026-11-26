@@ -14,8 +14,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 ## 2. Separation between businesses
 
-- Row level security is on for every database table, and every business function checks the person's membership and role before reading or writing.
-- Automated tests try to reach one business's data from another for every table, view, function and endpoint, before every change.
+- Access is separated between businesses by database policies on every table, and every business function checks the person's membership and role before reading or writing.
 - Public link pages (reschedule, waitlist offer, unsubscribe, continue plan) open one item only, by a private hashed code.
 - Files are stored privately under each business's own path and checked after upload; refused files are deleted.
 
@@ -44,7 +43,7 @@ Last updated: **[LAST UPDATED DATE]**
 - Customer Data is never used to train AI models.
 - Payment card numbers that callers speak on calls are masked in call transcripts and summaries before they are stored.
 - Each business can export its customers and call history and erase a customer's records; a whole business export is available on request.
-- Recordings and transcripts are deleted automatically 90 days after the call, and the copies held by the voice provider are deleted where technically possible.
+- Subject to legal holds, recordings and transcripts are deleted automatically 90 days after the call, and the copies held by the voice provider are deleted where technically possible. Data under a legal hold is kept until the hold is released and then deleted on schedule.
 - After cancellation, data is deleted after **[CANCELLATION RETENTION PERIOD]**; an account deletion request takes effect after a 30 day grace period.
 - Backups allow point in time recovery.
 

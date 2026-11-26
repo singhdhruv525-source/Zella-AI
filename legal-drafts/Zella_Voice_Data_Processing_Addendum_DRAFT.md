@@ -161,7 +161,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 
 | Area | Measure |
 |---|---|
-| Separation between Customers | Row level security on every table; every Customer function checks the person's membership and role; cross Customer tests for every table, view, function and endpoint |
+| Separation between Customers | Database policies on every table separate each Customer's data; every Customer function checks the person's membership and role |
 | Access control | Roles of owner, admin, manager, staff and viewer enforced by the database; transcripts limited by role and closed to staff in Regulated Industries |
 | Authentication | Two step sign in required for every Zella Voice administrator, who cannot remove their last authenticator; Owners set up two step sign in at onboarding; enforced on the server for roles that require it |
 | Audit | Append only audit log of every privileged action (who, what, which Customer, when, before and after), with sensitive Personal Data and secrets redacted |

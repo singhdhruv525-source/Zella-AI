@@ -7,7 +7,7 @@ Date: **[MEMO DATE]**
 
 ## 1. Purpose
 
-1.1 This memo accompanies version 0.2 drafts of the Zella Voice legal document set: nine documents plus this memo. Each document was drafted from the project's own source documents (the architecture, product, rulebook, project memory and database schema documents, and the version 0.1 privacy policy and terms held in the database migration for legal documents). Nothing in the set describes a feature, certification or guarantee that those sources do not support. Unknown company facts are bold bracketed placeholders.
+1.1 This memo accompanies version 0.2 drafts of the Zella Voice legal document set: nine documents plus this memo. Each document was drafted from the project's own source documents (the architecture, product, rulebook, project memory and database schema documents, and the version 0.1 privacy policy and terms held in the database migration for legal documents). Nothing in the set describes a feature, certification or guarantee that those sources do not support, with two exceptions: encryption at rest and backups with point in time recovery are stated in the public documents as intended controls, but neither is verified in the source documents (launch blockers 16 and 17). The public documents also describe as operating the controls that are built but not yet live; each is a launch blocker in section 4. Unknown company facts are bold bracketed placeholders.
 
 1.3 **Status (internal; not for publication).** Zella Voice has not launched. The live project holds demo businesses only and no real customer data, and every sending and calling switch (calls, texts, emails and the others) is off. The public documents in this set are nevertheless written as the final, published versions for a live, operating service, as the owner instructed. They describe each control as the service will provide it at launch. Every place where the product does not yet do what a public document promises is listed in section 4 as a launch blocker.
 
@@ -55,7 +55,7 @@ The separate files were removed after merging; their full text is inside the mer
 
 2.3.4 **Changes.** Zella Voice may update the Terms and the Policies on notice under Terms section 22; section 22.3 confirms this for Schedules 1 and 4.
 
-2.3.5 **Acceptance.** The owner onboarding journey records acceptance on the server; the Terms' clickwrap clause relies on it. That step is built but not applied (section 4).
+2.3.5 **Acceptance.** The owner onboarding journey records acceptance on the server; the Terms' clickwrap clause relies on it. That step is built but not applied (launch blocker 21 in section 4).
 
 ## 3. Retention: two conflicts to resolve
 
@@ -75,9 +75,11 @@ The separate files were removed after merging; their full text is inside the mer
 
 **The public documents must not be published until each blocker below is built and verified in the product, or the promise is removed from the public text.** No public text is published while it is untrue. Each fix that changes production needs the owner's explicit approval for that specific change (NN 3, NN 4). The Owner Action Pack lists the same items as owner actions before launch.
 
+**Card details.** Zella Voice's policy is that payment card details are never collected or stored. Card masking (blocker 11) must therefore be built and verified before any live call is answered or placed, even if the public promise of masking were removed from the text, because callers may speak card numbers on any call.
+
 | # | Promise in the public documents | Where it is promised | Product fix needed |
 |---|---|---|---|
-| 1 | Call recording off by default | Terms 5.3; Schedule 2, 4.1; Privacy Policy 6.1; DPA Annex 1; Consent Pack 4 | Send recording off explicitly in the assistant configuration to Vapi (an approved call path change), apply the recording policy, and confirm at Vapi that recording is disabled |
+| 1 | Call recording off by default | Terms 5.3; Schedule 2, 4.1; Privacy Policy 6.1; DPA Annex 1; Consent Pack 4 | Verify the live Vapi recording setting (today Vapi's own settings decide whether a call is recorded); send recording off explicitly in the assistant configuration to Vapi (an approved call path change); apply the recording policy; confirm at Vapi that recording is disabled. Recording must stay disabled for every Customer until the recording consent rules and caller disclosures have passed legal review |
 | 2 | AI disclosure cannot be removed and is added in the caller's language; recording notice line | Schedule 2, 3.1, 3.2 and 4.2; Privacy Policy 5.2; Consent Pack 3 | Apply the call disclosure migration and confirm on a test call |
 | 3 | Automatic deletion: recordings and transcripts after 90 days, message contents after 2 years, deletion of Vapi copies | Terms 12.7; Schedule 2, 4.5; Privacy Policy 6.3 and 10; DPA 12.1 and 12.4; Trust overview 5 | Apply the privacy retention migration, record legal approval of the periods, and switch on the purge job and Vapi deletion |
 | 4 | Deletion after cancellation and after an account deletion request | Terms 12.7; Privacy Policy 10 and 11.3; DPA 12.2 and 12.3; Trust overview 5 | Decide the cancellation period (section 3.2), apply the account deletion migration, and schedule the purge |
@@ -107,6 +109,7 @@ The separate files were removed after merging; their full text is inside the mer
 | 28 | Receptionist asks consent before confirmation texts | Consent Pack 3.4 | Confirm the receptionist's script asks the question in 3.4 |
 | 29 | Voicemail prompt and voicemails | Consent Pack 4 | Build inbound voicemail, or remove the voicemail prompt |
 | 30 | Recording option C (consent question with a no that turns recording off) | Consent Pack 4 | Build the product change, or do not offer option C |
+| 31 | Separation between businesses | Trust overview 2; DPA Annex 2 | The public text now claims only the database policies and function checks. Before launch, build automated isolation tests that cover every table, view, function and endpoint and run them on every change (today the isolation tests exist in tests/security but there is no automated run on every change) |
 
 ## 5. Open decisions for the owner
 
@@ -177,7 +180,7 @@ The separate files were removed after merging; their full text is inside the mer
 21. **Employee and applicant notice:** the California CPRA notice at collection for employees and applicants, and other state requirements.
 22. **Reseller agreement:** resale structure, anti bribery and marketing compliance, commission tail and non solicitation.
 23. **Trademark:** clearance search, filing basis and classes for ZELLA VOICE.
-24. **Messaging hours.** The Messaging Terms now state the rulebook COM 3 rule (recipient's time zone when known) with a condition that marketing and automated texts stay off until the sender enforces it. Confirm the hour ranges, whether marketing needs a narrower window, and whether reminders need quiet hours.
+24. **Messaging hours.** The Messaging Terms (section 4.2) state the rulebook COM 3 contact hours (recipient's time zone when known) as an operating control; enforcing them is launch blocker 7. Confirm the hour ranges, whether marketing needs a narrower window, and whether reminders need quiet hours.
 25. **Missed call text basis** for 10DLC registration (Consent Pack section 5.2).
 26. **Spoken card numbers in transcripts.** Callers may speak card numbers, which may be stored in transcripts until redaction exists. Advise on PCI DSS scope and on the wording now used in the Privacy Policy, Terms 9.5 and DPA Annex 1.
 27. **Retention after cancellation for businesses already canceled** (section 3.2.1), and the retention basis for consent and opt out history after cancellation (DPA 12.5).
@@ -207,7 +210,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 6. Google Fonts is listed although it is not in the architecture's subprocessor table, because the web application loads the Inter typeface from it.
 7. Push notifications and WhatsApp and Messenger are omitted: push is only planned (D 40) and those Meta channels are undecided (D 39).
 8. Encryption at rest is stated in the public documents as a control; the source documents do not state it, so it is launch blocker 16 until confirmed with the hosting provider.
-9. The Messaging Terms state the rulebook COM 3 contact hours (recipient's time zone when known) as the commitment, with a condition (section 4.3) that marketing and automated texts are not switched on until the sender enforces it; the sender today checks only marketing texts, 8 a.m. to 9 p.m., in the Business's time zone.
+9. The Messaging Terms state the rulebook COM 3 contact hours (recipient's time zone when known) in section 4.2 as an operating control; the sender today checks only marketing texts, 8 a.m. to 9 p.m., in the Business's time zone, so this is launch blocker 7.
 10. START restores service texts only, as the code does; marketing consent must be given again.
 11. Terms Schedule 3 (Content and Defamation Complaints Policy) says Zella Voice cannot remove content from third party sites such as Google, only stop further sending or publishing.
 12. Terms Schedule 4 (Service Level and Support Policy) adds standard exclusions (Customer causes, suspension, Beta and switched off features, force majeure, announced maintenance) to the documented service credit.
@@ -234,7 +237,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **Retention:** 90 days (recordings and transcripts, subject to the decision in section 3.3; identity documents), 2 years (message contents), 7 years (audit logs), the cancellation period placeholder (after cancellation), 30 days (account deletion, number release, replaced identity copies) and 90 days (backups after cancellation) are identical in the Terms, Privacy Policy, DPA, Terms Schedule 2, the Trust overview and the Handbook.
 - **Contacts:** one placeholder each for privacy, support, legal notices, content complaints, security, legal requests and the DMCA agent. The Subprocessor List location is one placeholder, used in the Privacy Policy, the DPA and the Trust overview.
 - **Subprocessors:** the Privacy Policy summary table and DPA Annex 3 list the same providers.
-- **Claims:** the public documents carry no build status wording or status placeholders; every promise the product does not yet keep is a launch blocker in section 4 (30 items).
+- **Claims:** the public documents carry no build status wording or status placeholders; every promise the product does not yet keep is a launch blocker in section 4 (31 items).
 - **Style:** no dashes or hyphens in text, except the security.txt field names "Preferred-Languages" and "/.well-known/", which are fixed technical identifiers. "Zella Voice" is always in full. American spelling, except one exact quotation of a product template, which is flagged. No model IDs.
 
 ## 10. Every placeholder, by document
@@ -480,6 +483,9 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[INCIDENT LOG LOCATION]**
 - **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[SECURE DELIVERY CHANNEL FOR DATA SUBJECT REQUESTS]**
+- **[CONFIRM THE AUDITED ROUTE BY WHICH ZELLA VOICE RETRIEVES REGULATED INDUSTRY TRANSCRIPTS FOR A REQUEST]**
+- **[COUNSEL TO CONFIRM THE RESPONSE OWED FOR ITEMS THAT CANNOT BE PROVIDED]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[LEGAL HOLD CONTROL OWNER]**
 - **[CONFIRM HOW A HOLD IS RECORDED AGAINST AN OPEN REQUEST: THE REQUEST NOTE CAN ONLY BE SET WHEN THE REQUEST IS LOGGED OR CLOSED]**
