@@ -28,6 +28,7 @@ import { AppearancePanel } from "./settings/AppearancePanel";
 import { Banner, Card, Confirm, Empty, Facts, Field, LinkRows, LoadState, Needs, Pill, SaveBar, Table, useAsync, useForm, when, words } from "./settings/SettingsKit";
 import { usePlatformInfo } from "./platformInfo";
 import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
+import { BusinessEmailPanel } from "./settings/BusinessEmailPanel";
 import TicketThread from "./settings/panels/TicketThread";
 import { CallContentAccess, CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
@@ -1049,6 +1050,7 @@ function registry(w) {
     ] },
     { key: "messages", label: "SMS, email and messages", icon: "forum", items: [
       page("config", "Messaging setup", () => <MessagingSetup w={w} />, "provider sender"),
+      page("business-email", "Business email address", () => <BusinessEmailPanel w={w} />, "email address sender gmail outlook domain dns verify mailbox from"),
       page("templates", "Message templates", () => <Templates w={w} />, "sms email templates"),
       page("rules", "Communication rules", () => <Card title="Rules every message follows"><Facts rows={[["Consent", "Checked before every text and email"], ["Opt out", "STOP, unsubscribe links"], ["Quiet hours", "No texts late at night, business time"], ["Duplicates", "The same message isn't sent twice"]]} /></Card>, "consent quiet hours"),
       page("reviews", "Review link", (c) => <><ReviewLinkPanel workspace={w} /><LinkRows rows={[{ title: "Offers and promo codes", detail: "Billing and subscription", onClick: () => c.onGo("settings/billing/offers") }]} /></>, "review link google offers"),

@@ -37,6 +37,13 @@ export const SERVER_SECRETS: ServerSecret[] = [
   { key: "MICROSOFT_CALENDAR_CLIENT_ID", label: "Microsoft calendar app: client ID", required: false, group: "calendar" },
   { key: "MICROSOFT_CALENDAR_CLIENT_SECRET", label: "Microsoft calendar app: client secret", required: false, group: "calendar" },
   { key: "CALENDAR_REDIRECT_URL", label: "Calendar sign in return address (optional: the function's own address is used when unset)", required: false, group: "calendar" },
+  // business-email (web/supabase/functions/business-email): the business's own email address (architecture §14.4)
+  { key: "RESEND_DOMAINS_API_KEY", label: "Resend key with domain permission (verifies business domains)", required: false, group: "email" },
+  { key: "GOOGLE_MAIL_CLIENT_ID", label: "Gmail sending app: client ID", required: false, group: "email" },
+  { key: "GOOGLE_MAIL_CLIENT_SECRET", label: "Gmail sending app: client secret", required: false, group: "email" },
+  { key: "MICROSOFT_MAIL_CLIENT_ID", label: "Outlook sending app: client ID", required: false, group: "email" },
+  { key: "MICROSOFT_MAIL_CLIENT_SECRET", label: "Outlook sending app: client secret", required: false, group: "email" },
+  { key: "MAILBOX_REDIRECT_URL", label: "Mailbox sign in return address (optional: the function's own address is used when unset)", required: false, group: "email" },
 ];
 
 // The configuration list platform_status returns: whether each value is set, never the value.

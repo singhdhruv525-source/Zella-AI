@@ -16,7 +16,23 @@ const REASONS = {
   rate_limited: "Too many attempts. Wait a minute and try again.",
   sign_in_required: "Your sign in has ended. Sign in again and try once more.",
   not_configured: "Business email setup isn't available yet. Contact Zella Voice support.",
+  // connecting a mailbox
+  not_your_sign_in: "The mailbox wasn't connected: the sign in was started by someone else. Start it again from this page.",
+  link_expired: "The mailbox wasn't connected: the sign in took too long or was already used. Start it again.",
+  no_refresh_token: "The mailbox wasn't connected: the provider didn't give lasting access. Start again and allow access when asked.",
+  no_account_email: "The mailbox wasn't connected: the provider didn't say which address it is. Start again.",
+  access_denied: "The mailbox wasn't connected: access wasn't allowed on the provider's page.",
+  invalid_grant: "The mailbox wasn't connected: the provider's sign in had expired. Start again.",
 };
+// where the provider sends the person back (business-email): ?mailbox=cancelled|error&reason=...
+export function mailboxReturn(search) {
+  let q;
+  try { q = new URLSearchParams(typeof search === "string" ? search : ""); } catch { return null; }
+  const outcome = q.get("mailbox"), why = q.get("reason") ?? "";
+  if (outcome === "cancelled") return { tone: "warning", text: why === "access_denied" ? reasonWords("access_denied") : "The mailbox wasn't connected: the sign in was canceled." };
+  if (outcome === "error") return { tone: "error", text: reasonWords(/^[a-z_]{1,40}$/.test(why) ? why : "") };
+  return null;
+}
 export function reasonWords(code) {
   return REASONS[code] ?? "That didn't work, and nothing was changed. Check your connection and try again.";
 }

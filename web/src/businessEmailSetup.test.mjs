@@ -36,3 +36,13 @@ test("no dashes or hyphens in what people read (BRD-6)", () => {
   const texts = [senderSummary(base).text, ...["bad_address", "free_mailbox_domain", "platform_domain", "domain_taken", "not_allowed", "not_set_up", "provider_not_configured", "provider_unavailable", "provider_refused", "rate_limited", "sign_in_required", "not_configured", "x"].map(reasonWords)];
   for (const t of texts) assert.doesNotMatch(t, /[-‐‑‒–—―]/, t);
 });
+
+import { mailboxReturn } from "./businessEmailSetup.js";
+test("back from the provider: canceled, refused or an error, in words; nothing for an ordinary visit", () => {
+  assert.equal(mailboxReturn(""), null);
+  assert.equal(mailboxReturn("?mailbox=cancelled").tone, "warning");
+  assert.match(mailboxReturn("?mailbox=cancelled&reason=access_denied").text, /access wasn't allowed/);
+  assert.match(mailboxReturn("?mailbox=error&reason=link_expired").text, /took too long/);
+  assert.match(mailboxReturn("?mailbox=error&reason=<script>").text, /nothing was changed/);
+  for (const r of ["not_your_sign_in", "link_expired", "no_refresh_token", "no_account_email", "access_denied", "invalid_grant"]) assert.doesNotMatch(reasonWords(r), /[-‐‑‒–—―]/, r);
+});
