@@ -118,7 +118,15 @@ domain verification and mailbox connection are not built. Live steps, each with 
 (`sql/zella_business_email.sql`, tested on an isolated copy of `sql/baseline` only, `tests/business_email/run.sh`):
 `business_email_senders`, the token only in Vault, one business per domain, two switches off
 (`business_email_routes`), the mailbox daily caps, and the server rules for who sends, the daily cap and provider
-refusals. Nothing uses them until the sending part. Apply only with the owner's approval.
+refusals. Apply only with the owner's approval.
+
+**Business email address, part 2 (26 Nov 2026):** sending through a verified domain is built, not applied
+(`sql/zella_business_email_send.sql`, `tests/business_email_send/run.sh`; n8n Email Sender and Follow up Emails
+rebuilt, not re-imported). `zella_prepare_email` takes its sender from `zella_business_email_sender`; the fallback's
+Reply-To is now the business email instead of the inbound address (owner, 26 Nov: replies go to the business's
+inbox). Order: `zella_business_email.sql`, then this file; `sql/zella_caller_verification.sql` must be applied
+before it (its guard knows only production's `zella_prepare_email` and its own), or have its guard extended.
+Until `business_email_routes.domain` is switched on (owner's approval), every business keeps the fallback.
 
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 

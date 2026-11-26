@@ -268,6 +268,19 @@ test('email live without a sender address fails loudly', () => { const d = edeci
 test('email without consent or address is skipped, not retried', () => { for (const reason of ['no_consent', 'no_valid_email', 'marketing_email_not_ready']) { const d = edecide(200, { allowed: false, reason, live: true }); assert.equal(d.finish.rpc, 'zella_skip_reminder'); assert.equal(d.finish.body.p_reason, reason); assert.equal(d.log, undefined); } });
 test('email prepare failure is a retryable failure and leaks nothing', () => { const d = edecide(500, { message: 'SECRETDETAIL' }); assert.equal(d.finish.rpc, 'zella_complete_reminder'); assert.equal(d.finish.body.p_ok, false); assert.equal(JSON.stringify(d).includes('SECRETDETAIL'), false); });
 
+// the business's own address (sql/zella_business_email_send.sql): the sender and its transport are carried and logged
+test('email: the sender route and transport go into the log', () => {
+  const d = edecide(200, { ...okEmail, live: true, from: 'hello@salon.example', transport: 'resend', sender_route: 'domain' });
+  assert.equal(d.transport, 'resend'); assert.equal(d.log.p_meta.transport, 'resend'); assert.equal(d.log.p_meta.sender_route, 'domain'); assert.equal(d.log.p_from, 'hello@salon.example');
+});
+test('email: an older database (no transport) still sends through Resend as the fallback', () => { const d = edecide(200, { ...okEmail, live: true, from: 'x@y.example' }); assert.equal(d.transport, 'resend'); assert.equal(d.log.p_meta.sender_route, 'fallback'); });
+test('email: a mailbox email is not sent by this workflow (not built here); a dry run is still logged', () => {
+  const live = edecide(200, { ...okEmail, live: true, from: 'salon@gmail.example', transport: 'gmail', sender_route: 'mailbox' });
+  assert.equal(live.finish.body.p_error, 'mailbox_sending_not_built'); assert.equal(live.log, undefined);
+  const dry = edecide(200, { ...okEmail, live: false, from: 'salon@gmail.example', transport: 'gmail', sender_route: 'mailbox' });
+  assert.equal(dry.log.p_status, 'dry_run'); assert.equal(dry.log.p_meta.transport, 'gmail');
+});
+test('email: an odd transport value is not trusted', () => assert.equal(edecide(200, { ...okEmail, transport: 'x"; y' }).transport, 'resend'));
 const eAfterLog = (statusCode, body, d) => runCode('email-after-log.js', { json: { statusCode, body }, nodes: { Decide: { reminder_id: R.reminder_id, live: true, from: 'hello@zella.example', from_name: 'Test Salon', reply_to: null, to: 'ana@example.com', subject: 'Reminder', text: 'Hi', html: '<p>Hi</p>', ...d } } }).json;
 test('live new email builds the provider payload', () => {
   const a = eAfterLog(200, { id: 'm1', duplicate: false, status: 'queued' });
@@ -372,6 +385,15 @@ test('email task dry run never builds a provider payload', () => { const a = teA
 test('email task already sent completes as email_sent, not sent twice', () => { const a = teAfterLog(200, { id: 'm1', duplicate: true, status: 'sent' }); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_outcome, 'email_sent'); });
 test('email task in-flight duplicate is suppressed and log failure sends nothing', () => { assert.equal(teAfterLog(200, { id: 'm1', duplicate: true, status: 'queued' }).finish.body.p_reason, 'duplicate_suppressed'); const a = teAfterLog(500, {}); assert.equal(a.resend, undefined); assert.equal(a.finish.body.p_outcome, 'failed'); });
 
+test('follow up email: the business email is the Reply-To, so replies reach its inbox', () => {
+  const d = tedecide(200, { allowed: true, live: true, from: 'no-reply@zv.example', from_name: 'Test Salon', reply_to: 'front@salon.example', to: 'ana@example.com', subject: 'S', body_text: 'T', body_html: '<p>T</p>', transport: 'resend', sender_route: 'fallback' });
+  assert.equal(d.reply_to, 'front@salon.example'); assert.equal(d.log.p_meta.transport, 'resend');
+  assert.equal(teAfterLog(200, { id: 'm1', duplicate: false }, { reply_to: 'front@salon.example' }).resend.reply_to, 'front@salon.example');
+  assert.equal(teAfterLog(200, { id: 'm1', duplicate: false }).resend.reply_to, undefined);
+});
+test('follow up email: a mailbox email is not sent by this workflow (not built here)', () => {
+  assert.equal(tedecide(200, { allowed: true, live: true, from: 's@gmail.example', to: 'a@b.example', subject: 'S', body_text: 'T', body_html: 'T', transport: 'outlook' }).finish.body.p_notes, 'mailbox_sending_not_built');
+});
 const teAfterSend = (statusCode, body) => runCode('email-task-after-send.js', { json: { statusCode, body }, nodes: { 'After log': { task_id: T.task_id, message_id: 'm1' } } }).json;
 test('email task provider success completes as email_sent', () => { const a = teAfterSend(200, { id: 're-1' }); assert.deepEqual(a.update, { p_id: 'm1', p_status: 'sent', p_external_id: 're-1', p_error: null }); assert.equal(a.finish.body.p_outcome, 'email_sent'); });
 test('email task provider rejection fails and retries, keeping only a short error name', () => { const a = teAfterSend(422, { name: 'validation_error', message: 'PRIVATE' }); assert.equal(a.update.p_status, 'failed'); assert.equal(a.finish.body.p_outcome, 'failed'); assert.equal(a.finish.body.p_retry_in_minutes, 15); assert.equal(JSON.stringify(a).includes('PRIVATE'), false); });

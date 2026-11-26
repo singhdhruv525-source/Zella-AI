@@ -9,11 +9,17 @@ const finishFail = (reason) => ({ json: { reminder_id: plan.reminder_id, finish:
 if (!(status >= 200 && status < 300)) return finishFail('The database call zella_prepare_email returned ' + status + '.');
 if (b.allowed !== true) return finishSkip(String(b.reason || 'not_allowed').slice(0, 60));
 if (b.live === true && !b.from) return finishFail('sender_address_not_set');
+// Who sends (sql/zella_business_email_send.sql): the business's verified domain or the fallback, both through Resend,
+// or its connected mailbox. Sending through a mailbox isn't built in this workflow yet, so such an email is not sent.
+const transport = typeof b.transport === 'string' && /^[a-z_]{1,20}$/.test(b.transport) ? b.transport : 'resend';
+if (b.live === true && transport !== 'resend') return finishFail('mailbox_sending_not_built');
+const route = typeof b.sender_route === 'string' && /^[a-z_]{1,20}$/.test(b.sender_route) ? b.sender_route : 'fallback';
 
 return {
   json: {
     reminder_id: plan.reminder_id,
     live: b.live === true,
+    transport,
     from: b.from || null,
     from_name: b.from_name || '',
     reply_to: b.reply_to || null,
@@ -32,7 +38,7 @@ return {
       p_body_html: b.body_html,
       p_dedupe_key: 'reminder:' + plan.reminder_id,
       p_status: b.live === true ? 'queued' : 'dry_run',
-      p_meta: { reminder_id: plan.reminder_id, template_id: b.template_id, template_version: b.template_version, dry_run: b.live !== true },
+      p_meta: { reminder_id: plan.reminder_id, template_id: b.template_id, template_version: b.template_version, dry_run: b.live !== true, transport, sender_route: route },
     },
   },
 };
