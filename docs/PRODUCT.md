@@ -68,7 +68,7 @@ The public link pages:
 
 | Page | What the person can do |
 |---|---|
-| `/r/<code>` Reschedule | See their appointment, pick a free time and move it. The private code opens one appointment only. |
+| `/r/<code>` Reschedule | See their appointment, pick a free time and move it. The private code opens one appointment only. From the Confirm and Cancel buttons in confirmation and reminder emails (`?do=confirm`, `?do=cancel`) the page asks "Confirm your visit" or "Cancel your visit?" and acts only on its button, never on opening (mail scanners open links); the CRM shows it at once, and a cancellation tells the team. Built, not applied or deployed (`sql/zella_email_action_buttons.sql`, reschedule-appointment, the web app) |
 | `/w/<code>` Waitlist offer | Accept or decline a time that freed up. The calendar re-checks the time on accept. |
 | `/u/<code>` Unsubscribe | Stop emails from that one business. If the link was opened very often in a few minutes, the page can't show the business name for a while, but the Unsubscribe button still works (opt-out always wins). |
 | `/status` | The Zella Voice service status and public incidents. It says "Everything is working" only when every part is checked and working; while any part isn't checked it says "Not every part is checked right now", and reminders and follow ups read Working only while the dispatch job is on and running (`sql/zella_status_honest.sql`, built, not applied). |
@@ -575,6 +575,7 @@ live switch, then the provider. Off means dry run: the message is logged as "wou
 | Appointment confirmations and reminders by text (Telnyx) | Built, off (`sms_live`) |
 | Appointment confirmations and reminders by email (Resend) | Built, off (`email_live`) |
 | Customer emails from the business's own address (owner, 26 Nov 2026): a verified business domain through Resend, or a connected Gmail or Outlook mailbox through the provider; until then the business name at Zella Voice's no reply address with Reply-To the business email. A mailbox's daily cap sends the rest of that day through the fallback and tells the business once | Data model, rules and sending through a verified domain built, not applied (`sql/zella_business_email.sql`, `sql/zella_business_email_send.sql`, n8n Email Sender and Follow up Emails not re-imported); both routes behind `business_email_routes`, off; setup screens and the mailbox connection not built yet |
+| Confirm, Reschedule and Cancel buttons in every confirmation and reminder email, on the message's own reschedule link (none without the app address) | Built, not applied or deployed (`sql/zella_email_action_buttons.sql`) |
 | Follow-ups: no-show, thank-you, quote follow-up, reactivation (opted-in only), callback fallback, missed-call text, lead acknowledgement | Built, off |
 | Text ↔ email switching when one channel can't reach the person | Built |
 | "You might also need": after a service is completed, suggest a related service some days later (rules per business in Settings; marketing, so only to customers who opted in; one per appointment, the same rule at most once per customer every 90 days; `sql/zella_cross_sell.sql`). Chosen by the owner on 28 Oct 2026 | Built, off |

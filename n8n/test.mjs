@@ -255,6 +255,7 @@ test('email plan builds the prepare request with business-time date and time', (
   const p = eplan(ER);
   assert.equal(p.finish, null); assert.equal(p.prepare.p_template_key, 'appointment_reminder'); assert.equal(p.prepare.p_vars.date, 'Tue, Nov 3'); assert.equal(p.prepare.p_vars.time, '10:00 AM'); assert.equal(p.prepare.p_purpose, 'transactional');
 });
+test('confirmations and reminders ask for the Confirm, Reschedule and Cancel buttons', () => { for (const kind of ['reminder', 'confirmation', 'confirmation_request']) assert.equal(eplan({ ...ER, kind }).prepare.p_vars.action_buttons, 'true', kind); });
 test('email confirmation uses the confirmation template', () => assert.equal(eplan({ ...ER, kind: 'confirmation' }).prepare.p_template_key, 'appointment_confirmation'));
 test('a text reminder is never emailed', () => { const p = eplan({ ...ER, channel: 'sms' }); assert.equal(p.finish.rpc, 'zella_skip_reminder'); assert.match(p.finish.body.p_reason, /channel_not_email:sms/); assert.equal(p.prepare, undefined); });
 test('email unknown kind and bad time are skipped', () => { assert.equal(eplan({ ...ER, kind: 'weird' }).finish.rpc, 'zella_skip_reminder'); assert.equal(eplan({ ...ER, appointment: { title: 'x', start_time: 'nope' } }).finish.rpc, 'zella_skip_reminder'); });

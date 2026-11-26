@@ -25,7 +25,9 @@ return {
       p_business_id: r.business.id,
       p_customer_id: r.customer.id,
       p_template_key: key,
-      p_vars: { appointment: label, date, time, reschedule_line: typeof r.reschedule_line === 'string' ? r.reschedule_line : '' },
+      // action_buttons: the database adds Confirm, Reschedule and Cancel buttons on this message's own link
+      // (sql/zella_email_action_buttons.sql); without a link it adds none
+      p_vars: { appointment: label, date, time, reschedule_line: typeof r.reschedule_line === 'string' ? r.reschedule_line : '', action_buttons: 'true' },
       p_purpose: 'transactional',
     },
     finish: null,

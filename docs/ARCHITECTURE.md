@@ -1423,6 +1423,16 @@ flowchart TD
   (it used to prefer the inbound address, `zella_inbound_email_address`; reading replies is not in scope, owner,
   26 Nov 2026), and follow up emails now carry it too. When a failed email is tried again under the same key,
   `zella_log_outbound_email` records what is sent this time (sender, content, transport).
+- **Confirm, Reschedule and Cancel** (`sql/zella_email_action_buttons.sql`): the Email Sender asks for buttons on
+  every confirmation and reminder (`action_buttons`), and `zella_prepare_email` adds them on the message's own
+  reschedule link, only when it is on Zella Voice's app address (`app_base_url`; without it, no buttons). Confirm is
+  `/r/<code>?do=confirm`, Reschedule `/r/<code>`, Cancel `/r/<code>?do=cancel`; the HTML gets three buttons (colours
+  copied from `tokens.css`, as `businessEmails.js` does) in place of the "Need a new time?" sentence, the text the
+  three addresses; the confirmation code stays. The page asks first and acts only on its own button (`SEC-20`): the
+  reschedule-appointment function (rate limited as a change) calls `zella_reschedule_attend`, which checks the link
+  with `zella_reschedule_lookup`, rechecks the appointment under its row lock (upcoming, booked; never a missed
+  visit's rebook link) and does what a texted CONFIRM or CANCEL does (`zella_reminder_response`): the CRM shows it at
+  once, and a cancellation withdraws its reminders, tells the team and offers the time to the waitlist.
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them

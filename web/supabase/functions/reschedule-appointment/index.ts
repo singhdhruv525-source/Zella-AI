@@ -7,6 +7,10 @@
 //   POST { token, action: "lookup" }                 -> appointment and business
 //   POST { token, action: "slots" }                  -> free times
 //   POST { token, action: "confirm", start: ISO }    -> moves the appointment
+//   The Confirm and Cancel buttons in confirmation and reminder emails open the same page (/r/<code>?do=...), which
+//   asks first; only its button calls (sql/zella_email_action_buttons.sql):
+//   POST { token, action: "attend_confirm" }         -> confirms the appointment
+//   POST { token, action: "attend_cancel" }          -> cancels it
 //   Waitlist offers (the /w/<code> page), same kind of private code:
 //   POST { token, action: "offer_lookup" }           -> the offered time
 //   POST { token, action: "offer_accept" }           -> books it (the calendar re-checks the time)
@@ -55,7 +59,8 @@ export const handler = withCors(async (req: Request) => {
   // Rate limits (the shared, concurrency-safe database counter): per visitor address and per link, so a script
   // can't hammer slot lookups or confirmations. A counter that can't be checked refuses (fails closed, M10).
   const ip = clientIp(req.headers) ?? "unknown";   // never the caller-written first X-Forwarded-For value
-  const writes = body.action === "confirm" || body.action === "offer_accept" || body.action === "offer_decline";
+  const writes = body.action === "confirm" || body.action === "offer_accept" || body.action === "offer_decline"
+    || body.action === "attend_confirm" || body.action === "attend_cancel";
   for (const [key, max] of [[`resched:ip:${ip}`, 60], [`resched:token:${token.slice(0, 16)}`, writes ? 10 : 40]] as const) {
     const { data: ok, error: limitError } = await admin.rpc("zella_rate_limit", { p_key: key, p_max: max, p_window_seconds: 60 });
     if (limitError || typeof ok !== "boolean") {
@@ -70,6 +75,8 @@ export const handler = withCors(async (req: Request) => {
     result = await admin.rpc("zella_waitlist_offer_lookup", { p_token: token });
   } else if (body.action === "offer_accept" || body.action === "offer_decline") {
     result = await admin.rpc("zella_waitlist_offer_answer", { p_token: token, p_accept: body.action === "offer_accept" });
+  } else if (body.action === "attend_confirm" || body.action === "attend_cancel") {
+    result = await admin.rpc("zella_reschedule_attend", { p_token: token, p_action: body.action === "attend_confirm" ? "confirm" : "cancel" });
   } else if (body.action === "slots") {
     result = await admin.rpc("zella_reschedule_slots", { p_token: token, p_days: 14 });
   } else if (body.action === "confirm") {
