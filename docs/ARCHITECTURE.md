@@ -2192,6 +2192,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-08 | Calendar providers at launch | owner |
 | D-16 | Review requests: service or marketing | counsel |
 | D-17 | Which conversation outcomes count as "contacted" | owner |
+| D-19a | Business email address (§14.4): which customer emails use it (marketing too?); whether replies to it also reach the CRM (decides if inbound reply handling is needed beyond the fallback); which mailboxes (Gmail and Outlook only, or others); what happens at a mailbox's daily sending limit (fallback or hold); who adds the DNS records (business or Zella Voice team); all plans or some | owner |
 | D-22, D-26, D-28 | Engineering thresholds: dispatcher "stuck" count, reconciliation delay, calendar staleness | engineering |
 | D-24 | Minimum knowledge set before activation | owner |
 | D-29 | Waitlist ranking, offer expiry, broadcast mode | owner |
