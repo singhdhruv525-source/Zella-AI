@@ -258,6 +258,7 @@ Table `business_phone_numbers` (number in +1... form, optional Vapi phone number
 - A registered, active number always wins over anything in the call settings.
 - A paused number, or one belonging to a stopped business, never falls back (the tool then refuses to act).
 - Workflow lookups pass no fallback business ID: an unregistered number requires an existing trusted call. Active status alone does not establish an association.
+- A called number and a Vapi number id that belong to two different businesses give no business, and Zella Voice admins get an urgent `call_routing_conflict` alert (owner, 27 Nov 2026; `sql/zella_call_routing_conflict.sql`, built, not applied). The workflows need no change: no business already means the tool refuses to act.
 Businesses can read their own numbers; nobody can write from the browser.
 
 ## Work assignment (leads and callbacks)

@@ -199,6 +199,7 @@ authentication Zella Voice requires (see `docs/MEMORY.md`). Live assistants are 
 | Reports emergencies | Industry safety lines and an emergency path to the on-call person. | Built |
 | Transfers to a person | Only to numbers this business authorised, using the on-call rota after hours. A failed transfer becomes a callback. | Built |
 | Requests a follow-up | Creates a callback or task instead of promising something it can't do. | Built |
+| Never takes card or bank details | A Zella Voice rule for every business that no business can change: it never asks for, reads back or records card numbers, security codes or bank details. A caller who starts to give them is stopped politely: "Please don't share card or bank details with me. The business will send you a secure payment link, or a member of staff will follow up with you." It then offers a follow up request. The rule is the last part of the receptionist's instructions, after the business's own (owner, 27 Nov 2026: REQ-VOX-14, `AI-25`, `NN-9`). | Built, not applied (`sql/zella_no_card_details.sql`) |
 | Looks up an order (E-commerce) | Shopify order status with assurance levels: what can be said depends on how sure we are the caller is the customer. Lookups are limited per call and caller. | Built |
 | Checks who is calling before sharing or changing a booking | Appointment details only after the caller gives the name on the booking and the date, from the number it was made with. Cancelling or moving needs the booking's 6 character confirmation code, which is in every confirmation and reminder and on the booking in the CRM. Three failed checks in a call and it takes a message instead. A new email or phone for a known caller waits on the customer's page for the team to approve. | Built, not live (`sql/zella_caller_verification.sql` not applied) |
 | Screens spam | Risky callers are scored and screened before tools run. | Built |
@@ -226,6 +227,7 @@ add Spanish, contact Zella Voice support." and a link to Help and support (built
 |---|---|
 | Every tool call logged with arguments, answer and an idempotency key (a call delivered twice runs once) | Built |
 | Replayed or unsigned Vapi requests refused | Built |
+| A call whose number and Vapi phone ID belong to two different businesses is answered for neither: the caller hears "Sorry, we can't take your call right now. Please call again a little later." (or the platform's standby assistant, if one is set), nothing is read or saved for either business, and Zella Voice admins get one urgent alert, "A call matched two businesses and was not answered for either", per pair of phone number records (owner, 27 Nov 2026: refuse and alert, REQ-VOX-ISO-06) | Built, not applied (`sql/zella_call_routing_conflict.sql`) |
 | Staff can report a wrong answer and give the right one | Built |
 | Calls sampled for quality review | Built |
 | Evaluation cases per industry (`ai_eval_cases`) | Built |
