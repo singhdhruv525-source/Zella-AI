@@ -171,7 +171,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Encryption | Encryption in transit (HTTPS for the web application, the database service and voice provider webhooks) and encryption at rest |
 | Secrets | Held only in the database vault and function secrets; never in code, logs or tables |
 | Logging | No full telephone numbers, email addresses, message contents or transcripts in logs; masking where needed |
-| Payment card details | Card details that a caller speaks on a call, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. |
+| Payment card details | The AI Receptionist never asks for, reads back or records card or bank details, and stops a caller who starts to give them. Card details that a caller speaks on a call anyway, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. |
 | Entry points | Size limits, rate limits and authentication first at every public entry point; provider messages verified by signature, timestamp window and replay protection |
 | Storage and links | Private storage under each Customer's own path; files checked after upload; downloads by short lived signed links; customer links random, single purpose, expiring and stored only as hashes |
 | AI safeguards | Caller input treated as untrusted; the AI acts only through server checked tools that recheck the Customer and caller; no secrets or other Customers' data in prompts |
@@ -213,7 +213,7 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 
 | Provider | Purpose | Data it receives |
 |---|---|---|
-| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Stripe holds the card; Zella Voice never receives or stores full card numbers or security codes, and keeps only the card brand, last 4 digits and expiry, provided by Stripe, for billing notices |
+| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Stripe holds the card; Zella Voice never receives or stores the full card number or security code entered on Stripe's hosted pages, and keeps only the card brand, last 4 digits and expiry, provided by Stripe, for billing notices |
 | Google Fonts (Google) | Serves the typeface used by the web application | The visitor's network address and browser details when a page loads |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Verifying an Owner's identity | The Owner's identity documents and the check result |
 

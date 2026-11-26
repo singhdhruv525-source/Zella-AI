@@ -100,7 +100,7 @@ Zella Voice may update these Messaging Terms under section 22 of the Terms.
 
 ## 13. Before publishing
 
-This section is for the owner and counsel. Remove it before publishing. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared.
+This section is for the owner and counsel. Remove it before publishing. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared. For the Gmail wording in section 1.3, blocker 42 follows the recorded publish first path (counsel memo, owner decision 49): this document may be published before Google verification, with the Google connect options hidden until Google approves.
 
 Placeholders in this document:
 
