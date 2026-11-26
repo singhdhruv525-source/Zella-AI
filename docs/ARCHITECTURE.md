@@ -1347,7 +1347,10 @@ Everything Zella Voice itself sends to a business (owner, billing contacts, team
 **Senders (owner, 30 Oct 2026).** `support@zellavoice.com` is a real shared mailbox: replies people write to a
 business or a customer go out from support@ (billing@ and info@ are aliases of it). Automatic emails come from a
 no reply address, `Zella Voice <no-reply@zellavoice.com>` (billing ones as set in `docs/BILLING_EMAILS.md`), always
-with Reply-To support@, so a reply is never lost. The sender name customers see is always Zella Voice.
+with Reply-To support@, so a reply is never lost. The sender name a business sees on these emails is always Zella Voice.
+Emails a business sends to its own customers (reminders, confirmations, follow ups; owner, 26 Nov 2026) come from the
+same no reply address but show the business's name as the sender and carry the business's own email as Reply-To, so a
+customer's reply goes straight to the business (`zella_prepare_email`).
 
 **Billing emails (owner, 16 Nov 2026): build now, held.** The billing emails in `docs/BILLING_EMAILS.md` (invoices,
 receipts, renewal notices and the rest) are to be built now, with their tests (not built yet), and stay held: nothing queues or sends them
