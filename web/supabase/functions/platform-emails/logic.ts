@@ -24,6 +24,19 @@ export type Deps = {
 };
 export type Stats = { notifications: number; queued: number; queueFailed: number; sent: number; sendFailed: number; skippedSend: string | null };
 
+// Architecture §14 (owner, 30 Oct 2026): automatic emails come from "Zella Voice <no-reply@...>" and always carry
+// Reply-To support@, so a reply is never lost. The setting holds the bare address (the n8n senders add the business
+// name themselves), so the Zella Voice name is added here; a value that already has a name is kept as it is.
+export function senderAddress(from: string): string {
+  const f = from.trim();
+  return /<[^<>@\s]+@[^<>\s]+>$/.test(f) ? f : `Zella Voice <${f}>`;
+}
+const EMAIL = /^[^\s@<>",]+@[^\s@<>",]+\.[^\s@<>",]+$/;
+export function replyTo(supportEmail: string | null): string | null {
+  const s = (supportEmail ?? "").trim();
+  return EMAIL.test(s) ? s : null;
+}
+
 const arr = (v: unknown): Json[] => (Array.isArray(v) ? v.filter((x) => x && typeof x === "object") as Json[] : []);
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
@@ -72,7 +85,9 @@ export async function runOnce(d: Deps): Promise<Stats> {
   if (!d.canSend || !d.from) { st.skippedSend = !d.canSend ? "no_provider_key" : "no_sender_address"; return st; }
   const due = await d.rpc("zella_claim_platform_emails", { p_limit: 20 });
   for (const e of due.error ? [] : arr(due.data)) {
-    const body: Json = { from: d.from, to: [str(e.to_email)], subject: str(e.subject), html: str(e.html), text: str(e.text_body) };
+    const body: Json = { from: senderAddress(d.from), to: [str(e.to_email)], subject: str(e.subject), html: str(e.html), text: str(e.text_body) };
+    const reply = replyTo(d.supportEmail);
+    if (reply) body.reply_to = reply;
     if (Array.isArray(e.cc) && e.cc.length) body.cc = e.cc;
     let r: { ok: boolean; status: number; id?: string; error?: string };
     try { r = await d.send(body, `${str(e.business_id)}:${str(e.dedupe_key)}`); } catch { r = { ok: false, status: 0, error: "provider unreachable" }; }
