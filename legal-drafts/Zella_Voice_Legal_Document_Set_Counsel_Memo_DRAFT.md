@@ -90,6 +90,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 | Support replies in the app | Built, not applied |
 | Trust overview "Built, going live" items | Must be relabelled Live only once in production |
 | Contact hours in the recipient's time zone (Messaging Terms 4.2) | **Blocker for texts going live:** the text sender checks only marketing texts, only 8 a.m. to 9 p.m., and only in the Business's time zone; rulebook COM 3 requires the recipient's time zone when known and every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time). Marketing and automated texts must stay off until the sender enforces both the time zone basis and every window (Messaging Terms 4.3) |
+| HELP reply (Messaging Terms 7) | **Blocker for texts going live:** today the HELP reply is sent only when the number matches a known customer, and it has no contact method. It must be sent to every number, with the business name, a contact method and opt out instructions |
 | Card numbers never collected | Zella Voice never asks for them and payment is only through Stripe, but callers may speak card numbers and transcripts may store them; transcript redaction is not built (pending remediation) |
 | HIPAA BAA available | Offered only after BAAs with every vendor (D 49); not in place |
 
@@ -123,6 +124,10 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 26. Product fix before texts go live: make the text sender use the recipient's time zone when known (rulebook COM 3) and enforce every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time); confirm the hour ranges.
 27. Product fix: redact payment card numbers that callers speak from call transcripts (and summaries), and check existing transcripts.
 28. Trial start (checkout start in the payment design, or another point) and whether packs, automatic reload and pay as you go stay unavailable during the trial (Terms 9.2 and 9.7, Order Form section 4).
+29. Product fix before texts go live: send the HELP reply to every number that texts HELP, with the business name, a contact method and opt out instructions (Messaging Terms 7, Consent Pack 5.4).
+30. Custom trials: checkout supports only the platform's standard trial (5 days, 20 minutes, 5 texts, 5 emails); decide whether to build per business trials before offering one (Order Form section 4).
+31. First Billing Date without a trial: the start of the first paid period recorded at checkout (current code) or the Owner's first sign in (architecture REQ BIL 17); the Terms, Order Form and billing must use the same date.
+32. Objection period after an urgent Subprocessor replacement (DPA 8.3 and Annex 3).
 
 ## 6. Points for counsel
 
@@ -145,7 +150,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 17. **Team agreements:** state limits on invention assignment (California Labor Code section 2870 and similar statutes), worker classification for contractors, whistleblower and Defend Trade Secrets Act notices, and whether the founder assignment needs a contribution agreement under the operating agreement.
 18. **State breach notification** deadlines and regulator thresholds for the incident response plan.
 19. **Platform lead forms** (Google, Meta) as a source of TCPA consent for AI voice calls, and any one to one consent rule in force.
-20. **Record of processing activities** is needed only if the EU and UK sections are kept.
+20. **Record of processing activities.** Assess whether the GDPR or UK GDPR applies to Zella Voice (as controller or processor) and, if so, whether Article 30 requires a record or one of its exceptions applies. Removing the EU and UK sections from the documents does not by itself remove any duty.
 21. **Employee and applicant notice:** the California CPRA notice at collection for employees and applicants, and other state requirements.
 22. **Reseller agreement:** resale structure, anti bribery and marketing compliance, commission tail and non solicitation.
 23. **Trademark:** clearance search, filing basis and classes for ZELLA VOICE.
@@ -163,8 +168,8 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 6. Complete company basics: EIN, registered agent, operating agreement IP clause, bank account, founder IP assignments, and company ownership of domains and provider accounts.
 7. Get tax advice on sales tax for software (D 50).
 8. Engage counsel to review the set, starting with this memo.
-9. Turn on the measures the documents describe only after approval, and confirm point in time recovery, leaked password protection and encryption at rest.
-10. Complete 10DLC registration for each Customer that will text, and publish security.txt and the public pages.
+9. Turn on the measures the documents describe only with the owner's explicit approval for each specific action (NN 3), and confirm point in time recovery, leaked password protection and encryption at rest.
+10. Complete 10DLC registration for each Customer that will text. Publish security.txt and each public page only with the owner's explicit approval for that specific publication (NN 3); no document in this set is published by drafting or merging it.
 
 The details for each action are in the separate Owner Action Pack, in the second PDF, Zella_Voice_Owner_Actions_DRAFT_combined.pdf. Nothing in it has been filed, searched, bought or signed.
 
@@ -190,7 +195,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 18. The Consent Pack quotes message templates exactly, including one British spelling that the product should fix.
 19. The Messaging Terms keep the architecture's proposed consent wording; the Consent Pack's recommended wording adds message frequency and HELP, for counsel to choose.
 20. Requirement and decision identifiers from the source documents are written with spaces (for example D 49, PRV 4) to keep the no dashes rule.
-21. The Terms separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends, or without a trial the day the Owner first signs in). The Trial Period now starts when the Owner starts checkout during onboarding, after identity verification, matching the payment design (the Checkout Session sets the trial end 5 days after it is created). Nothing is charged during the trial: the setup fee goes on the first paid invoice, and packs, automatic reload and pay as you go are not available until the Subscription Term (a placeholder for the owner to confirm). Terms 9.2 and 9.7, the Order Form and the DPA duration ("any Trial Period") match.
+21. The Terms separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends or, without a trial, the start of the first paid period that Stripe records at checkout, which is what the checkout code stores; the architecture's REQ BIL 17 said the Owner's first sign in, so this is a placeholder for the owner). The Trial Period now starts when the Owner starts checkout during onboarding, after identity verification, matching the payment design (the Checkout Session sets the trial end 5 days after it is created). Nothing is charged during the trial: the setup fee goes on the first paid invoice, and packs, automatic reload and pay as you go are not available until the Subscription Term (a placeholder for the owner to confirm). Terms 9.2 and 9.7, the Order Form and the DPA duration ("any Trial Period") match. A custom trial in the Order Form is marked as not supported by checkout today; checkout uses only the platform's trial setting.
 22. Order Form special terms prevail only where they expressly override a named provision (Terms section 26 and Order Form section 7 use the same rule).
 23. Service credits for yearly Plans use the monthly equivalent: the yearly Fee divided by 12, then by 30, per affected day; the cap is the yearly Fee divided by 12.
 24. No payment card details may be entered anywhere in the Services; payment details go only on Stripe's hosted page (Terms 5.10 and Schedule 1).
@@ -231,6 +236,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 - **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]**
+- **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
 - **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
@@ -297,6 +303,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
+- **[URGENT REPLACEMENT OBJECTION PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
@@ -331,8 +338,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
 - **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 - **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
+- **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[SUPPORT CONTACT EMAIL]**
-- **[CONFIRM THE HELP REPLY INCLUDES THE BUSINESS NAME AND A CONTACT METHOD]**
 - **[LEGAL DOCUMENTS LOCATION]**
 
 ### Zella Voice Order Form (Template)
@@ -361,8 +368,9 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[PER MINUTE RATE OR NOT OFFERED]**
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
-- **[TRIAL VARIATION OR NONE]**
+- **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
+- **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
 - **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
@@ -376,6 +384,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
@@ -470,9 +479,10 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
+- **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**
 - **[OWNER DECISION: WHETHER TO PUBLISH A TRANSPARENCY REPORT]**
-- **[NEEDED ONLY IF THE EU AND UK SECTIONS ARE KEPT. COUNSEL TO CONFIRM]**
+- **[COUNSEL TO ASSESS WHETHER THE GDPR OR UK GDPR APPLIES TO ZELLA VOICE, AND IF SO WHETHER ARTICLE 30 REQUIRES THIS RECORD OR ONE OF ITS EXCEPTIONS APPLIES; KEEPING OR REMOVING THE EU AND UK SECTIONS DOES NOT DECIDE THIS]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[PRIVACY CONTACT EMAIL]**
@@ -503,8 +513,12 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]**
 - **[CONFIRM LINK DOMAIN]**
 - **[YES OR NO]**
+- **[ADD A SCREENSHOT OR PUBLIC URL OF THE MARKETING OPT IN]**
+- **[SAMPLE TEXT FOR THE "YOU MIGHT ALSO NEED" SUGGESTION; NO PLATFORM TEMPLATE IS DOCUMENTED]**
+- **[SAMPLE OFFER TEXT FROM THE CUSTOMER, IF OFFERS ARE SENT BY TEXT]**
 - **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]**
 - **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
+- **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
 - **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
 - **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**

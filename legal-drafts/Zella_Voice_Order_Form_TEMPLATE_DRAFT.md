@@ -46,13 +46,13 @@ Order date: **[ORDER DATE]**
 | Item | Entry |
 |---|---|
 | Trial included | **[YES OR NO]** |
-| Trial length and allowances | 5 days, 20 AI minutes, 5 texts and 5 emails, unless stated here: **[TRIAL VARIATION OR NONE]** |
+| Trial length and allowances | 5 days, 20 AI minutes, 5 texts and 5 emails. A different trial is **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]** |
 
-If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts 5 days from then, unless stated above. A payment method is saved on Stripe's hosted page at the start, nothing is charged during the Trial Period (any setup fee is charged with the first paid billing period), and packs, automatic reload and pay as you go are not available until the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 9.7). **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
+If a trial is included, the Trial Period starts when the Owner starts the payment checkout during onboarding and lasts 5 days from then. A payment method is saved on Stripe's hosted page at the start, nothing is charged during the Trial Period (any setup fee is charged with the first paid billing period), and packs, automatic reload and pay as you go are not available until the Subscription Term starts. The paid subscription starts automatically on the First Billing Date, the day the Trial Period ends, unless the Owner cancels before then (Terms, sections 9.2 and 9.7). **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
 
 ## 5. Term and renewal
 
-5.1 **Trial Period and Subscription Term.** Any Trial Period runs as stated in section 4 and is not part of the Subscription Term. The Subscription Term starts on the First Billing Date under section 9.3 of the Terms (the day the Trial Period ends or, without a trial, the day the Owner first signs in through the invitation) and consists of the first paid billing period above and each renewal period.
+5.1 **Trial Period and Subscription Term.** Any Trial Period runs as stated in section 4 and is not part of the Subscription Term. The Subscription Term starts on the First Billing Date under section 9.3 of the Terms (the day the Trial Period ends or, without a trial, the start of the first paid billing period as recorded by Stripe when the Owner completes checkout) and consists of the first paid billing period above and each renewal period. **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
 
 5.2 **Automatic renewal.** **THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR SUCCESSIVE BILLING PERIODS UNTIL CANCELED UNDER SECTION 10.2 OF THE TERMS.** Zella Voice sends a renewal notice 3 days before each renewal and, for yearly Plans, also 7 days before.
 
@@ -121,8 +121,9 @@ Placeholders in this document:
 - **[PER MINUTE RATE OR NOT OFFERED]**
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
-- **[TRIAL VARIATION OR NONE]**
+- **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
+- **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
 - **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**

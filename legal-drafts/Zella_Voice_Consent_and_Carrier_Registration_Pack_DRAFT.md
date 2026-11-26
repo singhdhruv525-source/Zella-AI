@@ -101,12 +101,28 @@ Inbound voicemail prompt (designed in the architecture; the voicemail feature is
 5. Waitlist opening: "Hi {first_name}, good news from {business}: a spot opened up on {date} at {time}.{offer_line} It goes to the first person who takes it. Reply STOP to opt out."
 6. Cancellation: "Hi {first_name}, your appointment with {business} has been cancelled. Reply here if you would like to book a new time. Reply STOP to opt out."
 
+### 5.3A Marketing campaign (only if the Customer runs marketing)
+
+Register a separate marketing campaign, or add marketing to the use case, only if the Customer collects prior express written consent for marketing under section 2.2 and keeps marketing consent separate from service consent. Marketing texts also stay off until the contact hours condition in Messaging Terms 4.3 is met, and marketing sending is switched on for the Customer.
+
+| Field | Entry |
+|---|---|
+| Use case | Marketing |
+| Description | {business} uses the Zella Voice platform to send occasional marketing texts, such as checking in with past customers who have not been in touch and suggesting a related service after a visit, only to people who separately agreed in writing to receive marketing texts from {business}. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out. |
+| Opt in flow | A separate, unticked marketing checkbox on {business}'s website or lead form, with the wording in section 2.2, recorded with the evidence in section 2.4. **[ADD A SCREENSHOT OR PUBLIC URL OF THE MARKETING OPT IN]** |
+
+Sample marketing messages:
+
+1. Reactivation (from the Services' template): "Hi {first_name}, it has been a while since we heard from you. Reply here if {business} can help. Reply STOP to opt out."
+2. Related service suggestion: **[SAMPLE TEXT FOR THE "YOU MIGHT ALSO NEED" SUGGESTION; NO PLATFORM TEMPLATE IS DOCUMENTED]**
+3. Offer: **[SAMPLE OFFER TEXT FROM THE CUSTOMER, IF OFFERS ARE SENT BY TEXT]**
+
 ### 5.4 Keyword replies
 
 | Keyword | Current behavior | Recommended registration text |
 |---|---|---|
 | STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) | Opt out is recorded immediately for both service and marketing texts. **No confirmation text is sent today.** | "{business}: You are unsubscribed and will receive no further messages. Reply START to resubscribe." **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]** |
-| HELP | Reply: "{business}: for help please contact us directly. Reply STOP to opt out." Sent only when the number matches a known customer. | "{business}: For help, call {business_number} or visit {business_website}. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out." **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]** |
+| HELP | Reply: "{business}: for help please contact us directly. Reply STOP to opt out." Sent only when the number matches a known customer. | "{business}: For help, call {business_number} or visit {business_website}. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out." **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]** **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]** |
 | START (and UNSTOP, YES) | Restores service texts after an opt out | "{business}: You are resubscribed to messages. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out, HELP for help." **[CONFIRM WHETHER A START CONFIRMATION IS SENT]** |
 
 ### 5.5 Other mismatches to resolve
@@ -140,8 +156,12 @@ Placeholders in this document:
 - **[ADD A SCREENSHOT OR PUBLIC URL OF THE OPT IN FORM]**
 - **[CONFIRM LINK DOMAIN]**
 - **[YES OR NO]**
+- **[ADD A SCREENSHOT OR PUBLIC URL OF THE MARKETING OPT IN]**
+- **[SAMPLE TEXT FOR THE "YOU MIGHT ALSO NEED" SUGGESTION; NO PLATFORM TEMPLATE IS DOCUMENTED]**
+- **[SAMPLE OFFER TEXT FROM THE CUSTOMER, IF OFFERS ARE SENT BY TEXT]**
 - **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]**
 - **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
+- **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
 - **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
 - **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**

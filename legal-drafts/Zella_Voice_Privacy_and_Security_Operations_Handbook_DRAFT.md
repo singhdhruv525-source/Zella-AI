@@ -85,7 +85,8 @@ B1.2 **Authorized Users and visitors (Account Data).** Zella Voice is the contro
 1. Record it in the request log at **[ACCOUNT DATA REQUEST LOG LOCATION]**.
 2. Verify the requester before acting:
    - **Authorized Users with an account:** through the account's sign in and, where needed, a fresh two step code.
-   - **Requesters without an account** (visitors to public pages, former Authorized Users, billing contacts and authorized agents): send a one time verification link or code to the email address on record, or the email address the requester gave when the data was collected, and ask for matching details that Zella Voice already holds (for example the business name, the approximate dates of contact or the last digits of an invoice number). Ask for no more information than is needed, and never for new sensitive data. For a request to delete or to see specific pieces of information, require a higher degree of matching. **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
+   - **Requesters without an account** (visitors to public pages, former Authorized Users, and billing contacts): send a one time verification link or code to the email address on record, or the email address the requester gave when the data was collected, and ask for matching details that Zella Voice already holds (for example the business name, the approximate dates of contact or the last digits of an invoice number). Ask for no more information than is needed, and never for new sensitive data. For a request to delete or to see specific pieces of information, require a higher degree of matching. **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
+   - **Authorized agents:** verify the agent's own identity by a reasonable method that does not depend on the principal's email (for example a one time code to the agent's own email or telephone, plus matching details of the agent), require a signed authorization from the principal or a valid power of attorney, and, where the law allows, confirm the request directly with the person the data is about. **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
    - If identity cannot be verified, tell the requester why and what is needed, and record the outcome.
 3. Search Account Data across the account, billing records, identity verification records and support records.
 4. Respond within 30 days, using the tools above where they apply. Keep only what the law requires.
@@ -114,7 +115,7 @@ C1.2 Zella Voice redirects requests for Customer Data to the Customer wherever p
 
 ## Part D. Record of Processing Activities
 
-**[NEEDED ONLY IF THE EU AND UK SECTIONS ARE KEPT. COUNSEL TO CONFIRM]**
+**[COUNSEL TO ASSESS WHETHER THE GDPR OR UK GDPR APPLIES TO ZELLA VOICE, AND IF SO WHETHER ARTICLE 30 REQUIRES THIS RECORD OR ONE OF ITS EXCEPTIONS APPLIES; KEEPING OR REMOVING THE EU AND UK SECTIONS DOES NOT DECIDE THIS]**
 
 ### D1. As controller (Account Data)
 
@@ -206,9 +207,10 @@ Placeholders in this document:
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[ACCOUNT DATA REQUEST LOG LOCATION]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD]**
+- **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**
 - **[OWNER DECISION: WHETHER TO PUBLISH A TRANSPARENCY REPORT]**
-- **[NEEDED ONLY IF THE EU AND UK SECTIONS ARE KEPT. COUNSEL TO CONFIRM]**
+- **[COUNSEL TO ASSESS WHETHER THE GDPR OR UK GDPR APPLIES TO ZELLA VOICE, AND IF SO WHETHER ARTICLE 30 REQUIRES THIS RECORD OR ONE OF ITS EXCEPTIONS APPLIES; KEEPING OR REMOVING THE EU AND UK SECTIONS DOES NOT DECIDE THIS]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[PRIVACY CONTACT EMAIL]**

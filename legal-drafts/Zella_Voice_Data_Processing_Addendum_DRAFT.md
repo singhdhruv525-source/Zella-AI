@@ -56,7 +56,7 @@ As Customer's service provider, Zella Voice will not: (a) sell or share Customer
 
 8.2 **Notice of changes.** Zella Voice will notify Owners by email or in the Services at least **[SUBPROCESSOR CHANGE NOTICE PERIOD]** before a new or replacement Subprocessor begins processing Customer Personal Data, except where an urgent replacement is needed to keep the Services running or secure, in which case Zella Voice will notify Customer as soon as practicable.
 
-8.3 **Objection.** Customer may object on reasonable data protection grounds within the notice period. The parties will discuss the objection in good faith. If they cannot resolve it within 30 days, Customer may terminate the affected Services by notice and receive a refund of prepaid Fees for the unused part of the paid period.
+8.3 **Objection.** Customer may object on reasonable data protection grounds within the notice period or, after an urgent replacement under section 8.2, within **[URGENT REPLACEMENT OBJECTION PERIOD]** days after Zella Voice's notice of it. The remedies below apply to both. The parties will discuss the objection in good faith. If they cannot resolve it within 30 days, Customer may terminate the affected Services by notice and receive a refund of prepaid Fees for the unused part of the paid period.
 
 8.4 **Flow down and liability.** Zella Voice will impose on each Subprocessor, by written contract, data protection obligations no less protective than those in this DPA, and remains liable to Customer for the performance of each Subprocessor's obligations.
 
@@ -224,7 +224,7 @@ A3.5.1 Zella Voice will update this list, which is also kept at **[SUBPROCESSOR 
 
 A3.5.2 A Customer may object on reasonable data protection grounds within that period, as described in section 8.
 
-A3.5.3 Zella Voice may replace a Subprocessor with less notice where needed to keep the Services running or secure, and will then give notice as soon as practicable.
+A3.5.3 Zella Voice may replace a Subprocessor with less notice where needed to keep the Services running or secure, and will then give notice as soon as practicable. A Customer may object within **[URGENT REPLACEMENT OBJECTION PERIOD]** days after that notice, with the remedies in section 8.3.
 
 ## Schedule 1. Business Associate Agreement (optional)
 
@@ -340,6 +340,7 @@ Placeholders in this document:
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
+- **[URGENT REPLACEMENT OBJECTION PERIOD]**
 - **[BREACH NOTIFICATION HOURS]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**

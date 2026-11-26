@@ -51,7 +51,8 @@ Last updated: **[LAST UPDATED DATE]**
 | Secrets held only in the database vault and function secrets, never in code, logs or tables | Live |
 | Logs hold no full telephone numbers, email addresses, message contents or transcripts | Live |
 | Customer Data is never used to train AI models | Live |
-| Export and erasure tools for each business | Live |
+| CSV export of customers and call history, and erasure of a customer's records in Zella Voice | Live |
+| Whole business export, and deletion of erased calls at the voice provider | Built, going live **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
 | Scheduled automatic deletion of recordings and transcripts 90 days after the call, and deletion of copies at the voice provider **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** | Built, going live (not yet switched on) |
 | Deletion after cancellation, after **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, and account deletion after a 30 day grace period | Built, going live |
 | Removal of payment card numbers that callers speak on calls from call transcripts | Not built; pending remediation |
@@ -70,7 +71,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 ## 7. Availability
 
-7.1 The status page at /status shows each part of the Services and public incidents. When the AI Receptionist is paused or unavailable, calls go to the Customer's Fallback Number. Every feature that reaches the outside world has its own switch so that it can be turned off quickly.
+7.1 The status page at /status shows each part of the Services and public incidents. When the AI Receptionist is paused or unavailable, calls go to the Customer's Fallback Number. Every feature that reaches the outside world has its own switch so that it can be turned off quickly. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 7.2 Support and service credits are described in Schedule 4 of the Zella Voice Terms of Service.
 
@@ -162,6 +163,7 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
+- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
