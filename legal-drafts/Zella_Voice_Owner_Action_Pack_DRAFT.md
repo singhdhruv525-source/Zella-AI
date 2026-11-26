@@ -40,7 +40,9 @@ Counsel should conform each identification to the USPTO Trademark ID Manual word
 
 - A screenshot of the live sign up or sales page, or the sign in page, that shows ZELLA VOICE next to a description of the service and a way to buy or sign up, with the page address and the date visible.
 - The mark must be shown as used for the services, not only as a company name or in a domain.
-- Mockups, drafts and pages not available to the public are not acceptable. A use based filing or statement of use therefore needs a live public page, which is published only with the owner's explicit approval for that specific publication (NN 3).
+- Mockups, drafts and pages not available to the public are not acceptable.
+- A live public web page is one acceptable specimen, but not the only one. Counsel should assess whether other qualifying material, such as advertising or brochures for the services that show the mark and were actually used in commerce, is a better specimen. **[COUNSEL TO CHOOSE THE SPECIMEN TYPE FOR EACH CLASS]**
+- Publishing any live page, for a specimen or otherwise, needs the owner's explicit approval for that specific publication (NN 3).
 
 ### 1.5 Clearance search checklist
 
@@ -112,7 +114,7 @@ Enterprise customers may require certificates of insurance naming them as certif
 | Number of personal records held | **[RECORD COUNT]** |
 | Sensitive data | Call transcripts. Call recording is intended to be off by default; the live Vapi recording setting is not yet confirmed **[OWNER TO CONFIRM THE LIVE VAPI RECORDING SETTING BEFORE ANSWERING]**. Regulated Industry data is intended only after legal review. Zella Voice never collects card numbers on purpose, and payment is only through Stripe (not yet switched on). However, callers may speak card numbers on a call, and call transcripts may currently store them; transcript redaction is pending remediation. **[OWNER TO CONFIRM TRANSCRIPT REDACTION STATUS BEFORE ANSWERING]** |
 | Multi factor authentication | Built but not yet live for Zella Voice administrators and for Owners at onboarding. **[CONFIRM WHAT IS LIVE AT THE DATE OF THE APPLICATION]** |
-| Encryption | In transit (connections to the database service use HTTPS); at rest **[CONFIRM WITH THE HOSTING PROVIDER]** |
+| Encryption | In transit: connections from the web application to the database service use HTTPS (the web application refuses a database address that is not HTTPS). Voice provider webhooks: the assistant configuration check requires the Vapi server address to be an HTTPS address (sql/zella_voice_assistant.sql flags any other value), but the live value is not confirmed **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**. Other connections are not covered by this answer. At rest: **[CONFIRM WITH THE HOSTING PROVIDER]** |
 | Backups | **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** |
 | Incident response plan | Drafted for review (Operations Handbook, Part A); not yet adopted or tested **[CONFIRM STATUS AT THE DATE OF THE APPLICATION]** |
 | Vendor management | Provider list drafted (DPA Annex 3); vendor data processing agreements not yet signed or confirmed (section 4 of this pack) **[CONFIRM STATUS AT THE DATE OF THE APPLICATION]** |
@@ -197,6 +199,7 @@ Placeholders in this document:
 - **[COUNSEL QUESTION: WHETHER TO FILE IN CLASS 35]**
 - **[COUNSEL QUESTION: WHETHER CLASS 38 IS NEEDED, GIVEN THAT CARRIERS PROVIDE THE TELECOMMUNICATIONS]**
 - **[COUNSEL QUESTION: CLASS 9]**
+- **[COUNSEL TO CHOOSE THE SPECIMEN TYPE FOR EACH CLASS]**
 - **[TO BE COMPLETED BY COUNSEL]**
 - **[CHECK CURRENT USPTO FEES PER CLASS ON THE USPTO WEBSITE]**
 - **[COUNSEL FEE ESTIMATE]**
@@ -217,6 +220,7 @@ Placeholders in this document:
 - **[OWNER TO CONFIRM THE LIVE VAPI RECORDING SETTING BEFORE ANSWERING]**
 - **[OWNER TO CONFIRM TRANSCRIPT REDACTION STATUS BEFORE ANSWERING]**
 - **[CONFIRM WHAT IS LIVE AT THE DATE OF THE APPLICATION]**
+- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
 - **[CONFIRM WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[CONFIRM STATUS AT THE DATE OF THE APPLICATION]**

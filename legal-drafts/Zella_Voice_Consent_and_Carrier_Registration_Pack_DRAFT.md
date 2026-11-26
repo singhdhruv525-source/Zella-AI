@@ -11,7 +11,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 1.2 Wording in this pack is of two kinds, labeled where it appears. **Product text** is quoted exactly from the Services' own templates or code (the sample messages in section 5.3, the reactivation sample in 5.3A, the default greeting, the recording line, and the current replies in the "Current behavior" column of section 5.4). **Proposed text** is drafted for the owner and counsel and is not sent by the Services today (the consent checkboxes in section 2, the suggested consent line in section 3.4, recording options B and C in section 4, and every reply in the "Recommended registration text" column of section 5.4, including the STOP and START confirmations). Proposed text must not be presented to carriers as current behavior until the product sends it. Placeholders in curly braces, such as {business} and {first_name}, are filled in by the Services. Bold bracketed placeholders are for the owner or counsel.
 
-1.3 Texts to a Customer's End Users start only after the Customer's registration is approved (Terms, section 5.5). Texts and emails are Live Features and are off until switched on.
+1.3 Texts to a Customer's End Users must not start until the Customer's registration is approved (Terms, section 5.5). **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]** Texts and emails are Live Features and are off until switched on.
 
 ## 2. Web form and lead capture consent
 
@@ -130,6 +130,7 @@ Sample marketing messages:
 - One reminder template still says "Reply C to confirm or R to reschedule", but C and R are no longer treated as keywords; customers change a time with the reschedule link. **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
 - Contact hours: the rulebook (COM 3) and Messaging Terms 4.2 require the recipient's local time zone when known, otherwise the Business's, and these windows: immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time. Today the text sender checks only marketing texts, only before 8 a.m. and from 9 p.m., and only in the Business's time zone; follow ups are scheduled in the Business's time zone. Activation requires the sender to enforce both the time zone basis and every window. **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]** Registration samples and opt in text must not promise hours the sender does not enforce.
 
+- Frequency and call controls: the senders do not yet enforce a frequency limit, and automatic callbacks do not yet check the do not call flag or call opt outs (only the do not contact flag). Registration text must not claim either control until the product enforces it (Terms Schedule 2, section 5.2).
 - The cancellation template uses British spelling ("cancelled"), quoted exactly above; the rulebook asks for American English. **[UPDATE THE TEMPLATE SPELLING]**
 
 ## 6. Before publishing
@@ -141,6 +142,7 @@ Placeholders in this document:
 <!-- PLACEHOLDERS START -->
 
 - **[LAST UPDATED DATE]**
+- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
 - **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**

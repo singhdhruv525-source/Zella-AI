@@ -39,14 +39,16 @@ Last updated: **[LAST UPDATED DATE]**
 | Measure | Status |
 |---|---|
 | Append only audit log of every privileged action, with sensitive data and secrets redacted | Live |
-| Two person approval for risky actions such as exports, erasure and role changes | Live |
+| Second owner or admin approval for erasing a customer, where the business has two or more owners or admins | Live |
+| Approval by a second Zella Voice owner for a whole business export | Built, going live **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
 | Security log for each business showing who did what | Live |
 
 ## 5. Data protection
 
 | Measure | Status |
 |---|---|
-| Encryption in transit | Live |
+| Encryption in transit for connections from the web application to the database service (HTTPS required by the web application) | Live |
+| Encryption in transit for voice provider webhooks (HTTPS required by the assistant configuration check) | **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]** |
 | Encryption at rest | **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** |
 | Secrets held only in the database vault and function secrets, never in code, logs or tables | Live |
 | Logs hold no full telephone numbers, email addresses, message contents or transcripts | Live |
@@ -162,8 +164,9 @@ Placeholders in this document:
 - **[EFFECTIVE DATE]**
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
-- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
+- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**

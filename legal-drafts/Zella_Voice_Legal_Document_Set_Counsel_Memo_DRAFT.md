@@ -94,6 +94,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 | Contact hours in the recipient's time zone (Messaging Terms 4.2) | **Blocker for texts going live:** the text sender checks only marketing texts, only 8 a.m. to 9 p.m., and only in the Business's time zone; rulebook COM 3 requires the recipient's time zone when known and every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time). Marketing and automated texts must stay off until the sender enforces both the time zone basis and every window (Messaging Terms 4.3) |
 | HELP reply (Messaging Terms 7) | **Blocker for texts going live:** today the HELP reply is sent only when the number matches a known customer, and it has no contact method. It must be sent to every number, with the business name, a contact method and opt out instructions |
 | Legal holds respected on erasure | Not enforced: customer erasure does not check holds today; staff check manually (Handbook B2 step 5) until the product fix |
+| Frequency limits and call opt out checks | Not enforced: no sender counts earlier messages; callbacks check only the do not contact flag; see Terms Schedule 2, section 5.2 |
 | Card numbers never collected | Zella Voice never asks for them and payment is only through Stripe, but callers may speak card numbers and transcripts may store them; transcript redaction is not built (pending remediation) |
 | HIPAA BAA available | Offered only after BAAs with every vendor (D 49); not in place |
 
@@ -138,6 +139,8 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 37. Confirm the daily data rights reminder job and the incident controls (Handbook A1.2) are switched on before relying on them.
 38. Product fix before automated texts go live: require a recorded consent (or a stated consent basis for leads added by hand or imported) before any automated service text, not only a recorded opt in for marketing; today zella_can_contact blocks only opt outs and do not contact flags for service texts.
 39. Name the legal hold control owner who rechecks holds before each erasure and completes held erasure requests after a hold is released (Handbook B2 steps 5 and 9).
+40. Product fixes before calls or automated texts go live: enforce a per person frequency limit at sending (the senders do not count earlier messages today); make automatic callbacks check the do not call flag and call opt outs, not only the do not contact flag (zella_claim_callbacks); hold calls to the Business's opening hours and the recipient's time zone as COM 3 requires (today 9 a.m. to 7 p.m. in the Business's time zone); and let the AI Receptionist record a caller's "don't call me".
+41. Counsel choice on exports of regulated industry transcripts (Privacy Policy section 11.1 and the cancellation row in section 10).
 
 ## 6. Points for counsel
 
@@ -246,6 +249,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[SUPPORT CONTACT EMAIL]**
 - **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
+- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
+- **[ENFORCEMENT STATUS VERIFIED IN THE CODE; CONFIRM AGAIN BEFORE CALLS OR TEXTS GO LIVE, AND UPDATE THIS TEXT WHEN THE PRODUCT CHANGES]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
 - **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
@@ -270,6 +275,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LEGAL NOTICES EMAIL OR ADDRESS]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
 - **[CONTENT COMPLAINTS CONTACT]**
+- **[NOT YET ENFORCED: THE SENDERS DO NOT COUNT EARLIER MESSAGES OR CALLS TO ENFORCE A FREQUENCY LIMIT; ONLY DUPLICATE PROTECTION FOR THE SAME MESSAGE AND THE ATTEMPT LIMIT ON EACH CALLBACK EXIST]**
 - **[MAXIMUM CALL LENGTH]**
 - **[COMPLAINT ACKNOWLEDGMENT PERIOD]**
 - **[DMCA DESIGNATED AGENT NAME, ADDRESS, PHONE AND EMAIL]**
@@ -297,12 +303,14 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
 - **[UK REPRESENTATIVE, IF REQUIRED]**
 - **[GRIEVANCE OFFICER NAME AND CONTACT]**
+- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[CONFIRM WHETHER THE HOSTING PROVIDER SETS ANY COOKIES]**
@@ -333,6 +341,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[COUNSEL TO CONFIRM THE LEGAL BASIS UNDER THE DPDP ACT FOR KEEPING CONSENT AND OPT OUT HISTORY AFTER ERASURE]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[DPO OR PRIVACY CONTACT]**
+- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[MONITORING PROVIDER NAME]**
@@ -355,14 +364,17 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
+- **[NOT YET ENFORCED: THE SENDERS DO NOT COUNT EARLIER MESSAGES OR CALLS TO ENFORCE A FREQUENCY LIMIT; ONLY DUPLICATE PROTECTION FOR THE SAME MESSAGE AND THE ATTEMPT LIMIT ON EACH CALLBACK EXIST]**
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
 - **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 - **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
+- **[ENFORCEMENT STATUS VERIFIED IN THE CODE; CONFIRM AGAIN BEFORE CALLS OR TEXTS GO LIVE, AND UPDATE THIS TEXT WHEN THE PRODUCT CHANGES]**
 - **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
 - **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
+- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
 
 ### Zella Voice Order Form (Template)
 
@@ -406,8 +418,9 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[EFFECTIVE DATE]**
 - **[LAST UPDATED DATE]**
 - **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
-- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
+- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
@@ -527,6 +540,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 ### Zella Voice Consent and Carrier Registration Pack
 
 - **[LAST UPDATED DATE]**
+- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
 - **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**

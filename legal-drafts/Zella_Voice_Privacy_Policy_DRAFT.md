@@ -105,9 +105,9 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 ## 7. Messages, consent and opting out
 
-7.1 Before every message, the Services check opt outs and do not contact flags, a recorded opt in for marketing messages (service messages are not yet checked for a recorded consent), contact hours in the recipient's time zone when known, otherwise the Customer's (Zella Voice Messaging Terms, sections 4.2 and 4.3; marketing and automated texts are not switched on until the sender enforces this), frequency limits and duplicates. Consent is recorded with when and how it was given.
+7.1 Before every text, the Services check opt outs and the do not contact and do not text flags, a recorded opt in for marketing messages (service messages are not yet checked for a recorded consent), and duplicates. Contact hours and frequency limits are not yet enforced for service texts (Zella Voice Messaging Terms, sections 4.1 to 4.3; marketing and automated texts are not switched on until the sender enforces contact hours). Consent is recorded with when and how it was given.
 
-7.2 Reply **STOP** to a text to stop texts from that Customer, use the unsubscribe link in a marketing email, or say "don't call me" to stop calls. Opt outs take effect immediately for that Customer. We keep the opt out record after other data is erased so that it keeps working. The Zella Voice Messaging Terms give more detail.
+7.2 Reply **STOP** to a text to stop texts from that Customer, or use the unsubscribe link in a marketing email; these take effect immediately for that Customer. To stop calls, tell the Customer "don't call me"; it takes effect once the Customer records it (Zella Voice Messaging Terms, section 6.4). We keep the opt out record after other data is erased so that it keeps working. The Zella Voice Messaging Terms give more detail.
 
 ## 8. Disclosure to service providers
 
@@ -152,15 +152,15 @@ We keep Personal Data only as long as needed for the purposes in section 4. The 
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
 | Other Customer Data and Account Data | While the account is active |
-| After a Customer cancels | Except as below (consent and opt out history, audit and security logs, and data under a legal hold), data still held is available for export for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window |
+| After a Customer cancels | Except as below (consent and opt out history, audit and security logs, and data under a legal hold), data still held is available for export, through the CSV exports and the whole business export described in section 11.1 and with the same exclusions (recording links, and transcripts of Customers in Regulated Industries, are not exported), for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window |
 | Telephone numbers of a canceled Customer | Released 30 days after cancellation unless ported out |
 | Consent and opt out records | Kept after erasure so that opt outs continue to work |
 
 ## 11. Export, erasure and account deletion
 
-11.1 **Export.** Owners can export customers and call history as CSV at any time and can request a whole business export, downloadable for 7 days. Recording links, and transcripts of Customers in Regulated Industries, are left out of that export. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.1 **Export.** Owners, admins and managers can export customers and call history as CSV files at any time; the call history file holds call details and outcomes but no transcripts, summaries or recordings. The Owner can also request a whole business export of all records and files, downloadable for 7 days; recording links, and transcripts of Customers in Regulated Industries, are left out of the whole business export. **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]** **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
-11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**. Erasure needs a second person's approval at the Customer. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**. Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and a request to delete the copies held by Vapi is sent; Vapi deletes them where technically possible. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, and data under a legal hold is kept until the hold is released. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
@@ -194,7 +194,7 @@ People in other places may have similar rights. Contact us and we will respond a
 
 ## 13. Security
 
-13.1 Every Customer's data is kept separate by row level security on every table and server checks of each person's membership and role. Access follows the role. Every Zella Voice staff member uses two step sign in. Risky actions need a second confirmation, and privileged actions are recorded in an append only audit log. Data travels over encrypted connections. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** Secrets are kept only in secure stores. Files are kept in private storage and checked after upload, and private links open one item only and expire. Backups allow point in time recovery. **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** Annex 2 of the DPA lists the measures in full. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+13.1 Every Customer's data is kept separate by row level security on every table and server checks of each person's membership and role. Access follows the role. Every Zella Voice staff member uses two step sign in. Erasing a customer needs a second owner's or admin's approval where the Customer has two or more, and privileged actions are recorded in an append only audit log. Connections from the web application to our database service are encrypted (HTTPS), and voice provider webhooks are configured to use HTTPS addresses **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** Secrets are kept only in secure stores. Files are kept in private storage and checked after upload, and private links open one item only and expire. Backups allow point in time recovery. **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** Annex 2 of the DPA lists the measures in full. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 
 13.2 No system is completely secure. If a security incident affects Personal Data, we will notify affected Customers and, where the law requires, individuals and authorities.
 
@@ -283,12 +283,14 @@ Placeholders in this document:
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
 - **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
 - **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
 - **[UK REPRESENTATIVE, IF REQUIRED]**
 - **[GRIEVANCE OFFICER NAME AND CONTACT]**
+- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
 - **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
 - **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[CONFIRM WHETHER THE HOSTING PROVIDER SETS ANY COOKIES]**
