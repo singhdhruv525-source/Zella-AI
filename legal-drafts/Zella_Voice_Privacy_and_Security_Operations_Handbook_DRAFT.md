@@ -3,6 +3,8 @@
 > **Draft for legal review. Not legal advice. Have a qualified lawyer review before publishing.**
 > Version 0.2 (draft). Internal; not for publication. Part A Incident Response Plan; Part B Data Subject Request Procedure; Part C Law Enforcement and Legal Request Policy; Part D Record of Processing Activities; Part E Employee and Applicant Privacy Notice (to be given to staff and applicants).
 
+These procedures take effect at launch. Zella Voice has not launched yet; until then, use them to rehearse and test, and treat any step that depends on a control listed as a launch blocker in section 4 of the counsel memo as manual.
+
 Handbook owner: **[HANDBOOK OWNER ROLE]**
 Last reviewed: **[LAST REVIEWED DATE]**
 

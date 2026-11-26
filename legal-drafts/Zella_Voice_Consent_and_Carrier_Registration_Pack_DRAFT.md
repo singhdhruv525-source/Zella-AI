@@ -9,19 +9,19 @@ Last updated: **[LAST UPDATED DATE]**
 
 1.1 This pack gives ready wording for the places where the Services collect consent or make disclosures, and the text needed to register a Customer's brand and campaign for application to person texting (10DLC). Capitalized terms have the meanings given in section 2 of the Zella Voice Terms of Service ("Terms"). The Zella Voice Messaging Terms are the program terms that this pack points to.
 
-1.2 Wording in this pack is of two kinds, labeled where it appears. **Product text** is quoted exactly from the Services' own templates or code (the sample messages in section 5.3, the reactivation sample in 5.3A, the default greeting, the recording line, and the current replies in the "Current behavior" column of section 5.4). **Proposed text** is drafted for the owner and counsel and is not sent by the Services today (the consent checkboxes in section 2, the suggested consent line in section 3.4, recording options B and C in section 4, and every reply in the "Recommended registration text" column of section 5.4, including the STOP and START confirmations). Proposed text must not be presented to carriers as current behavior until the product sends it. Placeholders in curly braces, such as {business} and {first_name}, are filled in by the Services. Bold bracketed placeholders are for the owner or counsel.
+1.2 Message templates quoted here are the Services' own templates. Placeholders in curly braces, such as {business} and {first_name}, are filled in by the Services. Bold bracketed placeholders are for the Customer, the owner or counsel to complete.
 
-1.3 Texts to a Customer's End Users must not start until the Customer's registration is approved (Terms, section 5.5). **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]** Texts and emails are Live Features and are off until switched on.
+1.3 Texts to a Customer's End Users start only after the Customer's registration is approved (Terms, section 5.5).
 
 ## 2. Web form and lead capture consent
 
-### 2.1 Service messages (proposed text; required for automated calls and texts about an enquiry)
+### 2.1 Service messages (required for automated calls and texts about an enquiry)
 
 Unticked checkbox, shown next to the telephone number field:
 
 "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out, HELP for help. See our Messaging Terms and Privacy Policy." **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 
-### 2.2 Marketing messages (proposed text; separate, optional)
+### 2.2 Marketing messages (separate, optional)
 
 A second unticked checkbox, never combined with the first:
 
@@ -33,7 +33,7 @@ Every consent or opt out is stored in an append only consent history for the Cus
 
 ### 2.4 Evidence kept for each source
 
-The evidence for each source below is what the architecture specifies (its consent capture design, proposed for counsel review). **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
+The Services keep this evidence for each source:
 
 | Source | Consent basis | Evidence kept |
 |---|---|---|
@@ -41,32 +41,32 @@ The evidence for each source below is what the architecture specifies (its conse
 | Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier and the disclosure version from the source |
 | Inbound callers (verbal) | The caller asks to be called or texted back, or agrees when the AI Receptionist asks before any confirmation text is sent | The call identifier, the time and the caller's answer. No form, text version or checkbox applies |
 | Missed calls | The caller called the business; one missed call text and the callback respond to that call. **[COUNSEL TO CONFIRM]** | The call identifier |
-| Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person must not be called or texted automatically. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]** | The staff member, the time and the basis chosen |
+| Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically | The staff member, the time and the basis chosen |
 | Marketing (any source) | A separate, explicit opt in for each channel | As for the source through which it was given |
 
 ## 3. In call AI disclosure
 
-3.1 **Default greeting (product text):** "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"
+3.1 **Default greeting:** "Thank you for calling {business}. I'm the AI receptionist. How can I help you today?"
 
-3.2 **Rule:** a Customer may change the greeting, but the AI disclosure cannot be removed; where a custom greeting leaves it out, the disclosure is added in the caller's language. (Built, going live.)
+3.2 **Rule:** a Customer may change the greeting, but the AI disclosure cannot be removed; where a custom greeting leaves it out, the disclosure is added in the caller's language.
 
 3.3 **If asked whether it is a person:** the AI Receptionist says it is an AI assistant.
 
-3.4 **Consent for confirmation texts during a call (proposed text):** "Would you like me to text you a confirmation at this number? Message and data rates may apply, and you can reply STOP at any time." **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
+3.4 **Consent for confirmation texts during a call:** "Would you like me to text you a confirmation at this number? Message and data rates may apply, and you can reply STOP at any time."
 
 ## 4. Recording disclosure options
 
-Call recording is intended to stay off until legal review. **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]** If it is turned on, choose one option per Customer, with counsel's approval:
+Call recording is off by default. If a Customer turns it on, choose one option for that Customer, with counsel's approval:
 
 | Option | Wording | Notes |
 |---|---|---|
-| A. Notice (product text, built, not yet live) | "This call is recorded." | Notice only. May not be enough in states that require the consent of all parties |
-| B. Notice with implied consent (proposed text) | "This call is recorded. By staying on the line, you agree to the recording." | Counsel to confirm for each state where callers are located |
-| C. Notice followed by an active consent question (proposed text) | "This call is recorded." (the required notice, which cannot be removed under Terms Schedule 2, section 4.2, and Terms section 5.3), followed by: "Is that okay with you? If not, I can continue without recording." If the caller says no, the call continues without recording | Strongest; needs a product change so that a "no" turns recording off |
+| A. Notice | "This call is recorded." | Notice only. May not be enough in states that require the consent of all parties |
+| B. Notice with implied consent | "This call is recorded. By staying on the line, you agree to the recording." | Counsel to confirm for each state where callers are located |
+| C. Notice followed by an active consent question | "This call is recorded." (the required notice, which cannot be removed under Terms Schedule 2, section 4.2, and Terms section 5.3), followed by: "Is that okay with you? If not, I can continue without recording." If the caller says no, the call continues without recording | Strongest; needs a product change so that a "no" turns recording off |
 
 **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 
-Inbound voicemail prompt (proposed text from the architecture; the voicemail feature is not yet available): "Please leave your message after the tone. It will be recorded and passed to the team." A voicemail is the caller's own recorded message and is separate from call recording.
+Voicemail prompt: "Please leave your message after the tone. It will be recorded and passed to the team." A voicemail is the caller's own recorded message and is separate from call recording.
 
 ## 5. 10DLC brand and campaign registration text
 
@@ -99,11 +99,11 @@ Inbound voicemail prompt (proposed text from the architecture; the voicemail fea
 3. Missed call: "Hi, this is {business}. We missed your call. Reply here and we will get back to you. Reply STOP to opt out."
 4. Lead acknowledgment: "Hi {first_name}, thanks for getting in touch with {business}. We will be in contact shortly. Reply STOP to opt out."
 5. Waitlist opening: "Hi {first_name}, good news from {business}: a spot opened up on {date} at {time}.{offer_line} It goes to the first person who takes it. Reply STOP to opt out."
-6. Cancellation: "Hi {first_name}, your appointment with {business} has been cancelled. Reply here if you would like to book a new time. Reply STOP to opt out."
+6. Cancellation: "Hi {first_name}, your appointment with {business} has been canceled. Reply here if you would like to book a new time. Reply STOP to opt out."
 
 ### 5.3A Marketing campaign (only if the Customer runs marketing)
 
-Register a separate marketing campaign, or add marketing to the use case, only if the Customer collects prior express written consent for marketing under section 2.2 and keeps marketing consent separate from service consent. Marketing texts also stay off until the contact hours condition in Messaging Terms 4.3 is met, and marketing sending is switched on for the Customer.
+Register a separate marketing campaign, or add marketing to the use case, only if the Customer collects prior express written consent for marketing under section 2.2 and keeps marketing consent separate from service consent. Marketing texts are sent only within the contact hours in section 4.2 of the Zella Voice Messaging Terms, and only once marketing sending is switched on for the Customer.
 
 | Field | Entry |
 |---|---|
@@ -114,43 +114,30 @@ Register a separate marketing campaign, or add marketing to the use case, only i
 Sample marketing messages:
 
 1. Reactivation (from the Services' template): "Hi {first_name}, it has been a while since we heard from you. Reply here if {business} can help. Reply STOP to opt out."
-2. Related service suggestion: **[SAMPLE TEXT FOR THE "YOU MIGHT ALSO NEED" SUGGESTION; NO PLATFORM TEMPLATE IS DOCUMENTED]**
+2. Related service suggestion: **[SAMPLE TEXT FOR THE RELATED SERVICE SUGGESTION]**
 3. Offer: **[SAMPLE OFFER TEXT FROM THE CUSTOMER, IF OFFERS ARE SENT BY TEXT]**
 
 ### 5.4 Keyword replies
 
-| Keyword | Current behavior (product text) | Recommended registration text (proposed text; not sent today) |
-|---|---|---|
-| STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) | Opt out is recorded immediately for both service and marketing texts. **No confirmation text is sent today.** | "{business}: You are unsubscribed and will receive no further messages. Reply START to resubscribe." **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]** |
-| HELP | Reply: "{business}: for help please contact us directly. Reply STOP to opt out." Sent only when the number matches a known customer. | "{business}: For help, call {business_number} or visit {business_website}. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out." **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]** **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]** |
-| START (and UNSTOP, YES) | Restores service texts after an opt out; marketing texts stay opted out until the person gives a new marketing opt in | "{business}: You will receive service messages again, such as appointment reminders. You remain unsubscribed from marketing messages. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out, HELP for help." **[CONFIRM WHETHER A START CONFIRMATION IS SENT]** |
-
-### 5.5 Other mismatches to resolve
-
-- One reminder template still says "Reply C to confirm or R to reschedule", but C and R are no longer treated as keywords; customers change a time with the reschedule link. **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- Contact hours: the rulebook (COM 3) and Messaging Terms 4.2 require the recipient's local time zone when known, otherwise the Business's, and these windows: immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time. Today the text sender checks only marketing texts, only before 8 a.m. and from 9 p.m., and only in the Business's time zone; follow ups are scheduled in the Business's time zone. Activation requires the sender to enforce both the time zone basis and every window. **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]** Registration samples and opt in text must not promise hours the sender does not enforce.
-
-- Frequency and call controls: the senders do not yet enforce a frequency limit, and automatic callbacks do not yet check the do not call flag or call opt outs (only the do not contact flag). Registration text must not claim either control until the product enforces it (Terms Schedule 2, section 5.2).
-- The cancellation template uses British spelling ("cancelled"), quoted exactly above; the rulebook asks for American English. **[UPDATE THE TEMPLATE SPELLING]**
+| Keyword | Reply |
+|---|---|
+| STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) | "{business}: You are unsubscribed and will receive no further messages. Reply START to resubscribe." The opt out applies to service and marketing texts and takes effect immediately |
+| HELP | "{business}: For help, call {business_number} or visit {business_website}. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out." Sent to every number that texts HELP |
+| START (and UNSTOP, YES) | "{business}: You will receive service messages again, such as appointment reminders. You remain unsubscribed from marketing messages. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out, HELP for help." Restores service texts only |
 
 ## 6. Before publishing
 
-This section is for the owner and counsel. Remove it before use.
+This section is for the owner and counsel. Remove it before use. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared.
 
 Placeholders in this document:
 
 <!-- PLACEHOLDERS START -->
 
 - **[LAST UPDATED DATE]**
-- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
-- **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM]**
-- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
-- **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
-- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
 - **[CUSTOMER EIN]**
@@ -161,14 +148,7 @@ Placeholders in this document:
 - **[CONFIRM LINK DOMAIN]**
 - **[YES OR NO]**
 - **[ADD A SCREENSHOT OR PUBLIC URL OF THE MARKETING OPT IN]**
-- **[SAMPLE TEXT FOR THE "YOU MIGHT ALSO NEED" SUGGESTION; NO PLATFORM TEMPLATE IS DOCUMENTED]**
+- **[SAMPLE TEXT FOR THE RELATED SERVICE SUGGESTION]**
 - **[SAMPLE OFFER TEXT FROM THE CUSTOMER, IF OFFERS ARE SENT BY TEXT]**
-- **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]**
-- **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
-- **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
-- **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
-- **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
-- **[UPDATE THE TEMPLATE SPELLING]**
 
 <!-- PLACEHOLDERS END -->

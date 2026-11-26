@@ -9,6 +9,8 @@ Date: **[MEMO DATE]**
 
 1.1 This memo accompanies version 0.2 drafts of the Zella Voice legal document set: nine documents plus this memo. Each document was drafted from the project's own source documents (the architecture, product, rulebook, project memory and database schema documents, and the version 0.1 privacy policy and terms held in the database migration for legal documents). Nothing in the set describes a feature, certification or guarantee that those sources do not support. Unknown company facts are bold bracketed placeholders.
 
+1.3 **Status (internal; not for publication).** Zella Voice has not launched. The live project holds demo businesses only and no real customer data, and every sending and calling switch (calls, texts, emails and the others) is off. The public documents in this set are nevertheless written as the final, published versions for a live, operating service, as the owner instructed. They describe each control as the service will provide it at launch. Every place where the product does not yet do what a public document promises is listed in section 4 as a launch blocker.
+
 1.2 No document in the set claims compliance with HIPAA, the GDPR, SOC 2 or any other standard. The source documents state that no compliance is claimed.
 
 ## 2. The document set
@@ -22,7 +24,7 @@ Date: **[MEMO DATE]**
 | 3 | Zella Voice Data Processing Addendum | Customers | DPA, Annex 1 details of processing, Annex 2 security measures, Annex 3 Subprocessor List, Schedule 1 optional Business Associate Agreement |
 | 4 | Zella Voice Messaging Terms | Message recipients and Customers | SMS and email program terms |
 | 5 | Zella Voice Order Form (template) | Customers | Plan, Fees, trial, term, add ons, special terms, precedence |
-| 6 | Zella Voice Trust and Security Overview | Public | Security measures marked Live or Built, going live; vulnerability disclosure policy; security.txt; accessibility statement (section 10) |
+| 6 | Zella Voice Trust and Security Overview | Public | Security controls; vulnerability disclosure policy; security.txt; accessibility statement (section 10) |
 | 7 | Zella Voice Team and Partner Agreements (templates) | Internal | Mutual NDA; Contractor Agreement; Employee Confidentiality and Invention Assignment; Founder IP Assignment; Reseller and Referral Partner Agreement (Part E) |
 | 8 | Zella Voice Privacy and Security Operations Handbook | Internal | Incident response plan; data subject request procedure; law enforcement and legal request policy; record of processing activities; Employee and Applicant Privacy Notice (Part E) |
 | 9 | Zella Voice Consent and Carrier Registration Pack | Customers and Zella Voice | Consent checkbox wording, in call disclosure, recording options, 10DLC brand and campaign text, mismatches with current behavior |
@@ -59,44 +61,52 @@ The separate files were removed after merging; their full text is inside the mer
 
 3.1 The architecture (section 20, REQ BIL 49) and the rulebook (PRV 4) say a canceled Customer's data is deleted 30 days after cancellation, after a final export offer. The version 0.1 privacy policy said 90 days. The product document notes that the database falls back to 90 days when no value is set, and the admin page labels it "Pending legal review".
 
-3.2 Every document in this set uses the placeholder **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** for this period, wherever it appears (Terms 12.7, Privacy Policy section 10, DPA 12.2, Trust overview section 5). The rulebook's 30 days is shown as the proposal. To resolve: decide the period, replace the placeholder with it everywhere it appears, and set the production database value to match through a reviewed migration, applied only with the owner's explicit approval for that specific change (NN 3, NN 4). Each kind of data keeps its own deletion schedule during the export window, so recordings and transcripts stay on their own draft 90 day schedule (the purge is built but not applied and its switch is off, so this is not yet an active guarantee) and the window covers only data still held.
+3.2 Every public document uses the placeholder **[CANCELLATION RETENTION PERIOD]** for this period, wherever it appears (Terms 12.7, Privacy Policy section 10, DPA 12.2, Trust overview section 5). The rulebook's 30 days is the proposal; the database falls back to 90 days. To resolve: decide the period, replace the placeholder with it everywhere it appears, and set the production database value to match through a reviewed migration, applied only with the owner's explicit approval for that specific change (NN 3, NN 4). Each kind of data keeps its own deletion schedule during the export window, so recordings and transcripts are still deleted 90 days after the call and the window covers only data still held.
 
 3.2.1 **Businesses already canceled.** The database stores each canceled business's deletion date (retention_until) once, at cancellation, from the retention_days value in force at that time. Changing the value later affects only later cancellations, unless a reviewed migration recomputes the stored dates for businesses already canceled. Owner decision, with counsel's input: whether a new period applies to businesses already canceled, and if so, run that migration only with the owner's explicit approval for that specific change (NN 3, NN 4). The documents should then say whether the period in force at cancellation applies.
 
 3.3 **Recordings: 90 days or 30 days.** The owner decided on 18 November 2026 that call recordings and transcripts are kept 90 days (architecture section 23.1c; rulebook PRV 4). The earlier proposal was recordings 30 days and transcripts 90 days. The per kind retention settings built on 16 November 2026 (not deployed) still default to that earlier proposal, recordings 30 days, while the privacy retention migration (not applied) sets both to 90 days. Every period is pending legal review. **The drafts use 90 days for recordings and transcripts.** Decide between 90 days (current owner decision) and 30 days (earlier proposal), and make the settings match before publishing, through a reviewed migration applied only with the owner's explicit approval for that specific change (NN 3, NN 4).
 
-3.4 **All automatic deletion is a draft schedule.** The purge jobs for recordings, transcripts and message contents, and the deletion of copies at Vapi, are built but not applied, and their switches are off. Every document therefore describes these periods as scheduled and carries **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** where the 90 day deletion is stated (Privacy Policy sections 6.3 and 10, DPA 12.1 and 12.2, Terms 12.7 and Schedule 2 section 4.5, Trust overview section 5).
+3.4 **Automatic deletion.** The public documents state the deletion periods as operating controls. The purge jobs for recordings, transcripts and message contents, and the deletion of copies at Vapi, are built but not applied, and their switches are off; this is launch blocker 3 in section 4.
 
 3.5 Other periods used consistently across the set: recordings and transcripts 90 days; message contents 2 years; audit and security logs 7 years; Owner identity documents 90 days after the check (replaced copies 30 days); backups cleared within 90 days after cancellation; account deletion 30 days after confirmation; numbers released 30 days after cancellation; legal holds override. All periods are marked pending legal review in the product (PRV 4). The consistency of the recording period across the set (section 9) depends on the decision in section 3.3.
 
-## 4. Claims that must not be published until the feature is on
+## 4. Launch blockers
 
-In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**, **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** or a more specific placeholder. Remove each only when the feature is live.
+**The public documents must not be published until each blocker below is built and verified in the product, or the promise is removed from the public text.** No public text is published while it is untrue. Each fix that changes production needs the owner's explicit approval for that specific change (NN 3, NN 4). The Owner Action Pack lists the same items as owner actions before launch.
 
-| Claim in the documents | Status in the source documents |
-|---|---|
-| Recordings and transcripts deleted automatically after 90 days | Built, not applied; purge switch off; periods pending legal review |
-| Copies at Vapi deleted | Built, not applied; Vapi deletion switch off |
-| Deletion after the cancellation period (placeholder); account deletion after 30 days | Built, not deployed; purge runs need two approvals; account deletion migration not applied |
-| AI disclosure cannot be removed and is added in the caller's language | Built, not applied (call disclosure migration) |
-| Recording off by default | Policy built, not deployed; until a call path change is approved, the voice provider's own settings decide whether a call is recorded. Confirm recording is off at Vapi |
-| Caller verification with confirmation codes | Built, not applied |
-| Silence timeout and the limit of 10 concurrent calls | Built, not applied |
-| Maximum call length | Policy 20 minutes; the live setting is 10 minutes today; left as a placeholder |
-| Usage alerts at 80% and 100%, and actions at 100% | Built; enforcement switches off |
-| Trial charge, renewals, renewal notices, refunds, packs, automatic reload, failed payment handling | Payments off; pay as you go charging not built |
-| Texts, emails, outbound AI calls, callbacks, calendar sync, review replies, Meta, AI drafting, call classification | Each built and off behind its live switch |
-| Two step sign in for administrators and Owners; identity verification; plan and legal acceptance in onboarding | Built, not applied or deployed |
-| Masked contact details in admin tools; whole business export | Built, need deploy approval |
-| Status page wording ("everything is working" only when checked) | Built, not applied |
-| Support replies in the app | Built, not applied |
-| Trust overview "Built, going live" items | Must be relabelled Live only once in production |
-| Contact hours in the recipient's time zone (Messaging Terms 4.2) | **Blocker for texts going live:** the text sender checks only marketing texts, only 8 a.m. to 9 p.m., and only in the Business's time zone; rulebook COM 3 requires the recipient's time zone when known and every window in Messaging Terms 4.2 (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time). Marketing and automated texts must stay off until the sender enforces both the time zone basis and every window (Messaging Terms 4.3) |
-| HELP reply (Messaging Terms 7) | **Blocker for texts going live:** today the HELP reply is sent only when the number matches a known customer, and it has no contact method. It must be sent to every number, with the business name, a contact method and opt out instructions |
-| Legal holds respected on erasure | Not enforced: customer erasure does not check holds today; staff check manually (Handbook B2 step 5) until the product fix |
-| Frequency limits and call opt out checks | Not enforced: no sender counts earlier messages; callbacks check only the do not contact flag; see Terms Schedule 2, section 5.2 |
-| Card numbers never collected | Zella Voice never asks for them and payment is only through Stripe, but callers may speak card numbers and transcripts may store them; transcript redaction is not built (pending remediation) |
-| HIPAA BAA available | Offered only after BAAs with every vendor (D 49); not in place |
+| # | Promise in the public documents | Where it is promised | Product fix needed |
+|---|---|---|---|
+| 1 | Call recording off by default | Terms 5.3; Schedule 2, 4.1; Privacy Policy 6.1; DPA Annex 1; Consent Pack 4 | Send recording off explicitly in the assistant configuration to Vapi (an approved call path change), apply the recording policy, and confirm at Vapi that recording is disabled |
+| 2 | AI disclosure cannot be removed and is added in the caller's language; recording notice line | Schedule 2, 3.1, 3.2 and 4.2; Privacy Policy 5.2; Consent Pack 3 | Apply the call disclosure migration and confirm on a test call |
+| 3 | Automatic deletion: recordings and transcripts after 90 days, message contents after 2 years, deletion of Vapi copies | Terms 12.7; Schedule 2, 4.5; Privacy Policy 6.3 and 10; DPA 12.1 and 12.4; Trust overview 5 | Apply the privacy retention migration, record legal approval of the periods, and switch on the purge job and Vapi deletion |
+| 4 | Deletion after cancellation and after an account deletion request | Terms 12.7; Privacy Policy 10 and 11.3; DPA 12.2 and 12.3; Trust overview 5 | Decide the cancellation period (section 3.2), apply the account deletion migration, and schedule the purge |
+| 5 | A recorded consent or a stated consent basis before any automated service call or text; leads without a basis never contacted automatically | Terms 5.4; Schedule 2, 5.2; Messaging Terms 10.1 and 11.2; Privacy Policy 7.1; DPA Annex 2; Consent Pack 2.4 | Make zella_can_contact and the senders require a recorded consent or stated basis for service purposes, not only the absence of an opt out |
+| 6 | Frequency limit (one unprompted message a day unless the plan sets another) | Messaging Terms 4.1 and 11.2; Schedule 2, 5.2; Privacy Policy 7.1; DPA Annex 2 | Count earlier messages and calls per person and block at sending |
+| 7 | Contact hours in the recipient's time zone, with every window, and calls within the Customer's calling hours | Messaging Terms 4.2 and 11.2; Schedule 2, 5.2; Privacy Policy 7.1; DPA Annex 2; Consent Pack 5.3A | Enforce COM 3 in the text sender and the call claims (today: marketing texts only, 8 a.m. to 9 p.m. in the Business's time zone; calls 9 a.m. to 7 p.m. in the Business's time zone) |
+| 8 | "Don't call me" honored immediately, including for automatic callbacks; the AI Receptionist records it | Terms 5.6; Schedule 2, 5.2; Messaging Terms 6.4; Privacy Policy 7.2; DPA Annex 2 | Make zella_claim_callbacks check the do not call flag and call opt outs, and let the receptionist record the request |
+| 9 | Texts start only after 10DLC registration is approved | Terms 5.5; Messaging Terms 10.2; Consent Pack 1.3 | Add a per Customer registration check (or per Customer text switch) to the text sender |
+| 10 | STOP confirmation text; HELP reply with contact method sent to every number; START confirmation | Messaging Terms 6.1, 6.2 and 7; Consent Pack 5.4 | Build the STOP and START confirmations and change the HELP reply and its matching |
+| 11 | Spoken card numbers masked in transcripts and summaries | Terms 9.5; Privacy Policy 3.1 and 3.2; DPA Annex 1, Annex 2 and Annex 3 (Stripe row); Trust overview 5 | Mask card numbers in vapi-call-events.js before p_transcript and the summary are passed, and in the database before calls.transcript and calls.summary are written; cover the Vapi copy; mask existing transcripts |
+| 12 | Legal holds respected on erasure | Privacy Policy 11.2 and 11.3; DPA 9.1 and 12.5 | Make zella_erase_customer check zella_retention_on_hold, keep held data and skip its provider deletion |
+| 13 | Whole business export, its second owner approval, and the export exclusions | Terms 12.6; Privacy Policy 11.1; DPA 9.1 and Annex 2; Trust overview 4 and 5 | Apply the business export migration and deploy the export worker and its approval |
+| 14 | Two step sign in for administrators and Owners; fresh code for admin changes; masked contact details in admin tools | Privacy Policy 13.1; DPA 5 and Annex 2; Trust overview 3 | Deploy the admin two step sign in, owner onboarding, admin sessions and masking work |
+| 15 | Leaked password protection | Trust overview 3 | Turn it on in the sign in provider |
+| 16 | Encryption at rest; HTTPS for voice provider webhooks | Privacy Policy 13.1; DPA Annex 2; Trust overview 5 | Confirm encryption at rest with the hosting provider and that the live Vapi server address uses HTTPS |
+| 17 | Backups with point in time recovery | Privacy Policy 13.1; DPA Annex 2; Trust overview 5 | Enable point in time recovery and run a restore drill |
+| 18 | Security headers with an enforcing content security policy | Trust overview 6 | Switch the content security policy from report only to enforcing after a clean release |
+| 19 | Caller verification with confirmation codes | Schedule 2, 2.3; Trust overview 6 | Apply the caller verification migration |
+| 20 | Silence timeout, concurrent call limit and maximum call length | Terms 8.5; Schedule 2, 6.7 | Apply the silence timeout and call limits migrations and set the maximum call length |
+| 21 | Clickwrap acceptance recorded; onboarding with identity check and plan acceptance | Terms 1.2, 4.1 and 23.1 | Apply the owner onboarding and legal acceptance migrations and deploy the screens |
+| 22 | Payments: trial at checkout, billing, renewal notices, refunds, packs, automatic reload, pay as you go, failed payments, usage alerts and limits | Terms 9 and 10; Order Form 3 to 6 | Switch on payments with approval, build pay as you go charging, align trial checkout with payment before going live, apply usage enforcement and pack prices |
+| 23 | First Billing Date without a trial is the day checkout completes | Terms 9.3; Order Form 5.1 | Align the architecture (REQ BIL 17, first sign in) and the checkout code on one date |
+| 24 | Data rights request reminder | DPA 9.1 | Switch on the daily job that sends the reminders |
+| 25 | Support replies in the app, honest status page wording, calls to the Fallback Number | Schedule 4, 2.1, 3.2 and 3.3; Trust overview 7.1 | Apply the support replies, status page and usage enforcement migrations |
+| 26 | Consent evidence stored for each source | Consent Pack 2.3 and 2.4 | Confirm the product stores the evidence listed for each source, or change the list |
+| 27 | Templates match the registration samples | Consent Pack 5.3 | Change the cancellation template to American spelling ("canceled") and remove the "Reply C to confirm or R to reschedule" wording |
+| 28 | Receptionist asks consent before confirmation texts | Consent Pack 3.4 | Confirm the receptionist's script asks the question in 3.4 |
+| 29 | Voicemail prompt and voicemails | Consent Pack 4 | Build inbound voicemail, or remove the voicemail prompt |
+| 30 | Recording option C (consent question with a no that turns recording off) | Consent Pack 4 | Build the product change, or do not offer option C |
 
 ## 5. Open decisions for the owner
 
@@ -133,7 +143,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 31. First Billing Date without a trial: the start of the first paid period recorded at checkout (current code) or the Owner's first sign in (architecture REQ BIL 17); the Terms, Order Form and billing must use the same date.
 32. Objection period after an urgent Subprocessor replacement (DPA 8.3 and Annex 3).
 33. Whether a changed cancellation retention period applies to businesses already canceled, which needs a migration to recompute their stored deletion dates (section 3.2.1).
-34. Confirm, before publishing, that call recording is explicitly disabled at Vapi; every "off by default" statement in the set carries a placeholder until then.
+34. Confirm, before publishing, that call recording is explicitly disabled at Vapi (launch blocker 1).
 35. Product fix: customer erasure (zella_erase_customer) must check the legal hold (zella_retention_on_hold) before deleting anything, keep held data, and not queue held calls for deletion at Vapi; until then staff check holds manually (Handbook B2 step 5) and the documents carry a "not yet enforced" marker.
 36. Trial and payment before going live: decide whether a trial enabled plan always uses trial checkout, or whether trials are blocked when payment is required before going live; the trial length is the platform's billing rules setting, not the Order Form.
 37. Confirm the daily data rights reminder job and the incident controls (Handbook A1.2) are switched on before relying on them.
@@ -182,7 +192,7 @@ In the documents, each such claim now carries **[BUILT, NOT YET LIVE: CONFIRM BE
 6. Complete company basics: EIN, registered agent, operating agreement IP clause, bank account, founder IP assignments, and company ownership of domains and provider accounts.
 7. Get tax advice on sales tax for software (D 50).
 8. Engage counsel to review the set, starting with this memo.
-9. Turn on the measures the documents describe only with the owner's explicit approval for each specific action (NN 3), and confirm point in time recovery, leaked password protection and encryption at rest.
+9. Clear every launch blocker in section 4 before the public documents are published, and turn on the measures the documents describe only with the owner's explicit approval for each specific action (NN 3), and confirm point in time recovery, leaked password protection and encryption at rest.
 10. Complete 10DLC registration for each Customer that will text. Publish security.txt and each public page, and make every later update to them, only with the owner's explicit approval for that specific publication or change (NN 3); no document in this set is published by drafting or merging it.
 
 The details for each action are in the separate Owner Action Pack, in the second PDF, Zella_Voice_Owner_Actions_DRAFT_combined.pdf. Nothing in it has been filed, searched, bought or signed.
@@ -196,7 +206,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 5. Stripe, Google Fonts and the identity provider appear in DPA Annex 3, Part A3.3 ("Other providers"), because they do not process Customer Personal Data. The email inbox provider is listed in Part A3.2 as a Subprocessor, because Zella Voice's support and data subject request inboxes can receive Customer Personal Data.
 6. Google Fonts is listed although it is not in the architecture's subprocessor table, because the web application loads the Inter typeface from it.
 7. Push notifications and WhatsApp and Messenger are omitted: push is only planned (D 40) and those Meta channels are undecided (D 39).
-8. Encryption at rest is a placeholder; the source documents do not state it.
+8. Encryption at rest is stated in the public documents as a control; the source documents do not state it, so it is launch blocker 16 until confirmed with the hosting provider.
 9. The Messaging Terms state the rulebook COM 3 contact hours (recipient's time zone when known) as the commitment, with a condition (section 4.3) that marketing and automated texts are not switched on until the sender enforces it; the sender today checks only marketing texts, 8 a.m. to 9 p.m., in the Business's time zone.
 10. START restores service texts only, as the code does; marketing consent must be given again.
 11. Terms Schedule 3 (Content and Defamation Complaints Policy) says Zella Voice cannot remove content from third party sites such as Google, only stop further sending or publishing.
@@ -204,16 +214,16 @@ The details for each action are in the separate Owner Action Pack, in the second
 13. The DPA adds standard terms not in the source documents: objection with refund, audits once a year, deletion certification, India transfer restriction.
 14. The Terms give Zella Voice termination for convenience with a pro rata refund, and a 30 day cure period for material breach.
 15. The Privacy Policy's California notice treats Owner identity documents and sign in credentials as sensitive personal information.
-16. Backups with point in time recovery are behind a placeholder in the Privacy Policy, DPA Annex 2 and the Trust overview, because the go live checklist still lists turning them on.
-17. The Trust overview labels each measure Live or Built, going live from the product status table; nothing is claimed as live that the product document marks as not applied or not deployed.
+16. Backups with point in time recovery are stated as a control in the Privacy Policy, DPA Annex 2 and the Trust overview; the go live checklist still lists turning them on (launch blocker 17).
+17. The Trust overview describes controls without status labels, as the owner instructed; every control there that is not yet in production is a launch blocker in section 4.
 18. The Consent Pack quotes message templates exactly, including one British spelling that the product should fix.
 19. The Messaging Terms keep the architecture's proposed consent wording; the Consent Pack's recommended wording adds message frequency and HELP, for counsel to choose.
 20. Requirement and decision identifiers from the source documents are written with spaces (for example D 49, PRV 4) to keep the no dashes rule.
-21. The Terms separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends or, without a trial, the start of the first paid period that Stripe records at checkout, which is what the checkout code stores; the architecture's REQ BIL 17 said the Owner's first sign in, so this is a placeholder for the owner). The Trial Period now starts when the Owner starts checkout during onboarding, after identity verification, matching the payment design (the Checkout Session sets the trial end 5 days after it is created). Nothing is charged during the trial: the setup fee goes on the first paid invoice, and packs, automatic reload and pay as you go are not available until the Subscription Term (a placeholder for the owner to confirm). Terms 9.2 and 9.7, the Order Form and the DPA duration ("any Trial Period") match. A custom trial in the Order Form is marked as not supported by checkout today; checkout uses only the platform's trial setting.
+21. The Terms separate the Trial Period from the Subscription Term, which starts on the First Billing Date (the day the trial ends or, without a trial, the day the Owner completes checkout, which is what the checkout code stores; aligning the architecture's REQ BIL 17 is launch blocker 23). The Trial Period now starts when the Owner starts checkout during onboarding, after identity verification, matching the payment design (the Checkout Session sets the trial end 5 days after it is created). Nothing is charged during the trial: the setup fee goes on the first paid invoice, and packs, automatic reload and pay as you go are not available until the Subscription Term (a placeholder for the owner to confirm). Terms 9.2 and 9.7, the Order Form and the DPA duration ("any Trial Period") match. A custom trial in the Order Form is marked as not supported by checkout today; checkout uses only the platform's trial setting.
 22. Order Form special terms prevail only where they expressly override a named provision (Terms section 26 and Order Form section 7 use the same rule).
 23. Service credits for yearly Plans use the monthly equivalent: the yearly Fee divided by 12, then by 30, per affected day; the cap is the yearly Fee divided by 12.
 24. No payment card details may be entered anywhere in the Services; payment details go only on Stripe's hosted page (Terms 5.10 and Schedule 1).
-25. Consent evidence per source in the Consent Pack follows the architecture's proposed design and is behind a placeholder until the product is confirmed to store it.
+25. Consent evidence per source in the Consent Pack follows the architecture's proposed design; confirming the product stores it is launch blocker 26.
 
 ## 9. Consistency check
 
@@ -224,7 +234,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **Retention:** 90 days (recordings and transcripts, subject to the decision in section 3.3; identity documents), 2 years (message contents), 7 years (audit logs), the cancellation period placeholder (after cancellation), 30 days (account deletion, number release, replaced identity copies) and 90 days (backups after cancellation) are identical in the Terms, Privacy Policy, DPA, Terms Schedule 2, the Trust overview and the Handbook.
 - **Contacts:** one placeholder each for privacy, support, legal notices, content complaints, security, legal requests and the DMCA agent. The Subprocessor List location is one placeholder, used in the Privacy Policy, the DPA and the Trust overview.
 - **Subprocessors:** the Privacy Policy summary table and DPA Annex 3 list the same providers.
-- **Claims:** backups with point in time recovery were stated as fact in the Privacy Policy and DPA; they are now behind a placeholder, because the go live checklist still lists turning them on.
+- **Claims:** the public documents carry no build status wording or status placeholders; every promise the product does not yet keep is a launch blocker in section 4 (30 items).
 - **Style:** no dashes or hyphens in text, except the security.txt field names "Preferred-Languages" and "/.well-known/", which are fixed technical identifiers. "Zella Voice" is always in full. American spelling, except one exact quotation of a product template, which is flagged. No model IDs.
 
 ## 10. Every placeholder, by document
@@ -234,9 +244,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 ### This memo
 
 - **[MEMO DATE]**
-- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
-- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+- **[CANCELLATION RETENTION PERIOD]**
 
 ### Zella Voice Terms of Service
 
@@ -244,23 +252,12 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
-- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
-- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
-- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
-- **[ENFORCEMENT STATUS VERIFIED IN THE CODE; CONFIRM AGAIN BEFORE CALLS OR TEXTS GO LIVE, AND UPDATE THIS TEXT WHEN THE PRODUCT CHANGES]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
-- **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
-- **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
-- **[OWNER TO CONFIRM: PACKS, AUTOMATIC RELOAD AND PAY AS YOU GO ARE NOT AVAILABLE DURING THE TRIAL PERIOD]**
-- **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
-- **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
-- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
-- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[CANCELLATION RETENTION PERIOD]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
 - **[FLOOR AMOUNT]**
@@ -275,7 +272,6 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LEGAL NOTICES EMAIL OR ADDRESS]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
 - **[CONTENT COMPLAINTS CONTACT]**
-- **[NOT YET ENFORCED: THE SENDERS DO NOT COUNT EARLIER MESSAGES OR CALLS TO ENFORCE A FREQUENCY LIMIT; ONLY DUPLICATE PROTECTION FOR THE SAME MESSAGE AND THE ATTEMPT LIMIT ON EACH CALLBACK EXIST]**
 - **[MAXIMUM CALL LENGTH]**
 - **[COMPLAINT ACKNOWLEDGMENT PERIOD]**
 - **[DMCA DESIGNATED AGENT NAME, ADDRESS, PHONE AND EMAIL]**
@@ -293,26 +289,18 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
-- **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
-- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
-- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
-- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[CANCELLATION RETENTION PERIOD]**
 - **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
-- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
 - **[UK REPRESENTATIVE, IF REQUIRED]**
 - **[GRIEVANCE OFFICER NAME AND CONTACT]**
-- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
-- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
-- **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[CONFIRM WHETHER THE HOSTING PROVIDER SETS ANY COOKIES]**
 - **[CONFIRM WHETHER A COOKIE BANNER OR CONSENT MECHANISM IS REQUIRED]**
 - **[DPO OR PRIVACY CONTACT]**
@@ -324,15 +312,11 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[URGENT REPLACEMENT OBJECTION PERIOD]**
-- **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
-- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[BREACH NOTIFICATION HOURS]**
-- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
-- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[CANCELLATION RETENTION PERIOD]**
 - **[COUNSEL TO CONFIRM THE RETENTION BASIS FOR CONSENT AND OPT OUT HISTORY AFTER CANCELLATION]**
 - **[AUDIT NOTICE PERIOD]**
 - **[DATA HOSTING REGION]**
@@ -341,9 +325,6 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[COUNSEL TO CONFIRM THE LEGAL BASIS UNDER THE DPDP ACT FOR KEEPING CONSENT AND OPT OUT HISTORY AFTER ERASURE]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[DPO OR PRIVACY CONTACT]**
-- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
-- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
-- **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[MONITORING PROVIDER NAME]**
 - **[EMAIL INBOX PROVIDER]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
@@ -364,17 +345,10 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[LAST UPDATED DATE]**
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
-- **[NOT YET ENFORCED: THE SENDERS DO NOT COUNT EARLIER MESSAGES OR CALLS TO ENFORCE A FREQUENCY LIMIT; ONLY DUPLICATE PROTECTION FOR THE SAME MESSAGE AND THE ATTEMPT LIMIT ON EACH CALLBACK EXIST]**
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
-- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
-- **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
-- **[ENFORCEMENT STATUS VERIFIED IN THE CODE; CONFIRM AGAIN BEFORE CALLS OR TEXTS GO LIVE, AND UPDATE THIS TEXT WHEN THE PRODUCT CHANGES]**
-- **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
-- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
-- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
 
 ### Zella Voice Order Form (Template)
 
@@ -402,11 +376,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[PER MINUTE RATE OR NOT OFFERED]**
 - **[MONTHLY SPENDING LIMIT]**
 - **[YES OR NO]**
-- **[NOT SUPPORTED BY CHECKOUT TODAY: OWNER PRODUCT DECISION BEFORE OFFERING A CUSTOM TRIAL]**
-- **[OWNER PRODUCT DECISION: CHECKOUT MAY REQUIRE PAYMENT BEFORE GOING LIVE (PAY BEFORE LIVE); DECIDE WHETHER A TRIAL ENABLED PLAN ALWAYS USES TRIAL CHECKOUT, OR WHETHER A TRIAL CANNOT BE ENABLED WHEN PAYMENT IS REQUIRED BEFORE GOING LIVE]**
-- **[OWNER TO CONFIRM THE TRIAL START: WHEN CHECKOUT STARTS (CURRENT PAYMENT DESIGN) OR ANOTHER POINT; THE TERMS AND THE PAYMENT FLOW MUST USE THE SAME START AND FIRST CHARGE DATE]**
-- **[OWNER TO CONFIRM: WITHOUT A TRIAL, THE FIRST BILLING DATE IS THE START OF THE FIRST PAID PERIOD RECORDED AT CHECKOUT (CURRENT CODE), NOT THE OWNER'S FIRST SIGN IN (ARCHITECTURE REQ BIL 17)]**
-- **[CONFIRM PACK PRICES BEFORE USE; THEY ARE IN THE DATABASE DESIGN BUT NOT YET APPLIED]**
+- **[CONFIRM PACK PRICES BEFORE USE]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
 - **[SIGNATORY NAME]**
@@ -417,13 +387,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 
 - **[EFFECTIVE DATE]**
 - **[LAST UPDATED DATE]**
-- **[CONFIRM WHETHER LEAKED PASSWORD PROTECTION IS ON]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
-- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
-- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
-- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
-- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
-- **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
+- **[CANCELLATION RETENTION PERIOD]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SECURITY CONTACT]**
 - **[SECURITY KEY LOCATION, IF ANY]**
@@ -540,15 +504,10 @@ The details for each action are in the separate Owner Action Pack, in the second
 ### Zella Voice Consent and Carrier Registration Pack
 
 - **[LAST UPDATED DATE]**
-- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
 - **[LINKS TO THE CUSTOMER'S PRIVACY POLICY AND THE MESSAGING TERMS]**
 - **[COUNSEL TO CONFIRM THIS MEETS PRIOR EXPRESS WRITTEN CONSENT UNDER THE TCPA, INCLUDING ANY ONE TO ONE CONSENT REQUIREMENT IN FORCE]**
-- **[CONFIRM THAT THE PRODUCT STORES THIS EVIDENCE FOR EACH SOURCE BEFORE RELYING ON IT]**
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM]**
-- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
-- **[CONFIRM AGAINST THE RECEPTIONIST'S CURRENT SCRIPT]**
-- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
 - **[CUSTOMER EIN]**
@@ -559,14 +518,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[CONFIRM LINK DOMAIN]**
 - **[YES OR NO]**
 - **[ADD A SCREENSHOT OR PUBLIC URL OF THE MARKETING OPT IN]**
-- **[SAMPLE TEXT FOR THE "YOU MIGHT ALSO NEED" SUGGESTION; NO PLATFORM TEMPLATE IS DOCUMENTED]**
+- **[SAMPLE TEXT FOR THE RELATED SERVICE SUGGESTION]**
 - **[SAMPLE OFFER TEXT FROM THE CUSTOMER, IF OFFERS ARE SENT BY TEXT]**
-- **[MISMATCH: ADD A ONE TIME STOP CONFIRMATION BEFORE REGISTRATION, OR CONFIRM WITH COUNSEL AND THE CARRIER THAT IT IS NOT NEEDED]**
-- **[MISMATCH: THE CURRENT HELP REPLY HAS NO CONTACT METHOD AND IS NOT SENT TO UNKNOWN NUMBERS]**
-- **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
-- **[CONFIRM WHETHER A START CONFIRMATION IS SENT]**
-- **[REMOVE THE C AND R WORDING OR RESTORE THE KEYWORDS]**
-- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
-- **[UPDATE THE TEMPLATE SPELLING]**
 
 <!-- ALL PLACEHOLDERS END -->

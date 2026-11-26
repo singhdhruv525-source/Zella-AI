@@ -182,7 +182,44 @@ For each provider: accept or sign its data processing agreement; ask whether a b
 - The editable Markdown sources in the legal drafts folder.
 - **[ENGAGEMENT TERMS: SCOPE, BUDGET AND TIMELINE]**
 
-## 7. Before publishing
+## 7. Launch blockers (owner actions before launch)
+
+Zella Voice has not launched. The public legal documents describe each control as the service will provide it at launch. Before any public document is published, the owner must make sure each item below is built and verified in the product, or have the promise removed from the public text (the counsel memo, section 4, gives where each promise appears). Each production change needs the owner's explicit approval for that specific change (NN 3, NN 4).
+
+| # | Owner action before launch | Done |
+|---|---|---|
+| 1 | Send recording off explicitly in the assistant configuration to Vapi (an approved call path change), apply the recording policy, and confirm at Vapi that recording is disabled (Call recording off by default) | |
+| 2 | Apply the call disclosure migration and confirm on a test call (AI disclosure cannot be removed and is added in the caller's language; recording notice line) | |
+| 3 | Apply the privacy retention migration, record legal approval of the periods, and switch on the purge job and Vapi deletion (Automatic deletion: recordings and transcripts after 90 days, message contents after 2 years, deletion of Vapi copies) | |
+| 4 | Decide the cancellation period (section 3.2), apply the account deletion migration, and schedule the purge (Deletion after cancellation and after an account deletion request) | |
+| 5 | Make zella_can_contact and the senders require a recorded consent or stated basis for service purposes, not only the absence of an opt out (A recorded consent or a stated consent basis before any automated service call or text; leads without a basis never contacted automatically) | |
+| 6 | Count earlier messages and calls per person and block at sending (Frequency limit (one unprompted message a day unless the plan sets another)) | |
+| 7 | Enforce COM 3 in the text sender and the call claims (today: marketing texts only, 8 a.m. to 9 p.m. in the Business's time zone; calls 9 a.m. to 7 p.m. in the Business's time zone) (Contact hours in the recipient's time zone, with every window, and calls within the Customer's calling hours) | |
+| 8 | Make zella_claim_callbacks check the do not call flag and call opt outs, and let the receptionist record the request ("Don't call me" honored immediately, including for automatic callbacks; the AI Receptionist records it) | |
+| 9 | Add a per Customer registration check (or per Customer text switch) to the text sender (Texts start only after 10DLC registration is approved) | |
+| 10 | Build the STOP and START confirmations and change the HELP reply and its matching (STOP confirmation text; HELP reply with contact method sent to every number; START confirmation) | |
+| 11 | Mask card numbers in vapi-call-events.js before p_transcript and the summary are passed, and in the database before calls.transcript and calls.summary are written; cover the Vapi copy; mask existing transcripts (Spoken card numbers masked in transcripts and summaries) | |
+| 12 | Make zella_erase_customer check zella_retention_on_hold, keep held data and skip its provider deletion (Legal holds respected on erasure) | |
+| 13 | Apply the business export migration and deploy the export worker and its approval (Whole business export, its second owner approval, and the export exclusions) | |
+| 14 | Deploy the admin two step sign in, owner onboarding, admin sessions and masking work (Two step sign in for administrators and Owners; fresh code for admin changes; masked contact details in admin tools) | |
+| 15 | Turn it on in the sign in provider (Leaked password protection) | |
+| 16 | Confirm encryption at rest with the hosting provider and that the live Vapi server address uses HTTPS (Encryption at rest; HTTPS for voice provider webhooks) | |
+| 17 | Enable point in time recovery and run a restore drill (Backups with point in time recovery) | |
+| 18 | Switch the content security policy from report only to enforcing after a clean release (Security headers with an enforcing content security policy) | |
+| 19 | Apply the caller verification migration (Caller verification with confirmation codes) | |
+| 20 | Apply the silence timeout and call limits migrations and set the maximum call length (Silence timeout, concurrent call limit and maximum call length) | |
+| 21 | Apply the owner onboarding and legal acceptance migrations and deploy the screens (Clickwrap acceptance recorded; onboarding with identity check and plan acceptance) | |
+| 22 | Switch on payments with approval, build pay as you go charging, align trial checkout with payment before going live, apply usage enforcement and pack prices (Payments: trial at checkout, billing, renewal notices, refunds, packs, automatic reload, pay as you go, failed payments, usage alerts and limits) | |
+| 23 | Align the architecture (REQ BIL 17, first sign in) and the checkout code on one date (First Billing Date without a trial is the day checkout completes) | |
+| 24 | Switch on the daily job that sends the reminders (Data rights request reminder) | |
+| 25 | Apply the support replies, status page and usage enforcement migrations (Support replies in the app, honest status page wording, calls to the Fallback Number) | |
+| 26 | Confirm the product stores the evidence listed for each source, or change the list (Consent evidence stored for each source) | |
+| 27 | Change the cancellation template to American spelling ("canceled") and remove the "Reply C to confirm or R to reschedule" wording (Templates match the registration samples) | |
+| 28 | Confirm the receptionist's script asks the question in 3.4 (Receptionist asks consent before confirmation texts) | |
+| 29 | Build inbound voicemail, or remove the voicemail prompt (Voicemail prompt and voicemails) | |
+| 30 | Build the product change, or do not offer option C (Recording option C (consent question with a no that turns recording off)) | |
+
+## 8. Before publishing
 
 This pack is internal and is never published.
 

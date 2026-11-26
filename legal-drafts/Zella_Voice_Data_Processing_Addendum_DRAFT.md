@@ -36,7 +36,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 ## 5. Confidentiality of personnel
 
-Zella Voice will ensure that every person it authorizes to process Customer Personal Data is under an appropriate obligation of confidentiality, has access only as their role requires, and uses two step sign in. Access by Zella Voice personnel is recorded in the audit log. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+Zella Voice will ensure that every person it authorizes to process Customer Personal Data is under an appropriate obligation of confidentiality, has access only as their role requires, and uses two step sign in. Access by Zella Voice personnel is recorded in the audit log.
 
 ## 6. Security
 
@@ -64,10 +64,10 @@ As Customer's service provider, Zella Voice will not: (a) sell or share Customer
 
 9.1 **Tools.** Taking into account the nature of the processing, Zella Voice will assist Customer by appropriate technical and organizational measures, insofar as possible, to respond to requests from data subjects. The Services provide these tools:
 
-- a request log in the CRM for access, export and erasure requests, each with a due date 30 days after it is recorded, and a daily reminder to the Owner before it is due **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**;
-- export of customers and call history as CSV at any time (the call history file holds no transcripts, summaries or recordings), and a whole business export on request, downloadable for 7 days, which leaves out recording links and the transcripts of Customers in Regulated Industries **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**;
+- a request log in the CRM for access, export and erasure requests, each with a due date 30 days after it is recorded, and a daily reminder to the Owner before it is due;
+- export of customers and call history as CSV at any time (the call history file holds no transcripts, summaries or recordings), and a whole business export on request, downloadable for 7 days, which leaves out recording links and the transcripts of Customers in Regulated Industries;
 - correction of records in the CRM;
-- erasure of an End User: their details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is requested. Consent and opt out history is retained so that opt outs continue to work, and data under a legal hold is kept, and not deleted at Vapi, until the hold is released (section 12.5) **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**. Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**;
+- erasure of an End User: their details, messages and calls, including transcripts, recordings and summaries, are removed, and deletion of the call at Vapi is requested. Consent and opt out history is retained so that opt outs continue to work, and data under a legal hold is kept, and not deleted at Vapi, until the hold is released (section 12.5). Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log;
 - opt outs by STOP, unsubscribe link and "don't call me", honored immediately for Customer.
 
 9.2 **Requests received by Zella Voice.** If Zella Voice receives a request from a data subject about Customer Personal Data, it will promptly forward it to Customer and will not respond except to direct the data subject to Customer, unless Customer instructs otherwise or the law requires.
@@ -88,11 +88,11 @@ Taking into account the nature of processing and the information available to it
 
 ## 12. Deletion or return
 
-12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are scheduled to be deleted 90 days after the call; the contents of texts and emails are scheduled to be removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure. These automatic deletions are a draft schedule: the deletion jobs are built but not yet switched on. **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
+12.1 **During any Trial Period and the Subscription Term.** Customer Personal Data is retained and deleted as follows: call recordings (only when recording is on) and call transcripts are deleted 90 days after the call; the contents of texts and emails are removed after 2 years, leaving only the record that a message was sent; and other Customer Personal Data is kept while the account is active, subject to Customer's own erasure.
 
-12.2 **After cancellation.** Customer Personal Data still held remains available for export, through the exports in section 9.1 and with the same exclusions (recording links, and transcripts of Customers in Regulated Industries, are not exported), for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its scheduled 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days. The exceptions in section 12.5 apply.
+12.2 **After cancellation.** Customer Personal Data still held remains available for export, through the exports in section 9.1 and with the same exclusions (recording links, and transcripts of Customers in Regulated Industries, are not exported), for **[CANCELLATION RETENTION PERIOD]** after cancellation, after a final offer to export, and is then deleted. Each kind of data follows its own deletion schedule. The export window after cancellation covers only data still held at that time; it does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the window is deleted on that date and is not kept for export. Backups are cleared within 90 days. The exceptions in section 12.5 apply.
 
-12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and deletion of the copies held by Vapi is requested and carried out where technically possible, as section 12.4 provides. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** The exceptions in section 12.5 apply.
+12.3 **Account deletion.** On an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Personal Data is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and deletion of the copies held by Vapi is requested and carried out where technically possible, as section 12.4 provides. The exceptions in section 12.5 apply.
 
 12.4 **Provider copies.** Deletion extends to files and copies held by Subprocessors where technically possible.
 
@@ -126,7 +126,7 @@ Where the DPDP Act applies, Zella Voice will, as Customer's Data Processor: proc
 
 ## 16. Protected health information
 
-Customer must not submit protected health information under HIPAA unless the parties have signed a BAA (Terms, section 5.9). The form of BAA is Schedule 1 to this DPA. It is optional, is offered only to healthcare Customers that Zella Voice has approved, and only once Zella Voice has business associate agreements in place with every Subprocessor that would handle protected health information (decision D 49). Where signed, the BAA prevails over this DPA for protected health information.
+Customer must not submit protected health information under HIPAA unless the parties have signed a BAA (Terms, section 5.9). The form of BAA is Schedule 1 to this DPA. It is optional, is offered only to healthcare Customers that Zella Voice has approved,, where Zella Voice has business associate agreements in place with every Subprocessor that would handle protected health information. Where signed, the BAA prevails over this DPA for protected health information.
 
 ## 17. Liability and precedence
 
@@ -152,7 +152,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Nature | Collection, recording, organization, storage, transcription, summarization, retrieval, use, transmission, restriction, export and erasure, including processing by artificial intelligence |
 | Purpose | Answering and routing Customer's calls with the AI Receptionist, answering questions from approved knowledge, booking and changing appointments, taking messages, transferring calls, sending messages Customer has set up, keeping Customer's CRM, lead intake, order lookup, calendar sync and review replies where connected and enabled, reporting, security, spam protection and support |
 | Data subjects | End Users: callers, clients, customers, patients, guests, members, students, tenants, policyholders and leads; relationships Customer records (such as parents and guardians); Customer's staff as named in bookings and rotas |
-| Types of Personal Data | Identity and contact details; call records, summaries and transcripts; recordings only when recording is on (intended to be off by default; the live Vapi setting is unconfirmed); texts and emails; appointments and attendance; CRM notes, requests, tasks, quotes and recorded payments (card numbers are never collected on purpose, but a number a caller speaks may appear in a transcript until redaction is in place); industry records and uploaded files; lead details and consent evidence; consent and opt out history; order details; calendar entries; review text and approved replies |
+| Types of Personal Data | Identity and contact details; call records, summaries and transcripts; recordings only when recording is on (off by default); texts and emails; appointments and attendance; CRM notes, requests, tasks, quotes and recorded payments (never card numbers; card numbers spoken on calls are masked in transcripts); industry records and uploaded files; lead details and consent evidence; consent and opt out history; order details; calendar entries; review text and approved replies |
 | Special categories and sensitive data | Only where a Regulated Industry's records allow it: patient records (healthcare, dental), children's details (childcare), legal matters (legal), financial and insurance details (financial services, insurance), and private fields such as access codes and member numbers. Kept in private fields, never read aloud, transcripts never shown to staff in those industries |
 | Frequency | Continuous |
 | Retention | As in section 12 |
@@ -163,19 +163,20 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 |---|---|
 | Separation between Customers | Row level security on every table; every Customer function checks the person's membership and role; cross Customer tests for every table, view, function and endpoint |
 | Access control | Roles of owner, admin, manager, staff and viewer enforced by the database; transcripts limited by role and closed to staff in Regulated Industries |
-| Authentication | Two step sign in required for every Zella Voice administrator, who cannot remove their last authenticator; Owners set up two step sign in at onboarding; enforced on the server for roles that require it **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
+| Authentication | Two step sign in required for every Zella Voice administrator, who cannot remove their last authenticator; Owners set up two step sign in at onboarding; enforced on the server for roles that require it |
 | Audit | Append only audit log of every privileged action (who, what, which Customer, when, before and after), with sensitive Personal Data and secrets redacted |
-| Sensitive actions | Erasing a customer needs a second owner's or admin's approval where the Customer has two or more; the whole business export needs approval by a Zella Voice owner other than the requester (built, not yet live); CSV exports by owners, admins and managers do not need a second approval. All are recorded in the audit log |
-| Personnel access | Named permissions and least privilege; contact details masked in the administration tools by default and shown only with a recorded reason **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
-| Encryption | Encryption in transit for connections from the web application to the database service (HTTPS); voice provider webhooks require an HTTPS address in the assistant configuration check **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** |
+| Sensitive actions | Erasing a customer needs a second owner's or admin's approval where the Customer has two or more; the whole business export needs approval by a Zella Voice owner other than the requester; CSV exports by owners, admins and managers do not need a second approval. All are recorded in the audit log |
+| Personnel access | Named permissions and least privilege; contact details masked in the administration tools by default and shown only with a recorded reason |
+| Encryption | Encryption in transit (HTTPS for the web application, the database service and voice provider webhooks) and encryption at rest |
 | Secrets | Held only in the database vault and function secrets; never in code, logs or tables |
 | Logging | No full telephone numbers, email addresses, message contents or transcripts in logs; masking where needed |
+| Payment card numbers | Card numbers that callers speak on calls are masked in call transcripts and summaries before they are stored |
 | Entry points | Size limits, rate limits and authentication first at every public entry point; provider messages verified by signature, timestamp window and replay protection |
 | Storage and links | Private storage under each Customer's own path; files checked after upload; downloads by short lived signed links; customer links random, single purpose, expiring and stored only as hashes |
 | AI safeguards | Caller input treated as untrusted; the AI acts only through server checked tools that recheck the Customer and caller; no secrets or other Customers' data in prompts |
-| Messaging safeguards | For texts: opt out (STOP) and do not contact and do not text checks, a recorded opt in for marketing texts, and duplicate protection, at the time of sending; service texts are not yet checked for a recorded consent, contact hours or a frequency limit, and marketing texts are checked only from 8 a.m. to 9 p.m. in the Business's time zone. For calls (not yet switched on): the do not contact flag on every call, call opt outs and the do not call flag on follow up calls only, and calls held to 9 a.m. to 7 p.m. in the Business's time zone. See Terms Schedule 2, section 5.2 |
-| Resilience | Backups with point in time recovery **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**; a standby assistant takes messages if the database is unavailable; every Live Feature has a control |
-| Retention | Scheduled deletion per data class, legal holds, deletion reaching files and provider copies where possible |
+| Messaging safeguards | Before every call and text: a recorded consent or a stated consent basis for service calls and texts and a recorded opt in for marketing; opt out and do not contact, do not call and do not text checks, including for callbacks; the frequency limit; contact hours in the recipient's time zone when known, otherwise the Customer's; and duplicate protection, all checked at the time of sending (Zella Voice Messaging Terms, sections 4.1 and 4.2, and Terms Schedule 2, section 5.2) |
+| Resilience | Backups with point in time recovery; a standby assistant takes messages if the database is unavailable; every Live Feature has a control |
+| Retention | Automatic deletion per data class, legal holds, deletion reaching files and provider copies where possible |
 
 ## Annex 3. Subprocessor List
 
@@ -210,7 +211,7 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 
 | Provider | Purpose | Data it receives |
 |---|---|---|
-| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Zella Voice never receives or stores the card data entered on Stripe's hosted pages; card numbers are never collected on purpose, but a number a caller speaks may appear in a transcript until redaction is in place (Annex 1) |
+| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Zella Voice never receives or stores card data |
 | Google Fonts (Google) | Serves the typeface used by the web application | The visitor's network address and browser details when a page loads |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Verifying an Owner's identity | The Owner's identity documents and the check result |
 
@@ -228,7 +229,7 @@ A3.5.3 Zella Voice may replace a Subprocessor with less notice where needed to k
 
 ## Schedule 1. Business Associate Agreement (optional)
 
-This Schedule is optional. It is for use only with healthcare Customers that Zella Voice has approved, and only once Zella Voice has business associate agreements in place with every Subprocessor that would handle protected health information (decision D 49: Vapi, Supabase, Telnyx, n8n, Anthropic, and the email and payment providers, reviewed by counsel). Zella Voice makes no HIPAA compliance claim. **[OPTIONAL SCHEDULE: USE ONLY FOR APPROVED HEALTHCARE CUSTOMERS AND ONLY IF COUNSEL APPROVES]**
+This Schedule is optional. It is for use only with healthcare Customers that Zella Voice has approved,, where Zella Voice has business associate agreements in place with every Subprocessor that would handle protected health information. Zella Voice makes no HIPAA compliance claim. **[OPTIONAL SCHEDULE: USE ONLY FOR APPROVED HEALTHCARE CUSTOMERS AND ONLY IF COUNSEL APPROVES]**
 
 BAA effective date: **[BAA EFFECTIVE DATE]**
 
@@ -327,7 +328,7 @@ S1.7.6 **Limitation of liability.** **[COUNSEL TO DECIDE WHETHER THE LIMITATION 
 
 ## Before publishing
 
-This section is for the owner and counsel. Remove it before publishing. The full notes are in the cover memo.
+This section is for the owner and counsel. Remove it before publishing. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared. The full notes are in the cover memo.
 
 Placeholders in this document:
 
@@ -337,15 +338,11 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[URGENT REPLACEMENT OBJECTION PERIOD]**
-- **[CONFIRM THE DAILY REMINDER JOB IS SWITCHED ON]**
-- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[BREACH NOTIFICATION HOURS]**
-- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
-- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[CANCELLATION RETENTION PERIOD]**
 - **[COUNSEL TO CONFIRM THE RETENTION BASIS FOR CONSENT AND OPT OUT HISTORY AFTER CANCELLATION]**
 - **[AUDIT NOTICE PERIOD]**
 - **[DATA HOSTING REGION]**
@@ -354,9 +351,6 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM THE LEGAL BASIS UNDER THE DPDP ACT FOR KEEPING CONSENT AND OPT OUT HISTORY AFTER ERASURE]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[DPO OR PRIVACY CONTACT]**
-- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
-- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
-- **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[MONITORING PROVIDER NAME]**
 - **[EMAIL INBOX PROVIDER]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**

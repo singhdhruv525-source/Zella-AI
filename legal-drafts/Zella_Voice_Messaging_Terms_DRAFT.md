@@ -32,15 +32,13 @@ Last updated: **[LAST UPDATED DATE]**
 
 3.2 Consent to marketing messages is separate from consent to service messages. **Consent is not a condition of purchase.**
 
-3.3 The proposed website consent wording (from the architecture's consent design, not yet in use) reads: "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO APPROVE THE CONSENT WORDING]**
+3.3 A typical website consent reads: "I agree that {business} may contact me by phone call, including calls using an automated or AI voice, and by text message at the number I provided, about my enquiry. Consent is not a condition of purchase. Message and data rates may apply. Reply STOP to opt out." **[COUNSEL TO APPROVE THE CONSENT WORDING]**
 
 ## 4. Message frequency and timing
 
-4.1 **Message frequency varies** with your appointments and requests. The intended limit is no more than one unprompted message a day, unless the Business's plan sets a different limit. **[NOT YET ENFORCED: THE SENDERS DO NOT COUNT EARLIER MESSAGES OR CALLS TO ENFORCE A FREQUENCY LIMIT; ONLY DUPLICATE PROTECTION FOR THE SAME MESSAGE AND THE ATTEMPT LIMIT ON EACH CALLBACK EXIST]**
+4.1 **Message frequency varies** with your appointments and requests. The Services limit how often you are contacted: unless the Business's plan sets a different limit, no more than one unprompted message a day.
 
 4.2 **Contact hours.** Messages are sent within contact hours in your local time zone when the Business knows it, and otherwise in the Business's time zone. Replies to your own messages, the missed call text and booking confirmations are sent immediately. The other windows are: follow ups after a call attempt, within the Business's calling hours; appointment reminders, between 7 a.m. and 9 p.m.; other service messages, between 9 a.m. and 7 p.m.; and marketing messages, between 9 a.m. and 7 p.m. A message due outside its window moves to the next allowed time. **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
-
-4.3 **Condition before sending.** Marketing texts and automated texts are not switched on until the text sender enforces all of section 4.2: the recipient's time zone when known, and every window (immediate replies, the missed call text and booking confirmations; follow ups after a call attempt within the Business's calling hours; appointment reminders between 7 a.m. and 9 p.m.; other service and marketing messages between 9 a.m. and 7 p.m.; and moving any message due outside its window to the next allowed time). Today the sender checks only marketing texts, only before 8 a.m. and from 9 p.m., and only in the Business's time zone. **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
 
 ## 5. Costs
 
@@ -48,19 +46,19 @@ Last updated: **[LAST UPDATED DATE]**
 
 ## 6. How to stop messages
 
-6.1 **Text STOP** to any message to stop texts from that Business. STOP, STOPALL, UNSUBSCRIBE, CANCEL, END and QUIT all work. Your opt out applies to all texts from that Business, both service and marketing, and takes effect immediately. **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
+6.1 **Text STOP** to any message to stop texts from that Business. STOP, STOPALL, UNSUBSCRIBE, CANCEL, END and QUIT all work. Your opt out applies to all texts from that Business, both service and marketing, and takes effect immediately. You receive one text confirming the opt out.
 
-6.2 **Text START** (or UNSTOP or YES) to receive service texts from that Business again after opting out.
+6.2 **Text START** (or UNSTOP or YES) to receive service texts from that Business again after opting out. Marketing texts stay stopped until you opt in to them again.
 
 6.3 **Email.** Use the unsubscribe link in any marketing email to stop marketing emails from that Business.
 
-6.4 **Calls.** Tell the Business "don't call me" to stop its calls. The request takes effect once the Business records it on your record; the AI Receptionist does not yet record it automatically, and a do not call request does not yet stop automatic callbacks after a missed call (a do not contact request does). **[ENFORCEMENT STATUS VERIFIED IN THE CODE; CONFIRM AGAIN BEFORE CALLS OR TEXTS GO LIVE, AND UPDATE THIS TEXT WHEN THE PRODUCT CHANGES]**
+6.4 **Calls.** Tell the Business or its AI Receptionist "don't call me" to stop its calls, including automatic callbacks.
 
 6.5 An opt out applies to the Business you opted out of. It does not stop messages from other businesses that use Zella Voice.
 
 ## 7. Help
 
-Text **HELP** for help. The Business replies with how to reach it and how to opt out. Today the HELP reply is sent only when the number matches a known customer of the Business; texts are not switched on until it is sent to every number. **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]** You can also contact the Business directly, or contact Zella Voice at **[SUPPORT CONTACT EMAIL]**.
+Text **HELP** for help. The Business replies with its name, how to reach it and how to opt out. You can also contact the Business directly, or contact Zella Voice at **[SUPPORT CONTACT EMAIL]**.
 
 ## 8. Carriers
 
@@ -76,9 +74,9 @@ Carriers are not liable for delayed or undelivered messages. Delivery depends on
 
 ## 10. Customer obligations
 
-10.1 **Consent.** Customer must obtain and record, before any message is sent, every consent the law and carrier rules require, separately for service and marketing messages. The Services record consent with when and how it was given, for which channel and for which purpose. They do not send a marketing text without a recorded opt in, and never send to a number that has opted out, but they do not yet require a recorded consent before a service text. **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
+10.1 **Consent.** Customer must obtain and record, before any message is sent, every consent the law and carrier rules require, separately for service and marketing messages. The Services record consent with when and how it was given, for which channel and for which purpose, and do not send a message without it.
 
-10.2 **Registration.** Customer must register its brand and campaign for application to person texting (10DLC) or the equivalent, provide accurate sample messages and use cases, and send only messages that match the registered campaign. Texts to End Users must not start until that registration is approved. **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
+10.2 **Registration.** Customer must register its brand and campaign for application to person texting (10DLC) or the equivalent, provide accurate sample messages and use cases, and send only messages that match the registered campaign. Texts to End Users start only after that registration is approved.
 
 10.3 **Content.** Messages must identify the Customer, must not contain content that carriers prohibit, and must comply with Schedule 1 (Acceptable Use Policy) of the Terms. Marketing emails must include a working unsubscribe link and a valid physical postal address, and must not use false or misleading headers or subject lines.
 
@@ -88,11 +86,11 @@ Carriers are not liable for delayed or undelivered messages. Delivery depends on
 
 11.1 Every consent and opt out is recorded per Business, with the channel, purpose, time, source and the keyword or link used. Consent records are kept as an append only history.
 
-11.2 Before every text, the Services check opt outs (STOP), the do not contact and do not text flags, a recorded opt in for marketing texts, and duplicate protection, at the time of sending, not only when the message was created. They do not yet enforce a frequency limit **[NOT YET ENFORCED: THE SENDERS DO NOT COUNT EARLIER MESSAGES OR CALLS TO ENFORCE A FREQUENCY LIMIT; ONLY DUPLICATE PROTECTION FOR THE SAME MESSAGE AND THE ATTEMPT LIMIT ON EACH CALLBACK EXIST]** or the contact hours in section 4.2 for service texts; today the sender checks hours only for marketing texts, from 8 a.m. to 9 p.m. in the Business's time zone (section 4.3).
+11.2 Before every message, the Services check consent, opt outs, do not contact flags, the frequency limit in section 4.1, the contact hours in section 4.2 and duplicate protection, at the time of sending, not only when the message was created.
 
 11.3 When a Business erases a person's data, the person's consent and opt out history is kept so that the opt out continues to work.
 
-11.4 Texts and emails are Live Features. Until Zella Voice switches them on for live use, messages are recorded as "would have sent" and nothing is delivered.
+11.4 Texts and emails are Live Features. Until Zella Voice switches them on for a Business, messages are recorded as "would have sent" and nothing is delivered.
 
 ## 12. Changes
 
@@ -100,7 +98,7 @@ Zella Voice may update these Messaging Terms under section 22 of the Terms.
 
 ## 13. Before publishing
 
-This section is for the owner and counsel. Remove it before publishing.
+This section is for the owner and counsel. Remove it before publishing. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared.
 
 Placeholders in this document:
 
@@ -110,16 +108,9 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[PROGRAM NAME, PER BUSINESS CAMPAIGN]**
 - **[COUNSEL TO APPROVE THE CONSENT WORDING]**
-- **[NOT YET ENFORCED: THE SENDERS DO NOT COUNT EARLIER MESSAGES OR CALLS TO ENFORCE A FREQUENCY LIMIT; ONLY DUPLICATE PROTECTION FOR THE SAME MESSAGE AND THE ATTEMPT LIMIT ON EACH CALLBACK EXIST]**
 - **[OWNER AND COUNSEL: CONFIRM THE HOUR RANGES, INCLUDING WHETHER MARKETING NEEDS A NARROWER WINDOW AND WHETHER REMINDERS NEED QUIET HOURS]**
-- **[OWNER: BEFORE MARKETING OR AUTOMATED TEXTS ARE SWITCHED ON, THE SENDER MUST USE THE RECIPIENT'S TIME ZONE PER COM 3 AND ENFORCE EVERY WINDOW IN SECTION 4.2, MOVING LATE MESSAGES TO THE NEXT ALLOWED TIME]**
-- **[CONFIRM WHETHER A ONE TIME STOP CONFIRMATION TEXT IS SENT]**
-- **[ENFORCEMENT STATUS VERIFIED IN THE CODE; CONFIRM AGAIN BEFORE CALLS OR TEXTS GO LIVE, AND UPDATE THIS TEXT WHEN THE PRODUCT CHANGES]**
-- **[OWNER: BEFORE TEXTS GO LIVE, THE HELP REPLY MUST BE SENT TO EVERY NUMBER THAT TEXTS HELP AND MUST INCLUDE THE BUSINESS NAME, A CONTACT METHOD AND OPT OUT INSTRUCTIONS]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[COUNSEL TO CONFIRM THIS DISCLOSURE AGAINST THE GOOGLE AND META LEAD FORM FLOWS AND CARRIER REQUIREMENTS]**
-- **[NOT YET FULLY ENFORCED: FOR SERVICE CALLS AND TEXTS THE PRODUCT BLOCKS ONLY OPT OUTS AND DO NOT CONTACT FLAGS AND DOES NOT REQUIRE A RECORDED CONSENT OR A STATED CONSENT BASIS; A RECORDED OPT IN IS REQUIRED ONLY FOR MARKETING]**
-- **[NOT ENFORCED BY THE PRODUCT: THE TEXT SENDER HAS NO REGISTRATION CHECK; ZELLA VOICE CONTROLS THIS BY NOT SWITCHING TEXTS ON FOR A CUSTOMER BEFORE APPROVAL]**
 
 <!-- PLACEHOLDERS END -->

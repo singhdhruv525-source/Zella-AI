@@ -34,7 +34,7 @@ Last updated: **[LAST UPDATED DATE]**
 - Sign in records: password (held only in protected form by our sign in provider), two step sign in records, sign in times and signed in devices.
 - Invitations, and acceptance of our legal documents (version, time and person).
 - Owner identity verification: a photo identification document and the Customer's business registration, uploaded to private storage and checked by the Zella Voice team. Where enabled, an identity verification provider may carry out the check (section 8).
-- Billing records: Plan, Fees, usage, invoices, refunds and payment status. **Payment card details are entered on our payment processor's pages, and Zella Voice never collects card numbers on purpose.** Zella Voice never collects card numbers on purpose and payment goes only through Stripe, but a number a caller speaks on a call may appear in the call transcript until transcript redaction is in place. **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
+- Billing records: Plan, Fees, usage, invoices, refunds and payment status. **Payment card details are entered on our payment processor's pages and never reach Zella Voice.** Card numbers that a caller speaks on a call are masked in call transcripts and summaries.
 - Support requests and correspondence.
 
 ### 3.2 Customer Personal Data
@@ -42,10 +42,10 @@ Last updated: **[LAST UPDATED DATE]**
 A Customer keeps records about its End Users, which may include:
 
 - names, telephone numbers, email addresses, preferred language and time zone;
-- calls: calling and called numbers, time and length, what the AI Receptionist did, the outcome, a written summary and a transcript, and a recording only when the Customer has turned call recording on (section 6; whether recording is fully off at the voice provider today is unconfirmed, see section 6.1);
+- calls: calling and called numbers, time and length, what the AI Receptionist did, the outcome, a written summary and a transcript, and a recording only when the Customer has turned call recording on (section 6);
 - texts and emails sent or received for the Customer, with delivery status and replies;
 - appointments, reservations, jobs, waitlist entries, check ins and attendance;
-- requests, notes, tasks, follow ups, quotes and recorded payments (card numbers are never collected on purpose; a number a caller speaks may appear in a transcript until redaction is in place, see section 3.1);
+- requests, notes, tasks, follow ups, quotes and recorded payments (never card numbers; see section 3.1);
 - the records the Customer's industry uses, which may include uploaded files;
 - relationships the Customer records, such as a parent or guardian;
 - consent records, contact preferences, opt outs and do not contact flags;
@@ -83,7 +83,7 @@ We use Customer Personal Data only to provide the Services to the Customer under
 
 5.1 Zella Voice uses artificial intelligence to hold telephone conversations, to transcribe and summarize calls and, where enabled, to suggest knowledge answers and review replies and to classify calls by topic.
 
-5.2 **Callers are always told.** At the start of every call, the AI Receptionist says it is an AI receptionist for the Customer. A Customer cannot remove this disclosure. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+5.2 **Callers are always told.** At the start of every call, the AI Receptionist says it is an AI receptionist for the Customer. A Customer cannot remove this disclosure.
 
 5.3 **Limits.** The AI Receptionist answers only from the Customer's approved knowledge and checked tools, takes a message when it does not know, gives no medical, legal, financial or safety advice, and tells callers in an emergency to call 911.
 
@@ -97,17 +97,17 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 ## 6. Call recording and transcripts
 
-6.1 **Recording is intended to be off by default.** **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]** Call recording becomes available only after recording consent rules and caller disclosures have been legally reviewed. When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer is responsible for any consent the law requires. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+6.1 **Recording is off by default.** Call recording becomes available only after recording consent rules and caller disclosures have been legally reviewed. When a Customer has recording on, callers hear "This call is recorded." at the start of the call. The Customer is responsible for any consent the law requires.
 
 6.2 **Transcripts** are visible only to a Customer's owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-6.3 Recordings and transcripts are scheduled to be deleted 90 days after the call (section 10). **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
+6.3 Recordings and transcripts are deleted 90 days after the call (section 10).
 
 ## 7. Messages, consent and opting out
 
-7.1 Before every text, the Services check opt outs and the do not contact and do not text flags, a recorded opt in for marketing messages (service messages are not yet checked for a recorded consent), and duplicates. Contact hours and frequency limits are not yet enforced for service texts (Zella Voice Messaging Terms, sections 4.1 to 4.3; marketing and automated texts are not switched on until the sender enforces contact hours). Consent is recorded with when and how it was given.
+7.1 Before every call or message, the Services check consent for that channel and purpose (service or marketing), opt outs and do not contact flags, contact hours in the recipient's time zone when known, otherwise the Customer's, frequency limits and duplicates (Zella Voice Messaging Terms, sections 4.1 and 4.2). Consent is recorded with when and how it was given.
 
-7.2 Reply **STOP** to a text to stop texts from that Customer, or use the unsubscribe link in a marketing email; these take effect immediately for that Customer. To stop calls, tell the Customer "don't call me"; it takes effect once the Customer records it (Zella Voice Messaging Terms, section 6.4). We keep the opt out record after other data is erased so that it keeps working. The Zella Voice Messaging Terms give more detail.
+7.2 Reply **STOP** to a text to stop texts from that Customer, use the unsubscribe link in a marketing email, or say "don't call me" to stop calls. Opt outs take effect immediately for that Customer. We keep the opt out record after other data is erased so that it keeps working. The Zella Voice Messaging Terms give more detail.
 
 ## 8. Disclosure to service providers
 
@@ -141,28 +141,28 @@ Our main database is hosted in **[DATA HOSTING REGION]**, and Zella Voice is ope
 
 ## 10. Retention
 
-We keep Personal Data only as long as needed for the purposes in section 4. The automatic deletion described below is a scheduled process that is built but not yet switched on. **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]** Anything under an active legal hold is kept until the hold is released and then deleted on schedule.
+We keep Personal Data only as long as needed for the purposes in section 4. Anything under an active legal hold is kept until the hold is released and then deleted on schedule.
 
 | Data | Retention |
 |---|---|
-| Call recordings (only when recording is on; see section 6.1) | Scheduled for automatic deletion 90 days after the call |
-| Call transcripts | Scheduled for automatic removal 90 days after the call |
-| Copies of calls held by Vapi | A deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]** |
+| Call recordings (only when recording is on; see section 6.1) | 90 days after the call, then deleted automatically |
+| Call transcripts | 90 days after the call, then removed automatically |
+| Copies of calls held by Vapi | A deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
 | Other Customer Data and Account Data | While the account is active |
-| After a Customer cancels | Except as below (consent and opt out history, audit and security logs, and data under a legal hold), data still held is available for export, through the CSV exports and the whole business export described in section 11.1 and with the same exclusions (recording links, and transcripts of Customers in Regulated Industries, are not exported), for **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window |
+| After a Customer cancels | Except as below (consent and opt out history, audit and security logs, and data under a legal hold), data still held is available for export, through the CSV exports and the whole business export described in section 11.1 and with the same exclusions (recording links, and transcripts of Customers in Regulated Industries, are not exported), for **[CANCELLATION RETENTION PERIOD]**, then deleted; backups cleared within 90 days. Each kind of data keeps its own schedule: recordings and transcripts keep their own 90 day schedule, even during the export window |
 | Telephone numbers of a canceled Customer | Released 30 days after cancellation unless ported out |
 | Consent and opt out records | Kept after erasure so that opt outs continue to work |
 
 ## 11. Export, erasure and account deletion
 
-11.1 **Export.** Owners, admins and managers can export customers and call history as CSV files at any time; the call history file holds call details and outcomes but no transcripts, summaries or recordings. The Owner can also request a whole business export of all records and files, downloadable for 7 days; recording links, and transcripts of Customers in Regulated Industries, are left out of the whole business export. **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]** **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.1 **Export.** Owners, admins and managers can export customers and call history as CSV files at any time; the call history file holds call details and outcomes but no transcripts, summaries or recordings. The Owner can also request a whole business export of all records and files, downloadable for 7 days; recording links, and transcripts of Customers in Regulated Industries, are left out of the whole business export. **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
 
-11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**. Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.2 **Erasing an End User.** A Customer can erase an End User. Their details, messages and calls are removed, including transcripts, recordings and summaries, and a request to delete the call at Vapi is sent. Their consent and opt out history is kept, and data under a legal hold is kept until the hold is released. Erasure needs the approval of a second owner or admin when the Customer has two or more active owners or admins; a Customer with only one owner or admin has no second approver, and the erasure is still recorded in the audit log.
 
-11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and a request to delete the copies held by Vapi is sent; Vapi deletes them where technically possible. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, and data under a legal hold is kept until the hold is released. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+11.3 **Deleting an account.** The Owner requests deletion in Settings and Zella Voice confirms it. The account is frozen immediately (calls are no longer answered and automations stop) and is deleted 30 days later unless the Owner withdraws the request. Stored files are removed, and a request to delete the copies held by Vapi is sent; Vapi deletes them where technically possible. Audit history is kept without the Customer's details, consent and opt out history is kept so that opt outs continue to work, and data under a legal hold is kept until the hold is released.
 
 ## 12. Your rights
 
@@ -194,7 +194,7 @@ People in other places may have similar rights. Contact us and we will respond a
 
 ## 13. Security
 
-13.1 Every Customer's data is kept separate by row level security on every table and server checks of each person's membership and role. Access follows the role. Every Zella Voice staff member uses two step sign in. Erasing a customer needs a second owner's or admin's approval where the Customer has two or more, and privileged actions are recorded in an append only audit log. Connections from the web application to our database service are encrypted (HTTPS), and voice provider webhooks are configured to use HTTPS addresses **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**. **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]** Secrets are kept only in secure stores. Files are kept in private storage and checked after upload, and private links open one item only and expire. Backups allow point in time recovery. **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]** Annex 2 of the DPA lists the measures in full. **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
+13.1 Every Customer's data is kept separate by row level security on every table and server checks of each person's membership and role. Access follows the role. Every Zella Voice staff member uses two step sign in. Erasing a customer needs a second owner's or admin's approval where the Customer has two or more, and privileged actions are recorded in an append only audit log. Information is encrypted in transit and at rest. Secrets are kept only in secure stores. Files are kept in private storage and checked after upload, and private links open one item only and expire. Backups allow point in time recovery. Annex 2 of the DPA lists the measures in full.
 
 13.2 No system is completely secure. If a security incident affects Personal Data, we will notify affected Customers and, where the law requires, individuals and authorities.
 
@@ -262,7 +262,7 @@ Telephone for privacy requests, if required: **[PRIVACY REQUEST PHONE NUMBER, IF
 
 ## 18. Before publishing
 
-This section is for the owner and counsel. Remove it before publishing. The full notes are in the cover memo, "Zella Voice legal document set: drafting notes for counsel".
+This section is for the owner and counsel. Remove it before publishing. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared. The full notes are in the cover memo, "Zella Voice legal document set: drafting notes for counsel".
 
 Placeholders in this document:
 
@@ -273,26 +273,18 @@ Placeholders in this document:
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
-- **[PENDING REMEDIATION: TRANSCRIPT REDACTION OF SPOKEN CARD NUMBERS]**
-- **[BUILT, NOT YET LIVE: CONFIRM BEFORE PUBLISHING]**
-- **[RECORDING IS INTENDED TO BE OFF BY DEFAULT, BUT THE LIVE VAPI SETTING IS UNCONFIRMED: BEFORE PUBLISHING, CONFIRM RECORDING IS EXPLICITLY DISABLED AT VAPI]**
-- **[DRAFT SCHEDULE: AUTOMATIC DELETION IS BUILT BUT NOT YET SWITCHED ON; CONFIRM IT IS ON BEFORE PUBLISHING]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
-- **[CANCELLATION RETENTION PERIOD: 30 DAYS (PROPOSED) OR 90 DAYS (DATABASE FALLBACK), PENDING RESOLUTION]**
+- **[CANCELLATION RETENTION PERIOD]**
 - **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 12.2 AND TERMS 12.6 TO MATCH]**
-- **[NOT YET ENFORCED BY THE PRODUCT: ERASURE DOES NOT CHECK LEGAL HOLDS TODAY; STAFF MUST CHECK MANUALLY BEFORE ERASING]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[COUNSEL TO CONFIRM THE MATCHING STANDARD AND THE METHOD FOR REQUESTERS WITH NO EMAIL ON RECORD]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
 - **[UK REPRESENTATIVE, IF REQUIRED]**
 - **[GRIEVANCE OFFICER NAME AND CONTACT]**
-- **[CONFIRM THE LIVE VAPI SERVER ADDRESS USES HTTPS]**
-- **[CONFIRM ENCRYPTION AT REST WITH THE HOSTING PROVIDER]**
-- **[CONFIRM POINT IN TIME RECOVERY IS ENABLED]**
 - **[CONFIRM WHETHER THE HOSTING PROVIDER SETS ANY COOKIES]**
 - **[CONFIRM WHETHER A COOKIE BANNER OR CONSENT MECHANISM IS REQUIRED]**
 - **[DPO OR PRIVACY CONTACT]**
