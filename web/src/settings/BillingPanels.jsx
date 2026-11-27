@@ -120,11 +120,23 @@ export function BillingPlanPanel({ w }) {
 // Settings > Billing and subscription > Invoices and payments (owner, 27 Nov 2026: "auto charge plus Pay now"): the
 // renewal line with the saved card, Update card, open invoices with Pay now and buying packs, all through the glass
 // checkout (web/src/billing/PaymentsPanel.jsx). Owner only, enforced by the database and billing-api.
+// A payment page is opened as a full page load, so it arrives with its own ENFORCING Content Security Policy (web/public/
+// _headers; owner decision, 27 Nov 2026: a go live gate for Stripe's card fields in our pages). The preview keeps the
+// address's stand in scenario.
+function openPayPage(path) {
+  const scenario = new URLSearchParams(window.location.search).get("scenario");
+  window.location.assign(path + (scenario != null ? `?scenario=${encodeURIComponent(scenario)}` : ""));
+}
+
 export function PaymentsSettingsPanel({ w }) {
   const [api, setApi] = useState(null);
   useEffect(() => { let alive = true; getBillingApi().then((a) => { if (alive) setApi(a); }); return () => { alive = false; }; }, []);
+  const [cardReturned] = useState(() => new URLSearchParams(window.location.search).get("card") === "updated");   // read once: the panel tidies the address
+  const base = window.location.pathname.startsWith("/app/preview") ? "/app/preview" : "/app";
   if (!api) return <Card title="Invoices and payments" sub="Loading…" />;
-  return <PaymentsPanel api={api} businessId={w.id} />;
+  return <PaymentsPanel api={api} businessId={w.id} cardReturned={cardReturned}
+    onOpenInvoice={(id) => openPayPage(`${base}/settings/billing/pay/${encodeURIComponent(id)}`)}
+    onOpenPack={(code) => openPayPage(`${base}/settings/billing/pack/${encodeURIComponent(code)}`)} />;
 }
 
 // Settings > Billing and subscription > Balances and packs

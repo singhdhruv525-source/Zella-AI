@@ -1004,7 +1004,6 @@ function registry(w) {
       page("auto-reload", "Auto reload", () => <AutoReloadPanel w={w} />, "auto reload top up pack spending cap limit"),
       page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),
       page("payment-methods", "Payment methods", lazyNeeds("Payment methods aren't managed in Zella Voice yet", "Nothing is charged from Zella Voice today.", "Adding a card needs the payment provider's secure page; Zella Voice never stores card numbers.")),
-      page("invoices", "Invoices", lazyNeeds("Invoices aren't available in Zella Voice yet", "The Zella Voice team sends invoices by email.", "They need the payment provider's invoice records.")),
       page("changes", "Plan changes", () => <PlanChanges w={w} />, "upgrade downgrade compare"),
       page("cancellation", "Cancellation", () => <Cancellation w={w} />, "cancel"),
     ] },

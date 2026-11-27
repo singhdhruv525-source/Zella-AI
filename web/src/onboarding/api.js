@@ -78,7 +78,8 @@ export const realApi = {
 
   // Pay (docs/PAYMENTS_ARCHITECTURE.md §6.1): the billing-api edge function opens Stripe Checkout for the accepted
   // plan. The browser sends no amount; it comes back from Stripe and asks the server to look again.
-  startCheckout: (businessId, idempotencyKey) => billing("checkout_start", { business_id: businessId, idempotency_key: idempotencyKey }),
+  startCheckout: (businessId, idempotencyKey, opts = {}) => billing("checkout_start", { business_id: businessId, idempotency_key: idempotencyKey,
+    ...(typeof opts.autopay === "boolean" ? { autopay: opts.autopay } : {}), ...(opts.hosted ? { hosted: true } : {}) }),
   checkoutReturn: (businessId) => billing("checkout_return", { business_id: businessId }),
   // Auto pay (owner, 27 Nov 2026): the owner's choice, sent once the server confirmed the first payment
   autopayStatus: (businessId) => rpc("zella_owner_autopay_status", { p_business_id: businessId }),

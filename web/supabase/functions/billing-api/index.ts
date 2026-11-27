@@ -1,9 +1,11 @@
 // Zella Voice: billing API for business owners (docs/PAYMENTS_ARCHITECTURE.md §3, §6.1). The browser says WHAT it
 // wants, never how much: every amount is computed in the database from the accepted plan.
-//   POST { action: "checkout_start", business_id, idempotency_key }
-//        -> { status: "open", client_secret, publishable_key, mode, amount_minor, currency, expires_at } for Stripe
-//           Stripe's card fields in our page (a Checkout Session, ui_mode custom; owner, 27 Nov 2026), or
-//           { status: "processing" } when Stripe already took the payment
+//   POST { action: "checkout_start", business_id, idempotency_key, autopay?, hosted? }
+//        -> { status: "open", client_secret, publishable_key, mode, amount_minor, currency, expires_at } for Stripe's card
+//           fields in our page (a Checkout Session, ui_mode custom; owner, 27 Nov 2026), { status: "redirect", url } for
+//           Stripe's own page (ui_mode hosted: billing setting onboarding_checkout_mode, or hosted: true when Stripe.js
+//           can't load), or { status: "processing" } when Stripe already took the payment. autopay: false keeps the
+//           owner's Auto pay choice with the checkout, applied once the subscription is linked.
 //        Every open reply also carries billing_prefill: the business's own address, to prefill Stripe's billing address
 //        fields (the owner can change it there; it goes to Stripe with the card and is not saved back here)
 //   POST { action: "checkout_return", business_id }                  -> the payment state, after applying any events;
@@ -11,16 +13,17 @@
 // The client_secret is passed straight from Stripe to the owner's browser: never stored, never logged.
 // Paying from inside the CRM (owner, 27 Nov 2026: "auto charge plus Pay now"; sql/zella_stripe_owner_pay.sql):
 //   POST { action: "invoice_pay_status", invoice_id }      -> { invoice } (the owner of its business only; else NOT_FOUND)
-//   POST { action: "invoice_pay_start", invoice_id }       -> { status: "open", client_secret, publishable_key, livemode,
-//        amount_minor, currency, number, hosted_invoice_url } for Stripe's Payment Element on the invoice's OWN
-//        PaymentIntent (confirmation_secret), or { status: "processing" } when Stripe already has it
+//   POST { action: "invoice_pay_start", invoice_id, autopay?, autopay_key? } -> { status: "open", client_secret,
+//        publishable_key, livemode, amount_minor, currency, number, hosted_invoice_url } for Stripe's card fields on the
+//        invoice's OWN PaymentIntent (confirmation_secret), or { status: "processing" } when Stripe already has it
 //   POST { action: "invoice_pay_return", invoice_id }      -> { invoice } after applying any events (paid only from those)
 //   POST { action: "card_summary", business_id }           -> { card: { brand, last4 } | null } (the saved card, from Stripe)
 //   POST { action: "card_update_start", business_id, idempotency_key } -> { url } of Stripe's Customer Portal, card
 //        update only (flow payment_method_update)
 //   POST { action: "pack_status", business_id, purchase_id } -> { purchase } after applying any events
-//   POST { action: "pack_act_start", business_id, purchase_id } -> the pack's own PaymentIntent for Stripe's form, when
-//        the bank asked to confirm or the saved card was declined (never a second charge)
+//   POST { action: "pack_act_start", business_id, purchase_id } -> the pack's own PaymentIntent for Stripe's card fields,
+//        when the bank asked to confirm or the saved card was declined: checked with Stripe first, then reopened and
+//        linked (never a second charge)
 //   POST { action: "autopay_set", business_id, on, idempotency_key } -> { autopay } (owner decision, 27 Nov 2026: "Auto pay
 //        switch, on by default"): the database checks the owner and records the choice; turning it on needs a usable
 //        saved card (checked with Stripe here and in the database); the Stripe subscription update is sent from the
@@ -30,15 +33,17 @@
 //   POST { action: "refund_options", business_id }  /  { action: "refund_request", business_id, kind, payment_id, idempotency_key }
 //                                                                    eligibility decided by the database (REQ-BIL-45)
 // Each request first runs the owner's database function with the owner's own sign in (active owner of THAT business,
-// a code verified session); only then does the server key send the commands that function queued, so the owner gets
-// the Checkout link at once. The return from Stripe is never trusted: it only triggers the same event processing the
+// a code verified session); only then does the server key send the commands that function queued. Each action is
+// rate limited per signed in person (§9). The return from Stripe is never trusted: it only triggers the same event processing the
 // worker runs; access is granted only by a verified, fetched and bound Stripe invoice.
 // Off (503) until STRIPE_SECRET_KEY is set (and, to start a checkout, STRIPE_PUBLISHABLE_KEY in the same mode); the
-// database refuses while payments_live is false.
+// database refuses while payments_live is false. Apply order (§16.7): the migrations first, then this function, then the
+// web app; a checkout is refused (PAYMENTS_MISCONFIGURED) while sql/zella_stripe_embedded_checkout.sql isn't applied.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withCors } from "../_shared/cors.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { applyEvents, type Rpc, rpcClient, sendOutboxNow } from "../_shared/billingWorker.ts";
+import { checkLimits, idKey } from "../_shared/rate_limit.ts";
 import { cardSummary, invoicePaymentIntent, keyIsLive, publishableKeyLive, type StripeClient, stripeClient } from "../_shared/stripe.ts";
 
 const WORDS: Record<string, string> = {
@@ -64,7 +69,21 @@ const WORDS: Record<string, string> = {
   NOT_PAYABLE: "This can't be paid online right now. Nothing was charged.",
   NO_CUSTOMER: "Your card is added with your first payment. There's nothing to update yet.",
   NO_SUBSCRIPTION: "Auto pay can be changed once your plan is active.",
+  PACK_PENDING: "This pack is already being paid. Wait a moment for it to finish, or finish it with your bank.",
+  TOO_MANY: "Too many attempts. Wait a minute and try again.",
 };
+// per person, per minute (§9): starting a payment or a change, and the confirming polls
+const LIMITS: Record<string, number> = { checkout_start: 20, invoice_pay_start: 20, pack_act_start: 20, pack_buy: 10, card_update_start: 10, autopay_set: 10,
+  refund_request: 10, checkout_return: 120, invoice_pay_return: 120, pack_status: 120, invoice_pay_status: 120, card_summary: 60, refund_options: 60 };
+const jwtSub = (jwt: string) => { try { return String(JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).sub ?? ""); } catch { return ""; } };
+// applying Stripe's events while a page polls: at most every few seconds per running function (the worker does the rest)
+let lastApply = 0;
+async function applyEventsSoon(rpc: Rpc, stripe: StripeClient, limit: number, rounds: number) {
+  if (Date.now() - lastApply < 3000) return;
+  lastApply = Date.now();
+  await applyEvents(rpc, stripe, limit, rounds).catch(() => null);
+}
+export const resetApplyThrottle = () => { lastApply = 0; };
 // a saved card Stripe can still charge: a card PaymentMethod whose expiry hasn't passed
 export function usableCard(pm: unknown, now = new Date()): boolean {
   const c = (pm as Record<string, any> | null)?.card;
@@ -127,6 +146,12 @@ export async function handle(req: Request): Promise<Response> {
   if (INVOICE_ACTIONS.has(action) ? !UUID.test(invoiceId) : !UUID.test(String(body.business_id ?? ""))) return refuse("INVALID_INPUT");
   let business = String(body.business_id ?? "");
 
+  const sub = jwtSub(jwt);
+  if (LIMITS[action]) {
+    const answer = await checkLimits(url, server, [[`billing-api:${action}:${idKey(sub || "unknown")}`, LIMITS[action], 60]]);
+    if (answer === "limited") return refuse("TOO_MANY", 429);
+    if (answer === "unavailable") return refuse("ERROR", 503);
+  }
   const rpc = rpcClient(url, server);
   const stripe = stripeClient({ secretKey: apiKey, baseUrl: (!keyIsLive(apiKey) && Deno.env.get("STRIPE_API_BASE")) || undefined });
   try {
@@ -167,13 +192,25 @@ export async function handle(req: Request): Promise<Response> {
       } catch { return null; }
     };
     if (body.action === "checkout_start") {
-      const publishable = await browserKey();
-      if (publishable instanceof Response) return publishable;
       const key = String(body.idempotency_key ?? "");
+      const wantHosted = body.hosted === true;
+      // applied in order (§16.7): without sql/zella_stripe_embedded_checkout.sql a checkout would ask Stripe for a session
+      // this function can't use, so nothing starts and Zella Voice is told
+      const applied = await rpc("zella_billing_checkout_session", { p_business_id: business, p_checkout_id: null }).then(() => true, (e) => !/PGRST202|Could not find the function|404/.test(String(e?.message ?? e)));
+      if (!applied) {
+        await rpc("zella_platform_alert", { p_kind: "billing_migration_missing", p_title: "The checkout migration isn't applied", p_detail: "Apply sql/zella_stripe_embedded_checkout.sql before this billing-api version.",
+          p_severity: "urgent", p_business_id: null, p_dedupe_key: "billing_migration_missing", p_meta: {} }).catch(() => null);
+        return refuse("PAYMENTS_MISCONFIGURED", 503);
+      }
       // the same key, a second tab or a reload gets the same open checkout (one per business, the database decides)
       const start = await asOwner(url, anon, jwt, "zella_owner_billing_checkout_start", { p_business_id: business, p_idempotency_key: key }) as Record<string, unknown>;
       const checkout = String(start?.checkout_id ?? "");
       if (!UUID.test(checkout)) return refuse("ERROR", 500);
+      const publishable = await browserKey();   // after the owner check (review 7)
+      if (publishable instanceof Response) return publishable;
+      // the owner's Auto pay choice, kept with this checkout on the server (review M2)
+      if (typeof body.autopay === "boolean") await rpc("zella_billing_checkout_autopay", { p_business_id: business, p_checkout_id: checkout, p_on: body.autopay });
+      if (wantHosted && start.status === "preparing") await rpc("zella_billing_checkout_use_hosted", { p_checkout_id: checkout });
       // customer, product, prices, session: one after the other, each from the outbox with its stored body and key
       if (start.status === "preparing") {
         await rpc("zella_billing_checkout_continue", { p_checkout_id: checkout, p_livemode: stripe.livemode });
@@ -191,14 +228,34 @@ export async function handle(req: Request): Promise<Response> {
         await applyEvents(rpc, stripe, 20, 4).catch(() => null);   // records the expiry, so the next start opens a new one
         return refuse("CHECKOUT_EXPIRED", 409);
       }
+      if (row?.status !== "open") return refuse("CHECKOUT_NOT_READY", 502);
+      // the amount Stripe will take is ours (review 4): a session that differs is never shown
+      if (Number(session.amount_total) !== Number(row.amount_minor) || String(session.currency ?? "").toLowerCase() !== String(row.currency ?? "").toLowerCase()) {
+        console.error("billing api: a checkout session's amount differs from our record");
+        await rpc("zella_platform_alert", { p_kind: "billing_checkout_amount", p_title: "A checkout's amount differs from our record", p_detail: null,
+          p_severity: "urgent", p_business_id: business, p_dedupe_key: `checkout_amount:${checkout}`, p_meta: {} }).catch(() => null);
+        return refuse("CHECKOUT_NOT_READY", 502);
+      }
+      // Stripe.js can't load: an open in page session is expired at Stripe first, so one session at a time; the next
+      // start (a new key) makes a hosted one (owner, 27 Nov 2026)
+      if (wantHosted && session.ui_mode !== "hosted") {
+        await stripe.post(`/v1/checkout/sessions/${session.id}/expire`, {}, `expire:${session.id}`);
+        await applyEvents(rpc, stripe, 20, 4).catch(() => null);
+        return refuse("CHECKOUT_EXPIRED", 409);
+      }
+      // ui_mode hosted: Stripe's own page; the return proves nothing (the server confirms from Stripe's events)
+      if (session.ui_mode === "hosted") {
+        if (typeof session.url !== "string" || !/^https:\/\/checkout\.stripe\.com\//.test(session.url)) return refuse("CHECKOUT_NOT_READY", 502);
+        return reply({ status: "redirect", url: session.url, mode: row.mode, amount_minor: row.amount_minor, currency: row.currency });
+      }
       // ui_mode custom: Stripe's card fields in our page, with the Checkout Sessions API (owner, 27 Nov 2026)
-      if (row?.status !== "open" || session.ui_mode !== "custom" || typeof session.client_secret !== "string") return refuse("CHECKOUT_NOT_READY", 502);
+      if (session.ui_mode !== "custom" || typeof session.client_secret !== "string") return refuse("CHECKOUT_NOT_READY", 502);
       return reply({ status: "open", client_secret: session.client_secret, publishable_key: publishable, livemode: stripe.livemode,
         mode: row.mode, amount_minor: row.amount_minor, currency: row.currency, expires_at: row.expires_at, billing_prefill: await prefill(business) });
     }
     if (body.action === "checkout_return") {
       await asOwner(url, anon, jwt, "zella_owner_onboarding_payment_status", { p_business_id: business });   // the owner check first
-      await applyEvents(rpc, stripe, 20, 8).catch(() => null);   // the worker's own step; nothing here trusts the return
+      await applyEventsSoon(rpc, stripe, 20, 8);   // the worker's own step (throttled); nothing here trusts the return
       const payment = await asOwner(url, anon, jwt, "zella_owner_onboarding_payment_status", { p_business_id: business }) as Record<string, any>;
       // once the server confirmed the payment: the saved card's brand and last 4, only as Stripe returns them
       let card = null;
@@ -210,11 +267,27 @@ export async function handle(req: Request): Promise<Response> {
       return reply(card ? { payment, card } : { payment });
     }
     if (action === "invoice_pay_status") {
-      return reply({ invoice: await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId }) });
+      const invoice = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId }) as Record<string, any>;
+      // a payment Stripe already has for this invoice (a reload, another tab, Auto pay at the same moment): the page shows it
+      // confirming and never offers Pay again (double payment cases 1, 3, 8, 11)
+      let processing = false;
+      if (["open", "payment_failed"].includes(String(invoice?.status)) && /^in_[A-Za-z0-9_]{1,250}$/.test(String(invoice?.stripe_invoice_id ?? ""))) {
+        const ref = await refs(String(invoice.business_id)).catch(() => null);
+        const si = await stripe.get(`/v1/invoices/${invoice.stripe_invoice_id}`, { expand: ["payments"] }).catch(() => null) as Record<string, any> | null;
+        if (si && ref?.customer && (typeof si.customer === "string" ? si.customer : si.customer?.id) === ref.customer) {
+          if (si.status === "paid") processing = true;
+          else {
+            const piId = invoicePaymentIntent(si);
+            const pi = piId ? await stripe.get(`/v1/payment_intents/${piId}`).catch(() => null) as Record<string, any> | null : null;
+            processing = ["processing", "succeeded"].includes(String(pi?.status));
+          }
+        }
+      }
+      return reply({ invoice: processing ? { ...invoice, processing: true } : invoice });
     }
     if (action === "invoice_pay_return") {
       await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId });   // the owner check first
-      await applyEvents(rpc, stripe, 20, 8).catch(() => null);   // invoice.paid is what marks it paid; nothing here trusts the browser
+      await applyEventsSoon(rpc, stripe, 20, 8);   // invoice.paid is what marks it paid (throttled); nothing here trusts the browser
       const invoice = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId }) as Record<string, any>;
       // once OUR record says paid: the card that paid it (brand, last 4, issuer), only as Stripe returns them
       const card = invoice?.status === "paid" ? await paidWith(String(invoice.business_id), async (cus) => {
@@ -225,10 +298,20 @@ export async function handle(req: Request): Promise<Response> {
       return reply(card ? { invoice, card } : { invoice });
     }
     if (action === "invoice_pay_start") {
-      const publishable = await browserKey();
-      if (publishable instanceof Response) return publishable;
       const inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", { p_invoice_id: invoiceId }) as Record<string, any>;
       business = String(inv.business_id);
+      const publishable = await browserKey();   // after the owner check (review 7)
+      if (publishable instanceof Response) return publishable;
+      if (String(inv.currency ?? "").toLowerCase() !== "usd") return refuse("NOT_PAYABLE");   // review 4
+      // the owner's Auto pay choice made with Pay now, stored on the server as the payment starts (review M2); a refusal
+      // (no saved card to turn it on) never blocks paying the invoice
+      let autopayError: string | null = null;
+      if (typeof body.autopay === "boolean" && /^[A-Za-z0-9_-]{8,100}$/.test(String(body.autopay_key ?? ""))) {
+        await asOwner(url, anon, jwt, "zella_owner_autopay_set", { p_business_id: business, p_on: body.autopay, p_idempotency_key: String(body.autopay_key) })
+          .catch((e) => { autopayError = e instanceof DbRefusal ? e.code : "ERROR"; });
+        const next = await rpc("zella_billing_autopay_next_command", { p_business_id: business }).catch(() => null) as string | null;
+        if (next) await sendOutboxNow(rpc, stripe, next).catch(() => null);
+      }
       const sid = String(inv.stripe_invoice_id ?? "");
       if (!/^in_[A-Za-z0-9_]{1,250}$/.test(sid) || inv.livemode !== stripe.livemode) return refuse("NOT_PAYABLE");
       const ref = await refs(business);
@@ -238,7 +321,7 @@ export async function handle(req: Request): Promise<Response> {
         throw Object.assign(new Error("invoice binding failed"), { binding: true });
       }
       if (si.status === "paid") return reply({ status: "processing" });   // Stripe has it; our record follows from invoice.paid
-      if (si.status !== "open") return refuse("NOT_PAYABLE");
+      if (si.status !== "open" || String(si.currency ?? "").toLowerCase() !== "usd") return refuse("NOT_PAYABLE");
       if (Number(si.amount_due) !== Number(inv.amount_due_minor)) {
         console.error("billing api: an invoice's amount due differs from our record");
         await rpc("zella_platform_alert", { p_kind: "billing_invoice_amount", p_title: "An invoice's amount differs from our record", p_detail: null,
@@ -252,7 +335,8 @@ export async function handle(req: Request): Promise<Response> {
       if (pi.status === "succeeded" || pi.status === "processing") return reply({ status: "processing" });
       if (!OPEN_INTENT.has(String(pi.status))) return refuse("NOT_PAYABLE");
       return reply({ status: "open", client_secret: secret, publishable_key: publishable, livemode: stripe.livemode, amount_minor: inv.amount_due_minor,
-        currency: inv.currency, number: inv.number, hosted_invoice_url: inv.hosted_invoice_url, billing_prefill: await prefill(business) });
+        currency: inv.currency, number: inv.number, hosted_invoice_url: inv.hosted_invoice_url, billing_prefill: await prefill(business),
+        ...(autopayError ? { autopay_error: autopayError } : {}) });
     }
     if (action === "card_summary") {
       await asOwner(url, anon, jwt, "zella_owner_billing_access", { p_business_id: business, p_write: false });
@@ -271,8 +355,8 @@ export async function handle(req: Request): Promise<Response> {
       if (!ref?.customer) return refuse("NO_CUSTOMER", 409);
       const app = String(access.app_base_url ?? "");
       if (!/^https:\/\/[^/?#]+/.test(app)) return refuse("ERROR", 500);
-      // back to the owner's Payments page (the same panel as Settings, Billing, Invoices and payments)
-      const back = `${app.replace(/\/+$/, "")}/pay?business=${business}&card=updated`;
+      // back to Settings, Billing and subscription, Invoices and payments in the CRM (owner, 27 Nov 2026)
+      const back = `${app.replace(/\/+$/, "")}/app/settings/billing/invoices?card=updated`;
       const portal = await stripe.post("/v1/billing_portal/sessions", { customer: ref.customer, return_url: back,
         flow_data: { type: "payment_method_update", after_completion: { type: "redirect", redirect: { return_url: back } } } }, `portal:${business}:${key}`) as Record<string, any>;
       if (typeof portal.url !== "string" || !portal.url.startsWith("https://")) return refuse("ERROR", 500);
@@ -280,25 +364,34 @@ export async function handle(req: Request): Promise<Response> {
     }
     if (action === "pack_status") {
       if (!UUID.test(String(body.purchase_id ?? ""))) return refuse("INVALID_INPUT");
-      await asOwner(url, anon, jwt, "zella_owner_pack_status", { p_business_id: business, p_purchase_id: body.purchase_id });
-      await applyEvents(rpc, stripe, 20, 8).catch(() => null);
+      const before = await asOwner(url, anon, jwt, "zella_owner_pack_status", { p_business_id: business, p_purchase_id: body.purchase_id }) as Record<string, any>;
+      await applyEventsSoon(rpc, stripe, 20, 8);
+      // a reopened purchase past its day: back to failed only once Stripe says the payment wasn't taken (review 3)
+      if (before?.reopen_expired === true && typeof before.payment_intent === "string" && /^pi_[A-Za-z0-9_]{1,250}$/.test(before.payment_intent)) {
+        const pi = await stripe.get(`/v1/payment_intents/${before.payment_intent}`).catch(() => null) as Record<string, any> | null;
+        if (pi && !["succeeded", "processing"].includes(String(pi.status))) await rpc("zella_billing_pack_reopen_expire", { p_purchase_id: body.purchase_id });
+      }
       const purchase = await asOwner(url, anon, jwt, "zella_owner_pack_status", { p_business_id: business, p_purchase_id: body.purchase_id }) as Record<string, any>;
       const card = purchase?.status === "granted" && typeof purchase.payment_intent === "string" ? await paidWith(business, async () => purchase.payment_intent, String(body.purchase_id)) : null;
       return reply(card ? { purchase, card } : { purchase });
     }
     if (action === "pack_act_start") {
       if (!UUID.test(String(body.purchase_id ?? ""))) return refuse("INVALID_INPUT");
-      const publishable = await browserKey();
-      if (publishable instanceof Response) return publishable;
       const act = await asOwner(url, anon, jwt, "zella_owner_pack_act_start", { p_business_id: business, p_purchase_id: body.purchase_id }) as Record<string, any>;
+      const publishable = await browserKey();   // after the owner check (review 7)
+      if (publishable instanceof Response) return publishable;
       const ref = await refs(business);
       const piId = String(act.payment_intent ?? "");
       if (!/^pi_[A-Za-z0-9_]{1,250}$/.test(piId)) return refuse("NOT_PAYABLE");
       const pi = await stripe.get(`/v1/payment_intents/${piId}`) as Record<string, any>;
       if (pi.id !== piId || pi.livemode !== stripe.livemode || pi.metadata?.purchase_id !== String(body.purchase_id) || !ref?.customer || pi.customer !== ref.customer
           || Number(pi.amount) !== Number(act.price_cents)) throw Object.assign(new Error("pack payment binding failed"), { binding: true });
+      if (!OPEN_INTENT.has(String(pi.status)) && pi.status !== "succeeded" && pi.status !== "processing") return refuse("NOT_PAYABLE");
+      // verified: now the purchase moves forward on THIS PaymentIntent, linked with its price, so Stripe's succeeded grants it
+      await rpc("zella_billing_pack_reopen", { p_business_id: business, p_purchase_id: body.purchase_id, p_payment_intent: piId, p_livemode: stripe.livemode,
+        p_user_id: UUID.test(String(act.user_id ?? "")) ? act.user_id : null });
       if (pi.status === "succeeded" || pi.status === "processing") return reply({ status: "processing" });
-      if (!OPEN_INTENT.has(String(pi.status)) || typeof pi.client_secret !== "string") return refuse("NOT_PAYABLE");
+      if (typeof pi.client_secret !== "string") return refuse("NOT_PAYABLE");
       return reply({ status: "open", client_secret: pi.client_secret, publishable_key: publishable, livemode: stripe.livemode, amount_minor: act.price_cents, currency: "usd",
         billing_prefill: await prefill(business) });
     }
@@ -313,7 +406,8 @@ export async function handle(req: Request): Promise<Response> {
           ? await stripe.get(`/v1/subscriptions/${ref.subscription}`, { expand: ["default_payment_method"] }).catch(() => null) as Record<string, any> | null : null;
         if (!sub || sub.customer !== ref?.customer || !usableCard(sub.default_payment_method)) return refuse("NO_SAVED_CARD", 409);
       }
-      await asOwner(url, anon, jwt, "zella_owner_autopay_set", { p_business_id: business, p_on: body.on, p_idempotency_key: key });
+      try { await asOwner(url, anon, jwt, "zella_owner_autopay_set", { p_business_id: business, p_on: body.on, p_idempotency_key: key }); }
+      catch (e) { if (e instanceof DbRefusal && e.code === "IDEMPOTENCY_CONFLICT") return refuse("IDEMPOTENCY_CONFLICT", 409); throw e; }
       const next = await rpc("zella_billing_autopay_next_command", { p_business_id: business }) as string | null;
       if (next) {
         await sendOutboxNow(rpc, stripe, next);

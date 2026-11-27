@@ -8,7 +8,9 @@
 # start answers the same invoice and creates nothing; the list carries id, amount due and payable; the server only
 # lookup; a declined pack reopened on the same PaymentIntent, once; Auto pay (owner only, one versioned Stripe command
 # with the stored body, a double submit changes nothing, a card needed to turn it on, our record changed only by
-# customer.subscription.updated, a mismatch resent); rollback, rollback again, drift refused both ways.
+# customer.subscription.updated, a mismatch resent); the review fixes (a reopened pack is linked and granted, a pack
+# payment with no link is held, one pending owner purchase per pack, Auto pay keys and held commands, the checkout's Auto
+# pay choice kept on the server, the rollback's refusals); rollback, rollback again, drift refused both ways.
 set -uo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 export ZPG_HOST=${ZPG_HOST:-/var/lib/postgresql/zella-sec} ZPG_PORT=${ZPG_PORT:-55433}; DB=${DB:-zownerpay_stub}
@@ -42,9 +44,19 @@ q "do \$\$ begin
      currency text default 'usd', total_minor bigint, amount_due_minor bigint, amount_paid_minor bigint default 0, period_start timestamptz, period_end timestamptz,
      hosted_invoice_url text, invoice_pdf text, livemode boolean default false, stripe_created_at timestamptz, paid_at timestamptz, created_at timestamptz default now());
    create table public.pack_purchases (id uuid primary key default gen_random_uuid(), business_id uuid, pack_code text, resource text, quantity int, price_cents bigint,
-     status text, source text, failure_reason text, stripe_payment_intent text, settled_at timestamptz);
+     status text, source text, failure_reason text, stripe_payment_intent text, settled_at timestamptz, period_id uuid, reason text, idempotency_key text, created_by uuid, purchased_at timestamptz default clock_timestamp());
+   create table public.billing_periods (id uuid primary key default gen_random_uuid(), period_end timestamptz);
+   create table public.billing_pack_catalog (code text, resource text, quantity int, price_cents bigint, active boolean);
+   create table public.allowance_buckets (business_id uuid, period_id uuid, resource text, kind text, pack_purchase_id uuid, granted int, expires_at timestamptz);
+   create table public.payments (business_id uuid, subscription_id uuid, amount numeric, amount_minor bigint, currency text, status text, provider text, external_payment_id text, paid_at timestamptz, metadata jsonb);
+   create unique index on public.payments (provider, external_payment_id) where external_payment_id is not null;
+   create table public.billing_checkouts (id uuid primary key default gen_random_uuid(), business_id uuid, stripe_subscription_id text, created_by uuid, updated_at timestamptz);
+   create function public.zella_stripe_customer(uuid) returns text language sql stable as \$f\$ select 'cus_P1' \$f\$;
+   create function public.zella_minor_to_amount(bigint, text) returns numeric language sql as \$f\$ select \$1 / 100.0 \$f\$;
+   create function public.zella_ledger_post(uuid, text, jsonb) returns void language sql as \$f\$ select \$f\$;
+   create function public.zella_notify_owners(uuid, text, text, text, text, text) returns void language sql as \$f\$ select \$f\$;
    create table public.pack_catalog_stub (x int);
-   create table public.billing_stripe_links (stripe_id text, business_id uuid, kind text, livemode boolean, local_kind text, local_id uuid);
+   create table public.billing_stripe_links (stripe_id text primary key, business_id uuid, kind text, livemode boolean, local_kind text, local_id uuid, expected_amount_minor bigint);
    create table public.subscriptions (id uuid primary key default gen_random_uuid(), business_id uuid unique, provider text, external_subscription_id text, status text default 'active',
      metadata jsonb not null default '{}', current_period_end timestamptz, billing_event_at timestamptz, past_due_since timestamptz, updated_at timestamptz);
    create table public.billing_outbox (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, idempotency_key text unique, method text, path text, body jsonb,
@@ -62,7 +74,6 @@ q "do \$\$ begin
    create function public.zella_payments_live() returns boolean language sql stable as \$f\$ select live from public.settings_stub \$f\$;
    create function public.zella_mfa_satisfied() returns boolean language sql stable as \$f\$ select true \$f\$;
    create function public.zella_setting(k text, d jsonb) returns jsonb language sql stable as \$f\$ select '\"https://app.example.test\"'::jsonb \$f\$;
-   create function public.zella_owner_pack_buy(uuid, text, text) returns jsonb language sql as \$f\$ select null::jsonb \$f\$;
    grant select on all tables in schema public to authenticated, service_role;
    grant insert, update on public.audit_logs, public.pack_purchases to authenticated, service_role;
    grant usage on all sequences in schema public to authenticated, service_role;" > /dev/null || { bad "stand ins"; exit 1; }
@@ -71,6 +82,15 @@ fn_from zella_stripe_invoices zella_owner_invoices | "${P[@]}" -d "$DB" > /dev/n
 [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "60c0659f065c58b03dc279ffb007825c" ] && ok "zella_owner_invoices is zella_stripe_invoices.sql's version" || bad "original md5"
 fn_from zella_stripe_emails zella_billing_email_invoice_trg | "${P[@]}" -d "$DB" > /dev/null || { bad "email trigger"; exit 1; }
 fn_from zella_stripe_pipeline zella_billing_outbox_add | "${P[@]}" -d "$DB" > /dev/null || { bad "outbox add"; exit 1; }
+fn_from zella_stripe_pipeline zella_stripe_link_add | "${P[@]}" -d "$DB" > /dev/null || { bad "link add"; exit 1; }
+fn_from zella_stripe_packs zella_owner_pack_buy | "${P[@]}" -d "$DB" > /dev/null || { bad "pack buy"; exit 1; }
+fn_from zella_stripe_packs zella_stripe_on_payment_intent_succeeded | "${P[@]}" -d "$DB" > /dev/null || { bad "pack succeeded"; exit 1; }
+[ "$(md5of 'public.zella_owner_pack_buy(uuid,text,text)')|$(md5of 'public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)')" = "ce968b09b251a2192c48fefd2de0cb52|e7a39b17547fe5eefda25aa12c7fc0d2" ] \
+  && ok "the pack functions are zella_stripe_packs.sql's versions" || bad "pack md5s"
+# the regression, before the fix: a pack's payment that has no link is dropped ("ignored") although money was taken (B1)
+q "insert into public.billing_events (event_created_at) values (now())" > /dev/null
+[ "$(q "select public.zella_stripe_on_payment_intent_succeeded(e, '{\"id\": \"pi_unlinked\", \"status\": \"succeeded\", \"metadata\": {\"purchase_id\": \"00000000-0000-4000-8000-000000000001\"}}'::jsonb) from public.billing_events e limit 1")" = "ignored" ] \
+  && ok "before the fix: a pack payment with no link was ignored (the review's B1)" || bad "B1 before"
 fn_from zella_stripe_plan_change zella_stripe_on_customer_subscription_updated | "${P[@]}" -d "$DB" > /dev/null || { bad "subscription event"; exit 1; }
 [ "$(md5of 'public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)')" = "c9b70ddd6dfdf324e93d3f2aa79d7ab4" ] && ok "customer.subscription.updated is zella_stripe_plan_change.sql's version" || bad "event md5"
 [ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "cc75a8987f19e2ae96c066395b79af45" ] && ok "zella_billing_email_invoice_trg is zella_stripe_emails.sql's version" || bad "trigger md5"
@@ -127,17 +147,40 @@ q "update public.businesses set country = 'Atlantis' where id = '$b'" > /dev/nul
 [ "$(err "$u2" aal2 "select public.zella_owner_billing_access('$b', true)")" = "NOT_ALLOWED" ] && ok "card actions: another owner is refused" || bad "access other"
 [ "$(as "$u" aal2 "select public.zella_owner_billing_access('$b', true) ->> 'app_base_url'")" = "https://app.example.test" ] && ok "card actions: the owner, with the address Stripe returns to" || bad "access"
 
-pk=$(q "insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source, failure_reason, stripe_payment_intent) values ('$b', 'minutes_100', 'minutes', 100, 2900, 'failed', 'owner_purchase', 'authentication_required', 'pi_P1') returning id")
+per=$(q "insert into public.billing_periods (period_end) values (now() + interval '20 days') returning id")
+pk=$(q "insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source, failure_reason, stripe_payment_intent, period_id) values ('$b', 'minutes_100', 'minutes', 100, 2900, 'failed', 'owner_purchase', 'authentication_required', 'pi_P1', '$per') returning id")
 auto=$(q "insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source, failure_reason, stripe_payment_intent) values ('$b', 'minutes_100', 'minutes', 100, 2900, 'failed', 'auto_reload', 'card_declined', 'pi_P2') returning id")
 [ "$(as "$u" aal1 "select public.zella_owner_pack_status('$b', '$pk') ->> 'can_act'")" = "true" ] && ok "a pack the bank wants confirmed can be finished by the owner" || bad "can act"
 [ "$(err "$u" aal2 "select public.zella_owner_pack_status('$b', '$auto')")" = "NOT_FOUND" ] && ok "an automatic reload isn't the owner's purchase to finish" || bad "auto reload"
 [ "$(err "$u2" aal2 "select public.zella_owner_pack_act_start('$b', '$pk')")" = "NOT_ALLOWED" ] && ok "another owner can't finish it" || bad "pack other owner"
-a1=$(as "$u" aal2 "select public.zella_owner_pack_act_start('$b', '$pk') ->> 'payment_intent'"); a2=$(as "$u" aal2 "select public.zella_owner_pack_act_start('$b', '$pk') ->> 'payment_intent'")
-[ "$a1" = "pi_P1" ] && [ "$a2" = "pi_P1" ] && ok "finishing reuses the same PaymentIntent, and repeating it answers the same" || bad "act: $a1 $a2"
-[ "$(q "select status || ',' || coalesce(failure_reason, 'none') from public.pack_purchases where id = '$pk'")" = "pending,none" ] && ok "the purchase is pending again; nothing is granted until Stripe says succeeded" || bad "pending"
-[ "$(q "select count(*) from public.audit_logs where action = 'billing.pack_owner_action'")" = "1" ] && ok "reopened once, audited once" || bad "pack audit"
-q "update public.pack_purchases set status = 'granted' where id = '$pk'" > /dev/null
+a1=$(as "$u" aal2 "select public.zella_owner_pack_act_start('$b', '$pk') ->> 'payment_intent'")
+[ "$a1" = "pi_P1" ] && [ "$(q "select status from public.pack_purchases where id = '$pk'")" = "failed" ] && ok "asking to finish only checks: the same PaymentIntent, and nothing moves before Stripe is checked (review 3)" || bad "act: $a1"
+[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_pack_reopen(uuid,uuid,text,boolean,uuid)', 'execute')::text")" = "false" ] && ok "reopening is server only" || bad "reopen grant"
+r1=$(q "set role service_role; select public.zella_billing_pack_reopen('$b', '$pk', 'pi_P1', false, '$u') ->> 'payment_intent'"); r2=$(q "set role service_role; select public.zella_billing_pack_reopen('$b', '$pk', 'pi_P1', false, '$u') ->> 'payment_intent'")
+[ "$r1|$r2" = "pi_P1|pi_P1" ] && [ "$(q "select status || ',' || (reopen_expires_at > now())::text from public.pack_purchases where id = '$pk'")" = "pending,true" ] \
+  && [ "$(q "select local_kind || ',' || expected_amount_minor from public.billing_stripe_links where stripe_id = 'pi_P1'")" = "pack,2900" ] \
+  && [ "$(q "select count(*) from public.audit_logs where action = 'billing.pack_owner_action'")" = "1" ] \
+  && ok "after Stripe is checked: pending again on the same PaymentIntent, now LINKED with the price, a day to finish, audited once (B1)" || bad "reopen: $r1 $r2"
+[ "$(q "set role service_role; select public.zella_billing_pack_reopen('$b', '$pk', 'pi_other', false, '$u')" 2>&1 | grep -c NOT_PAYABLE)" = "1" ] && ok "another PaymentIntent can't reopen it" || bad "reopen other pi"
+ev=$(q "insert into public.billing_events (event_created_at) values (now()) returning id")
+res=$(q "select public.zella_stripe_on_payment_intent_succeeded(e, jsonb_build_object('id', 'pi_P1', 'status', 'succeeded', 'amount', 2900, 'currency', 'usd', 'customer', 'cus_P1', 'metadata', jsonb_build_object('purchase_id', '$pk'))) from public.billing_events e where e.id = '$ev'")
+[ "$res" = "applied" ] && [ "$(q "select status from public.pack_purchases where id = '$pk'")|$(q "select count(*) from public.allowance_buckets where pack_purchase_id = '$pk'")" = "granted|1" ] \
+  && ok "declined, finished by the owner, then payment_intent.succeeded: the pack is GRANTED (B1)" || bad "B1 grant: $res"
+[ "$(q "select public.zella_stripe_on_payment_intent_succeeded(e, '{\"id\": \"pi_unlinked\", \"status\": \"succeeded\", \"metadata\": {\"purchase_id\": \"00000000-0000-4000-8000-000000000001\"}}'::jsonb) from public.billing_events e limit 1" 2>&1 | grep -c 'BINDING: pack payment pi_unlinked has no link')" = "1" ] \
+  && ok "after the fix: a pack payment with no link is held for a person (quarantine and an urgent alert), never ignored (B1)" || bad "B1 after"
 [ "$(err "$u" aal2 "select public.zella_owner_pack_act_start('$b', '$pk')")" = "ALREADY_PAID" ] && ok "a granted pack can't be paid again" || bad "granted"
+# a reopened purchase that isn't paid expires after its day (billing-api calls this only once Stripe says it wasn't taken)
+pk2=$(q "insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source, failure_reason, stripe_payment_intent) values ('$b', 'minutes_100', 'minutes', 100, 2900, 'failed', 'owner_purchase', 'card_declined', 'pi_P4') returning id")
+q "set role service_role; select public.zella_billing_pack_reopen('$b', '$pk2', 'pi_P4', false, '$u')" > /dev/null
+[ "$(as "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'another-key-0001') ->> 'purchase_id'")" = "$pk2" ] && [ "$(q "select count(*) from public.pack_purchases where pack_code = 'minutes_100' and status = 'pending'")" = "1" ] \
+  && ok "a second tab or a retry with a new key while the pack is being paid gets THAT purchase: no second purchase, no second charge (M1, cases 3, 6)" || bad "pack pending"
+q "insert into public.billing_pack_catalog values ('minutes_100', 'minutes', 100, 2900, true); insert into public.pack_purchases (business_id, pack_code, resource, quantity, price_cents, status, source) values ('$b', 'minutes_500', 'minutes', 500, 9900, 'pending', 'auto_reload')" > /dev/null
+q "update public.pack_purchases set status = 'failed' where id = '$pk2'" > /dev/null
+[ "$(err "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'another-key-0002')")" = "PACK_PENDING" ] && ok "an automatic reload of the same resource still being paid refuses the owner's buy (case 12)" || bad "reload pending"
+q "delete from public.pack_purchases where source = 'auto_reload' and status = 'pending'; update public.pack_purchases set status = 'pending' where id = '$pk2'" > /dev/null
+q "update public.pack_purchases set reopen_expires_at = now() - interval '1 minute' where id = '$pk2'" > /dev/null
+[ "$(as "$u" aal1 "select public.zella_owner_pack_status('$b', '$pk2') ->> 'reopen_expired'")" = "true" ] && [ "$(q "set role service_role; select public.zella_billing_pack_reopen_expire('$pk2')")" = "expired" ] \
+  && [ "$(q "select status || ',' || failure_reason from public.pack_purchases where id = '$pk2'")" = "failed,reopen_expired" ] && ok "a reopened purchase not paid within its day goes back to failed (review 3)" || bad "reopen expiry"
 
 # ---- Auto pay ----
 q "update public.subscriptions set status = 'active', current_period_end = '2026-12-20', metadata = '{}' where business_id = '$b'" > /dev/null
@@ -159,7 +202,9 @@ r3=$(as "$u" aal2 "select (x ->> 'on') || ',' || (x ->> 'pending') from public.z
 q "update public.billing_outbox set status = 'sent' where kind = 'autopay'" > /dev/null
 subevent '{"id": "sub_P1", "status": "active", "collection_method": "send_invoice", "days_until_due": 3}'
 [ "$(as "$u" aal1 "select (x ->> 'on') || ',' || (x ->> 'pending') || ',' || (x ->> 'days_until_due') from public.zella_owner_autopay_status('$b') x")" = "false,false,3" ] && ok "Auto pay off only once customer.subscription.updated says so" || bad "autopay event"
-[ "$(err "$u" aal2 "select public.zella_owner_autopay_set('$b', true, 'key_on_00000001')")" = "NO_SAVED_CARD" ] && ok "Auto pay on: refused without a saved card" || bad "no card"
+[ "$(err "$u" aal2 "select public.zella_owner_autopay_set('$b', true, 'key_off_0000001')")" = "IDEMPOTENCY_CONFLICT" ] && ok "Auto pay: the same key with the other value is refused (review m1)" || bad "key conflict"
+[ "$(q "select count(*) || ',' || min(operation) from public.billing_owner_requests")" = "2,autopay" ] && ok "Auto pay keys are kept in their own table, scoped to the operation (review m1)" || bad "keys table"
+[ "$(err "$u" aal2 "select public.zella_owner_autopay_set('$b', true, 'key_on_00000001')")" = "NO_SAVED_CARD" ] && ok "Auto pay on: refused without a saved card, by the database itself (review m1)" || bad "no card"
 subevent '{"id": "sub_P1", "status": "active", "collection_method": "send_invoice", "days_until_due": 3, "default_payment_method": "pm_P1"}'
 [ "$(as "$u" aal2 "select x ->> 'pending' from public.zella_owner_autopay_set('$b', true, 'key_on_00000002') x")" = "true" ] \
   && [ "$(q "select body::text from public.billing_outbox where idempotency_key = 'autopay:sub_P1:2:1'")" = '{"collection_method": "charge_automatically"}' ] && ok "Auto pay on with a saved card: the next version's command" || bad "autopay on"
@@ -168,17 +213,35 @@ subevent '{"id": "sub_P1", "status": "active", "collection_method": "send_invoic
 [ "$(q "select count(*) from public.billing_outbox where idempotency_key = 'autopay:sub_P1:2:2' and status = 'pending'")" = "1" ] && ok "Stripe still differs from the latest choice and nothing is waiting: sent again with the next attempt" || bad "resend"
 [ "$(q "select has_function_privilege('authenticated', 'public.zella_stripe_autopay_sync(uuid,integer)', 'execute')::text || has_function_privilege('authenticated', 'public.zella_owner_autopay_set(uuid,boolean,text)', 'execute')::text")" = "falsetrue" ] \
   && ok "Auto pay: the Stripe command is server only; the owner function is for signed in owners" || bad "autopay grants"
+# a permanent refusal (held) stops the resends until a new choice (review m2)
+q "update public.billing_outbox set status = 'held' where idempotency_key = 'autopay:sub_P1:2:2'" > /dev/null
+subevent '{"id": "sub_P1", "status": "active", "collection_method": "send_invoice", "days_until_due": 3, "default_payment_method": "pm_P1"}'
+[ "$(q "select count(*) from public.billing_outbox where kind = 'autopay' and status = 'pending'")" = "0" ] && ok "a held Auto pay command blocks further resends until the owner chooses again (review m2)" || bad "held loop"
+[ "$(code "$RB")" = "ROLLBACK_AUTOPAY_OFF" ] && ok "rollback refuses while any business has Auto pay off at Stripe (review M5)" || bad "rollback autopay off"
+subevent '{"id": "sub_P1", "status": "active", "collection_method": "charge_automatically", "default_payment_method": "pm_P1"}'
+q "update public.billing_outbox set status = 'pending' where idempotency_key = 'autopay:sub_P1:2:2'" > /dev/null
 [ "$(code "$RB")" = "ROLLBACK_HAS_PENDING" ] && ok "rollback refuses while an Auto pay command is waiting" || bad "rollback pending"
 q "update public.billing_outbox set status = 'sent' where kind = 'autopay'" > /dev/null
+# the Auto pay choice made in the onboarding checkout is kept on the server and applied once the subscription is linked (M2)
+q "insert into public.businesses (id, name) values ('00000000-0000-4000-8000-0000000000c3', 'Pay Three'); insert into public.subscriptions (business_id, provider, external_subscription_id, status) values ('00000000-0000-4000-8000-0000000000c3', 'stripe', 'sub_P3', 'pending_payment')" > /dev/null
+co=$(q "insert into public.billing_checkouts (business_id) values ('00000000-0000-4000-8000-0000000000c3') returning id")
+q "set role service_role; select public.zella_billing_checkout_autopay('00000000-0000-4000-8000-0000000000c3', '$co', false)" > /dev/null
+q "update public.billing_checkouts set stripe_subscription_id = 'sub_P3' where id = '$co'" > /dev/null
+[ "$(q "select desired_autopay::text from public.subscriptions where business_id = '00000000-0000-4000-8000-0000000000c3'")|$(q "select body ->> 'collection_method' from public.billing_outbox where idempotency_key = 'autopay:sub_P3:1:1'")" = "false|send_invoice" ] \
+  && ok "Auto pay off chosen in the checkout, the tab closed: applied on the server once Stripe's subscription is linked (M2)" || bad "checkout autopay"
+q "update public.subscriptions set desired_autopay = null where business_id = '00000000-0000-4000-8000-0000000000c3'; update public.billing_outbox set status = 'sent' where kind = 'autopay'" > /dev/null
 
 "${P[@]}" -d "$DB" -f "$RB" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "60c0659f065c58b03dc279ffb007825c" ] \
   && [ "$(q "select count(*) from pg_proc where proname in ('zella_owner_invoice_pay_status', 'zella_owner_invoice_pay_start', 'zella_owner_billing_access', 'zella_billing_stripe_refs', 'zella_owner_pack_status', 'zella_owner_pack_act_start', 'zella_billing_address_prefill', 'zella_owner_autopay_status', 'zella_owner_autopay_set', 'zella_stripe_autopay_sync',
-       'zella_stripe_autopay_next_attempt', 'zella_billing_autopay_next_command', 'zella_stripe_after_autopay', 'zella_stripe_autopay_check')")" = "0" ] \
+       'zella_stripe_autopay_next_attempt', 'zella_billing_autopay_next_command', 'zella_stripe_after_autopay', 'zella_stripe_autopay_check', 'zella_billing_pack_reopen',
+       'zella_billing_pack_reopen_expire', 'zella_billing_checkout_autopay', 'zella_billing_checkout_autopay_trg')")" = "0" ] \
+  && [ "$(md5of 'public.zella_owner_pack_buy(uuid,text,text)')|$(md5of 'public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)')" = "ce968b09b251a2192c48fefd2de0cb52|e7a39b17547fe5eefda25aa12c7fc0d2" ] \
+  && [ "$(q "select to_regclass('public.billing_owner_requests') is null")" = "t" ] \
   && [ "$(md5of 'public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)')" = "c9b70ddd6dfdf324e93d3f2aa79d7ab4" ] \
   && [ "$(q "select count(*) from information_schema.columns where table_name = 'subscriptions' and column_name in ('desired_autopay', 'autopay_version')")" = "0" ] \
   && [ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "cc75a8987f19e2ae96c066395b79af45" ] \
   && ok "rollback restores zella_owner_invoices and the email trigger exactly and drops the rest" || bad "rollback: $("${P[@]}" -d "$DB" -f "$RB" 2>&1 | grep -m1 ERROR)"
-"${P[@]}" -d "$DB" -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "second rollback"
+"${P[@]}" -d "$DB" -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "second rollback: $("${P[@]}" -d "$DB" -f "$RB" 2>&1 | grep -m1 ERROR)"
 "${P[@]}" -d "$DB" -f "$MIG" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "$made" ] && ok "applies again after the rollback" || bad "reapply"
 q "do \$\$ begin execute replace(pg_get_functiondef('public.zella_owner_pack_status(uuid,uuid)'::regprocedure), 'processing_error', 'processing_errors'); end \$\$" > /dev/null
 [ "$(code "$RB")" = "ROLLBACK_DRIFT" ] && ok "rollback refuses a changed function" || bad "drift rollback"

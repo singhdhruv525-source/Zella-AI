@@ -171,7 +171,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
         const sid = id("cs");
         return ok(put({ id: sid, object: "checkout.session", mode: b.mode, status: "open", payment_status: "unpaid", customer: b.customer ?? null,
           subscription: null, payment_intent: null, ui_mode: inPage ? b.ui_mode : "hosted",
-          url: embedded ? null : `https://checkout.fake.local/${seq}`, success_url: b.success_url ?? null, cancel_url: b.cancel_url ?? null,
+          url: embedded ? null : `https://checkout.stripe.com/c/pay/cs_fake_${seq}`, success_url: b.success_url ?? null, cancel_url: b.cancel_url ?? null,
           return_url: b.return_url ?? null, redirect_on_completion: b.ui_mode === "embedded" ? b.redirect_on_completion ?? "always" : null,
           client_secret: embedded ? `${sid}_secret_fake${seq}` : null, expires_at: clock + 86400,
           client_reference_id: b.client_reference_id ?? null, metadata, livemode, amount_total, currency: "usd", created: clock,

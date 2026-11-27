@@ -67,3 +67,12 @@ html[data-zella-theme="glass"]:has(.ba-root) .zpay-card {
 .zpay-dialog { display: grid; gap: var(--zella-space-2); padding: 0 var(--zella-space-4) var(--zella-space-3); }
 .zpay-dialog p { margin: 0; }
 .zpay-apnote { text-align: center; }
+/* a payment's own page in the CRM shell (owner, 27 Nov 2026): a back link, the title, the glass checkout filling the page */
+.zpay-route { display: grid; gap: var(--zella-space-3); max-width: 1240px; margin: 0 auto; padding: var(--zella-space-4) var(--zella-space-4) var(--zella-space-6); }
+.zpay-route-crumbs a { display: inline-flex; align-items: center; gap: var(--zella-space-1); color: var(--zella-text-2); font-size: var(--zella-text-sm); text-decoration: none; }
+.zpay-route-crumbs a:hover, .zpay-route-crumbs a:focus-visible { color: var(--zella-text); text-decoration: underline; }
+.zpay-route-title { margin: 0; color: var(--zella-text); font-size: var(--zella-text-page); line-height: 1.2; }
+.zpay-route-title:focus { outline: none; }
+.zpay-route-done { justify-content: center; }
+.zpay-next { display: flex; align-items: flex-start; gap: var(--zella-space-2); margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); }
+@media (max-width: 760px) { .zpay-route { padding: var(--zella-space-3) var(--zella-space-2) var(--zella-space-5); } }

@@ -13,12 +13,13 @@ const stripe = stripeClient({ secretKey: "sk_test_handle", baseUrl: fake.url });
 const env = { SUPABASE_URL: BACKEND, SUPABASE_ANON_KEY: "anon-test", ZELLA_SERVER_SECRET_KEY: "server-test", STRIPE_SECRET_KEY: "sk_test_handle",
   STRIPE_API_BASE: fake.url, STRIPE_PUBLISHABLE_KEY: "pk_test_handle0001" };
 for (const [k, v] of Object.entries(env)) Deno.env.set(k, v);
-const { handle } = await import("./index.ts");
+const { handle, resetApplyThrottle } = await import("./index.ts");
 
 // the database stand in: what the owner functions and the server functions answer
 type Answer = Record<string, unknown> | Error | null;
 type Db = { checkout: Record<string, unknown> | null; payment: Record<string, unknown>; start?: Record<string, unknown> | Error;
-  invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer; prefill?: unknown; autopay?: AutoPay };
+  invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer; prefill?: unknown; autopay?: AutoPay;
+  limited?: boolean; noMigration?: boolean; reopened?: Record<string, unknown>[]; checkoutAutopay?: unknown[]; hosted?: string[]; expired?: string[] };
 // Auto pay's database stand in: the owner's choice (versioned), our record of Stripe's value (changed ONLY by an applied
 // customer.subscription.updated), the outbox rows, and the Stripe events not yet applied
 type AutoPay = { owner: boolean; card: boolean; sub: string; on: boolean; desired: boolean | null; version: number; keys: Set<string>;
@@ -35,11 +36,16 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
   calls.push({ fn, args, as: auth.endsWith("server-test") ? "server" : "owner" });
   const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { "Content-Type": "application/json" } });
   if (fn === "zella_owner_billing_checkout_start") return db.start instanceof Error ? json({ message: db.start.message }, 400) : json(db.start ?? { checkout_id: CHECKOUT, status: db.checkout?.status });
-  if (fn === "zella_billing_checkout_session") return json(db.checkout);
+  if (fn === "zella_billing_checkout_session") return db.noMigration ? json({ code: "PGRST202", message: "Could not find the function public.zella_billing_checkout_session" }, 404) : json(db.checkout);
   const answer = (a: Answer | undefined) => a instanceof Error ? json({ message: a.message }, 400) : json(a ?? null);
   if (fn === "zella_owner_invoice_pay_status") return answer(db.invoice);
   if (fn === "zella_owner_invoice_pay_start") return answer(db.invoiceStart);
   if (fn === "zella_billing_stripe_refs") return answer(db.refs);
+  if (fn === "zella_rate_limit") return json(!db.limited);
+  if (fn === "zella_billing_pack_reopen") { (db.reopened ??= []).push(args); return json({ purchase_id: args.p_purchase_id }); }
+  if (fn === "zella_billing_pack_reopen_expire") { (db.expired ??= []).push(args.p_purchase_id); return json("expired"); }
+  if (fn === "zella_billing_checkout_autopay") { (db.checkoutAutopay ??= []).push(args); return json(null); }
+  if (fn === "zella_billing_checkout_use_hosted") { (db.hosted ??= []).push(args.p_checkout_id); return json(true); }
   if (fn === "zella_billing_address_prefill") return json(db.prefill ?? null);
   if (fn === "zella_owner_billing_access") return json({ business_id: BIZ, payments_live: true, app_base_url: "https://app.example.test" });
   if (fn === "zella_owner_pack_act_start") return answer(db.packAct);
@@ -110,7 +116,9 @@ Deno.test("no publishable key: payments stay closed; a key in the other mode ale
   calls.length = 0;
   const r = await start();
   assertEquals([r.status, r.body.code], [503, "PAYMENTS_MISCONFIGURED"]);
-  assertEquals(calls.map((c) => c.fn), ["zella_platform_alert"]);   // the owner's start was never called
+  // the owner check runs first (review 7), then the key check closes everything: nothing is prepared or sent
+  assert(calls.some((c) => c.fn === "zella_platform_alert" && c.args.p_kind === "stripe_key_mode_mismatch"));
+  assert(!calls.some((c) => c.fn === "zella_billing_checkout_continue"), "nothing is prepared at Stripe")
   Deno.env.set("STRIPE_PUBLISHABLE_KEY", "not-a-key");
   assertEquals((await start()).body.code, "PAYMENTS_NOT_LIVE");
   Deno.env.set("STRIPE_PUBLISHABLE_KEY", env.STRIPE_PUBLISHABLE_KEY);
@@ -143,14 +151,15 @@ Deno.test("paid at Stripe: processing, no form; expired at Stripe: start again; 
   assertEquals((await start()).body.code, "CHECKOUT_NOT_READY");
 });
 
-Deno.test("a hosted session (made before this change) is not passed off as an in page one", async () => {
+Deno.test("a hosted session is never passed off as an in page one: Stripe's own page, no client secret", async () => {
   const cus = await stripe.post("/v1/customers", {}, `customer:${crypto.randomUUID()}`);
   const prod = await stripe.post("/v1/products", { name: "x" }, `product:${crypto.randomUUID()}`);
-  const price = await stripe.post("/v1/prices", { product: prod.id, currency: "usd", unit_amount: 100, recurring: { interval: "month" } }, `price:${crypto.randomUUID()}`);
+  const price = await stripe.post("/v1/prices", { product: prod.id, currency: "usd", unit_amount: 29900, recurring: { interval: "month" } }, `price:${crypto.randomUUID()}`);
   const h = await stripe.post("/v1/checkout/sessions", { mode: "subscription", customer: cus.id, client_reference_id: CHECKOUT, success_url: "https://app.example.test/ok",
     line_items: [{ price: price.id, quantity: 1 }], metadata: { business_id: BIZ } }, `checkout:${crypto.randomUUID()}`);
   db = { checkout: openRow(h.id), payment: { status: "waiting" } };
-  assertEquals((await start()).body.code, "CHECKOUT_NOT_READY");
+  const r = await start();
+  assertEquals([r.body.status, "client_secret" in r.body, String(r.body.url).startsWith("https://checkout.stripe.com/")], ["redirect", false, true]);
 });
 
 Deno.test("the owner's own refusals pass through in words (the database decides who may pay)", async () => {
@@ -175,7 +184,7 @@ Deno.test("checkout_return: card brand and last 4 only once the server confirmed
 
 // ---- paying from inside the CRM: Pay now, the saved card, Update card, finishing a pack ----
 const INVOICE = "55555555-5555-4555-8555-555555555555", PURCHASE = "66666666-6666-4666-8666-666666666666";
-const act = (body: Record<string, unknown>) => post(body);
+const act = (body: Record<string, unknown>) => { resetApplyThrottle(); return post(body); };
 // a business that paid its first invoice through Checkout, then a renewal its saved card couldn't pay: open, past due
 async function pastDue() {
   const s = await newSession();
@@ -279,7 +288,7 @@ Deno.test("Update card: Stripe's Customer Portal, card update only, back to the 
   assert(String(r.body.url).startsWith("https://"));
   const req = fake.requests.findLast((x) => x.path === "/v1/billing_portal/sessions")!;
   assertEquals([req.key, req.body.customer, req.body.flow_data.type, req.body.return_url], ["portal:" + BIZ + ":card-key-0001", sub.customer, "payment_method_update",
-    `https://app.example.test/pay?business=${BIZ}&card=updated`]);
+    "https://app.example.test/app/settings/billing/invoices?card=updated"]);
   assertEquals((await act({ action: "card_update_start", business_id: BIZ, idempotency_key: "bad key" })).body.code, "INVALID_INPUT");
   db = { checkout: null, payment: {}, refs: { customer: null, subscription: null } };
   assertEquals((await act({ action: "card_update_start", business_id: BIZ, idempotency_key: "card-key-0002" })).body.code, "NO_CUSTOMER");
@@ -298,10 +307,14 @@ Deno.test("a pack the bank wants confirmed: the same PaymentIntent for Stripe's 
   assertEquals([r.status, r.body.status, r.body.amount_minor, r.body.client_secret], [200, "open", 2900, fake.objects.get(piId)!.client_secret]);
   const again = await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE });
   assertEquals(again.body.client_secret, r.body.client_secret, "the same intent: never a second charge");
+  // B1: only after Stripe's checks is the purchase reopened, on THIS intent, in the key's mode (so it gets its link)
+  assertEquals(db.reopened?.map((x) => [x.p_purchase_id, x.p_payment_intent, x.p_livemode]), [[PURCHASE, piId, false], [PURCHASE, piId, false]]);
+  const reopenedBefore = db.reopened!.length;
   db = { ...db, packAct: { purchase_id: "77777777-7777-4777-8777-777777777777", payment_intent: piId, price_cents: 2900 } };
   assertEquals((await act({ action: "pack_act_start", business_id: BIZ, purchase_id: "77777777-7777-4777-8777-777777777777" })).status, 500, "another purchase's intent");
   db = { ...db, packAct: { purchase_id: PURCHASE, payment_intent: piId, price_cents: 9900 } };
   assertEquals((await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE })).status, 500, "a different amount");
+  assertEquals(db.reopened!.length, reopenedBefore, "a binding failure reopens nothing (review 3)");
   fake.confirmIntent(piId);
   db = { ...db, packAct: { purchase_id: PURCHASE, payment_intent: piId, price_cents: 2900 } };
   assertEquals((await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE })).body, { status: "processing" });
@@ -378,4 +391,78 @@ Deno.test("Auto pay: an expired card isn't a usable card", async () => {
   assertEquals(usableCard(null, now), false);
 });
 
+// ---- double payment protections (owner priority, 27 Nov 2026) ----
+Deno.test("cases 3 and 11: Auto pay charges the invoice while the owner's tab confirms it: one success, one charge; the page then shows processing, never Pay", async () => {
+  const { customer, sub, inv } = await pastDue();
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub }, invoice: invRow(inv, { status: "open", payable: true }) };
+  const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  const piId = String(r.body.client_secret).split("_secret_")[0];
+  fake.setCard(customer, "ok");
+  await stripe.post(`/v1/invoices/${inv.id}/pay`, {}, `retry:${inv.id}`);   // Stripe's retry with the saved card (Auto pay)
+  fake.confirmIntent(piId);                                                // the owner's tab confirms the same intent
+  assertEquals(fake.requests.length > 0, true);
+  const charges = [...fake.objects.values()].filter((o) => o.object === "charge" && o.payment_intent === piId);
+  assertEquals(charges.length, 1, "the invoice's one PaymentIntent succeeds once: one charge");
+  const status = await act({ action: "invoice_pay_status", invoice_id: INVOICE });
+  assertEquals(status.body.invoice.processing, true, "Stripe has it: the page confirms, no Pay");
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE })).body, { status: "processing" });
+});
+
+Deno.test("case 10: two invoices in two tabs: each its own PaymentIntent and its own exact amount", async () => {
+  const a = await pastDue(), b = await pastDue();
+  db = { checkout: null, payment: {}, invoiceStart: invRow(a.inv), refs: { customer: a.customer, subscription: a.sub } };
+  const ra = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  db = { checkout: null, payment: {}, invoiceStart: invRow(b.inv), refs: { customer: b.customer, subscription: b.sub } };
+  const rb = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  const pa = fake.objects.get(String(ra.body.client_secret).split("_secret_")[0])!, pb = fake.objects.get(String(rb.body.client_secret).split("_secret_")[0])!;
+  assert(pa.id !== pb.id);
+  assertEquals([pa.metadata.invoice, pb.metadata.invoice, ra.body.amount_minor, rb.body.amount_minor], [a.inv.id, b.inv.id, a.inv.amount_due, b.inv.amount_due]);
+});
+
+// ---- review fixes (27 Nov 2026) ----
+Deno.test("rate limited per person: over the limit answers 429 before anything else", async () => {
+  db = { checkout: null, payment: {}, limited: true };
+  const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "rate-key-0001" });
+  assertEquals([r.status, r.body.code], [429, "TOO_MANY"]);
+  assert(!calls.some((c) => c.fn === "zella_owner_billing_checkout_start"), "the owner function never ran");
+});
+
+Deno.test("applied in order: without the checkout migration nothing starts, and Zella Voice is told", async () => {
+  db = { checkout: null, payment: {}, noMigration: true };
+  const posts = fake.requests.filter((x) => x.method === "POST").length;
+  const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "order-key-0001" });
+  assertEquals([r.status, r.body.code], [503, "PAYMENTS_MISCONFIGURED"]);
+  assertEquals(fake.requests.filter((x) => x.method === "POST").length, posts, "no session at Stripe");
+  assert(calls.some((c) => c.fn === "zella_platform_alert" && c.args.p_kind === "billing_migration_missing"));
+});
+
+Deno.test("checkout: a session whose amount differs from ours is never shown, and Zella Voice is told", async () => {
+  const sess = await newSession();
+  db = { checkout: { ...openRow(sess.id), amount_minor: 1000 }, payment: {} };
+  const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "amount-key-0001" });
+  assertEquals([r.status, r.body.code, "client_secret" in r.body], [502, "CHECKOUT_NOT_READY", false]);
+  assert(calls.some((c) => c.fn === "zella_platform_alert" && c.args.p_kind === "billing_checkout_amount"));
+});
+
+Deno.test("checkout: the owner's Auto pay choice is kept with the checkout on the server (M2)", async () => {
+  const sess = await newSession();
+  db = { checkout: openRow(sess.id), payment: {} };
+  const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "autopay-ck-0001", autopay: false });
+  assertEquals(r.status, 200, JSON.stringify(r.body));
+  assertEquals(db.checkoutAutopay, [{ p_business_id: BIZ, p_checkout_id: CHECKOUT, p_on: false }]);
+});
+
+Deno.test("hosted fallback: a hosted session answers Stripe's own page; asking for hosted over an open in page session expires it at Stripe first", async () => {
+  const hosted = await newSession({ ui_mode: "hosted", return_url: undefined, success_url: "https://app.example.test/welcome/setup?checkout=return&session_id={CHECKOUT_SESSION_ID}", cancel_url: "https://app.example.test/welcome/setup?checkout=cancel" });
+  db = { checkout: openRow(hosted.id), payment: {} };
+  const h = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "hosted-key-0001" });
+  assertEquals([h.status, h.body.status, String(h.body.url).startsWith("https://checkout.stripe.com/"), "client_secret" in h.body], [200, "redirect", true, false]);
+  const custom = await newSession();
+  db = { checkout: openRow(custom.id), payment: {} };
+  const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "hosted-key-0002", hosted: true });
+  assertEquals([r.status, r.body.code], [409, "CHECKOUT_EXPIRED"]);
+  assertEquals(fake.objects.get(custom.id)!.status, "expired", "one session at a time: the in page one is expired before a hosted one is made");
+  const req = fake.requests.findLast((x) => x.path === `/v1/checkout/sessions/${custom.id}/expire`)!;
+  assertEquals(req.key, `expire:${custom.id}`);
+});
 Deno.test({ name: "cleanup", sanitizeResources: false, sanitizeOps: false, fn: async () => { globalThis.fetch = realFetch; await fake.stop(); } });

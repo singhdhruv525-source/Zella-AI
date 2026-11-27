@@ -29,7 +29,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0, passes = 0;
 const check = (name, ok, detail = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? " - " + detail : ""}`); if (ok) passes++; else fails++; };
 
-const { backFace, LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
+const { enforcePayPageCsp, watchCsp, cspViolations, backFace, LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
 
 async function seed(scenario) {
   const { createFakeApi } = await import(path.join(__dirname, "../../web/src/onboarding/fakeApi.js"));
@@ -49,10 +49,12 @@ async function open(browser, { look, viewport, seeded, scenario, reduced = false
   const hits = [];
   await ctx.route((url) => ["http:", "https:"].includes(url.protocol), async (route) => {
     const url = new URL(route.request().url());
-    if (["localhost", "127.0.0.1", "fonts.googleapis.com", "fonts.gstatic.com"].includes(url.hostname)) return route.continue();
+    if (["localhost", "127.0.0.1"].includes(url.hostname)) return enforcePayPageCsp(ctx, route);
+    if (["fonts.googleapis.com", "fonts.gstatic.com"].includes(url.hostname)) return route.continue();
     hits.push(`${route.request().method()} ${url.hostname}${url.pathname}`);
     return route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
   });
+  await watchCsp(ctx);
   await ctx.addInitScript(([entries, pref]) => {
     if (!sessionStorage.getItem("seeded")) {
       for (const [k, v] of entries) localStorage.setItem(k, v);
@@ -151,6 +153,7 @@ async function shot(page, look, width, state, axeSource) {
       check(`${tag}: confirmed: Continue is offered`, await page.isVisible("button:has-text('Continue')"));
       check(`${tag}: confirmed: the summary keeps the server's amount`, (await page.locator(".zgc-total strong").innerText()) === "$898");
       await shot(page, look, width, "confirmed", axeSource);
+      check(`${tag}: the Pay step came with its ENFORCING policy and nothing was blocked`, (ctx.__cspServed ?? 0) >= 1 && (await cspViolations(page)).length === 0, (await cspViolations(page)).join("; "));
       check(`${tag}: no page errors`, errors.length === 0, errors.join("; "));
       check(`${tag}: nothing left this machine`, hits.length === 0, hits.join(", "));
       await ctx.close();
@@ -225,9 +228,53 @@ async function shot(page, look, width, state, axeSource) {
     await ap.page.screenshot({ path: path.join(SHOTS, "pay-zella-autopay-off-1440.png"), fullPage: true });
     await fillCard(ap.page); await waitFilled(ap.page);
     await ap.page.click(".zgc-pay-foot button:has-text('Pay $898')");
-    await ap.page.waitForSelector("p[role=status]:has-text('Auto pay is off')", { timeout: 20000 }).catch(() => {});
-    check("autopay off: applied once the payment is confirmed", await ap.page.isVisible("p[role=status]:has-text('Auto pay is off')"));
+    await ap.page.waitForSelector(".zgc.is-confirming, .zgc.is-confirmed", { timeout: 10000 }).catch(() => {});
+    // the choice went with the start and is kept with the checkout (the stand in's own record, as the server keeps it): a
+    // closed tab can't lose it (review M2)
+    const kept = await ap.page.evaluate(() => JSON.parse(localStorage.getItem("zella.onboardingFake.v2") ?? "{}").autopay_choice);
+    check("autopay off: the choice went to the server with the start (a closed tab can't lose it)", kept === false, String(kept));
     await ap.ctx.close();
+  }
+
+  // double payment protections on the Pay step (owner priority, 27 Nov 2026)
+  {
+    const d = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
+    await d.page.click("button:has-text('Pay securely')");
+    await fillCard(d.page); await waitFilled(d.page);
+    await d.page.dblclick(".zgc-pay-foot button:has-text('Pay $898')").catch(() => {});
+    await d.page.keyboard.press("Enter").catch(() => {});
+    await d.page.waitForSelector(".zgc.is-confirming, .zgc.is-confirmed", { timeout: 8000 }).catch(() => {});
+    check("case 7: a double click and Enter on Pay make one confirm", (await d.page.evaluate(() => window.__zgcConfirms)) === 1, String(await d.page.evaluate(() => window.__zgcConfirms)));
+    await d.page.reload();
+    await d.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    await d.page.waitForTimeout(400);
+    check("case 1: a reload while confirming goes back to confirming from the server, with no Pay", await d.page.isVisible(".zgc.is-confirming, .zgc.is-pending, .zgc.is-confirmed")
+      && (await d.page.locator("button:has-text('Pay securely'), button:has-text('Pay $898')").count()) === 0);
+    await d.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    await d.page.goBack().catch(() => {}); await d.page.goForward().catch(() => {});
+    await d.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    await d.page.waitForTimeout(400);
+    check("case 2: Back and Forward after success show it confirmed, nothing to pay", await d.page.isVisible("#zgc-status:has-text('Payment received')")
+      && (await d.page.locator("button:has-text('Pay securely')").count()) === 0);
+    await d.ctx.close();
+    // case 9: a stale or duplicate return from Stripe: never trusted; the server is asked and the query is removed
+    const q = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay",
+      query: "&checkout=return&session_id=cs_test_stale&payment_intent=pi_stale&redirect_status=succeeded" });
+    await q.page.waitForTimeout(800);
+    check("case 9: stale return parameters prove nothing: removed from the address, nothing says paid", !/session_id|payment_intent|redirect_status|checkout=/.test(q.page.url())
+      && !(await q.page.isVisible("#zgc-status:has-text('Payment received')")));
+    await q.ctx.close();
+  }
+
+  // Stripe.js can't load on the Pay step: Stripe's own Checkout page at once, as the fallback (owner decision, 27 Nov 2026)
+  {
+    const seededJs = await seed("payjsfail");
+    const j = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededJs, scenario: "payjsfail" });
+    const going = j.page.waitForRequest((r) => r.url().startsWith("https://checkout.stripe.com/"), { timeout: 10000 }).catch(() => null);
+    await j.page.click("button:has-text('Pay securely')");
+    const req = await going;
+    check("Stripe.js didn't load: the Pay step goes to Stripe's own page (hosted fallback)", Boolean(req) && req.url() === "https://checkout.stripe.com/c/pay/cs_standin_hosted");
+    await j.ctx.close();
   }
 
   // back from a redirect payment method (Stripe's return_url): confirmed through the server, the address bar tidied
@@ -236,6 +283,7 @@ async function shot(page, look, width, state, axeSource) {
     await r.page.click("button:has-text('Pay securely')");
     await fillCard(r.page); await waitFilled(r.page);
     await r.page.click(".zgc-pay-foot button:has-text('Pay $898')");
+    await r.page.waitForSelector(".zgc.is-confirming, .zgc.is-confirmed", { timeout: 10000 }).catch(() => {});   // Stripe has it, then the bank's redirect
     await r.page.goto(`${APP}/welcome/setup?scenario=pay&checkout=return&session_id=cs_test_return`);
     await r.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
     check("return: confirmed through the server after a redirect", await r.page.isVisible("#zgc-status:has-text('Payment received')"));

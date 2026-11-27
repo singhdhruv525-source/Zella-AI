@@ -131,14 +131,34 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   built for Pay now (owner, 27 Nov 2026); for the onboarding session it is still not built (no hosted link); whether a billing address changed in the checkout should update the business record (not built: we don't
   store it); Stripe's international card and conversion fees to confirm on the pricing page or Dashboard; and a
   review of Stripe Radar's rules against the any country decision (owner action).
+- **Payments open their own CRM page (owner, 27 Nov 2026):** `/app/settings/billing/pay/<invoice id>` and
+  `/app/settings/billing/pack/<code>` inside the CRM shell; Invoices and payments stays the overview; `/pay` and
+  `/pay/invoice/<id>` only redirect there. The duplicate "Invoices" placeholder in the Billing settings menu was removed.
+- **Card fields in our pages approved (owner decision, 27 Nov 2026, review M4):** on the condition that an ENFORCING CSP
+  on the onboarding Pay step and the CRM's payment pages is a go live gate. Built: `web/public/_headers` enforces the
+  policy on `/welcome/setup`, `/app/settings/billing/pay/*` and `/app/settings/billing/pack/*` (the CRM opens those with
+  a full page load); the rest of the site stays report only.
+- **Card display (owner decision, 27 Nov 2026):** the expiry may show on the card while paying (screen only, never
+  stored or sent to our server), and the issuing bank's name when Stripe gives it.
+- **Onboarding fallback (owner decision, 27 Nov 2026, review M3):** if the sandbox proof of `custom` fails, Stripe's
+  hosted Checkout page: billing setting `onboarding_checkout_mode` (`custom` by default, or `hosted`); also used at once
+  when Stripe.js can't load on the Pay step. One open session at a time (an open in page one is expired first).
+- **Payment architecture review of 9c12f3f3 (27 Nov 2026):** fixed: B1 (a pack finished with the bank was charged and
+  never granted: the reopened intent is now linked, and an unlinked pack payment is quarantined), M1 (a pack key kept
+  across lost replies; one pending owner purchase per pack), M2 (the Auto pay choice stored at the start), M5 (the
+  rollback refuses while Auto pay is off anywhere), and minor 1 to 9. M3 and M4 went to the owner (decisions above).
+  Lesson: a payment the owner finishes on an EXISTING intent must get the same link a fresh one gets, or the grant path
+  silently ignores it.
+- **No paying early (owner decision, 27 Nov 2026):** owners can't pay next month before Stripe makes the renewal
+  invoice. Pay now appears only for an open invoice; "Next payment: $249 on <date>" is information only.
 - **Auto pay switch, on by default (owner decision, 27 Nov 2026):** built on this branch, switched off. A switch in the
   checkout ("Pay automatically each renewal") and in Payments › How you pay (owner only, confirmed both ways). Off sets
   the Stripe subscription to `send_invoice`, due in 3 days; on needs a working saved card. Our record of the mode
   changes only from `customer.subscription.updated`. The SQL extends the unapplied `sql/zella_stripe_owner_pay.sql`
   (now also needs `zella_stripe_cancel.sql` and `zella_stripe_plan_change.sql`, whose customer.subscription.updated
   handler it changes by two exact text replacements, archived first). The H1 email is queued and held while
-  `email_live` is off; its "card ending" wording waits on the card at render decision. The onboarding choice is sent
-  after the payment is confirmed; a closed tab before then leaves Auto pay on.
+  `email_live` is off; its "card ending" wording waits on the card at render decision. The choice goes to the server
+  with the payment's start (kept on the checkout, applied once the subscription is linked), so a closed tab can't lose it.
 - **Stripe's hosted invoice page in the CRM (owner decision, 27 Nov 2026):** removed from the Payments UI: no "On
   Stripe" link on invoice rows and no "Pay on Stripe's invoice page" line under the checkout. It is offered only as an
   error fallback ("Pay on Stripe's secure page") when Stripe.js fails to load or our checkout can't be shown. View on

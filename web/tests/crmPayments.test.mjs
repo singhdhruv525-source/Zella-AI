@@ -156,3 +156,11 @@ test("stand in Auto pay: owner only, on by default, a double submit changes noth
   await assert.rejects(nocard.autopaySet(FAKE_BUSINESS, true, "autopay-key-3"), { code: "NO_SAVED_CARD" });
   await assert.rejects(api.autopaySet(FAKE_BUSINESS, "yes", "autopay-key-4"), { code: "INVALID_INPUT" });
 });
+
+test("the old /pay addresses redirect into the CRM's own payment pages, keeping only the stand in scenario and the card flag", async () => {
+  const { payRedirect } = await import("../src/billing/payRedirect.js");
+  assert.equal(payRedirect(`/pay/invoice/${OPEN}`, ""), `/app/settings/billing/pay/${OPEN}`);
+  assert.equal(payRedirect(`/pay/invoice/${OPEN}/`, "?scenario=paid&x=1"), `/app/settings/billing/pay/${OPEN}?scenario=paid`);
+  assert.equal(payRedirect("/pay", `?business=${FAKE_BUSINESS}&card=updated`), "/app/settings/billing/invoices?card=updated");
+  assert.equal(payRedirect("/pay/invoice/a%2Fb", ""), "/app/settings/billing/pay/a%2Fb", "an odd id stays one path part (the page refuses it)");
+});

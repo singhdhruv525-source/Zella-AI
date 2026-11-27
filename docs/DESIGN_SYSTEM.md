@@ -146,6 +146,10 @@ are not changed by this.
   and a `--zella-success` glow pulses twice; the title becomes "Payment confirmed" (pending the owner's confirmation;
   step 7 owns "You're all set"). Everything behind the layer is `inert`. With reduced motion there is no blur, tilt,
   highlight, flight, flip, shimmer, spin, glow or drawing: the states simply change.
+- **A payment's own page** (`web/src/billing/BillingPayRoute.jsx`, `.zpay-route`; owner, 27 Nov 2026): inside the CRM
+  shell, a back link "Billing and subscription" (`--zella-text-2`, underlined on hover and focus), the title at
+  `--zella-text-page`, then the glass checkout at full width (up to 1240px) and, once paid, a primary "Back to Billing
+  and subscription". The overview's "Next payment" line is `.zpay-next`: information only, never a button.
 - **Payments panel** (`web/src/billing/PaymentsPanel.jsx`, `.zpay` in `billing/payments.css`): the renewal line with
   the saved card and Update card, the invoices as rows (number and period, amount, a status chip with a word, Pay now
   or View, a link to Stripe's page), and the packs with Buy. Rows stack on a phone. Used in Settings > Billing and

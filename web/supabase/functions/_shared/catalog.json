@@ -351,6 +351,7 @@
     "billing_events_scan_incomplete": "Missed Stripe events not all read",
     "billing_invoice_amount": "An invoice amount differs from our record",
     "billing_ledger_unbalanced": "Billing ledger out of balance",
+    "billing_migration_missing": "A billing migration is not applied",
     "billing_nonpayment": "Payment failed",
     "billing_outbox_held": "Billing request held",
     "billing_quarantine": "Billing event held for review",

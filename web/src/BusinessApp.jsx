@@ -61,7 +61,7 @@ import { todayConfig } from "./todayConfig";
 // The CRM each client business uses (Stitch design). Routes:
 //   /welcome  set password from an invitation or reset email
 //   /welcome/setup  the owner onboarding journey (Welcome to You're all set)
-//   /pay      the owner's Payments page; /pay/invoice/<id> the emailed Pay now link (sign in first)
+//   /pay      redirects into the CRM: /pay/invoice/<id> (the emailed Pay now link) to /app/settings/billing/pay/<id>
 //   /app      sign in, then the business's own workspace
 
 loadBusinessFonts();
@@ -75,10 +75,15 @@ const KNOWN_PAGES = new Set([
 ]);
 
 // Address <-> page:  /app = Today, /app/<key>, /app/records/<type>, /app/settings/<section>.
+// Paying inside the CRM (owner, 27 Nov 2026): /app/settings/billing/pay/<invoice id> and /app/settings/billing/pack/<code>
+// are their own pages in the CRM shell, opened from Billing and subscription, Invoices and payments.
 function readPage(path, base) {
   const rest = path === base || path.startsWith(`${base}/`) ? segments(path.slice(base.length)) : [];
   if (!rest.length) return { key: "today", section: null, sub: null, extra: false };
   if (rest[0] === "records") return { key: `rec:${rest[1] ?? ""}`, section: null, sub: null, extra: rest.length > 2 };
+  if (rest[0] === "settings" && rest[1] === "billing" && (rest[2] === "pay" || rest[2] === "pack") && rest[3]) {
+    return { key: "settings", section: "billing", sub: "invoices", pay: { kind: rest[2], id: rest[3] }, extra: rest.length > 4 };
+  }
   if (rest[0] === "settings") return { key: "settings", section: rest[1] ?? null, sub: rest[2] ?? null, extra: rest.length > 3 };
   return { key: rest[0], section: null, sub: null, extra: rest.length > 1 };
 }
@@ -379,7 +384,10 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
       {key === "lead-sources" && <LeadSourcesPage workspace={workspace} refreshKey={refreshKey} />}
       {key === "reports" && <ReportsPage workspace={workspace} refreshKey={refreshKey} />}
       {key === "integrations" && <IntegrationsPage workspace={workspace} refreshKey={refreshKey} onNotice={setNotice} />}
-      {key === "settings" && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={signOut} signOutError={signOutError} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
+      {key === "settings" && route.pay && (
+        <Suspense fallback={<Loading text="Loading…" />}><BillingPayRoute workspace={workspace} kind={route.pay.kind} id={route.pay.id} base={base} /></Suspense>
+      )}
+      {key === "settings" && !route.pay && <BusinessSettingsPage workspace={workspace} email={email} userId={userId} records={records} onSignOut={signOut} signOutError={signOutError} section={route.section} sub={route.sub} onGo={setPage} onReload={onReload} onOpenPerson={openPerson} onNotice={setNotice} />}
     </>
   );
 
@@ -889,8 +897,10 @@ function Preview() {
 
 // The owner onboarding journey, loaded only when it is opened (web/src/onboarding/).
 const OwnerOnboarding = lazy(() => import("./onboarding/OwnerOnboarding"));
-// The owner's Payments page and the emailed Pay now link (/pay, /pay/invoice/<id>; web/src/billing/), loaded when opened.
+// /pay and the emailed Pay now link /pay/invoice/<id>: redirects into the CRM's own payment pages (web/src/billing/PayPage.jsx).
 const PayPage = lazy(() => import("./billing/PayPage"));
+// Paying an invoice or buying a pack: its own page inside the CRM shell (owner, 27 Nov 2026), loaded when opened.
+const BillingPayRoute = lazy(() => import("./billing/BillingPayRoute"));
 // For an owner who left the journey part way: a way back to the same step. Shows nothing until the server says so.
 const OnboardingResumeBanner = lazy(() => import("./onboarding/ResumeBanner"));
 

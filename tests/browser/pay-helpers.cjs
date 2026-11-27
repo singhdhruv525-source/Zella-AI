@@ -41,8 +41,11 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
 async function contrast(page) {
   const items = await page.evaluate(() => {
     const out = [];
+    const pinnedRects = [...document.querySelectorAll("body *")].filter((e) => { const c = getComputedStyle(e); return (c.position === "fixed" || c.position === "sticky") && c.visibility === "visible" && c.display !== "none" && Number(c.opacity) > 0.05 && !e.closest(".zgc"); })
+      .map((e) => ({ e, r: e.getBoundingClientRect() })).filter(({ r }) => r.width > 0 && r.height > 0);
     // a modal dialog open: only its text is read (the page behind it is dimmed on purpose and can't be reached)
-    const root = document.querySelector("[role=dialog][aria-modal=true]") ?? document.querySelector(".zob-page") ?? document.body;
+    const dialog = [...document.querySelectorAll("[role=dialog][aria-modal=true]")].find((d) => ((r) => r.width > 0 && r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight)(d.getBoundingClientRect()) && getComputedStyle(d).visibility === "visible");
+    const root = dialog ?? document.querySelector(".zob-page") ?? document.querySelector(".ba-content") ?? document.body;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement, text = n.textContent.trim();
@@ -54,7 +57,9 @@ async function contrast(page) {
       let op = 1; for (let a = el; a; a = a.parentElement) op *= Number(getComputedStyle(a).opacity);
       if (op < 0.5) continue;   // a layer on its way out (the card stepping back), not text to read
       const r = document.createRange(); r.selectNodeContents(n);
-      const box = [...r.getClientRects()].filter((b) => b.width > 2 && b.height > 4 && b.bottom > 0 && b.top < innerHeight && b.left >= 0 && b.right <= innerWidth);
+      // a box under a fixed or sticky layer of the CRM shell (its top bar, the phone's tab bar) isn't what the person reads there
+      const covered = (bx) => !dialog && pinnedRects.some(({ e, r: f }) => !e.contains(el) && f.left < bx.right && f.right > bx.left && f.top < bx.bottom && f.bottom > bx.top);
+      const box = [...r.getClientRects()].filter((b) => b.width > 2 && b.height > 4 && b.bottom > 0 && b.top < innerHeight && b.left >= 0 && b.right <= innerWidth && !covered(b));
       if (!box.length) continue;
       const m = cs.color.match(/rgba?\(([^)]+)\)/)[1].split(/[ ,/]+/).filter(Boolean).map(Number);
       const size = parseFloat(cs.fontSize), bold = Number(cs.fontWeight) >= 700;
@@ -87,10 +92,11 @@ async function contrast(page) {
 // axe on the page card (serious and critical only); text over translucent layers comes back "incomplete" there,
 // which is why contrast() above measures it from pixels
 async function axeCard(page, source) {
-  await page.addScriptTag({ content: source }).catch(() => {});
+  await page.evaluate(source).catch(() => {});   // not a script element: the payment pages' enforcing CSP blocks inline scripts
   return page.evaluate(async () => {
     if (!window.axe) return ["axe did not load"];
-    const r = await window.axe.run({ include: [".zob-page"] }, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] });
+    const where = document.querySelector(".zob-page") ? ".zob-page" : document.querySelector(".ba-content") ? ".ba-content" : "body";
+    const r = await window.axe.run({ include: [where] }, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] });
     return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.id} (${v.nodes.length}): ${v.nodes[0]?.target.join(" ")}`);
   });
 }
@@ -140,4 +146,27 @@ async function backFace(page) {
   return { ...info, luminance: sum / n };
 }
 
-module.exports = { backFace, LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock };
+// The payment pages' ENFORCING Content Security Policy, exactly as web/public/_headers sends it (owner decision, 27 Nov
+// 2026), with the production Supabase host swapped for the local stand in's (the only difference). vite preview doesn't
+// read _headers, so the tests add the header to those pages' documents themselves and count what the browser blocks.
+const PAY_PAGE = /^\/(welcome\/setup|app\/settings\/billing\/(pay|pack)\/[^/]+)\/?$/;
+function payPagePolicy() {
+  const text = require("fs").readFileSync(require("path").join(__dirname, "../../web/public/_headers"), "utf8");
+  const m = text.match(/^\/welcome\/setup\n {2}Content-Security-Policy: (.+)$/m);
+  if (!m) throw new Error("no enforcing policy for /welcome/setup in _headers");
+  return m[1].replace(/pffqxlumqhjdbzvvoszm\.supabase\.co/g, "zlocal.supabase.co");
+}
+// on a payment page's document: the enforcing header; anywhere: the browser's CSP violations counted
+async function enforcePayPageCsp(ctx, route) {
+  const u = new URL(route.request().url());
+  if (route.request().isNavigationRequest() && PAY_PAGE.test(u.pathname)) {
+    const resp = await route.fetch();
+    ctx.__cspServed = (ctx.__cspServed ?? 0) + 1;
+    return route.fulfill({ response: resp, headers: { ...resp.headers(), "content-security-policy": payPagePolicy() } });
+  }
+  return route.continue();
+}
+const watchCsp = (ctx) => ctx.addInitScript(() => { window.__cspViolations = []; document.addEventListener("securitypolicyviolation", (e) => window.__cspViolations.push(`${e.violatedDirective} ${e.blockedURI}`)); });
+const cspViolations = (page) => page.evaluate(() => window.__cspViolations ?? []);
+
+module.exports = { enforcePayPageCsp, watchCsp, cspViolations, payPagePolicy, backFace, LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock };

@@ -9,6 +9,8 @@ export function autopayWords(emailLive, card = "this card") {
 
 export function invoiceAsPayment(inv) {
   if (inv?.status === "paid") return { status: "confirmed" };
+  // Stripe already has a payment for it (a reload, another tab, Auto pay at the same moment): confirming, never Pay again
+  if (inv?.processing === true) return { status: "waiting", reason: "processing" };
   if (inv?.payable === true) return { status: "waiting", reason: "checkout_not_started", checkout_available: true };
   return { status: "waiting", reason: "payments_not_connected", checkout_available: false };
 }

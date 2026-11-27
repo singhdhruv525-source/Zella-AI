@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { ErrorBoundary, Icon } from "../BusinessUI";
-import { brandLabel, cardWords, ERROR_WORDS, failureKind, formatMoney, fromServer, nextDelay, reduce, WORDS } from "./checkoutMachine";
+import { brandLabel, cardWords, expiredWhileConfirming, ERROR_WORDS, failureKind, formatMoney, fromServer, nextDelay, reduce, WORDS } from "./checkoutMachine";
 import { mountCardFields } from "./stripeEmbedded";
 import "./glassCheckout.css";
 
@@ -29,6 +29,8 @@ import "./glassCheckout.css";
 //   onUpdateCard opens Stripe's card update (for "There's no card to charge")
 //   words        per state overrides; payLabel the first button; saveNote a line under the fields
 //   autopay      { on, onChange(on), onText, offText }: the "Pay automatically each renewal" switch (owner, 27 Nov 2026)
+//   beforeSubmit () => Promise, run before Stripe confirms (sends the Auto pay choice with the payment)
+//   hostedFallback () => start(...) asking for Stripe's own Checkout page, used at once when Stripe.js can't load (onboarding)
 //   fallbackUrl  Stripe's hosted invoice page: offered ONLY when Stripe's form can't load or our checkout can't be shown
 export default function GlassCheckout(props) {
   return (
@@ -65,7 +67,7 @@ function liveReduce(s, e) {
 }
 
 function Checkout({ summary, payment, kind = "checkout", start, actStart, confirm, onPayment, mount, returned = false, payLabel = "Pay securely",
-  words: over = {}, onUpdateCard, detailsNote, saveNote, fallbackUrl, autopay }) {
+  words: over = {}, onUpdateCard, detailsNote, saveNote, fallbackUrl, autopay, hostedFallback, beforeSubmit }) {
   const [m, dispatch] = useReducer(reduce, payment, (p) => (returned && fromServer(p).state !== "confirmed" ? { state: "confirming", attempt: 0 } : fromServer(p)));
   const [live, onLive] = useReducer(liveReduce, NO_LIVE);
   const secret = useRef(null);           // { clientSecret, publishableKey, livemode }: memory only, dropped once mounted
@@ -91,6 +93,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
     try {
       const r = await (which === "act" ? actStart : start)();
       if (r?.status === "processing") return dispatch({ type: "PROCESSING" });
+      if (r?.status === "redirect") return goHosted(r.url);
       if (r?.status !== "open" || typeof r.client_secret !== "string") throw Object.assign(new Error("no checkout"), { code: "CHECKOUT_NOT_READY" });
       // with the business's own address to prefill Stripe's billing address fields (the owner can change it there)
       secret.current = { clientSecret: r.client_secret, publishableKey: r.publishable_key, livemode: r.livemode,
@@ -106,14 +109,24 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
     if (m.kind === "no_card") return onUpdateCard?.();
     dispatch({ type: "RETRY" });
   }
+  const submitting = useRef(false);   // a double click or Enter twice before React re-renders: one confirm
   async function submit() {
-    if (!handle.current?.submit || sending) return;
+    if (!handle.current?.submit || sending || submitting.current) return;
+    submitting.current = true;
     setSending(true); setInline("");
-    try { await handle.current.submit(); }
+    // the choices on this panel (Auto pay) go to the server with the payment, before Stripe takes it (review M2)
+    try { if (beforeSubmit) await beforeSubmit(); await handle.current.submit(); }
     catch (err) { if (alive.current) setInline(err?.code === "DECLINED" ? err.message : "The payment didn't go through. Nothing was charged. Please try again."); }
-    finally { if (alive.current) setSending(false); }
+    finally { submitting.current = false; if (alive.current) setSending(false); }
   }
   async function playDemo() { await handle.current?.demo?.(); }
+  // Stripe's own page (owner, 27 Nov 2026: the onboarding fallback): only Stripe's checkout address, and the return there
+  // proves nothing (the server confirms)
+  function goHosted(url) {
+    if (typeof url !== "string" || !/^https:\/\/checkout\.stripe\.com\//.test(url)) throw Object.assign(new Error("not Stripe's page"), { code: "CHECKOUT_NOT_READY" });
+    dispatch({ type: "PROCESSING" });
+    window.location.assign(url);
+  }
 
   // Stripe's card fields: mounted once per "loading" into our slots, destroyed when the flow moves on or the page leaves
   useEffect(() => {
@@ -125,7 +138,17 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
     const doMount = mount ?? ((s, o) => mountCardFields(s, o));
     doMount({ ...slots.current }, opts).then(
       (h) => { if (alive.current) { handle.current = h; setDemo(typeof h?.demo === "function"); dispatch({ type: "MOUNTED" }); } else h?.destroy?.(); },
-      (err) => { if (alive.current) dispatch({ type: "FAIL", kind: failureKind(err) === "misconfigured" ? "misconfigured" : "stripe_load" }); },
+      (err) => {
+        if (!alive.current) return;
+        const kind = failureKind(err) === "misconfigured" ? "misconfigured" : "stripe_load";
+        // Stripe.js couldn't load: where the page has a hosted fallback (the onboarding Pay step), use it at once
+        if (kind === "stripe_load" && hostedFallback) {
+          hostedFallback().then((r) => { if (r?.status === "redirect") goHosted(r.url); else if (r?.status === "processing") dispatch({ type: "PROCESSING" }); else dispatch({ type: "FAIL", kind }); },
+            () => { if (alive.current) dispatch({ type: "FAIL", kind }); });
+          return;
+        }
+        dispatch({ type: "FAIL", kind });
+      },
     );
     return undefined;
   }, [m.state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -147,6 +170,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
         if (r?.card) setCard(r.card);
         onPayment?.(r?.payment, r?.card ?? null);
         if (r?.stopped) dispatch({ type: "STOPPED", kind: r.stopped });
+        else if (expiredWhileConfirming(r?.payment)) dispatch({ type: "STOPPED", kind: "expired" });
         else if (fromServer(r?.payment).state === "confirmed") dispatch({ type: "SERVER", payment: r.payment, card: r.card ?? null });
         else dispatch({ type: "STILL_WAITING" });
       } catch (err) { if (on) dispatch({ type: "FAIL", kind: failureKind(err) }); }

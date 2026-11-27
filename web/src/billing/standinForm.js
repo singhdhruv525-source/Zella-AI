@@ -125,6 +125,7 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
     submit: async () => {
       if (!(done.number && done.expiry && done.cvc) || !preview) throw Object.assign(new Error("Complete the card details first."), { code: "DECLINED" });
       if (!done.address) throw Object.assign(new Error("Complete the billing address first."), { code: "DECLINED" });
+      const w = doc.defaultView; if (w) w.__zgcConfirms = (w.__zgcConfirms ?? 0) + 1;   // the browser tests count confirms
       await onPay?.();
       onComplete?.();
     },

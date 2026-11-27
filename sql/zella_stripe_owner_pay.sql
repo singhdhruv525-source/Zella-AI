@@ -39,16 +39,20 @@ declare s text; d text;
     "public.zella_owner_invoice_pay_start(uuid)": "cb72de188cfae050d77a29bc3d627fd7",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
-    "public.zella_owner_pack_status(uuid,uuid)": "a48b5589765fe94049fa3f6a2ca78a6d",
-    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7",
+    "public.zella_owner_pack_status(uuid,uuid)": "6e71430a8f8331ba81fce4300d15dfa7",
+    "public.zella_owner_pack_act_start(uuid,uuid)": "ab55593e4a88a1e5198cd72decbcfaac",
     "public.zella_billing_address_prefill(uuid)": "55f277f7ce0649984442cb26898b47ad",
+    "public.zella_billing_pack_reopen(uuid,uuid,text,boolean,uuid)": "2950fa09737c3f6952e467a693c3a90f",
+    "public.zella_billing_pack_reopen_expire(uuid)": "657a7c8fdf778b20ab1f65acad872aff",
     "public.zella_owner_autopay_status(uuid)": "caf4ad7c04a3c894fc3806a652e72f69",
-    "public.zella_owner_autopay_set(uuid,boolean,text)": "fe2d1f7d660f048901005300c94fd866",
+    "public.zella_owner_autopay_set(uuid,boolean,text)": "a8d07ed668c4a53ac76932950dcd5410",
     "public.zella_stripe_autopay_sync(uuid,integer)": "357e73815eee8de255247d5d62a5aca2",
     "public.zella_stripe_autopay_next_attempt(subscriptions)": "dc4d089e243c392c41942b1d2ce08664",
     "public.zella_billing_autopay_next_command(uuid)": "f87fce08f349bf2655b1a91f99d9670c",
-    "public.zella_stripe_after_autopay(billing_outbox)": "224cb171280d5b08940468c76b852080",
-    "public.zella_stripe_autopay_check(billing_events,jsonb)": "c22f67551dab05e6fedff8235c44e4c5"
+    "public.zella_stripe_after_autopay(billing_outbox)": "f122a64fc699523b8df7c3cd0c93b4e0",
+    "public.zella_stripe_autopay_check(billing_events,jsonb)": "aad451723faf8a0322bac862974aeb5a",
+    "public.zella_billing_checkout_autopay(uuid,uuid,boolean)": "9beca42d2898efc46af25cc12f2feb62",
+    "public.zella_billing_checkout_autopay_trg()": "75550950726e34e2de939691c8613040"
   }';
 begin
   if to_regclass('public.billing_invoices') is null or to_regclass('public.pack_purchases') is null or to_regclass('public.zella_function_archive') is null
@@ -71,6 +75,23 @@ begin
     end if;
   end loop;
 end $$;
+
+-- Review fixes (27 Nov 2026): owner request keys, a reopened pack's expiry, the checkout's Auto pay choice, one pending
+-- owner purchase per pack
+create table if not exists public.billing_owner_requests (
+  operation text not null check (operation ~ '^[a-z_]{3,40}$'),
+  idempotency_key text not null check (idempotency_key ~ '^[A-Za-z0-9_-]{8,100}$'),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  value jsonb not null,
+  user_id uuid,
+  created_at timestamptz not null default now(),
+  primary key (operation, idempotency_key)
+);
+alter table public.billing_owner_requests enable row level security;   -- no policies: only the definer functions use it
+revoke all on public.billing_owner_requests from anon, authenticated;
+alter table public.pack_purchases add column if not exists reopen_expires_at timestamptz;
+alter table public.billing_checkouts add column if not exists desired_autopay boolean;
+create unique index if not exists pack_purchases_one_pending_owner on public.pack_purchases (business_id, pack_code) where source = 'owner_purchase' and status = 'pending';
 
 -- 8. Auto pay: the owner's latest choice, versioned (Stripe's own value is kept in metadata, from its events only)
 alter table public.subscriptions add column if not exists desired_autopay boolean;
@@ -158,31 +179,67 @@ begin
   if v.id is null then raise exception 'NOT_FOUND'; end if;
   return jsonb_build_object('purchase_id', v.id, 'status', v.status, 'pack_code', v.pack_code, 'resource', v.resource, 'quantity', v.quantity,
     'price_cents', v.price_cents, 'currency', 'usd', 'failure_reason', v.failure_reason, 'payment_intent', v.stripe_payment_intent,
+    'reopen_expired', v.status = 'pending' and v.reopen_expires_at is not null and v.reopen_expires_at < now(),
     'can_act', v.status = 'failed' and v.stripe_payment_intent is not null
                and coalesce(v.failure_reason, '') in ('authentication_required', 'card_declined', 'expired_card', 'insufficient_funds', 'incorrect_cvc', 'processing_error'));
 end $$;
 
--- The owner finishes a pack with Stripe's form: the purchase goes back to pending on the same PaymentIntent, and is
--- granted only by Stripe's payment_intent.succeeded after the binding check (unchanged). Repeating it answers the same.
+-- The owner asks to finish a pack with Stripe's form: only the checks (owner, code verified session, payments live, a
+-- purchase the owner may finish). Nothing changes here: billing-api first verifies the PaymentIntent with Stripe, then
+-- zella_billing_pack_reopen moves the purchase forward (review B1, 3).
 create or replace function public.zella_owner_pack_act_start(p_business_id uuid, p_purchase_id uuid) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare v public.pack_purchases; st jsonb;
 begin
   perform public.zella_onboarding_authorize(p_business_id, true, true);
   if not public.zella_payments_live() then raise exception 'PAYMENTS_NOT_LIVE'; end if;
-  select * into v from public.pack_purchases where id = p_purchase_id and business_id = p_business_id and source = 'owner_purchase' for update;
+  select * into v from public.pack_purchases where id = p_purchase_id and business_id = p_business_id and source = 'owner_purchase';
   if v.id is null then raise exception 'NOT_FOUND'; end if;
   if v.status = 'granted' then raise exception 'ALREADY_PAID'; end if;
   if v.status = 'failed' then
     st := public.zella_owner_pack_status(p_business_id, p_purchase_id);
     if not (st ->> 'can_act')::boolean then raise exception 'NOT_PAYABLE'; end if;
-    update public.pack_purchases set status = 'pending', failure_reason = null, settled_at = null where id = v.id;
-    insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, old_data, new_data)
-    values (p_business_id, auth.uid(), 'billing.pack_owner_action', 'pack_purchase', v.id, jsonb_build_object('failure_reason', v.failure_reason), jsonb_build_object('status', 'pending'));
   elsif v.status <> 'pending' or v.stripe_payment_intent is null then
     raise exception 'NOT_PAYABLE';
   end if;
+  return jsonb_build_object('purchase_id', v.id, 'payment_intent', v.stripe_payment_intent, 'price_cents', v.price_cents, 'currency', 'usd', 'user_id', auth.uid());
+end $$;
+
+-- Server only, after billing-api verified the PaymentIntent with Stripe (ours, this purchase, the price, still open):
+-- the purchase goes back to pending on the SAME PaymentIntent, now linked to it with the expected amount, so Stripe's
+-- payment_intent.succeeded grants it through the usual binding check (review B1). A reopened purchase expires after a
+-- day unless Stripe took the payment (zella_billing_pack_reopen_expire). Repeating it answers the same.
+create or replace function public.zella_billing_pack_reopen(p_business_id uuid, p_purchase_id uuid, p_payment_intent text, p_livemode boolean, p_user_id uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v public.pack_purchases;
+begin
+  select * into v from public.pack_purchases where id = p_purchase_id and business_id = p_business_id and source = 'owner_purchase' for update;
+  if v.id is null then raise exception 'NOT_FOUND'; end if;
+  if v.status = 'granted' then raise exception 'ALREADY_PAID'; end if;
+  if v.stripe_payment_intent is distinct from p_payment_intent then raise exception 'NOT_PAYABLE'; end if;
+  perform public.zella_stripe_link_add(p_payment_intent, 'payment_intent', p_business_id, p_livemode, 'pack', v.id, v.price_cents);
+  if v.status = 'failed' then
+    if coalesce(v.failure_reason, '') not in ('authentication_required', 'card_declined', 'expired_card', 'insufficient_funds', 'incorrect_cvc', 'processing_error') then raise exception 'NOT_PAYABLE'; end if;
+    if exists (select 1 from public.pack_purchases where business_id = p_business_id and pack_code = v.pack_code and source = 'owner_purchase' and status = 'pending' and id <> v.id) then
+      raise exception 'PACK_PENDING';
+    end if;
+    update public.pack_purchases set status = 'pending', failure_reason = null, settled_at = null, reopen_expires_at = now() + interval '1 day' where id = v.id;
+    insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, old_data, new_data)
+    values (p_business_id, p_user_id, 'billing.pack_owner_action', 'pack_purchase', v.id, jsonb_build_object('failure_reason', v.failure_reason), jsonb_build_object('status', 'pending'));
+  elsif v.status <> 'pending' then
+    raise exception 'NOT_PAYABLE';
+  end if;
   return jsonb_build_object('purchase_id', v.id, 'payment_intent', v.stripe_payment_intent, 'price_cents', v.price_cents, 'currency', 'usd');
+end $$;
+
+-- Server only: a reopened purchase whose day has passed goes back to failed, called by billing-api only after Stripe
+-- says the PaymentIntent was not taken (still waiting for the owner, or cancelled). States only move forward.
+create or replace function public.zella_billing_pack_reopen_expire(p_purchase_id uuid) returns text
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.pack_purchases set status = 'failed', failure_reason = 'reopen_expired', settled_at = now(), reopen_expires_at = null
+   where id = p_purchase_id and status = 'pending' and reopen_expires_at is not null and reopen_expires_at < now();
+  return case when found then 'expired' else 'unchanged' end;
 end $$;
 
 -- Server only: the business's own address, to prefill Stripe's billing address fields in the checkout (the owner can
@@ -224,17 +281,20 @@ end $$;
 -- submit). Each change: a new version, one audit entry, one email (held while email_live is off), one Stripe command.
 create or replace function public.zella_owner_autopay_set(p_business_id uuid, p_on boolean, p_idempotency_key text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare s public.subscriptions; v_on boolean; v_due date;
+declare s public.subscriptions; v_on boolean; v_due date; r public.billing_owner_requests;
 begin
   perform public.zella_onboarding_authorize(p_business_id, true, true);   -- active owner of THIS business, code verified session
   if p_on is null or p_idempotency_key is null or p_idempotency_key !~ '^[A-Za-z0-9_-]{8,100}$' then raise exception 'INVALID_INPUT'; end if;
   if not public.zella_payments_live() then raise exception 'PAYMENTS_NOT_LIVE'; end if;
   select * into s from public.subscriptions where business_id = p_business_id and provider = 'stripe' for update;
   if s.id is null or s.external_subscription_id is null or s.status in ('cancelled', 'expired') then raise exception 'NO_SUBSCRIPTION'; end if;
-  -- the same request again (same key), or a choice already made: answered as it stands
-  if exists (select 1 from public.audit_logs where business_id = p_business_id and action = 'billing.autopay_changed' and new_data ->> 'key' = p_idempotency_key) then
+  -- the same request again (same key): answered as it stands; the same key with the other value is refused (review m1)
+  select * into r from public.billing_owner_requests where operation = 'autopay' and idempotency_key = p_idempotency_key;
+  if r.idempotency_key is not null then
+    if r.business_id <> p_business_id or r.value <> to_jsonb(p_on) then raise exception 'IDEMPOTENCY_CONFLICT'; end if;
     return public.zella_owner_autopay_status(p_business_id);
   end if;
+  insert into public.billing_owner_requests (operation, idempotency_key, business_id, value, user_id) values ('autopay', p_idempotency_key, p_business_id, to_jsonb(p_on), auth.uid());
   v_on := coalesce(s.metadata ->> 'collection_method', 'charge_automatically') <> 'send_invoice';
   if coalesce(s.desired_autopay, v_on) = p_on then return public.zella_owner_autopay_status(p_business_id); end if;
   if p_on and coalesce(s.metadata ->> 'default_payment_method', '') = '' then raise exception 'NO_SAVED_CARD'; end if;
@@ -288,7 +348,8 @@ begin
   select * into s from public.subscriptions where id = r.local_id for update;
   if s.id is null or s.desired_autopay is null then return; end if;
   if (r.response ->> 'collection_method' = 'charge_automatically') is distinct from s.desired_autopay
-     and not exists (select 1 from public.billing_outbox where kind = 'autopay' and local_id = s.id and status in ('pending', 'retry_wait', 'sending') and id <> r.id) then
+     and not exists (select 1 from public.billing_outbox where kind = 'autopay' and local_id = s.id and status in ('pending', 'retry_wait', 'sending') and id <> r.id) and not exists (select 1 from public.billing_outbox where kind = 'autopay' and local_id = s.id and status = 'held'
+                     and idempotency_key like 'autopay:' || s.external_subscription_id || ':' || s.autopay_version || ':%') then
     perform public.zella_stripe_autopay_sync(s.business_id, public.zella_stripe_autopay_next_attempt(s));
   end if;
 end $$;
@@ -300,15 +361,40 @@ language plpgsql security definer set search_path = public as $$
 declare l public.billing_stripe_links := public.zella_stripe_link(o ->> 'id', 'subscription'); s public.subscriptions;
 begin
   if l.stripe_id is null then return 'ignored'; end if;
-  select * into s from public.subscriptions where business_id = l.business_id for update;
+  select * into s from public.subscriptions where business_id = l.business_id and provider = 'stripe' for update;
   if s.id is null or s.desired_autopay is null or o ->> 'status' in ('canceled', 'incomplete_expired') then return 'ignored'; end if;
   if s.external_subscription_id is distinct from o ->> 'id' then return 'ignored'; end if;
   if (o ->> 'collection_method' = 'charge_automatically') is distinct from s.desired_autopay
-     and not exists (select 1 from public.billing_outbox where kind = 'autopay' and local_id = s.id and status in ('pending', 'retry_wait', 'sending')) then
+     and not exists (select 1 from public.billing_outbox where kind = 'autopay' and local_id = s.id and status in ('pending', 'retry_wait', 'sending')) and not exists (select 1 from public.billing_outbox where kind = 'autopay' and local_id = s.id and status = 'held'
+                     and idempotency_key like 'autopay:' || s.external_subscription_id || ':' || s.autopay_version || ':%') then
     perform public.zella_stripe_autopay_sync(s.business_id, public.zella_stripe_autopay_next_attempt(s));
     return 'applied';
   end if;
   return 'ignored';
+end $$;
+
+-- Server only: the Auto pay choice made in the onboarding checkout, kept with that checkout on the server when the payment
+-- starts (review M2), so a closed tab can't lose it.
+create or replace function public.zella_billing_checkout_autopay(p_business_id uuid, p_checkout_id uuid, p_on boolean) returns void
+language sql security definer set search_path = public as $$
+  update public.billing_checkouts set desired_autopay = p_on, updated_at = now() where id = p_checkout_id and business_id = p_business_id;
+$$;
+
+-- When the checkout's Stripe subscription is linked (checkout.session.completed), a choice of "off" becomes the
+-- subscription's desired value and is sent to Stripe (the usual versioned command; the event check resends if needed).
+create or replace function public.zella_billing_checkout_autopay_trg() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.desired_autopay is false and new.stripe_subscription_id is not null and new.stripe_subscription_id is distinct from old.stripe_subscription_id then
+    update public.subscriptions set desired_autopay = false, autopay_version = autopay_version + 1, updated_at = now()
+     where business_id = new.business_id and provider = 'stripe' and external_subscription_id = new.stripe_subscription_id and desired_autopay is distinct from false;
+    if found then
+      insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
+      values (new.business_id, new.created_by, 'billing.autopay_changed', 'billing_checkout', new.id, jsonb_build_object('autopay', false, 'from', 'checkout'));
+      perform public.zella_stripe_autopay_sync(new.business_id, 1);
+    end if;
+  end if;
+  return null;
 end $$;
 
 -- 6. the invoice emails carry our invoice id (one exact text replacement on a known version, archived first)
@@ -352,6 +438,56 @@ begin
   if md5(pg_get_functiondef('public.zella_stripe_on_customer_subscription_updated(billing_events,jsonb)'::regprocedure)) <> 'a803f166b2a317d4b061ef01de4a3a04' then raise exception 'VERSION_MISMATCH: the changed event handler is not the expected version'; end if;
 end $x$;
 
+-- Review fixes: a pack payment with no link is held for a person (B1); one pending owner purchase per pack (M1)
+do $x$
+declare d text;
+  o0 constant text := $q$    return 'ignored';   -- a plan invoice's payment: invoice.paid handles it
+$q$;
+  n0 constant text := $q$    -- one of our packs' payments with no link: never dropped (money may have been taken); a person checks it
+    if coalesce(o #>> '{metadata,purchase_id}', '') <> '' then raise exception 'BINDING: pack payment % has no link to its purchase', o ->> 'id'; end if;
+    return 'ignored';   -- a plan invoice's payment: invoice.paid handles it
+$q$;
+begin
+  d := pg_get_functiondef('public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)'::regprocedure);
+  if md5(d) = 'aa9d3e91554cb0a8286017c849a982c1' then return; end if;
+  if md5(d) <> 'e7a39b17547fe5eefda25aa12c7fc0d2' then raise exception 'VERSION_MISMATCH: public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb) is not a version this file was written for'; end if;
+  if (length(d) - length(replace(d, o0, ''))) / length(o0) <> 1 then raise exception 'VERSION_MISMATCH: the text to change is not there exactly once'; end if;
+  insert into public.zella_function_archive (migration, signature, definition, definition_md5)
+  values ('zella_stripe_owner_pay', 'public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)', d, md5(d)) on conflict (migration, signature) do nothing;
+  execute replace(d, o0, n0);
+  if md5(pg_get_functiondef('public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb)'::regprocedure)) <> 'aa9d3e91554cb0a8286017c849a982c1' then raise exception 'VERSION_MISMATCH: public.zella_stripe_on_payment_intent_succeeded(billing_events,jsonb) did not change to the expected version'; end if;
+end $x$;
+do $x$
+declare d text;
+  o0 constant text := $q$  select * into c from public.billing_pack_catalog where code = p_pack_code and active;
+$q$;
+  n0 constant text := $q$  -- one owner purchase of a pack at a time (review M1, double payment cases 3, 6, 12): a second tab, or a retry with a new
+  -- key while the first is still being paid, is answered with THAT purchase and never charges twice; an automatic
+  -- reload of the same resource still being paid refuses it
+  select * into v from public.pack_purchases where business_id = p_business_id and pack_code = p_pack_code and source = 'owner_purchase' and status = 'pending'
+   order by purchased_at desc limit 1;
+  if v.id is not null then return jsonb_build_object('purchase_id', v.id, 'status', v.status, 'price_cents', v.price_cents); end if;
+  if exists (select 1 from public.pack_purchases x join public.billing_pack_catalog k on k.code = p_pack_code
+              where x.business_id = p_business_id and x.source = 'auto_reload' and x.status = 'pending' and x.resource = k.resource) then
+    raise exception 'PACK_PENDING';
+  end if;
+  select * into c from public.billing_pack_catalog where code = p_pack_code and active;
+$q$;
+begin
+  d := pg_get_functiondef('public.zella_owner_pack_buy(uuid,text,text)'::regprocedure);
+  if md5(d) = 'd10a9c769091f776da0989ecff14ccde' then return; end if;
+  if md5(d) <> 'ce968b09b251a2192c48fefd2de0cb52' then raise exception 'VERSION_MISMATCH: public.zella_owner_pack_buy(uuid,text,text) is not a version this file was written for'; end if;
+  if (length(d) - length(replace(d, o0, ''))) / length(o0) <> 1 then raise exception 'VERSION_MISMATCH: the text to change is not there exactly once'; end if;
+  insert into public.zella_function_archive (migration, signature, definition, definition_md5)
+  values ('zella_stripe_owner_pay', 'public.zella_owner_pack_buy(uuid,text,text)', d, md5(d)) on conflict (migration, signature) do nothing;
+  execute replace(d, o0, n0);
+  if md5(pg_get_functiondef('public.zella_owner_pack_buy(uuid,text,text)'::regprocedure)) <> 'd10a9c769091f776da0989ecff14ccde' then raise exception 'VERSION_MISMATCH: public.zella_owner_pack_buy(uuid,text,text) did not change to the expected version'; end if;
+end $x$;
+
+drop trigger if exists zella_billing_checkout_autopay on public.billing_checkouts;
+create trigger zella_billing_checkout_autopay after update of stripe_subscription_id on public.billing_checkouts
+  for each row execute function public.zella_billing_checkout_autopay_trg();
+
 do $$ declare f text; begin
   foreach f in array array['zella_owner_invoices(uuid)', 'zella_owner_invoice_pay_status(uuid)', 'zella_owner_invoice_pay_start(uuid)',
     'zella_owner_billing_access(uuid,boolean)', 'zella_owner_pack_status(uuid,uuid)', 'zella_owner_pack_act_start(uuid,uuid)',
@@ -363,7 +499,8 @@ do $$ declare f text; begin
   grant execute on function public.zella_billing_stripe_refs(uuid, boolean) to service_role;
   revoke execute on function public.zella_billing_address_prefill(uuid) from public, anon, authenticated;
   grant execute on function public.zella_billing_address_prefill(uuid) to service_role;
-  foreach f in array array['zella_stripe_autopay_sync(uuid,integer)', 'zella_stripe_autopay_next_attempt(subscriptions)', 'zella_billing_autopay_next_command(uuid)',
+  foreach f in array array['zella_billing_pack_reopen(uuid,uuid,text,boolean,uuid)', 'zella_billing_pack_reopen_expire(uuid)',
+    'zella_billing_checkout_autopay(uuid,uuid,boolean)', 'zella_billing_checkout_autopay_trg()', 'zella_stripe_autopay_sync(uuid,integer)', 'zella_stripe_autopay_next_attempt(subscriptions)', 'zella_billing_autopay_next_command(uuid)',
     'zella_stripe_after_autopay(billing_outbox)', 'zella_stripe_autopay_check(billing_events,jsonb)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
@@ -379,16 +516,20 @@ declare s text;
     "public.zella_owner_invoice_pay_start(uuid)": "cb72de188cfae050d77a29bc3d627fd7",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
-    "public.zella_owner_pack_status(uuid,uuid)": "a48b5589765fe94049fa3f6a2ca78a6d",
-    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7",
+    "public.zella_owner_pack_status(uuid,uuid)": "6e71430a8f8331ba81fce4300d15dfa7",
+    "public.zella_owner_pack_act_start(uuid,uuid)": "ab55593e4a88a1e5198cd72decbcfaac",
     "public.zella_billing_address_prefill(uuid)": "55f277f7ce0649984442cb26898b47ad",
+    "public.zella_billing_pack_reopen(uuid,uuid,text,boolean,uuid)": "2950fa09737c3f6952e467a693c3a90f",
+    "public.zella_billing_pack_reopen_expire(uuid)": "657a7c8fdf778b20ab1f65acad872aff",
     "public.zella_owner_autopay_status(uuid)": "caf4ad7c04a3c894fc3806a652e72f69",
-    "public.zella_owner_autopay_set(uuid,boolean,text)": "fe2d1f7d660f048901005300c94fd866",
+    "public.zella_owner_autopay_set(uuid,boolean,text)": "a8d07ed668c4a53ac76932950dcd5410",
     "public.zella_stripe_autopay_sync(uuid,integer)": "357e73815eee8de255247d5d62a5aca2",
     "public.zella_stripe_autopay_next_attempt(subscriptions)": "dc4d089e243c392c41942b1d2ce08664",
     "public.zella_billing_autopay_next_command(uuid)": "f87fce08f349bf2655b1a91f99d9670c",
-    "public.zella_stripe_after_autopay(billing_outbox)": "224cb171280d5b08940468c76b852080",
-    "public.zella_stripe_autopay_check(billing_events,jsonb)": "c22f67551dab05e6fedff8235c44e4c5"
+    "public.zella_stripe_after_autopay(billing_outbox)": "f122a64fc699523b8df7c3cd0c93b4e0",
+    "public.zella_stripe_autopay_check(billing_events,jsonb)": "aad451723faf8a0322bac862974aeb5a",
+    "public.zella_billing_checkout_autopay(uuid,uuid,boolean)": "9beca42d2898efc46af25cc12f2feb62",
+    "public.zella_billing_checkout_autopay_trg()": "75550950726e34e2de939691c8613040"
   }';
 begin
   for s in select jsonb_object_keys(made) loop

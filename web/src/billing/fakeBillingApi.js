@@ -4,7 +4,7 @@
 // confirms, an invoice is never paid twice), and mounts a static picture of Stripe's form instead of Stripe.js.
 // The business, invoices and card are invented; the card is Stripe's public test card.
 //
-// Scenarios (?scenario=... on /pay):
+// Scenarios (?scenario=... on /app/settings/billing/invoices; the CRM keeps the stand in chosen on the first page):
 //   ""         one paid invoice and one open renewal the saved card couldn't pay (past due); Pay now works
 //   paid       every invoice is paid: Pay now opens "This invoice is paid"
 //   packauth   buying a pack: the bank wants to confirm; finishing it in Stripe's form grants it
@@ -77,13 +77,21 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. Nothing has been charged.");
       if (scenario === "nocard") throw refuse("NO_CUSTOMER", "Your card is added with your first payment. There's nothing to update yet.");
       // Stripe's Customer Portal is a page of Stripe's; the stand in comes straight back as the portal would
-      const back = new URLSearchParams(globalThis.location?.search ?? ""); back.set("business", id); back.set("card", "updated");
-      return { url: `/pay?${back}` };
+      const back = new URLSearchParams(); back.set("scenario", scenario); back.set("card", "updated");
+      return { url: `/app/settings/billing/invoices?${back}` };
     },
-    invoiceStatus: async (invoiceId) => { await wait(delay); return { ...out(find(invoiceId)), invoice_id: invoiceId, business_id: FAKE_BUSINESS, business_name: "Maple Street Salon", payments_live: live }; },
-    invoiceStart: async (invoiceId) => {
+    invoiceStatus: async (invoiceId) => { await wait(delay); const i = find(invoiceId);
+      // as billing-api asks Stripe: a payment it already has shows as processing (st.completed survives a reload in sessionStorage)
+      const processing = i.status !== "paid" && (st.completed === invoiceId || globalThis.sessionStorage?.getItem(`zella.fake.paid.${invoiceId}`) === "1");
+      return { ...out(i), ...(processing ? { processing: true } : {}), invoice_id: invoiceId, business_id: FAKE_BUSINESS, business_name: "Maple Street Salon", payments_live: live }; },
+    invoiceStart: async (invoiceId, opts) => {
       await wait(delay);
       const i = find(invoiceId);
+      // the Auto pay choice made with Pay now, applied as the server would at the start (Stripe's event a moment later)
+      if (opts && typeof opts.autopay === "boolean" && live) {
+        if (opts.autopay && scenario === "nocard") { /* turning it on needs a saved card: the payment still opens */ }
+        else { st.autopay.desired = opts.autopay; setTimeout(() => { st.autopay.on = opts.autopay; st.autopay.desired = null; }, delay * 3); }
+      }
       if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. Nothing has been charged.");
       if (i.status === "paid") throw refuse("ALREADY_PAID", "Your payment is already confirmed.");
       if (st.completed === invoiceId) return { status: "processing" };
@@ -136,7 +144,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       if (opts.clientSecret !== "pi_standin_secret_standin") throw Object.assign(new Error("not the stand in's intent"), { code: "STRIPE_JS" });
       return mountStandInCard(slots, opts, { speed: delay ? 45 : 0, onPay: async () => {
         await wait(delay);
-        if (opts.invoiceId) { st.completed = opts.invoiceId; st.looks = 0; }
+        if (opts.invoiceId) { st.completed = opts.invoiceId; st.looks = 0; try { globalThis.sessionStorage?.setItem(`zella.fake.paid.${opts.invoiceId}`, "1"); } catch { /* none */ } }
         if (opts.purchaseId) { const p = st.purchases.get(opts.purchaseId); if (p) p.looks = 0; }
       } });
     },

@@ -90,7 +90,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
   };
   // scenario "pay": payments connected; the embedded form's stand in completes, then the server confirms on its second
   // look (as the webhook would, a few seconds later), so "Confirming your payment" is seen first
-  const paying = () => st.scenario === "pay" || st.scenario === "payhtml";
+  const paying = () => st.scenario === "pay" || st.scenario === "payhtml" || st.scenario === "payjsfail";
   // due_now_minor in every state, as zella_onboarding_payment computes it from the plan whatever the state
   const paymentOut = () => (st.payment_confirmed ? { status: "confirmed", reason: null, checkout_available: false, due_now_minor: 89800, confirmed_at: now() }
     : st.identity.status !== "verified" ? { status: "locked", reason: "identity_first", checkout_available: false, due_now_minor: 89800, confirmed_at: null }
@@ -212,13 +212,16 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     identityStatus: (id) => db(() => { owner(id); return identityOut(); }),
     paymentStatus: (id) => db(() => { owner(id); return paymentOut(); }),
     // billing-api checkout_start for Stripe's card fields in the page (ui_mode custom): the same answer shape, made up values (no real key or secret)
-    startCheckout: (id, key) => db(() => {
+    startCheckout: (id, key, opts = {}) => db(() => {
       owner(id);
       if (!paying()) throw dbError("PAYMENTS_NOT_LIVE");
       if (!/^[A-Za-z0-9_-]{8,100}$/.test(String(key))) throw dbError("INVALID_INPUT");
       if (st.payment_confirmed) throw Object.assign(new Error("Your payment is already confirmed."), { code: "ALREADY_PAID", status: 400 });
       if (st.checkout_completed) return { status: "processing" };
       st.checkout_started = true;
+      if (typeof opts.autopay === "boolean") { st.autopay_choice = opts.autopay; save(); }   // kept with the checkout, as on the server
+      // Stripe's own page (the fallback): a made up address of Stripe's checkout host; the test browser never reaches it
+      if (opts.hosted) return { status: "redirect", url: "https://checkout.stripe.com/c/pay/cs_standin_hosted", mode: "pay", amount_minor: 89800, currency: "usd" };
       return { status: "open", client_secret: "cs_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, mode: "pay", amount_minor: 89800, currency: "usd",
         billing_prefill: { line1: "214 Maple Street", city: "Springfield", state: "IL", postal_code: "62701", country: "US" } };   // fake business address
     }),
@@ -226,6 +229,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     // the stand in for Stripe's card fields (billing/standinForm.js: no input elements; demo() plays the test card)
     mountCheckout: async (slots, opts) => {
       await wait(delay * 2);
+      if (st.scenario === "payjsfail") throw Object.assign(new Error("Stripe.js didn't load"), { code: "STRIPE_JS" });
       if (opts.clientSecret !== "cs_standin_secret_standin") throw Object.assign(new Error("not the stand in's checkout"), { code: "STRIPE_JS" });
       return mountStandInCard(slots, opts, { onPay: () => { st.checkout_completed = true; st.return_looks = 0; save(); } });
     },
@@ -237,7 +241,8 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       return st.payment_confirmed && st.checkout_completed ? { payment: paymentOut(), card } : { payment: paymentOut() };
     }),
     // Auto pay (fake): on by default; the choice applies once the payment is confirmed (the subscription exists)
-    autopayStatus: (id) => db(() => { owner(id); return { on: st.autopay !== false, desired: st.autopay !== false, pending: false, email_live: false, subscribed: Boolean(st.payment_confirmed) }; }),
+    autopayStatus: (id) => db(() => { owner(id); const on = st.autopay !== false && !(st.payment_confirmed && st.autopay_choice === false);
+      return { on, desired: on, pending: false, email_live: false, subscribed: Boolean(st.payment_confirmed) }; }),
     autopaySet: (id, on, key) => db(() => {
       owner(id);
       if (!/^[A-Za-z0-9_-]{8,100}$/.test(String(key)) || typeof on !== "boolean") throw dbError("INVALID_INPUT");

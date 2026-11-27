@@ -240,3 +240,32 @@ test("onboarding (a Checkout Session, ui_mode custom): confirmed with the same P
   destroyCurrent();
   delete globalThis.Stripe;
 });
+
+// ---- review fixes and double payment protections (27 Nov 2026) ----
+test("a payment attempt's key survives a lost reply and Try again; it changes only once the server says the attempt is over (M1, case 6)", async () => {
+  const { keyIsSpent } = await import("../src/billing/checkoutMachine.js");
+  for (const code of [undefined, "ERROR", "CHECKOUT_NOT_READY", "PAYMENTS_MISCONFIGURED", "TOO_MANY"]) assert.equal(keyIsSpent({ code, message: "Failed to fetch" }), false, String(code));
+  for (const code of ["UNKNOWN_PACK", "NO_ACTIVE_PLAN", "IDEMPOTENCY_CONFLICT", "CHECKOUT_EXPIRED", "PACK_PENDING"]) assert.equal(keyIsSpent({ code }), true, code);
+});
+
+test("confirming: a definite refusal ends the wait as an error, a lost connection keeps waiting, an expired checkout says start again (review 6)", async () => {
+  const { expiredWhileConfirming } = await import("../src/billing/checkoutMachine.js");
+  const confirming = { state: "confirming", attempt: 1 };
+  assert.deepEqual(reduce(confirming, { type: "FAIL", kind: "network" }), confirming);
+  assert.equal(reduce(confirming, { type: "FAIL", kind: "refused", words: "Only the business owner can do this." }).state, "error");
+  assert.equal(reduce(confirming, { type: "FAIL", kind: "not_found" }).kind, "not_found");
+  assert.equal(reduce(confirming, { type: "FAIL", kind: "server" }).state, "pending", "an unknown failure is never a failed payment");
+  assert.equal(failureKind({ code: "NOT_ALLOWED" }), "refused");
+  const now = Date.parse("2026-11-27T12:00:00Z");
+  assert.equal(expiredWhileConfirming({ status: "waiting", reason: "checkout_not_started", checkout: { expires_at: "2026-11-27T11:00:00Z" } }, now), true);
+  assert.equal(expiredWhileConfirming({ status: "waiting", reason: "checkout_open", checkout: { expires_at: "2026-11-27T13:00:00Z" } }, now), false);
+  assert.equal(expiredWhileConfirming({ status: "waiting", reason: "processing" }, now), false);
+  assert.equal(reduce(confirming, { type: "STOPPED", kind: "expired" }).kind, "expired");
+});
+
+test("an invoice Stripe already has a payment for opens confirming, never with Pay (cases 1, 3, 8, 11)", async () => {
+  const { invoiceAsPayment } = await import("../src/billing/payState.js");
+  assert.equal(fromServer(invoiceAsPayment({ status: "open", payable: true, processing: true })).state, "confirming");
+  assert.equal(fromServer(invoiceAsPayment({ status: "open", payable: true })).state, "idle");
+  assert.equal(fromServer(invoiceAsPayment({ status: "paid", payable: false })).state, "confirmed");
+});

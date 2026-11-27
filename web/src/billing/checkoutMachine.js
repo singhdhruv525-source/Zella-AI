@@ -67,14 +67,31 @@ export function reduce(current, event) {
     case "STOPPED": return st === "confirmed" ? current : { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server" };
     case "FAIL": {
       if (st === "confirmed") return current;
-      // a lost connection while confirming isn't a failed payment: keep waiting calmly
-      if (st === "confirming" || st === "pending") return event.kind === "network" ? current : { state: "pending" };
+      // a lost connection while confirming isn't a failed payment: keep waiting calmly; a definite refusal from our server
+      // (not the owner's, not found, can't be paid, misconfigured) ends the wait with its words (review 6)
+      if (st === "confirming" || st === "pending") {
+        if (event.kind === "network") return current;
+        return DEFINITE.includes(event.kind) ? { state: "error", kind: event.kind, ...(event.words ? { words: String(event.words) } : {}) } : { state: "pending" };
+      }
       return { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server", ...(event.words ? { words: String(event.words) } : {}) };
     }
     case "RETRY": return st === "error" ? { state: "idle" } : current;
     default: return current;
   }
 }
+
+const DEFINITE = ["refused", "not_found", "not_payable", "misconfigured", "expired"];
+
+// While confirming, the server's answer says the checkout ran out without a payment: start again (review 6).
+export function expiredWhileConfirming(payment, now = Date.now()) {
+  const at = Date.parse(payment?.checkout?.expires_at ?? "");
+  return payment?.status === "waiting" && payment?.reason === "checkout_not_started" && Number.isFinite(at) && at < now;
+}
+
+// A key for a payment attempt is kept across a lost reply and Try again (never a second charge), and changes only after
+// a definite answer that this attempt is over (review M1).
+const NEW_KEY_AFTER = ["UNKNOWN_PACK", "NO_ACTIVE_PLAN", "IDEMPOTENCY_CONFLICT", "CHECKOUT_EXPIRED", "PACK_PENDING", "NO_SAVED_CARD"];
+export const keyIsSpent = (err) => NEW_KEY_AFTER.includes(String(err?.code ?? ""));
 
 // How long to wait before the next look while confirming (null when not confirming).
 export function nextDelay(current) {
@@ -93,7 +110,7 @@ export function failureKind(err) {
   if (code === "NOT_FOUND") return "not_found";
   if (code === "NOT_PAYABLE") return "not_payable";
   if (code === "NO_SAVED_CARD" || code === "NO_CUSTOMER") return "no_card";
-  if (["NO_ACTIVE_PLAN", "UNKNOWN_PACK", "PAYMENTS_NOT_LIVE", "MFA_REQUIRED", "NOT_ALLOWED", "BUSINESS_NOT_AVAILABLE"].includes(code)) return "refused";
+  if (["NO_ACTIVE_PLAN", "UNKNOWN_PACK", "PAYMENTS_NOT_LIVE", "MFA_REQUIRED", "NOT_ALLOWED", "BUSINESS_NOT_AVAILABLE", "PACK_PENDING", "TOO_MANY"].includes(code)) return "refused";
   const text = String(err?.message ?? "");
   if ((typeof navigator !== "undefined" && navigator.onLine === false) || /failed to fetch|network|load failed|fetch failed/i.test(text)) return "network";
   return "server";
