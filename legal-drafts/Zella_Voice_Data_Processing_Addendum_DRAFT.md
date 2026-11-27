@@ -30,6 +30,8 @@ Last updated: **[LAST UPDATED DATE]**
 
 3.3 Zella Voice will immediately inform Customer if, in its opinion, an instruction infringes Data Protection Laws, and may suspend the affected processing until Customer confirms or changes the instruction.
 
+3.4 **Emergency disclosures.** **[COUNSEL CHOICE: (A) CUSTOMER EXPRESSLY INSTRUCTS ZELLA VOICE TO MAKE LEGALLY PERMITTED EMERGENCY DISCLOSURES ON THE CONDITIONS BELOW (SUGGESTED); OR (B) DELETE THIS SECTION 3.4, SO THAT EMERGENCY DISCLOSURES WITHOUT LEGAL PROCESS ARE MADE ONLY WHERE THE LAW REQUIRES THEM UNDER SECTION 3.1]** Customer instructs Zella Voice to disclose Customer Personal Data to a government authority without legal process only where: (a) the requester's identity and authority have been verified; (b) Zella Voice believes in good faith that disclosure without delay is needed to prevent imminent death or serious physical injury; (c) the law allows the disclosure; and (d) only the minimum data needed is disclosed, through a secure channel. Zella Voice will inform Customer as soon as doing so no longer creates a risk of death or serious harm, unless the law prohibits it.
+
 ## 4. Details of processing
 
 4.1 The subject matter, duration, nature and purpose of the processing, the types of Customer Personal Data and the categories of data subjects are set out in Annex 1.
@@ -340,6 +342,7 @@ Placeholders in this document:
 - **[LAST UPDATED DATE]**
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
+- **[COUNSEL CHOICE: (A) CUSTOMER EXPRESSLY INSTRUCTS ZELLA VOICE TO MAKE LEGALLY PERMITTED EMERGENCY DISCLOSURES ON THE CONDITIONS BELOW (SUGGESTED); OR (B) DELETE THIS SECTION 3.4, SO THAT EMERGENCY DISCLOSURES WITHOUT LEGAL PROCESS ARE MADE ONLY WHERE THE LAW REQUIRES THEM UNDER SECTION 3.1]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SUBPROCESSOR CHANGE NOTICE PERIOD]**
 - **[URGENT REPLACEMENT OBJECTION PERIOD]**

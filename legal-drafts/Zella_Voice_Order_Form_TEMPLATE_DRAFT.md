@@ -56,7 +56,7 @@ If a trial is included, the Trial Period starts when the Owner starts the paymen
 
 5.2 **Automatic renewal.** **THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR SUCCESSIVE BILLING PERIODS UNTIL CANCELED UNDER SECTION 10.2 OF THE TERMS.** Zella Voice sends a renewal notice 3 days before each renewal and, for yearly Plans, also 7 days before.
 
-5.3 **Cancellation.** The Owner may cancel at any time in the Services, with no cancellation fee (Terms, section 10.2). Cancellation during a Trial Period takes effect immediately, before any paid subscription starts, and nothing is charged. Cancellation on or after the First Billing Date takes effect at the end of the current billing period, and Customer keeps access until then. The export window after cancellation runs from the day cancellation takes effect (Terms, sections 12.6 and 12.7).
+5.3 **Cancellation.** The Owner may cancel at any time in the Services, with no cancellation fee (Terms, section 10.2). Cancellation during a Trial Period takes effect immediately, before any paid subscription starts, and nothing is charged. Cancellation on or after the First Billing Date takes effect at the end of the current billing period, and Customer keeps access until then, except that when a yearly renewal is refunded under section 10.6 of the Terms, the cancellation takes effect when the refund is issued. The export window after cancellation runs from the day cancellation takes effect (Terms, sections 12.6 and 12.7).
 
 ## 6. Add ons
 

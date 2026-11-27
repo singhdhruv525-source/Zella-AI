@@ -101,7 +101,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 
 6.2 **Transcripts** are visible only to a Customer's owners, admins and managers, to staff only if the Owner allows it, and never to staff in Regulated Industries.
 
-6.3 Recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion (sections 10 and 11). If a healthcare Customer has asked, under its business associate agreement, for a transcript or recording to be returned before it is deleted, its deletion is suspended until it is returned, for a limited period.
+6.3 Recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion (sections 10 and 11). Recordings and transcripts under a legal hold are kept until the hold is released, even past 90 days, and are then deleted on schedule. If a healthcare Customer has asked, under its business associate agreement, for a transcript or recording to be returned before it is deleted, its deletion is suspended until it is returned, for a limited period; where an item is both under a legal hold and named in a return request, DPA Schedule 1, section S1.6.3(e) applies. **[COUNSEL TO CONFIRM THE PRECEDENCE WHERE A CALL IS UNDER BOTH A LEGAL HOLD AND A RETURN REQUEST]**
 
 ## 7. Messages, consent and opting out
 
@@ -276,12 +276,12 @@ Placeholders in this document:
 - **[LEGAL ENTITY NAME]**
 - **[REGISTERED ADDRESS]**
 - **[SUBPROCESSOR LIST LOCATION]**
+- **[COUNSEL TO CONFIRM THE PRECEDENCE WHERE A CALL IS UNDER BOTH A LEGAL HOLD AND A RETURN REQUEST]**
 - **[MONITORING PROVIDER NAME]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
-- **[COUNSEL TO CONFIRM THE PRECEDENCE WHERE A CALL IS UNDER BOTH A LEGAL HOLD AND A RETURN REQUEST]**
 - **[CONFIRM THE RATE LIMIT RECORD RETENTION]**
 - **[BILLING RECORDS RETENTION PERIOD]**
 - **[CANCELLATION RETENTION PERIOD]**

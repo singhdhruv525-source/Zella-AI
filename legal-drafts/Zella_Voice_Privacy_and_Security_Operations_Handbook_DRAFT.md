@@ -118,7 +118,7 @@ C1.2 Zella Voice redirects requests for Customer Data to the Customer wherever p
 
 ### C2A. Emergency requests without legal process
 
-Use this procedure when a requester without legal process, for example law enforcement, says that disclosure is needed to prevent imminent death or serious physical harm. It replaces step 2 (Validate) of section C2; the other steps still apply as stated below.
+Use this procedure when a requester without legal process, for example law enforcement, says that disclosure is needed to prevent imminent death or serious physical harm. It replaces step 2 (Validate) of section C2; the other steps still apply as stated below. For Customer Personal Data, this procedure relies on the Customer's instruction in DPA section 3.4 and follows the counsel choice there: if counsel chooses (B), use it only for disclosures the law requires. **[COUNSEL CHOICE IN DPA SECTION 3.4: (A) INSTRUCTED EMERGENCY DISCLOSURES (SUGGESTED) OR (B) ONLY DISCLOSURES REQUIRED BY LAW]**
 
 1. **Escalate at once.** The request goes to **[LEGAL REQUESTS CONTACT]** and to counsel immediately, at any hour.
 2. **Verify the requester.** Confirm the requester's identity and authority by calling back through an official number found independently, not one given in the request. Record the emergency as the requester describes it.
@@ -251,6 +251,7 @@ Placeholders in this document:
 - **[COUNSEL TO SET THE VERIFICATION METHOD FOR REQUESTERS WITH NO EMAIL ADDRESS ON RECORD]**
 - **[COUNSEL TO CONFIRM THE AGENT VERIFICATION STANDARD]**
 - **[LEGAL REQUESTS CONTACT]**
+- **[COUNSEL CHOICE IN DPA SECTION 3.4: (A) INSTRUCTED EMERGENCY DISCLOSURES (SUGGESTED) OR (B) ONLY DISCLOSURES REQUIRED BY LAW]**
 - **[EMERGENCY DECISION OWNER]**
 - **[COUNSEL TO CONFIRM THE LEGAL BASIS FOR EMERGENCY DISCLOSURE, INCLUDING 18 U.S.C. 2702 AND ANY STATE LAW]**
 - **[OWNER DECISION: WHETHER TO PUBLISH A TRANSPARENCY REPORT]**
