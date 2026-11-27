@@ -273,7 +273,7 @@ S1.3.9 make its internal practices, books and records relating to PHI available 
 
 S1.3.10 limit its Uses, Disclosures and requests of PHI to the Minimum Necessary; and
 
-S1.3.11 forward to Covered Entity any request from an Individual for access, amendment or an accounting that it receives directly, and not respond to it except as Covered Entity directs.
+S1.3.11 forward to Covered Entity any request from an Individual for access, amendment or an accounting that it receives directly, and not respond to it except as Covered Entity directs or where the law requires Business Associate to respond directly, consistent with section 9.2 of the DPA **[COUNSEL TO REVIEW THE EXCEPTION FOR DIRECT RESPONSES REQUIRED BY LAW]**.
 
 ### S1.4 Permitted Uses and Disclosures
 
@@ -368,6 +368,7 @@ Placeholders in this document:
 - **[CUSTOMER LEGAL NAME]**
 - **[BAA BREACH NOTICE DAYS]**
 - **[BAA RESPONSE DAYS]**
+- **[COUNSEL TO REVIEW THE EXCEPTION FOR DIRECT RESPONSES REQUIRED BY LAW]**
 - **[OPTIONAL: DATA AGGREGATION SERVICES RELATING TO THE HEALTH CARE OPERATIONS OF COVERED ENTITY, IF COUNSEL APPROVES]**
 - **[COUNSEL CHOICE, LINKED TO SECTION 3.4 OF THE DPA: (A) ADD "BUSINESS ASSOCIATE MAY DISCLOSE PHI IN AN EMERGENCY DISCLOSURE INSTRUCTED UNDER SECTION 3.4 OF THE DPA, ONLY TO THE EXTENT 45 CFR 164.512(j) WOULD PERMIT COVERED ENTITY TO MAKE IT", AND ADD THIS SECTION TO THE EXCEPTIONS IN SECTION S1.4.5; OR (B) STATE THAT EMERGENCY DISCLOSURES OF PHI ARE MADE ONLY AS REQUIRED BY LAW UNDER SECTION S1.4.2]**
 - **[BAA RETURN DELIVERY PERIOD]**

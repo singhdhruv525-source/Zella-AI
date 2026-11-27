@@ -134,7 +134,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Owner identity checks |
 | **[EMAIL INBOX PROVIDER]** | Our own email inboxes, including support and privacy requests, which may contain Customer Personal Data |
 
-8.2 We may also disclose Personal Data where the law requires it, to protect the safety, rights or property of any person, or to a successor in a merger, acquisition or reorganization, which will remain bound by this policy. One Customer's data is never shown to another Customer.
+8.2 We may also disclose Account Data where the law requires it, to protect the safety, rights or property of any person, or to a successor in a merger, acquisition or reorganization, which will remain bound by this policy. We disclose Customer Personal Data only as the Data Processing Addendum allows: on the Customer's instructions, where the law requires it (DPA section 3.1), in an emergency on the conditions in DPA section 3.4, or to a successor that remains bound by the Agreement. One Customer's data is never shown to another Customer.
 
 ## 9. International transfers
 

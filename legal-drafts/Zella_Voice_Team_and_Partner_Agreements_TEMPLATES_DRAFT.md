@@ -157,11 +157,11 @@ C4.2 This agreement is governed by **[EMPLOYEE GOVERNING LAW]** and may be signe
 
 ### D1. Parties
 
-This Founder Intellectual Property Assignment is between **[FOUNDER NAME]** ("Founder") and **[LEGAL ENTITY NAME]**, a Wyoming limited liability company ("Company"). A separate assignment is signed by each founder: **[FOUNDER NAMES]**.
+This Founder Intellectual Property Assignment is between **[FOUNDER NAME]** ("Founder") and **[LEGAL ENTITY NAME]**, a Wyoming limited liability company ("Company"). A separate assignment is signed by each founder: **[FOUNDER NAMES]**. It takes effect on **[FOUNDER ASSIGNMENT EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]** (the "Effective Date").
 
 ### D2. Assignment
 
-D2.1 In consideration of **[CONSIDERATION, FOR EXAMPLE MEMBERSHIP INTERESTS ISSUED OR ONE DOLLAR AND OTHER GOOD AND VALUABLE CONSIDERATION]**, Founder hereby assigns to Company all right, title and interest in and to all software, source code, designs, prompts, documentation, data, domain names, trademarks and brand assets (including the name "Zella Voice"), inventions and other materials that Founder created or acquired, alone or with others, before the date of this assignment and that relate to the Zella Voice business, including the materials listed in Schedule D1 (the "Assigned Assets"), together with all intellectual property rights in them, all goodwill associated with any trademarks, and all rights to sue for past infringement.
+D2.1 In consideration of **[CONSIDERATION, FOR EXAMPLE MEMBERSHIP INTERESTS ISSUED OR ONE DOLLAR AND OTHER GOOD AND VALUABLE CONSIDERATION]**, Founder hereby assigns to Company all right, title and interest in and to all software, source code, designs, prompts, documentation, data, domain names, trademarks and brand assets (including the name "Zella Voice"), inventions and other materials that Founder created or acquired, alone or with others, before the Effective Date in section D1 and that relate to the Zella Voice business, including the materials listed in Schedule D1 (the "Assigned Assets"), together with all intellectual property rights in them, all goodwill associated with any trademarks, and all rights to sue for past infringement.
 
 D2.2 Founder waives, to the extent permitted by law, moral rights in the Assigned Assets, and will sign documents and take actions reasonably requested to perfect Company's rights, including transfers of domain names, code repositories and accounts.
 
@@ -292,6 +292,7 @@ Placeholders in this document:
 - **[STATE STATUTORY NOTICE TEXT]**
 - **[FOUNDER NAME]**
 - **[FOUNDER NAMES]**
+- **[FOUNDER ASSIGNMENT EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]**
 - **[CONSIDERATION, FOR EXAMPLE MEMBERSHIP INTERESTS ISSUED OR ONE DOLLAR AND OTHER GOOD AND VALUABLE CONSIDERATION]**
 - **[FOUNDER CONFIDENTIALITY PERIOD]**
 - **[COUNSEL TO CONFIRM WHETHER A CONTRIBUTION AGREEMENT UNDER THE OPERATING AGREEMENT IS ALSO NEEDED]**
