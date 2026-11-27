@@ -151,6 +151,7 @@ We keep Personal Data only as long as needed for the purposes in section 4. Anyt
 | Copies of calls held by Vapi | For each call not under a legal hold or named in a pending return request, a deletion request is sent to Vapi once the recording and transcript are removed from Zella Voice, or on erasure or account deletion; Vapi deletes its copy where technically possible. For a call under a legal hold, no deletion request is sent and Vapi's copy is kept until the hold is released. For a call named in a pending return request under a healthcare Customer's business associate agreement, Vapi's copy is kept until the call is returned, and for no longer than the limited period in DPA section 12.1, and is then deleted |
 | Text and email contents | 2 years, then the words are removed and only the record that a message was sent remains |
 | Audit and security logs | 7 years unless the law requires otherwise; no message contents, transcripts or recordings |
+| Network address and browser details of visitors and Authorized Users, outside the audit and security logs | We keep them only in rate limit records, which are used for a short window to stop abuse and then cleared **[CONFIRM THE RATE LIMIT RECORD RETENTION]**. Google (Google Fonts, section 15.3.1) and Cloudflare (hosting, section 15.3.2) receive them when a page loads and keep them under their own policies |
 | Owner identity documents | 90 days after the check (the result is kept); a replaced copy is removed after 30 days |
 | Card brand, last 4 digits and expiry (for billing notices) | Kept in billing records and the billing email log while the account is active and, after that, for as long as billing records are kept, **[BILLING RECORDS RETENTION PERIOD]**; never full card numbers or security codes |
 | Other Customer Data and Account Data | While the account is active |
@@ -182,7 +183,7 @@ Where we are the controller, you have the right to access, rectify and erase you
 
 ### 12.4 California
 
-12.4.1 **Notice at collection.** In the past 12 months we collected these categories of personal information from Authorized Users and visitors: identifiers (name, email, telephone, network address); commercial information (Plan and billing records); internet activity (sign in and security logs); professional information (role and business); and sensitive personal information (account sign in credentials and the government identification used for Owner verification). We collect them for the purposes in section 4.2 and keep them for the periods in section 10. We do not sell or share personal information, and we use sensitive personal information only to provide and secure the Services.
+12.4.1 **Notice at collection.** In the past 12 months we collected these categories of personal information from Authorized Users and visitors: identifiers (name, email, telephone, network address); commercial information (Plan and billing records); internet activity (sign in and security logs); professional information (role and business); and sensitive personal information (account sign in credentials and the government identification used for Owner verification). We collect them for the purposes in section 4.2 and keep them for the periods in section 10, including its rows for audit and security logs and for network address and browser details. We do not sell or share personal information, and we use sensitive personal information only to provide and secure the Services.
 
 12.4.2 **Rights.** California residents may request to know, access, correct and delete their personal information, and to opt out of sale or sharing and limit use of sensitive personal information (we do neither). We will not discriminate against you for exercising these rights. You may use an authorized agent. We verify the agent's identity, require your signed authorization or a valid power of attorney, and, where the law allows, may confirm the request with you directly. For Customer Personal Data, we act as the Customer's service provider and will help it respond.
 
@@ -280,6 +281,7 @@ Placeholders in this document:
 - **[EMAIL INBOX PROVIDER]**
 - **[DATA HOSTING REGION]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
+- **[CONFIRM THE RATE LIMIT RECORD RETENTION]**
 - **[BILLING RECORDS RETENTION PERIOD]**
 - **[CANCELLATION RETENTION PERIOD]**
 - **[COUNSEL CHOICE: (A) EXCLUDE TRANSCRIPTS OF CUSTOMERS IN REGULATED INDUSTRIES FROM EVERY EXPORT, INCLUDING AFTER CANCELLATION (CURRENT TEXT); OR (B) LET THE OWNER EXPORT THEM WITH SAFEGUARDS, AND UPDATE SECTIONS 10 AND 11.1, DPA 9.1 AND 12.2 AND TERMS 12.6 TO MATCH]**

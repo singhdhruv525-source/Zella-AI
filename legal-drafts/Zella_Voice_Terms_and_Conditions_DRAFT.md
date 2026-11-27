@@ -176,7 +176,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 10.6 **Other refunds.** Except as stated in this section 10, sections 17.2, 18.2, 19.3, 22.2 and 22.3, or Schedule 4, sections 4.6 and 4.7, or as required by law, Fees are non refundable, and there are no refunds or credits for partial periods. A yearly renewal is refunded in full if Customer requests it within 7 days after the renewal charge. Zella Voice may, at its discretion, give a prorated refund of a yearly Plan after prolonged service failures.
 
-10.7 **Process.** Refunds are requested in the Services. Zella Voice determines eligibility under this section 10, and pays refunds only to the original payment method through its payment processor.
+10.7 **Process.** Refunds are requested in the Services. A refund of a first Plan payment under section 10.3 may be requested in the Services while Customer has access, or otherwise by email to **[SUPPORT CONTACT EMAIL]**, at any time within the 30 day period in section 10.3, including after cancellation has taken effect. Zella Voice determines eligibility under this section 10, and pays refunds only to the original payment method through its payment processor.
 
 ## 11. Service levels and support
 
@@ -210,7 +210,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 ## 14. Intellectual property and feedback
 
-14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during any Trial Period and the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. After cancellation, and only during the export window under sections 12.6 and 12.7, Customer's Authorized Users may use the Services solely to export Customer Data that is still retained, through the exports in section 12.6; this does not include answering calls, sending messages or any other use. All rights not expressly granted are reserved.
+14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during any Trial Period and the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. After cancellation, and only during the export window under sections 12.6 and 12.7, Customer's Authorized Users may use the Services solely to export Customer Data that is still retained, through the exports in section 12.6; this does not include answering calls, sending messages or any other use, except requesting a refund of a first Plan payment under sections 10.3 and 10.7. All rights not expressly granted are reserved.
 
 14.2 **Restrictions.** Customer must not copy, modify, reverse engineer, resell or sublicense the Services, or use them to build a competing product, except to the extent applicable law expressly permits.
 
