@@ -50,8 +50,8 @@ can turn it off in Settings › Billing › Emails).
 
 | # | Email | When | Main content | M/O |
 |---|---|---|---|---|
-| B1 | Your plan renews on <date> | scheduled by our worker from the subscription's period end: 3 days before each renewal; **yearly plans also 7 days before** | plan, period, estimated amount (plan + expected pay-as-you-go), and **one of three**: auto-debit on → "we will charge card ending 4242, nothing to do"; auto-debit off → "your invoice will be due on <date>, pay by the link or in the app"; payment needed (auto-debit on but no card / card expires before the date / last charge failed) → "pay now / update card" | M |
-| B2 | Card expiring soon | 30 days before the saved card's expiry month ends | last 4 digits, "update card" link | M |
+| B1 | Your plan renews on <date> | scheduled by our worker from the subscription's period end: 3 days before each renewal; **yearly plans also 7 days before** | plan, period, estimated amount (plan + expected pay-as-you-go), and **one of three**: auto-debit on → "we will charge card ending 4242, nothing to do"; auto-debit off → "your invoice will be due on <date>, pay by the link or in the app"; payment needed (auto-debit on but no card or last charge failed) → "pay now / update card" | M |
+| B2 | Held pending owner decision | Pending | Pending | Pending |
 | B3 | No card on file | auto-debit is on and the saved card was removed or is unusable | "add a card before <next renewal>" | M |
 | B4 | Price change notice | 30 days before a plan's price changes for this business | old and new price, from which renewal, how to change plan or cancel | M |
 | B5 | Discount ending | 7 days before a discount or promo stops | renewal amount without the discount | M |
@@ -72,7 +72,7 @@ can turn it off in Settings › Billing › Emails).
 
 | # | Email | When | Main content | M/O |
 |---|---|---|---|---|
-| D1 | Payment failed / invoice overdue | first failed charge (auto-debit on) or due date passed unpaid (auto-debit off) | amount, reason in plain words (declined, expired, insufficient funds), "pay now / update card" link, next retry date | M |
+| D1 | Payment failed / invoice overdue | first failed charge (auto-debit on) or due date passed unpaid (auto-debit off) | amount, reason in plain words (for example, declined or insufficient funds), "pay now / update card" link, next retry date | M |
 | D2 | Action needed — confirm payment | the bank asks for confirmation (3-D Secure) | "confirm on Stripe's page" link | M |
 | D3 | Retry failed | each failed retry (days 2, 3, 4) | attempt number, days left before pause, pay link | M |
 | D4 | Final notice | the day before the pause (day 4) | "service pauses tomorrow", pay link | M |
@@ -157,7 +157,7 @@ our own row, e.g. the data-deletion schedule for E8), only to an owner who has g
   **Billing settings**.
 - Dates in the business's own time zone; amounts as `$1,234.56`.
 - Footer: support contact, why they get this email, link to the email settings (for optional emails).
-- No card numbers beyond the last 4: only the card brand and last 4 digits from Stripe (owner decision R59, 27 Nov 2026; the expiry is never stored, so B2 waits for an owner decision); no full addresses, no customer (caller) data.
+- For card details, show only the card brand and last 4 digits from Stripe (owner decision R59, 27 Nov 2026); no full addresses, no customer (caller) data.
 
 ## 5. Settings the owner sees (Settings › Billing)
 
@@ -201,12 +201,13 @@ our own row, e.g. the data-deletion schedule for E8), only to an owner who has g
 - One test per email: the right event sends exactly one email with the right content; a repeated event sends none.
 - Paying the same invoice by the email link and in the app at once charges it once.
 - Auto-debit off: invoice due in 3 days, overdue path on day 4, pause on day 5.
-- Renewal notice: auto-debit text with a working card; auto-debit-off text; payment-needed text with no card, an expiring card, or a
-  failed last charge.
+- Renewal notice: auto-debit text with a working card; auto-debit-off text; payment-needed text with no card or a failed last charge.
 - Mismatch held; bounce recorded and alerted; optional email off → not sent, mandatory → always sent.
 - Stripe sandbox proof that Stripe itself sends no customer email.
 
 ## 10. Open choices for the owner
+
+B2 stays held until the owner decides whether to revise its trigger and copy to work without card expiry or remove the template.
 
 Decided by the owner (14 Nov 2026): owners can switch auto-debit off and pay by the email link or in the app;
 renewal reminder 3 days before, and also 7 days before for yearly plans; urgent ones (D1, D4, D5) also by SMS.
