@@ -170,13 +170,13 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 10.3 **Money back guarantee.** Customer may receive a full refund of its first Plan payment, monthly or yearly, if it requests one within 30 days after that payment. The guarantee covers the Plan Fee only and is available once per Customer.
 
-10.4 **Setup fee.** A setup fee is refundable in full if requested before onboarding work starts, within 48 hours after purchase. It is not refundable once Zella Voice has started creating Customer's account, including within the period in section 10.3.
+10.4 **Setup fee.** A setup fee is refundable in full if requested within 48 hours after purchase and before Zella Voice starts setting up Customer's AI Receptionist or provisioning its telephone numbers after checkout. It is not refundable once that work has started, including within the period in section 10.3. **[OWNER TO CONFIRM THE ONBOARDING MILESTONE THAT ENDS SETUP FEE REFUND ELIGIBILITY]**
 
 10.5 **Packs and overage.** Used packs and pay as you go minutes are not refundable. An unused pack is refundable if requested within 14 days after purchase.
 
 10.6 **Other refunds.** Except as stated in this section 10, sections 17.2, 18.2, 19.3, 22.2 and 22.3, or Schedule 4, sections 4.6 and 4.7, or as required by law, Fees are non refundable, and there are no refunds or credits for partial periods. A yearly renewal is refunded in full if Customer requests it within 7 days after the renewal charge. Zella Voice may, at its discretion, give a prorated refund of a yearly Plan after prolonged service failures.
 
-10.7 **Process.** Refunds are requested in the Services. A refund of a first Plan payment under section 10.3 may be requested in the Services while Customer has access, or otherwise by email to **[SUPPORT CONTACT EMAIL]**, at any time within the 30 day period in section 10.3, including after cancellation has taken effect. Zella Voice determines eligibility under this section 10, and pays refunds only to the original payment method through its payment processor.
+10.7 **Process.** Refunds are requested in the Services. A refund of a first Plan payment under section 10.3, or of an unused pack under section 10.5, may be requested in the Services while Customer has access, or otherwise by email to **[SUPPORT CONTACT EMAIL]**, at any time within the 30 day period in section 10.3 or the 14 day period in section 10.5, including after cancellation has taken effect. Zella Voice determines eligibility under this section 10, and pays refunds only to the original payment method through its payment processor.
 
 ## 11. Service levels and support
 
@@ -210,7 +210,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 ## 14. Intellectual property and feedback
 
-14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during any Trial Period and the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. After cancellation, and only during the export window under sections 12.6 and 12.7, Customer's Authorized Users may use the Services solely to export Customer Data that is still retained, through the exports in section 12.6; this does not include answering calls, sending messages or any other use, except requesting a refund of a first Plan payment under sections 10.3 and 10.7. All rights not expressly granted are reserved.
+14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during any Trial Period and the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. After cancellation, and only during the export window under sections 12.6 and 12.7, Customer's Authorized Users may use the Services solely to export Customer Data that is still retained, through the exports in section 12.6; this does not include answering calls, sending messages or any other use, except requesting a refund of a first Plan payment or an unused pack under sections 10.3, 10.5 and 10.7. All rights not expressly granted are reserved.
 
 14.2 **Restrictions.** Customer must not copy, modify, reverse engineer, resell or sublicense the Services, or use them to build a competing product, except to the extent applicable law expressly permits.
 
@@ -618,6 +618,7 @@ Placeholders in this document:
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
+- **[OWNER TO CONFIRM THE ONBOARDING MILESTONE THAT ENDS SETUP FEE REFUND ELIGIBILITY]**
 - **[CANCELLATION RETENTION PERIOD]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
