@@ -75,7 +75,8 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
   function charge(customer: string, amount: number, metadata: Json, invoice: string | null): Json {
     const card = cards.get(customer) ?? "ok";
     const pid = id("pi");
-    const pi = put({ id: pid, object: "payment_intent", client_secret: `${pid}_secret_fake`, amount, currency: "usd", customer, metadata, livemode, created: clock,
+    const savedPm = [...objects.values()].find((o) => o.object === "payment_method" && o.customer === customer)?.id ?? null;
+    const pi = put({ id: pid, object: "payment_intent", client_secret: `${pid}_secret_fake`, payment_method: savedPm, amount, currency: "usd", customer, metadata, livemode, created: clock,
       status: card === "ok" ? "succeeded" : card === "auth" ? "requires_action" : "requires_payment_method", latest_charge: null,
       last_payment_error: card === "ok" ? null : { code: card === "auth" ? "authentication_required" : "card_declined" } });
     if (card === "ok") {
@@ -299,7 +300,13 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       if (pi.status !== "succeeded") return err(402, "card_error", "The card could not be charged", pi.last_payment_error.code, { payment_intent: clone(pi) });
       return ok(pi);
     }
-    if (r0 === "payment_intents" && r1) { const pi = need(r1, "payment_intent"); return pi ? ok(pi) : err(404, "invalid_request_error", "No such payment intent", "resource_missing"); }
+    if (r0 === "payment_intents" && r1) {
+      const pi = need(r1, "payment_intent");
+      if (!pi) return err(404, "invalid_request_error", "No such payment intent", "resource_missing");
+      const want = ([] as string[]).concat(b.expand ?? []);
+      for (const e of want) if (e !== "payment_method") return err(400, "invalid_request_error", `This property cannot be expanded (${e})`, "parameter_invalid_string");
+      return want.length && pi.payment_method ? ok({ ...clone(pi), payment_method: clone(get(pi.payment_method) ?? { id: pi.payment_method }) }) : ok(pi);
+    }
     if (r0 === "refunds" && method === "POST" && !r1) {
       const pi = need(b.payment_intent, "payment_intent");
       if (!pi || pi.status !== "succeeded") return err(400, "invalid_request_error", "No such charged payment", "resource_missing");
@@ -367,7 +374,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       const start = trial ?? clock;
       // the card the owner typed into Stripe's form: only what Stripe itself returns about it (brand, last 4 of Stripe's
       // public test card), never a number, CVC or expiry
-      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer, livemode, created: clock, card: { brand: "visa", last4: "4242" } });
+      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer, livemode, created: clock, card: { brand: "visa", last4: "4242", issuer: "Test Bank" } });
       const sub = put({ id: id("sub"), object: "subscription", customer, status: trial ? "trialing" : "active", cancel_at_period_end: false, livemode, created: clock,
         default_payment_method: pm.id,
         trial_start: trial ? clock : null, trial_end: trial, metadata: s._sub_metadata, collection_method: "charge_automatically", latest_invoice: null, pending_update: null,
@@ -402,7 +409,9 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       if (pi.status === "succeeded") return clone(pi);
       if (card !== "ok") { pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" }; emit("payment_intent.payment_failed", pi); return clone(pi); }
       const ch = put({ id: id("ch"), object: "charge", amount: pi.amount, amount_refunded: 0, refunded: false, payment_intent: pi.id, customer: pi.customer, livemode, created: clock });
-      pi.status = "succeeded"; pi.latest_charge = ch.id; pi.last_payment_error = null;
+      // the card the customer used in the form: only what Stripe returns about it (Stripe's public test card)
+      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer: pi.customer, livemode, created: clock, card: { brand: "visa", last4: "4242", issuer: "Test Bank" } });
+      pi.status = "succeeded"; pi.latest_charge = ch.id; pi.last_payment_error = null; pi.payment_method = pm.id;
       const inv = pi.metadata?.invoice ? get(pi.metadata.invoice) : null;
       if (inv) {
         const pay0 = inv.payments.data.find((x: Json) => x.payment?.payment_intent === pi.id);

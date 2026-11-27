@@ -140,7 +140,7 @@ Deno.test("checkout_return: card brand and last 4 only once the server confirmed
   assertEquals(waiting.body, { payment: { status: "waiting", reason: "processing" } });   // no card before it is confirmed
   db = { checkout: openRow(s.id, "paid"), payment: { status: "confirmed" } };
   const done = await post({ action: "checkout_return", business_id: BIZ });
-  assertEquals(done.body.card, { brand: "visa", last4: "4242" });
+  assertEquals(done.body.card, { brand: "visa", last4: "4242", issuer: "Test Bank" });
   const req = fake.requests.findLast((x) => x.method === "GET" && x.path.endsWith(s.id));
   assertEquals(req?.body.expand, ["subscription.default_payment_method"]);
   assert(!JSON.stringify(done.body).match(/exp_|cvc|number/i), "nothing but brand and last 4");
@@ -216,6 +216,15 @@ Deno.test("Pay now return: paid only from our records after the events are appli
   assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body, { invoice: { invoice_id: INVOICE, status: "open", payable: true } });
   db = { checkout: null, payment: {}, invoice: { invoice_id: INVOICE, status: "paid", payable: false } };
   assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.invoice.status, "paid");
+  // paid in Stripe's form: the card it used, brand, last 4 and the issuer as Stripe gives it
+  const { customer, sub, inv } = await pastDue();
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub } };
+  const start = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  fake.confirmIntent(String(start.body.client_secret).split("_secret_")[0]);
+  db = { ...db, invoice: { invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, status: "paid" } };
+  assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.card, { brand: "visa", last4: "4242", issuer: "Test Bank" });
+  db = { ...db, refs: { customer: "cus_someone_else", subscription: sub } };
+  assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.card, undefined, "another customer's invoice: no card");
 });
 
 Deno.test("the saved card: brand and last 4 from Stripe, or nothing", async () => {
@@ -223,7 +232,7 @@ Deno.test("the saved card: brand and last 4 from Stripe, or nothing", async () =
   fake.completeCheckout(s.id);
   const sub = fake.objects.get(fake.objects.get(s.id)!.subscription)!;
   db = { checkout: null, payment: {}, refs: { customer: sub.customer, subscription: sub.id } };
-  assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: { brand: "visa", last4: "4242" } });
+  assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: { brand: "visa", last4: "4242", issuer: "Test Bank" } });
   db = { checkout: null, payment: {}, refs: { customer: "cus_someone_else", subscription: sub.id } };
   assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: null }, "another customer's subscription shows nothing");
   db = { checkout: null, payment: {}, refs: { customer: null, subscription: null } };
@@ -266,8 +275,11 @@ Deno.test("a pack the bank wants confirmed: the same PaymentIntent for Stripe's 
   fake.confirmIntent(piId);
   db = { ...db, packAct: { purchase_id: PURCHASE, payment_intent: piId, price_cents: 2900 } };
   assertEquals((await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE })).body, { status: "processing" });
-  db = { ...db, pack: { purchase_id: PURCHASE, status: "granted" } };
-  assertEquals((await act({ action: "pack_status", business_id: BIZ, purchase_id: PURCHASE })).body.purchase.status, "granted");
+  db = { ...db, pack: { purchase_id: PURCHASE, status: "granted", payment_intent: piId } };
+  const granted = await act({ action: "pack_status", business_id: BIZ, purchase_id: PURCHASE });
+  assertEquals([granted.body.purchase.status, granted.body.card], ["granted", { brand: "visa", last4: "4242", issuer: "Test Bank" }]);
+  db = { ...db, pack: { purchase_id: PURCHASE, status: "pending", payment_intent: piId } };
+  assertEquals((await act({ action: "pack_status", business_id: BIZ, purchase_id: PURCHASE })).body.card, undefined, "no card before it is granted");
 });
 
 // the fake was started at module load, before any test: stopping it is not a leak of this step

@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import PaymentsPanel from "../billing/PaymentsPanel";
+import { getBillingApi } from "../billing/billingApi";
+import "../onboarding/onboarding.css";
 import { friendly } from "../BusinessShared";
 import { Banner, Card, Facts, Field, LoadState, Pill, SaveBar, Table, useAsync, useForm } from "./SettingsKit";
 import "../billing.css";
@@ -114,6 +117,16 @@ export function BillingPlanPanel({ w }) {
   );
 }
 
+// Settings > Billing and subscription > Invoices and payments (owner, 27 Nov 2026: "auto charge plus Pay now"): the
+// renewal line with the saved card, Update card, open invoices with Pay now and buying packs, all through the glass
+// checkout (web/src/billing/PaymentsPanel.jsx). Owner only, enforced by the database and billing-api.
+export function PaymentsSettingsPanel({ w }) {
+  const [api, setApi] = useState(null);
+  useEffect(() => { let alive = true; getBillingApi().then((a) => { if (alive) setApi(a); }); return () => { alive = false; }; }, []);
+  if (!api) return <Card title="Invoices and payments" sub="Loading…" />;
+  return <PaymentsPanel api={api} businessId={w.id} />;
+}
+
 // Settings > Billing and subscription > Balances and packs
 export function BillingBalancesPanel({ w }) {
   const state = useBillingOverview(w);
@@ -136,7 +149,7 @@ export function BillingBalancesPanel({ w }) {
           <Card title="add on packs" sub={`Packs last until the end of the month you buy them in${days != null ? ` (${days} ${days === 1 ? "day" : "days"} left now)` : ""}. Only part of a minutes pack rolls over.`}>
             <Table rows={o.packs} rowKey={(p) => p.code} columns={[["Pack", (p) => `${num(p.quantity)} ${RES[p.resource][1]}`], ["Price", (p) => money(p.price_cents)],
               ["Rolls over if unused", (p) => (p.rollover_if_unused > 0 ? `up to ${num(p.rollover_if_unused)} minutes` : "No")]]} />
-            <Banner>Packs can't be bought online yet. Ask Zella Voice support to add one.</Banner>
+            <Banner>Buy a pack in Billing and subscription, Invoices and payments. It's charged to your saved card.</Banner>
           </Card>
         </>
       );

@@ -127,6 +127,15 @@ Deno.test("publishable key mode: live, test, or not a publishable key at all", (
   for (const k of ["", "sk_test_abc12345", "rk_live_abc12345", "pk_test_", "pk_test_abc 1234", "pk_other_abc12345"]) assertEquals(publishableKeyLive(k), null, k);
 });
 
+Deno.test("card summary: the issuer only as Stripe gives it: plain text, trimmed, at most 40 characters, or nothing", () => {
+  assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", issuer: "  Chase  " } }), { brand: "visa", last4: "4242", issuer: "Chase" });
+  assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", issuer: null } }), { brand: "visa", last4: "4242" }, "null: nothing in its place");
+  assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", issuer: "   " } }), { brand: "visa", last4: "4242" });
+  assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", issuer: 12 } }), { brand: "visa", last4: "4242" });
+  assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", issuer: "A".repeat(80) } })?.issuer, "A".repeat(40));
+  assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", issuer: "Bank\u0000\n<b>One</b>" } })?.issuer, "Bank<b>One</b>", "control characters go; the rest stays text, shown escaped");
+});
+
 Deno.test("card summary: a known brand and exactly four digits, nothing else", () => {
   assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030, fingerprint: "x" } }), { brand: "visa", last4: "4242" });
   for (const pm of [null, "pm_123", {}, { card: { brand: "visa", last4: "424" } }, { card: { brand: "visa", last4: "42424" } },
@@ -147,7 +156,7 @@ Deno.test("the fake models Embedded Checkout: client secret and no hosted url; s
     assertEquals((await assertRejects(() => stripe.post("/v1/checkout/sessions", { ...base, return_url: "https://x.test" }, "checkout:e3"), StripeError)).status, 400);
     fake.completeCheckout(e.id);
     const got = await stripe.get(`/v1/checkout/sessions/${e.id}`, { expand: ["subscription.default_payment_method"] }) as Record<string, any>;
-    assertEquals(cardSummary(got.subscription.default_payment_method), { brand: "visa", last4: "4242" });
+    assertEquals(cardSummary(got.subscription.default_payment_method), { brand: "visa", last4: "4242", issuer: "Test Bank" });
     assertEquals((await assertRejects(() => stripe.get(`/v1/checkout/sessions/${e.id}`, { expand: ["customer.invoice_settings"] }), StripeError)).status, 400);
   } finally { await fake.stop(); }
 });

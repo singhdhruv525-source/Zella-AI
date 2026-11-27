@@ -17,7 +17,9 @@
 // only moves to "confirming".
 
 export const STATES = ["off", "locked", "idle", "submitting", "loading", "ready", "confirming", "pending", "confirmed", "error"];
-export const ERROR_KINDS = ["expired", "network", "stripe_load", "server", "misconfigured"];
+// For payments from the CRM also: needs_action (the bank wants to confirm), card_declined (the saved card was
+// declined), no_card, not_payable, not_found, refused (the server's own words).
+export const ERROR_KINDS = ["expired", "network", "stripe_load", "server", "misconfigured", "needs_action", "card_declined", "no_card", "not_payable", "not_found", "refused"];
 
 // The server's payment state (zella_owner_onboarding_payment_status) as a starting point.
 export function fromServer(payment) {
@@ -60,11 +62,14 @@ export function reduce(current, event) {
       return attempt >= CONFIRM_DELAYS_MS.length ? { state: "pending" } : { state: "confirming", attempt };
     }
     case "ALREADY_PAID": return { state: "confirming", attempt: 0 };   // ask the server; it says confirmed, never us
+    // the server says the payment stopped (a pack the bank wants confirmed, a declined saved card): a server answer,
+    // so it may end a confirming wait; it never says paid
+    case "STOPPED": return st === "confirmed" ? current : { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server" };
     case "FAIL": {
       if (st === "confirmed") return current;
       // a lost connection while confirming isn't a failed payment: keep waiting calmly
       if (st === "confirming" || st === "pending") return event.kind === "network" ? current : { state: "pending" };
-      return { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server" };
+      return { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server", ...(event.words ? { words: String(event.words) } : {}) };
     }
     case "RETRY": return st === "error" ? { state: "idle" } : current;
     default: return current;
@@ -85,6 +90,10 @@ export function failureKind(err) {
   if (code === "PAYMENTS_MISCONFIGURED" || code === "MODE_MISMATCH") return "misconfigured";
   if (code === "STRIPE_JS") return "stripe_load";
   if (code === "ALREADY_PAID") return "already_paid";
+  if (code === "NOT_FOUND") return "not_found";
+  if (code === "NOT_PAYABLE") return "not_payable";
+  if (code === "NO_SAVED_CARD" || code === "NO_CUSTOMER") return "no_card";
+  if (["NO_ACTIVE_PLAN", "UNKNOWN_PACK", "PAYMENTS_NOT_LIVE", "MFA_REQUIRED", "NOT_ALLOWED", "BUSINESS_NOT_AVAILABLE"].includes(code)) return "refused";
   const text = String(err?.message ?? "");
   if ((typeof navigator !== "undefined" && navigator.onLine === false) || /failed to fetch|network|load failed|fetch failed/i.test(text)) return "network";
   return "server";
@@ -110,6 +119,12 @@ export const ERROR_WORDS = {
   stripe_load: { label: "The secure form didn't load", body: "Stripe's form couldn't load on this page. Check your connection, or allow js.stripe.com if a blocker is on, then try again. Nothing was charged.", action: "Try again" },
   server: { label: "We couldn't open the secure form", body: "Something went wrong on our side. Nothing was charged. Please try again in a minute.", action: "Try again" },
   misconfigured: { label: "Payments can't open right now", body: "Nothing has been charged, and Zella Voice has been told. Please try again later.", action: "Try again" },
+  needs_action: { label: "Your bank wants to confirm this payment", body: "Nothing was charged yet. Confirm it with your bank in Stripe's secure form. It's the same payment, never a second charge.", action: "Confirm with your bank" },
+  card_declined: { label: "Your saved card was declined", body: "Nothing was charged. Pay with another card in Stripe's secure form, or update your saved card.", action: "Pay with another card" },
+  no_card: { label: "There's no card to charge", body: "Add or update your card on Stripe's secure page, then try again. Nothing was charged.", action: "Update card" },
+  not_payable: { label: "This can't be paid online", body: "Nothing was charged. If you think this is wrong, contact Zella Voice support.", action: null },
+  not_found: { label: "We couldn't find this", body: "Check you're signed in as the business owner. Nothing was charged.", action: null },
+  refused: { label: "This can't go ahead yet", body: "Nothing was charged.", action: "Try again" },
 };
 
 // Money as the server sent it: integer minor units and the plan's currency.
@@ -124,7 +139,12 @@ export function formatMoney(minor, currency = "USD") {
 // The card as Stripe reported it after a verified payment: brand and last 4 only, or nothing.
 const BRANDS = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", diners: "Diners Club", jcb: "JCB",
   unionpay: "UnionPay", cartes_bancaires: "Cartes Bancaires", eftpos_au: "eftpos", link: "Link" };
+// The issuing bank only as the server passed on Stripe's `card.issuer`: plain text (React escapes it), trimmed, at most
+// 40 characters; never guessed from the card number, never a logo.
 export function cardWords(card) {
   const brand = BRANDS[card?.brand];
-  return brand && /^\d{4}$/.test(String(card?.last4 ?? "")) ? { brand, last4: String(card.last4) } : null;
+  if (!brand || !/^\d{4}$/.test(String(card?.last4 ?? ""))) return null;
+  // eslint-disable-next-line no-control-regex
+  const issuer = typeof card?.issuer === "string" ? card.issuer.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40).trim() : "";
+  return issuer ? { brand, last4: String(card.last4), issuer } : { brand, last4: String(card.last4) };
 }

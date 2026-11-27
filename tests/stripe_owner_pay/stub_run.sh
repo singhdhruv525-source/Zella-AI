@@ -55,9 +55,13 @@ q "do \$\$ begin
 fn_from zella_owner_onboarding zella_onboarding_authorize | "${P[@]}" -d "$DB" > /dev/null || { bad "authorize"; exit 1; }
 fn_from zella_stripe_invoices zella_owner_invoices | "${P[@]}" -d "$DB" > /dev/null || { bad "owner invoices"; exit 1; }
 [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "60c0659f065c58b03dc279ffb007825c" ] && ok "zella_owner_invoices is zella_stripe_invoices.sql's version" || bad "original md5"
+fn_from zella_stripe_emails zella_billing_email_invoice_trg | "${P[@]}" -d "$DB" > /dev/null || { bad "email trigger"; exit 1; }
+[ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "cc75a8987f19e2ae96c066395b79af45" ] && ok "zella_billing_email_invoice_trg is zella_stripe_emails.sql's version" || bad "trigger md5"
 
 "${P[@]}" -d "$DB" -f "$MIG" > /dev/null 2>&1 && ok "applies" || { bad "applies: $("${P[@]}" -d "$DB" -f "$MIG" 2>&1 | grep -m2 ERROR)"; exit 1; }
 made=$(md5of 'public.zella_owner_invoices(uuid)')
+[ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "e71bf72e22f1e906f1022c5e94f44f5e" ] && [ "$(q "select position('''invoiceId'', new.id' in pg_get_functiondef('public.zella_billing_email_invoice_trg()'::regprocedure)) > 0")" = "t" ] \
+  && ok "invoice emails now carry our invoice id (for the /pay/invoice/<id> link), one exact change" || bad "trigger change"
 "${P[@]}" -d "$DB" -f "$MIG" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "$made" ] && ok "applies again, unchanged" || bad "second apply"
 [ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_stripe_refs(uuid,boolean)', 'execute')::text || has_function_privilege('anon', 'public.zella_owner_invoice_pay_start(uuid)', 'execute')::text || has_function_privilege('authenticated', 'public.zella_owner_invoice_pay_start(uuid)', 'execute')::text")" = "falsefalsetrue" ] \
   && ok "the Stripe lookup is server only; the owner functions are for signed in people, never anonymous" || bad "grants"
@@ -111,7 +115,8 @@ q "update public.pack_purchases set status = 'granted' where id = '$pk'" > /dev/
 
 "${P[@]}" -d "$DB" -f "$RB" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "60c0659f065c58b03dc279ffb007825c" ] \
   && [ "$(q "select count(*) from pg_proc where proname in ('zella_owner_invoice_pay_status', 'zella_owner_invoice_pay_start', 'zella_owner_billing_access', 'zella_billing_stripe_refs', 'zella_owner_pack_status', 'zella_owner_pack_act_start')")" = "0" ] \
-  && ok "rollback restores zella_owner_invoices exactly and drops the rest" || bad "rollback: $("${P[@]}" -d "$DB" -f "$RB" 2>&1 | grep -m1 ERROR)"
+  && [ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "cc75a8987f19e2ae96c066395b79af45" ] \
+  && ok "rollback restores zella_owner_invoices and the email trigger exactly and drops the rest" || bad "rollback: $("${P[@]}" -d "$DB" -f "$RB" 2>&1 | grep -m1 ERROR)"
 "${P[@]}" -d "$DB" -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "second rollback"
 "${P[@]}" -d "$DB" -f "$MIG" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "$made" ] && ok "applies again after the rollback" || bad "reapply"
 q "do \$\$ begin execute replace(pg_get_functiondef('public.zella_owner_pack_status(uuid,uuid)'::regprocedure), 'processing_error', 'processing_errors'); end \$\$" > /dev/null

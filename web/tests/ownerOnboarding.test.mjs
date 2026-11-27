@@ -308,7 +308,7 @@ test("stand in, scenario pay: Checkout opens with a key, the return confirms onl
   assert.equal(first.card, undefined, "no card before the server confirms");
   const second = await api.checkoutReturn(id);
   assert.equal(second.payment.status, "confirmed");
-  assert.deepEqual(second.card, { brand: "visa", last4: "4242" });
+  assert.deepEqual(second.card, { brand: "visa", last4: "4242", issuer: "Test Bank" });
   handle.destroy();
   await assert.rejects(api.startCheckout(id, "a-good-key-2"), (e) => e.code === "ALREADY_PAID");
   await assert.rejects(api.mountCheckout(el, { clientSecret: "something else" }), (e) => e.code === "STRIPE_JS");

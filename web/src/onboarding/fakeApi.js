@@ -15,6 +15,8 @@
 //   none        the signed in person owns no business waiting for setup
 // Test hooks (fake only): approveIdentity(), rejectIdentity(note), adminChangeDone(section, note), confirmPayment().
 
+import { renderStandInForm } from "../billing/standinForm.js";
+
 const KEY = "zella.onboardingFake.v2";
 const BUSINESS = "00000000-0000-4000-8000-0000000000b1";
 const SECRET = "TESTSECRET123456";
@@ -88,7 +90,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
   };
   // scenario "pay": payments connected; the embedded form's stand in completes, then the server confirms on its second
   // look (as the webhook would, a few seconds later), so "Confirming your payment" is seen first
-  const paying = () => st.scenario === "pay";
+  const paying = () => st.scenario === "pay" || st.scenario === "payhtml";
   // due_now_minor in every state, as zella_onboarding_payment computes it from the plan whatever the state
   const paymentOut = () => (st.payment_confirmed ? { status: "confirmed", reason: null, checkout_available: false, due_now_minor: 89800, confirmed_at: now() }
     : st.identity.status !== "verified" ? { status: "locked", reason: "identity_first", checkout_available: false, due_now_minor: 89800, confirmed_at: null }
@@ -220,22 +222,19 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       return { status: "open", client_secret: "cs_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, mode: "pay", amount_minor: 89800, currency: "usd" };
     }),
     // the stand in for Stripe's embedded form (fake only): a box in the page with one button; Stripe.js is never loaded
-    mountCheckout: async (el, { clientSecret, onComplete }) => {
+    mountCheckout: async (el, { clientSecret, onComplete, amountLabel }) => {
       await wait(delay * 2);
       if (clientSecret !== "cs_standin_secret_standin") throw Object.assign(new Error("not the stand in's checkout"), { code: "STRIPE_JS" });
-      const doc = el.ownerDocument;
-      const box = doc.createElement("div"); box.className = "zgc-standin"; box.setAttribute("role", "group"); box.setAttribute("aria-label", "Stand in for Stripe's secure form");
-      const title = doc.createElement("strong"); title.textContent = "Stand in for Stripe's secure form";
-      const note = doc.createElement("p"); note.textContent = "On the live site, Stripe's own card form appears here, inside Stripe's frame. This local preview never loads Stripe and takes no card.";
-      const btn = doc.createElement("button"); btn.type = "button"; btn.className = "ba-btn primary"; btn.textContent = "Complete the stand in payment";
-      btn.addEventListener("click", () => { st.checkout_completed = true; st.return_looks = 0; save(); onComplete?.(); });
-      box.append(title, note, btn); el.replaceChildren(box);
+      // a static picture of Stripe's Embedded Checkout (no input elements), with its Pay button (billing/standinForm.js)
+      const box = renderStandInForm(el, { amountLabel, withButton: true, onPay: () => { st.checkout_completed = true; st.return_looks = 0; save(); onComplete?.(); } });
       return { destroy: () => box.remove() };
     },
     checkoutReturn: (id) => db(() => {
       owner(id);
       if (st.checkout_completed && !st.payment_confirmed && (st.return_looks = (st.return_looks ?? 0) + 1) >= 2) st.payment_confirmed = true;
-      return st.payment_confirmed && st.checkout_completed ? { payment: paymentOut(), card: { brand: "visa", last4: "4242" } } : { payment: paymentOut() };
+      // the issuing bank as Stripe would give it (payhtml: a name with angle brackets, to prove it is shown as text)
+      const card = { brand: "visa", last4: "4242", issuer: st.scenario === "payhtml" ? "<b>Bold Bank</b>" : "Test Bank" };
+      return st.payment_confirmed && st.checkout_completed ? { payment: paymentOut(), card } : { payment: paymentOut() };
     }),
     finishLater: (id) => db(() => { owner(id); st.paused_at = now(); return { changed: true, state: stateOut() }; }),
     resume: (id) => db(() => { owner(id); const changed = Boolean(st.paused_at); st.paused_at = null; return { changed, state: stateOut() }; }),

@@ -38,6 +38,10 @@
   --zella-success-bg: #DDF4E5;
   --zella-success: #1F7A45;
   --zella-on-success: #FFFFFF;   /* text on a solid success surface (the paid card): 5.3:1 on #1F7A45 */
+  --zella-metal-1: #F3E2B3;   /* the card picture's EMV chip: light, mid and dark metal (gold), the same in every look */
+  --zella-metal-2: #CDA85C;
+  --zella-metal-3: #8E6B2C;
+  --zella-emboss-low: rgba(0, 0, 0, 0.32);   /* the lowlight under embossed lettering on the card picture */
   --zella-sheen: rgba(255, 255, 255, 0.16);   /* light for a sheen or a highlight edge on a solid surface (the card picture) */
   --zella-success-border: #BFE5CC;
   --zella-info-bg: #E3EEFA;

@@ -21,7 +21,6 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
-const zlib = require("zlib");
 const { loadAxe } = require("./axe.cjs");
 const APP = process.env.APP_URL ?? "http://localhost:5150";
 const SHOTS = process.env.SHOTS ?? path.join(process.cwd(), "pay-shots");
@@ -30,95 +29,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0, passes = 0;
 const check = (name, ok, detail = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? " - " + detail : ""}`); if (ok) passes++; else fails++; };
 
-const LOOKS = [
-  { name: "zella", pref: null },
-  { name: "classic", pref: { theme: "classic", background: "plain", dim: 35, matchPicture: false } },
-  { name: "glass", pref: { theme: "glass", background: "plain", dim: 35, matchPicture: false } },
-  { name: "glass-picture-match", pref: { theme: "glass", background: "lounge", dim: 35, matchPicture: true } },
-  { name: "glass-picture-nomatch", pref: { theme: "glass", background: "aurora", dim: 35, matchPicture: false } },
-];
-const WIDTHS = [{ name: "1440", viewport: { width: 1440, height: 900 } }, { name: "390", viewport: { width: 390, height: 844 } }];
-
-// ---- a minimal PNG reader (8 bit RGB or RGBA, not interlaced: what Chromium's screenshots are) ----
-function readPng(buf) {
-  let p = 8, width = 0, height = 0, channels = 4; const idat = [];
-  while (p < buf.length) {
-    const len = buf.readUInt32BE(p), type = buf.toString("ascii", p + 4, p + 8), data = buf.subarray(p + 8, p + 8 + len);
-    if (type === "IHDR") { width = data.readUInt32BE(0); height = data.readUInt32BE(4); channels = data[9] === 6 ? 4 : 3; if (data[8] !== 8 || data[12] !== 0) throw new Error("unsupported png"); }
-    if (type === "IDAT") idat.push(data);
-    p += 12 + len;
-  }
-  const raw = zlib.inflateSync(Buffer.concat(idat)), stride = width * channels, out = Buffer.alloc(height * stride);
-  for (let y = 0; y < height; y++) {
-    const f = raw[y * (stride + 1)], row = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
-    for (let x = 0; x < stride; x++) {
-      const a = x >= channels ? out[y * stride + x - channels] : 0, b = y ? out[(y - 1) * stride + x] : 0, c = x >= channels && y ? out[(y - 1) * stride + x - channels] : 0;
-      const pr = a + b - c, pa = Math.abs(pr - a), pb = Math.abs(pr - b), pc = Math.abs(pr - c);
-      const pred = [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][f];
-      out[y * stride + x] = (row[x] + pred) & 255;
-    }
-  }
-  return { width, height, at: (x, y) => { const i = y * stride + x * channels; return [out[i], out[i + 1], out[i + 2]]; } };
-}
-const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
-const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
-
-// AA contrast for every visible text in the page card: the text's own colour against the pixels behind it, sampled
-// from a screenshot with all text made transparent (so glass, blur and pictures behind are what is measured).
-async function contrast(page) {
-  const items = await page.evaluate(() => {
-    const out = [];
-    const root = document.querySelector(".zob-page") ?? document.body;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-      const el = n.parentElement, text = n.textContent.trim();
-      // inert: the panels behind the frosted layer while confirming, deliberately out of reach and hidden from assistive tech
-      if (!text || !el || el.closest(".ba-icon, .zob-sr, [hidden], [inert]")) continue;
-      const cs = getComputedStyle(el);
-      if (cs.visibility !== "visible" || Number(cs.opacity) === 0) continue;
-      let op = 1; for (let a = el; a; a = a.parentElement) op *= Number(getComputedStyle(a).opacity);
-      if (op < 0.5) continue;   // a layer on its way out (the card stepping back), not text to read
-      const r = document.createRange(); r.selectNodeContents(n);
-      const box = [...r.getClientRects()].filter((b) => b.width > 2 && b.height > 4 && b.bottom > 0 && b.top < innerHeight && b.left >= 0 && b.right <= innerWidth);
-      if (!box.length) continue;
-      const m = cs.color.match(/rgba?\(([^)]+)\)/)[1].split(/[ ,/]+/).filter(Boolean).map(Number);
-      const size = parseFloat(cs.fontSize), bold = Number(cs.fontWeight) >= 700;
-      out.push({ text: text.slice(0, 40), color: m, large: size >= 24 || (size >= 18.66 && bold), boxes: box.map((b) => [b.left, b.top, b.width, b.height]) });
-    }
-    return out;
-  });
-  await page.addStyleTag({ content: "*, *::before, *::after { color: transparent !important; text-shadow: none !important; caret-color: transparent !important; transition: none !important; } .zgc-card-shimmer { visibility: hidden !important; }", }).then((h) => h.evaluate((s) => { s.id = "zgc-test-hide"; }));
-  await page.waitForTimeout(250);   // (the card's shimmer is a moving highlight that passes in a moment: hidden while measuring)
-  const png = readPng(await page.screenshot());
-  await page.evaluate(() => document.getElementById("zgc-test-hide")?.remove());
-  const bad = [];
-  for (const it of items) {
-    const ratios = [];
-    for (const [x0, y0, w, h] of it.boxes) {
-      for (let i = 1; i < 6; i++) for (let j = 1; j < 4; j++) {
-        const x = Math.min(png.width - 1, Math.round(x0 + (w * i) / 6)), y = Math.min(png.height - 1, Math.round(y0 + (h * j) / 4));
-        const bg = png.at(x, y), a = it.color[3] ?? 1;
-        const fg = [0, 1, 2].map((k) => Math.round(it.color[k] * a + bg[k] * (1 - a)));
-        ratios.push(ratio(fg, bg));
-      }
-    }
-    ratios.sort((m, n) => m - n);
-    const worst = ratios[Math.floor(ratios.length * 0.1)];   // the 10th percentile: a stray border pixel isn't the background
-    if (worst < (it.large ? 3 : 4.5)) bad.push(`"${it.text}" ${worst.toFixed(2)}:1`);
-  }
-  return { n: items.length, bad };
-}
-
-// axe on the page card (serious and critical only); text over translucent layers comes back "incomplete" there,
-// which is why contrast() above measures it from pixels
-async function axeCard(page, source) {
-  await page.addScriptTag({ content: source }).catch(() => {});
-  return page.evaluate(async () => {
-    if (!window.axe) return ["axe did not load"];
-    const r = await window.axe.run({ include: [".zob-page"] }, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] }, resultTypes: ["violations"] });
-    return r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.id} (${v.nodes.length}): ${v.nodes[0]?.target.join(" ")}`);
-  });
-}
+const { LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs } = require("./pay-helpers.cjs");
 
 async function seed(scenario) {
   const { createFakeApi } = await import(path.join(__dirname, "../../web/src/onboarding/fakeApi.js"));
@@ -157,11 +68,6 @@ async function open(browser, { look, viewport, seeded, scenario, reduced = false
   return { ctx, page, hits, errors };
 }
 
-const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-const cardText = (page) => page.evaluate(() => [...document.querySelectorAll(".zgc-card")].filter((c) => getComputedStyle(c).opacity !== "0").map((c) => c.innerText).join(" | "));
-const h1 = (page) => page.evaluate(() => document.querySelector("h1")?.textContent.trim());
-const focused = (page) => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
-
 async function shot(page, look, width, state, axeSource) {
   const file = path.join(SHOTS, `pay-${look.name}-${state}-${width.name}.png`);
   await page.screenshot({ path: file, fullPage: true });
@@ -171,7 +77,8 @@ async function shot(page, look, width, state, axeSource) {
   check(`${tag}: AA contrast for all ${c.n} texts`, c.n > 0 && c.bad.length === 0, c.bad.slice(0, 4).join("; "));
   const ax = await axeCard(page, axeSource);
   check(`${tag}: axe finds no serious problem in the page card`, ax.length === 0, ax.slice(0, 3).join("; "));
-  check(`${tag}: no card field of ours (the card is typed only into Stripe's frame)`, (await page.locator(".zgc input, .zgc select, .zgc textarea").count()) === 0);
+  check(`${tag}: no card field of ours, and no input in the stand in's picture of Stripe's form`, (await mockHasInputs(page)) === 0);
+  check(`${tag}: the card never shows the Zella Voice name`, !(await zellaOnCard(page)));
 }
 
 (async () => {
@@ -194,11 +101,12 @@ async function shot(page, look, width, state, axeSource) {
 
       await page.click("button:has-text('Pay securely')");
       await page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-      check(`${tag}: the embedded form's area shows (stand in)`, await page.isVisible(".zgc-standin"));
+      check(`${tag}: Payment details holds the stand in's picture of Stripe's form, clearly badged`, await page.isVisible(".zgc-pay .zgc-standin") && await page.isVisible("text=Preview of Stripe's form")
+        && await page.locator(".zgc-mock-fields[aria-hidden='true']").count() === 1);
       check(`${tag}: Stripe.js is never loaded by the stand in`, await page.evaluate(() => ![...document.scripts].some((s) => s.src.includes("stripe.com"))));
       await shot(page, look, width, "form", axeSource);
 
-      await page.click("button:has-text('Complete the stand in payment')");
+      await page.click(".zgc-standin button:has-text('Pay $898')");
       await page.waitForFunction(() => document.querySelector("h1")?.textContent.includes("Confirming your payment"), null, { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(150);
       check(`${tag}: processing: "Confirming your payment", the card in the centre, nothing says paid yet`,
@@ -211,6 +119,7 @@ async function shot(page, look, width, state, axeSource) {
       await page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(4200);   // the flip, the check drawing and the glow's two pulses have finished
       check(`${tag}: confirmed only by the server: Payment received, the title follows`, (await page.locator("#zgc-status").innerText()) === "Payment received" && (await h1(page)) === "Payment confirmed");
+      check(`${tag}: confirmed: the issuing bank as the server returned it, in the corner`, (await page.locator(".zgc-stage .zgc-card-done .zgc-card-issuer").innerText()) === "Test Bank");
       check(`${tag}: confirmed: brand and last 4 as the server returned them, nothing else`, /\bVisa\b/.test(await cardText(page)) && (await cardText(page)).includes("ending 4242") && !/\d{5,}/.test(await cardText(page)));
       check(`${tag}: confirmed: the card is the look's success colour`, await page.evaluate(() => {
         const face = document.querySelector(".zgc-stage .zgc-card-done"), probe = document.createElement("i");
@@ -242,12 +151,12 @@ async function shot(page, look, width, state, axeSource) {
     const rm = await open(browser, { look, viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay", reduced: true });
     await rm.page.click("button:has-text('Pay securely')");
     await rm.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-    await rm.page.click("button:has-text('Complete the stand in payment')");
+    await rm.page.click(".zgc-standin button:has-text('Pay $898')");
     await rm.page.waitForSelector(".zgc-stage", { timeout: 8000 }).catch(() => {});
     const motion = await rm.page.evaluate(() => {
       const stage = getComputedStyle(document.querySelector(".zgc-stage")), card = document.querySelector(".zgc-stage .zgc-card");
       const ring = document.querySelector(".zgc-ring"), shimmer = card.querySelector(".zgc-card-shimmer");
-      return { blur: stage.backdropFilter, anim: stage.animationName, fly: card.classList.contains("zgc-fly"), cardAnim: getComputedStyle(card).animationName,
+      return { blur: stage.backdropFilter, anim: stage.animationName, fly: document.querySelector(".zgc-stage-card").classList.contains("zgc-fly"), cardAnim: getComputedStyle(document.querySelector(".zgc-stage-card")).animationName,
         transition: getComputedStyle(card.querySelector(".zgc-card-inner")).transitionDuration,
         ring: ring ? getComputedStyle(ring).animationName : "none", shimmer: getComputedStyle(shimmer).animationName };
     });
@@ -272,12 +181,26 @@ async function shot(page, look, width, state, axeSource) {
     await n.ctx.close();
   }
 
+  // the issuer is text, never markup: a bank name with angle brackets shows as typed and adds no element
+  {
+    const seededHtml = await seed("payhtml");
+    const x = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededHtml, scenario: "payhtml" });
+    await x.page.click("button:has-text('Pay securely')");
+    await x.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
+    await x.page.click(".zgc-standin button:has-text('Pay $898')");
+    await x.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    const issuer = await x.page.evaluate(() => { const n = document.querySelector(".zgc-stage .zgc-card-done .zgc-card-issuer"); return { text: n?.textContent, kids: n?.children.length }; });
+    check("issuer: shown as plain text, escaped, never markup", issuer.text === "<b>Bold Bank</b>" && issuer.kids === 0, JSON.stringify(issuer));
+    check("issuer: no script ran", x.errors.length === 0, x.errors.join("; "));
+    await x.ctx.close();
+  }
+
   // back from a redirect payment method (Stripe's return_url): confirmed through the server, the address bar tidied
   {
     const r = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
     await r.page.click("button:has-text('Pay securely')");
     await r.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-    await r.page.click("button:has-text('Complete the stand in payment')");
+    await r.page.click(".zgc-standin button:has-text('Pay $898')");
     await r.page.goto(`${APP}/welcome/setup?scenario=pay&checkout=return&session_id=cs_test_return`);
     await r.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
     check("return: confirmed through the server after a redirect", await r.page.isVisible("#zgc-status:has-text('Payment received')"));
@@ -291,11 +214,11 @@ async function shot(page, look, width, state, axeSource) {
     for (const look of [LOOKS[0], LOOKS[3]]) {
       const v = await open(browser, { look, viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay", video: process.env.VIDEO });
       await v.page.waitForTimeout(800);
-      await v.page.hover(".zgc-pay .zgc-card"); await v.page.waitForTimeout(900);
+      await v.page.hover(".zgc-cardcol .zgc-card"); await v.page.waitForTimeout(900);
       await v.page.click("button:has-text('Pay securely')");
       await v.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
       await v.page.waitForTimeout(1200);
-      await v.page.click("button:has-text('Complete the stand in payment')");
+      await v.page.click(".zgc-standin button:has-text('Pay $898')");
       await v.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await v.page.waitForTimeout(4500);
       const rec = v.page.video();

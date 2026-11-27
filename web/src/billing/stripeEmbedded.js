@@ -61,6 +61,54 @@ export async function mountEmbeddedCheckout(el, { clientSecret, publishableKey, 
   return { destroy: () => { if (current === instance) destroyCurrent(); else try { instance.destroy(); } catch { /* already gone */ } } };
 }
 
+// Stripe's Payment Element for an intent that already exists (an open invoice's PaymentIntent, or a pack the bank
+// wants confirmed). Unlike Embedded Checkout it takes an appearance, so it follows the current look's tokens. It has no
+// button of its own: submit() confirms from our Pay button. onComplete runs when Stripe says the payment went through
+// or is processing; that only starts "confirming", the server decides. A decline or a failed 3D Secure throws
+// { code: "DECLINED", message } with Stripe's own words, so the owner can try again in the same form.
+export function appearanceFromLook(root = globalThis.document?.documentElement) {
+  const css = root ? getComputedStyle(root) : null;
+  const v = (name, fallback) => (css?.getPropertyValue(name).trim() || fallback);
+  const glass = root?.dataset?.zellaTheme === "glass";
+  return {
+    theme: glass ? "night" : "stripe",
+    variables: {
+      colorPrimary: v("--zella-primary", "#0B0F1A"),
+      colorText: v("--zella-text", "#0B0F1A"),
+      colorDanger: v("--zella-danger", "#B42318"),
+      colorBackground: glass ? v("--zella-glass-base", "#1b1613") : v("--zella-card", "#FFFFFF"),
+      fontFamily: "Inter, system-ui, sans-serif",
+      borderRadius: v("--zella-radius-md", "10px"),
+    },
+  };
+}
+
+export async function mountPaymentElement(el, { clientSecret, publishableKey, livemode, onComplete, returnUrl }) {
+  checkKeyMode(publishableKey, livemode);
+  const Stripe = await loadStripeJs();
+  destroyCurrent();
+  let stripe, elements, element;
+  try {
+    stripe = Stripe(publishableKey);
+    elements = stripe.elements({ clientSecret, appearance: appearanceFromLook() });
+    element = elements.create("payment", { layout: "tabs" });
+  } catch {
+    throw fail("STRIPE_JS", "Stripe's form couldn't start");
+  }
+  element.mount(el);
+  const instance = { destroy: () => element.destroy() };
+  current = instance;
+  return {
+    destroy: () => { if (current === instance) destroyCurrent(); else try { element.destroy(); } catch { /* already gone */ } },
+    submit: async () => {
+      const r = await stripe.confirmPayment({ elements, redirect: "if_required", confirmParams: { return_url: returnUrl } });
+      if (r.error) throw fail("DECLINED", typeof r.error.message === "string" ? r.error.message : "The payment didn't go through. Nothing was charged.");
+      if (["succeeded", "processing", "requires_capture"].includes(r.paymentIntent?.status)) onComplete?.();
+      else throw fail("DECLINED", "The payment didn't go through. Nothing was charged.");
+    },
+  };
+}
+
 export function destroyCurrent() {
   const i = current; current = null;
   if (i) try { i.destroy(); } catch { /* already gone */ }

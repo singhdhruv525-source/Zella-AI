@@ -783,33 +783,49 @@ address), not only by Stripe. Nobody has to press a button.
 (`collection_method: charge_automatically`). An owner (or billing admin) can switch auto-debit off in
 Settings › Billing › Payment method (audited, confirmed by email): the subscription is then updated to
 `collection_method: send_invoice` with `days_until_due: 3`, and each invoice is paid by the owner, either by the
-**Pay now** link in our email or in the app (Settings › Billing › Invoices). Both open Stripe's hosted payment page for
-that one invoice, so it can never be paid twice. An invoice still unpaid at its due date follows the failed-payment path
+**Pay now** link in our email or in the app (Settings › Billing and subscription › Invoices and payments). Both open
+the owner's own Zella Voice page for that one invoice (owner, 27 Nov 2026; below), which confirms the invoice's one
+PaymentIntent, so it can never be paid twice; Stripe's hosted invoice page stays as the fallback link. An invoice still unpaid at its due date follows the failed-payment path
 (§6.3): reminders, final notice, pause on day 5. Switching back on needs a working saved card.
 
-**Pay now on our own page (owner request, 27 Nov 2026; design only, NOT BUILT).** The same glass checkout and motion
-as the Pay step, for an unpaid invoice:
+**Paying from inside the CRM: "auto charge plus Pay now" (owner decision, 27 Nov 2026). Built switched off, not
+applied** (`sql/zella_stripe_owner_pay.sql`, `billing-api`, `web/src/billing/`). Every payment the owner makes uses the
+same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when the server confirms it.
 
-- The Pay now link (billing emails, and Settings › Billing › Invoices) opens a **Zella Voice page**, not Stripe's
-  hosted invoice page. The page needs the owner to sign in (the business's active owner, a code verified session,
-  checked in the database as for every owner billing call); the link carries only our invoice id, never a secret.
-- The page mounts Stripe's form inside it with the same component (`web/src/billing/GlassCheckout.jsx`, its `mount`
-  and `start` props). **Which Stripe form:** Embedded Checkout makes its own payment from line items or a
-  subscription, so it doesn't pay an invoice that already exists. An open invoice is paid with the **Payment
-  Element** confirmed against the invoice's own PaymentIntent: on the pinned API version the finalised invoice's
-  `confirmation_secret` (expand it) holds "the client_secret of the PaymentIntent that Stripe creates during invoice
-  finalization" (Stripe's API reference text, §16.10); `invoice.payment_intent` is not on this version. The browser
-  then calls `stripe.confirmPayment` with `redirect: "if_required"` from our own Pay button (the Payment Element has
-  no button of its own), so the component needs that button for this mount.
-- A new `billing-api` action would return that client secret only for an `open` invoice of this business that is ours
-  (`billing_invoices`), the same mode checks as the Pay step, and never store it. Paid stays decided by
-  `invoice.paid` and the binding check (§6.0a); paying twice is impossible because the invoice's one PaymentIntent is
-  confirmed, not a new charge.
-- **Fallback:** Stripe's hosted invoice page (`hosted_invoice_url`) stays, behind a "Pay on Stripe's page instead"
-  link and whenever Stripe.js can't load.
-- Before building: prove in the Stripe sandbox that the finalised invoice's `confirmation_secret` is returned with
-  `expand[]=confirmation_secret` on the pinned version, that 3D Secure completes inside the Payment Element, and that
-  the CSP below needs nothing more.
+- **Auto charge stays the default** (unchanged): Stripe charges the saved card on the renewal date. Settings ›
+  Billing and subscription › Invoices and payments (and `/pay?business=<id>`) says so plainly: "Your plan renews on
+  <date>. We'll charge your Visa ending 4242", with the brand and last 4 from Stripe (`card_summary`: the
+  subscription's default payment method, ours checked) and no card words when Stripe has none.
+- **Pay now** on an open invoice (the list, or the emailed link `/pay/invoice/<our invoice id>`, sign in first; the
+  invoice emails now carry our id for it). The id alone grants nothing: `zella_owner_invoice_pay_status` answers only
+  the active owner of the invoice's business, and anyone else gets the same NOT_FOUND as a made up id.
+  `invoice_pay_start` (code verified session, payments live, invoice open or failed) retrieves the invoice from Stripe
+  with `expand[]=confirmation_secret`, checks it is ours (our invoice id, our customer, the key's mode) and that its
+  amount due equals our record (otherwise it refuses and raises the urgent alert `billing_invoice_amount`), then hands
+  the client secret of the invoice's own PaymentIntent to Stripe's **Payment Element** in the Payment details panel;
+  our Pay button confirms it (`stripe.confirmPayment`, `redirect: "if_required"`, 3D Secure inside Stripe's frame). It
+  creates nothing at Stripe, so a double start, a second tab and the emailed link reach the same intent, and Stripe
+  having it already answers "processing". Paid comes only from `invoice.paid` through the binding check (§6.0a), read
+  back by `invoice_pay_return` with the same confirming and pending polling as the Pay step. An invoice already paid
+  opens "This invoice is paid". Stripe's hosted invoice page stays as the fallback link.
+- **Update card** opens Stripe's **Customer Portal**, card update only (`flow_data.type: payment_method_update`), the
+  design §16.1 and §16.2 already named: Stripe hosts the card page, sets the new card as the default for the
+  subscription and its invoices, and needs no SetupIntent handling of ours. It returns to the Payments page. **An open
+  past due invoice after a card update:** Smart Retries (§16.6, days 2, 3 and 4) try again on their schedule with the
+  new default card, and the owner can also press Pay now at once. Whether the portal also retries the open invoice
+  immediately after the update is to be proven in the sandbox (§16.8); nothing of ours depends on it.
+- **Buying a pack** (`pack_buy`, already built on the saved card) runs in the same checkout: a confirm panel with
+  the pack, the price from the server and the card it is charged to, our Pay button, then the processing and confirmed
+  motion, confirmed only when `pack_status` reads the purchase granted. If the bank wants to confirm (3D Secure) or the
+  saved card is declined, `pack_act_start` reopens THAT purchase on ITS PaymentIntent (owner purchases only, audited
+  `billing.pack_owner_action`) and Stripe's Payment Element opens in the same panel; it is granted only by
+  `payment_intent.succeeded` and the binding check, unchanged. No usable card: "There's no card to charge" with Update
+  card.
+- **The card's issuing bank** (owner, 27 Nov 2026) is shown after a confirmed payment only as Stripe's own
+  `card.issuer` on the PaymentMethod the payment used (`checkout_return`, `invoice_pay_return`, `pack_status`), as
+  plain text, trimmed, at most 40 characters; never guessed from the card number and never a logo. The pinned types
+  say this field is "for internal use only and not typically available in standard API requests" (§16.10), so it is
+  usually absent and nothing is shown.
 
 **Built (lane F, switched off, `sql/zella_stripe_emails.sql`, `_shared/billingEmails.ts`):** the database decides each notice from our own records (one key per business object, so doubled events never send twice); the worker renders it strictly with the shared catalogue and queues one copy per owner in the platform outbox, which stays in test mode while `email_live` is off. **Owner decision needed:** the templates that say "card ending 4242" (A2, A3, A4, A6, B1, B2, C1, C2, C3, D1) need the last 4 digits, which §9 says are never stored; until the owner decides (fetch them from Stripe at render time, or reword the templates), those emails are held with `MISSING_FIELD:<code>:card` and nothing invents a value. **Owner decision (27 Nov 2026): the brand and last 4 may be shown in billing emails**, fetched from Stripe when the email is rendered and never stored. That fetch is not built yet, so these emails are still held. A1, C4, D2, D5 and similar card free notices are queued.
 
@@ -1032,6 +1048,9 @@ stateDiagram-v2
 | Price for a plan version | `POST /v1/prices` | `price:<business_plans id>` | one per version | search by `metadata.plan_version_id` |
 | First checkout / trial | `POST /v1/checkout/sessions` | `checkout:<outbox id>` | one open session per business | session by stored id |
 | Pack bought by the owner | Checkout (payment) or `POST /v1/payment_intents` | `pack:<purchase id>` | one per purchase | PaymentIntent by `metadata.purchase_id` |
+| Pack finished by the owner (bank confirmation, another card) | none: the same PaymentIntent is confirmed in Stripe's form | (no POST of ours) | the same purchase, back to pending once | the PaymentIntent by `metadata.purchase_id` |
+| Pay now on an open invoice | none: the invoice's own PaymentIntent is confirmed in Stripe's form | (no POST of ours) | the invoice's one intent | the invoice and its intent |
+| Card update page (Customer Portal) | `POST /v1/billing_portal/sessions` | `portal:<business id>:<attempt key>` | none needed: a short lived page, no money; a new one per attempt | not needed |
 | Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
 | Yearly pay as you go | `POST /v1/payment_intents` | `payg:<period id>` | one per period | PaymentIntent by `metadata.period_id` |
 | Monthly pay as you go | `POST /v1/invoiceitems` on the draft renewal invoice | `payg:<period id>` | one billing row per period (`uninvoiced` → `attached`) | the invoice's lines |
@@ -1100,7 +1119,7 @@ stateDiagram-v2
 | Restricted API key | The worker's key has only the permissions it uses (write: Customers, Checkout Sessions, Subscriptions, Subscription Schedules, Invoices, Invoice Items, PaymentIntents, Refunds, Billing Portal sessions; read: Events, Charges, Balance Transactions, Disputes). No secret key with full access is used by code. The webhook needs no API key except for fetch-before-grant reads. |
 | Stripe metadata | Our ids only (`business_id`, `outbox_id`, `purchase_id`, `refund_id`, `period_id`, `plan_version_id`); never names, emails, phone numbers or call content. |
 | Database access | Inbox, outbox, ledger, idempotency and quarantine tables have **no client policies** and no grants to `anon` or `authenticated`; only `security definer` functions with a pinned `search_path` and a role check first touch them. The service role is used only by the webhook and the worker. Owners read their billing only through owner-checked functions (`TEN-9`). Every money function is tested for cross-tenant denial in the isolated database. |
-| Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind are stored**, not even the last 4 digits or the card brand; the owner manages the card on Stripe's own page. Owner decision (27 Nov 2026): the brand and last 4 may be shown (the Pay step after a confirmed payment, and billing emails); they are fetched from Stripe when needed and passed through, never stored. |
+| Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind are stored**, not even the last 4 digits or the card brand; the owner manages the card on Stripe's own page. Owner decisions (27 Nov 2026): the brand and last 4 may be shown (after a confirmed payment, the renewal line, and billing emails), and the issuing bank's name when Stripe's `card.issuer` gives it; all fetched from Stripe when needed and passed through as plain text, never stored. |
 | Rate limits | Checkout start, pack purchase and refund request: per user and per business limits; 429 with retry-after. |
 | Fraud | Trial guard (D-48); velocity checks on pack purchases; spend cap on auto-reload; alerts on unusual refund or dispute rates. |
 | Logging | Structured logs with business ID and correlation ID; no personal data, no tokens, no full provider payloads. |
@@ -1322,7 +1341,10 @@ pinned in the request header and changed only on purpose.
 | Cancel now | `DELETE /v1/subscriptions/:id` | | trial cancel only |
 | Invoice item | `POST /v1/invoiceitems` | `customer`, `invoice` (the renewal draft) or `subscription`, `amount`, `currency`, `description` | pay as you go (§6.9) |
 | Off-session charge | `POST /v1/payment_intents` | `customer`, `payment_method`, `amount`, `currency`, `off_session: true`, `confirm: true`, `metadata` | auto-reload, yearly pay as you go; `authentication_required` → the owner confirms on Stripe's page |
-| Customer Portal | `POST /v1/billing_portal/sessions` | `customer`, `return_url`; portal configured for card update only | card change after a failure |
+| Customer Portal | `POST /v1/billing_portal/sessions` | `customer`, `return_url`, `flow_data: { type: payment_method_update, after_completion: { type: redirect } }`; portal configured for card update only | Update card (owner, 27 Nov 2026) |
+| Invoice, retrieve | `GET /v1/invoices/:id` with `expand[]=confirmation_secret` | | Pay now: the client secret of the invoice's own PaymentIntent, after the binding checks |
+| PaymentIntent, retrieve | `GET /v1/payment_intents/:id` (with `expand[]=payment_method` once paid) | | Pay now and finishing a pack: its status and client secret; the card it used (brand, last 4, issuer) |
+| Subscription, retrieve | `GET /v1/subscriptions/:id` with `expand[]=default_payment_method` | | the saved card on the renewal line |
 | Refund | `POST /v1/refunds` | `payment_intent`, `amount`, `metadata.refund_id` | after the Zella Voice owner's approval (`REQ-BIL-45`, §6.7) |
 | Dispute evidence | `POST /v1/disputes/:id` | evidence fields, `submit` | a person decides |
 | Look-ups | `GET` invoices, PaymentIntents, refunds, events, balance transactions | | reconciler (§10) |
@@ -1453,6 +1475,7 @@ dispute suspension is kept, the cancel still takes effect at period end); the fi
 | Flow | Prove in a Stripe sandbox |
 |---|---|
 | First payment | Checkout in USD with a 3-D Secure test card; `invoice.paid` carries the invoice and PaymentIntent; binding check passes |
+| Pay now and Update card (27 Nov 2026) | a finalised invoice's `confirmation_secret` comes back with `expand[]=confirmation_secret` on the pinned version and its intent is confirmed in the Payment Element (3D Secure inside it); `invoice.paid` follows; the portal's `payment_method_update` flow sets the default card, and whether a past due invoice is retried at once after it; a pack's `authentication_required` intent confirmed by the owner is granted by `payment_intent.succeeded`; `card.issuer` is absent or present |
 | Embedded Checkout (27 Nov 2026) | the pinned version accepts `ui_mode: embedded` with `return_url` and `redirect_on_completion: if_required`; retrieving the session returns its `client_secret`; Stripe.js `clover` mounts it and `onComplete` fires without a redirect for a card; 3D Secure completes inside the iframe; the saved card's brand and last 4 come back with `expand[]=subscription.default_payment_method`; the report only CSP logs nothing for the Pay step; a test publishable key with a live secret key keeps the step closed |
 | Trial | `trial_end` 5 days ahead; no plan charge at the start; setup-fee timing; first charge at `trial_end` (test clock) |
 | Failed renewal | declining test card → `past_due`; retries on days 2, 3 and 4 (test clock); card update in the Customer Portal pays the open invoice |
@@ -1485,6 +1508,14 @@ pages themselves were not opened. What was read instead, on 27 Nov 2026:
 | `stripe@19.0.0` `types/Invoices.d.ts` | `confirmation_secret`: "Currently, this contains the client_secret of the PaymentIntent that Stripe creates during invoice finalization" (the Pay now design above) |
 | Search excerpts of Stripe's integration security guide (`docs.stripe.com/security/guide`) | CSP for Stripe.js: `script-src` and `frame-src` `https://js.stripe.com` and `https://*.js.stripe.com`, `frame-src https://hooks.stripe.com` (3D Secure and redirects), `connect-src https://api.stripe.com`; for Checkout: `https://checkout.stripe.com` in `frame-src` and `connect-src` (also `script-src`, and `img-src https://*.stripe.com`, which our page itself doesn't load). A third party note (report-uri.com) says Stripe now asks merchants to attest to a CSP, in line with PCI DSS v4's SAQ A eligibility about script attacks on the payment page |
 | Search excerpts of Stripe's PCI compliance FAQ (`support.stripe.com/questions/pci-compliance-faq`), its PCI guide (`stripe.com/guides/pci-compliance`) and security page | "Using Stripe Elements, Checkout, or a mobile SDK qualifies you for SAQ A"; Checkout and Elements host the card inputs "within an iframe served from Stripe's domain (not yours)"; Stripe helps complete the questionnaire in the Dashboard; "you remain responsible for your own environment" (our page, its scripts and its CSP) |
+
+Read the same day for paying from inside the CRM (owner, 27 Nov 2026):
+
+| Source | What it says that we rely on |
+|---|---|
+| `stripe@19.0.0` `types/BillingPortal/SessionsResource.d.ts` | `flow_data.type` can be `payment_method_update` (with `after_completion`), so the portal can open straight on the card update |
+| `stripe@19.0.0` `types/PaymentMethods.d.ts`, `types/Charges.d.ts` | `card.issuer`: "The name of the card's issuing bank. (For internal use only and not typically available in standard API requests.)", on the PaymentMethod's card and the Charge's `payment_method_details.card` |
+| `@stripe/stripe-js@8.11.0` types | `stripe.elements({ clientSecret, appearance })` with `appearance.theme` (`stripe`, `night`, `flat`) and `variables` (colour, font, radius), so the Payment Element follows the current look's tokens (Embedded Checkout has no such option); `stripe.confirmPayment({ elements, redirect: "if_required", confirmParams })` |
 
 **To confirm on the live pages before go live** (needs the network or the owner): the SAQ A wording for embedded
 Checkout on the security guide's "Validating PCI compliance" section; the exact CSP list for Embedded Checkout; that

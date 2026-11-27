@@ -115,6 +115,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 ## 4. Open problems
 
+- **Paying from inside the CRM (owner, 27 Nov 2026), same branch, not merged, applied or deployed.** Needs
+  `sql/zella_stripe_owner_pay.sql` applied after `zella_stripe_invoices.sql`, `zella_stripe_packs.sql` and
+  `zella_stripe_emails.sql` (md5s from a function level stand in; confirm against production); the Customer Portal
+  configured for card update only (§16.6) and its `payment_method_update` flow proven in the sandbox, with whether a
+  past due invoice is retried at once after a card update; Pay now's `confirmation_secret` proven in the sandbox.
 - **Glass Pay step with Stripe Embedded Checkout (owner, 27 Nov 2026), branch `claude/glass-embedded-checkout`, not
   merged, applied or deployed.** Before payments go live it needs: `sql/zella_stripe_embedded_checkout.sql` applied
   after `zella_stripe_checkout.sql` (owner approval; md5s computed on a stand in copy, confirm against production);
@@ -180,6 +185,16 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Paying from inside the CRM: "auto charge plus Pay now" (owner, 27 Nov 2026):** auto charge stays the default
+  (Stripe charges the saved card on the renewal date); Settings > Billing and subscription > Invoices and payments
+  shows the renewal date and the card, Update card opens Stripe's Customer Portal (card update only), an open invoice
+  can be paid now in Stripe's Payment Element on its own payment, the emailed Pay now link opens `/pay/invoice/<id>`
+  (owner only; the id alone grants nothing), and buying a pack uses the same glass checkout. Every payment from the CRM
+  uses the glass checkout. Same day: the card picture never shows the Zella Voice name (it is the customer's card);
+  it may show the issuing bank only as Stripe's `card.issuer` gives it, as text; the layout is three panels like the
+  reference (card, Payment details, receipt). Built on `claude/glass-embedded-checkout`, switched off, not applied
+  (`sql/zella_stripe_owner_pay.sql`). The Pay step's confirmed title "Payment confirmed" waits for the owner's
+  confirmation (its own commit, easy to revert).
 - **Glass checkout with Stripe Embedded Checkout (owner, 27 Nov 2026):** the onboarding Pay step is a glass checkout
   in Zella Voice's own looks (Zella Voice, Classic, Glass with or without the picture's colours); only the motion of the
   owner's reference video is borrowed (the panels soften, the card moves to the centre while confirming, it turns the
@@ -655,6 +670,12 @@ Waiting on the owner:
   and keep the "Zella Voice" wording, never to bypass the guard.
 - **Order matters.** `zella_seating_handoff.sql` must run after `zella_review_sql_fixes.sql`. A combined file can be
   run only once: on the second run the guard rightly rejects the newer function.
+- **A pixel contrast probe can't see what covers the text (27 Nov 2026):** the glass checkout's card thickness layer
+  sat in front of the success face after the flip and washed it out, yet the contrast test passed, because it compares
+  the text's own colour with what is behind it. Look at the screenshots too; a layer in front needs its own check.
+- **The emails and the catalog are checked by `npm run lint` (27 Nov 2026):** a new audit action or platform alert kind
+  must be added to `web/supabase/functions/_shared/catalog.json` with a label (`tests/catalog/drift_test.mjs`), and the
+  email catalogue has one copy (`_shared/businessEmails.js`, re-exported by the web app).
 - **Stripe's docs site can be out of reach from a cloud session (27 Nov 2026).** `docs.stripe.com` was outside the
   session's network allowlist. Stripe's own SDK packages from npm carry the API reference text: `stripe@<the release
   pinned to our API version>` (`types/**/*.d.ts`, `CHANGELOG.md`) and `@stripe/stripe-js` (types and README). Read

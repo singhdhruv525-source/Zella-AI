@@ -40,6 +40,8 @@ Change a value in `tokens.css` and every app follows. Don't add hex colours to a
 | Success, info, warning, danger | `--zella-{success,info,warning,danger}` + `-bg`, `-border` | green, blue, amber, red |
 | Text on a solid success surface (27 Nov 2026) | `--zella-on-success` | #FFFFFF (5.3:1 on #1F7A45); Zella Voice #FFFFFF on #0B7A5E; Glass #0E2A1B on #86E3AE |
 | A sheen or highlight edge on a solid surface (27 Nov 2026) | `--zella-sheen` | rgba(255, 255, 255, 0.16); Glass 0.22 |
+| The card picture's chip metal, light to dark (27 Nov 2026) | `--zella-metal-1`, `-2`, `-3` | #F3E2B3, #CDA85C, #8E6B2C in every look |
+| The lowlight under embossed lettering (27 Nov 2026) | `--zella-emboss-low` | rgba(0, 0, 0, 0.32) |
 
 The table above is Classic. The Zella Voice look re-points the same names (`zella-theme.css`): page #FAFAF7, cards and
 sidebar white, primary midnight #0B0F1A, `--zella-primary-soft` coral tint #FFE9E3, text #0B0F1A, borders #D9DCE1.
@@ -105,32 +107,38 @@ are not changed by this.
 ## Components added with the owner onboarding journey
 
 - **Glass checkout** (`web/src/billing/GlassCheckout.jsx`, `.zgc` in `billing/glassCheckout.css`; owner, 27 Nov
-  2026, made richer the same day): the Pay step, and later the Pay now page for an unpaid invoice. A status panel
-  (`.zob-status` tones; its `h2` takes focus when the state changes), then the two panels on a faint tinted backdrop
-  (`--zella-primary-soft` glows over `--zella-alt`) so the card has depth: a payment panel (the card picture, Pay
-  securely, Stripe's own Embedded Checkout form, which sizes itself, with a skeleton of about 360px while it loads,
-  and a trust row: "Secured by Stripe", "Card details never reach Zella Voice") beside an order summary (a small icon
-  per line on `--zella-primary-soft`, and "Due today" as a tinted box with the amount at page heading size). Panels
-  have layered elevation (`--zella-shadow-sm` and `-md`); in Glass a stronger frost (28px blur), a fine light border
-  (`--zella-border-strong`) and an inner glow from the primary. Panels stack below 900px; the journey card widens to
-  1040px from 960px on this step. Tokens only, so every look follows: Zella Voice, Classic, and Glass with or without
-  "Match colours to the picture".
-- **The card picture**: a premium card built from the look's primary (midnight, mocha, copper or the picture's
-  colour): a diagonal gradient between the primary mixed with `--zella-on-primary` and with `--zella-text`, a
-  `--zella-sheen` stripe, an inner highlight edge and layered shadow, an SVG chip with contact lines, a contactless
-  mark, "Zella Voice" small in one corner and a brand slot in the other. Before payment the number area shows
-  placeholder dots and never digits (NN-9). Once the server confirms, it flips to `--zella-success` with
-  `--zella-on-success` text, the brand in the corner and "ending 4242" in the number area, only if the server returned
-  them. A slight 3D tilt on hover (the panel's card only).
+  2026): every payment the owner makes (the onboarding Pay step, Pay now, finishing or buying a pack). Like a real
+  checkout: a status panel (`.zob-status` tones; its `h2` takes focus when the state changes), then three panels on a
+  faint tinted backdrop (`--zella-primary-soft` glows over `--zella-alt`): the customer's card on the left, **Payment
+  details** in the middle (Stripe's own form: Embedded Checkout, or the Payment Element with our Pay button at the
+  bottom; a skeleton of about 360px while it loads; the trust row "Secured by Stripe", "Card details never reach Zella
+  Voice"), and the order summary as a receipt on the right (an icon per line, tabular numbers, a dashed divider, then
+  the total at page heading size). From 1100px three columns (the journey card widens to 1240px); from 760px the card
+  above the payment panel with the summary beside them; below that one column: card, payment details, summary. Panels
+  have a light rim on the top edge (`--zella-sheen`), a contact and an ambient shadow, and a faint grain; Glass gets a
+  stronger frost (28px blur), a fine light border (`--zella-border-strong`) and an inner glow from the primary.
+- **The card picture**: a realistic ISO card (85.6 by 54 mm, corners 3.5% of the width) built from the look's
+  primary (midnight, mocha, copper or the picture's colour): a diagonal gradient, a fine guilloche line texture, a
+  `--zella-sheen` stripe, a thin bevel, a contact and an ambient shadow, a metallic EMV chip with contact pads and an
+  engraved outline (`--zella-metal-1` to `-3`), a contactless mark, and embossed dots and lettering (`--zella-sheen`
+  above, `--zella-emboss-low` below). It never shows digits before a verified payment and **never shows the Zella Voice
+  name**: it is the customer's card. After the server confirms, it shows the issuing bank (only Stripe's own
+  `card.issuer`, as text) in the corner, the brand and "ending 4242", on `--zella-success` with `--zella-on-success`
+  text. On a fine pointer it tilts slightly and a highlight follows the pointer. In the local preview only, Payment
+  details shows a static picture of Stripe's fields (divs, aria-hidden, no input, badged "Preview of Stripe's form").
 - **Checkout motion (owner approved exception to the calm CRM motion, 27 Nov 2026):** the reference video's motion in
-  Zella Voice's own colours, 600 to 900ms each, on `cubic-bezier(0.22, 1, 0.36, 1)`. When Stripe finishes, a frosted
-  layer fades in over the panels in 600ms (they blur and dim; `backdrop-filter: blur(12px)` over `--zella-card` at
-  70%, or `--glass-solid` in Glass), and the card lifts off the panel and flies to the centre a touch larger in 850ms
-  (transform only, measured once). While confirming, a `--zella-sheen` shimmer sweeps across the card and a progress
-  ring turns under it. When the server confirms, the card flips (800ms) to the success colour, the check draws itself
-  (stroke dash offset, 650ms) and a `--zella-success` glow pulses twice; the title becomes "Payment confirmed" (pending the owner's confirmation; step 7 owns "You're all set").
-  Everything behind the layer is `inert`. With reduced motion there is no blur (a plain surface), tilt, flight, flip,
-  shimmer, spin, glow or drawing: the states simply change. Without `backdrop-filter` the layer is a plain surface.
+  Zella Voice's own colours, 600 to 900ms each, with a light spring (`cubic-bezier(0.34, 1.32, 0.64, 1)`). When Stripe
+  finishes, a frosted layer fades in over the panels (they blur and dim), and the card lifts off the left column and
+  settles in the centre (transform only, measured once) while its shadow on the "table" widens and fades with the
+  height. While confirming, a sheen sweeps across the card and a progress ring turns. When the server confirms, the
+  card flips (its thickness shows while it turns) to the success colour, the check draws itself (stroke dash offset)
+  and a `--zella-success` glow pulses twice; the title becomes "Payment confirmed" (pending the owner's confirmation;
+  step 7 owns "You're all set"). Everything behind the layer is `inert`. With reduced motion there is no blur, tilt,
+  highlight, flight, flip, shimmer, spin, glow or drawing: the states simply change.
+- **Payments panel** (`web/src/billing/PaymentsPanel.jsx`, `.zpay` in `billing/payments.css`): the renewal line with
+  the saved card and Update card, the invoices as rows (number and period, amount, a status chip with a word, Pay now
+  or View, a link to Stripe's page), and the packs with Buy. Rows stack on a phone. Used in Settings > Billing and
+  subscription > Invoices and payments and on the owner's `/pay` page.
 - **Progress steps** (`web/src/onboarding/ProgressSteps.jsx`, `.zv-progress` in `onboarding/onboarding.css`): "Step 3 of 7" and the step's name, a mocha bar with `role="progressbar"` and an accessible value text, and one dot per step (done, here, to come). The words carry the meaning; the bar and dots back them up. Give it `screens` and the `current` index.
 - **Authenticator set up** (`web/src/AuthenticatorSetup.jsx`, `.zv-authsetup`): the three instructions, the QR code (kept black on white in every look), the key to type by hand, the six digit code and one main button. It uses the same calls as the admin sign in and Settings (`mfa.js`); `start` and `finish` can be passed in. It never decides who must use two step sign in.
 - **Journey page** (`.ba-root.zob`): a top bar (Zella Voice, the business, Finish later) and one card, 16px gutters on a phone, 680px wide from 760px. Main buttons are full width on a phone. Status panels (`.zob-status`, tones `good`, `info`, `heads`, `urgent`) always carry a word. Headings that take focus when a step opens show no focus ring (they aren't controls). The Glass look frosts the card and the top bar.

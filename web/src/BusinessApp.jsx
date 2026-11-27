@@ -61,6 +61,7 @@ import { todayConfig } from "./todayConfig";
 // The CRM each client business uses (Stitch design). Routes:
 //   /welcome  set password from an invitation or reset email
 //   /welcome/setup  the owner onboarding journey (Welcome to You're all set)
+//   /pay      the owner's Payments page; /pay/invoice/<id> the emailed Pay now link (sign in first)
 //   /app      sign in, then the business's own workspace
 
 loadBusinessFonts();
@@ -888,12 +889,15 @@ function Preview() {
 
 // The owner onboarding journey, loaded only when it is opened (web/src/onboarding/).
 const OwnerOnboarding = lazy(() => import("./onboarding/OwnerOnboarding"));
+// The owner's Payments page and the emailed Pay now link (/pay, /pay/invoice/<id>; web/src/billing/), loaded when opened.
+const PayPage = lazy(() => import("./billing/PayPage"));
 // For an owner who left the journey part way: a way back to the same step. Shows nothing until the server says so.
 const OnboardingResumeBanner = lazy(() => import("./onboarding/ResumeBanner"));
 
 export default function BusinessApp() {
   const path = window.location.pathname;
   if (/^\/welcome\/setup\/?$/.test(path)) return <Suspense fallback={<Loading text="Loading…" />}><OwnerOnboarding /></Suspense>;
+  if (/^\/pay(\/|$)/.test(path)) return <Suspense fallback={<Loading text="Loading…" />}><PayPage /></Suspense>;
   if (path.startsWith("/welcome")) return <Welcome />;
   if (import.meta.env.DEV && path.startsWith("/app/preview")) return <Preview />;
   return <BusinessHome />;

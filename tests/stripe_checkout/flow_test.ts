@@ -56,7 +56,7 @@ Deno.test("plan saved -> Checkout -> signed webhook -> payment confirmed -> go l
   assert((await fake.deliver(hookUrl, SECRET)).every((s) => s === 200));
   const back = await api(token, { action: "checkout_return", business_id: business });
   assertEquals(back.body.payment.status, "confirmed", JSON.stringify(back.body));
-  assertEquals(back.body.card, { brand: "visa", last4: "4242" });   // only what Stripe returns about the saved card
+  assertEquals(back.body.card, { brand: "visa", last4: "4242", issuer: "Test Bank" });   // only what Stripe returns about the saved card
   assertEquals(await sql(`select status from public.subscriptions where business_id = '${business}'`), "active");
   assertEquals(await sql(`select (x ->> 'ok') from jsonb_array_elements(public.zella_activation_checks('${business}') -> 'checks') x where x ->> 'key' = 'payment'`), "true");
   assertEquals(await sql(`select amount_minor || ' ' || (metadata ->> 'bound') from public.payments where business_id = '${business}'`), "89800 true");

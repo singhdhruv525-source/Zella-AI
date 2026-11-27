@@ -32,7 +32,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withCors } from "../_shared/cors.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { applyEvents, type Rpc, rpcClient, sendOutboxNow } from "../_shared/billingWorker.ts";
-import { cardSummary, keyIsLive, publishableKeyLive, type StripeClient, stripeClient } from "../_shared/stripe.ts";
+import { cardSummary, invoicePaymentIntent, keyIsLive, publishableKeyLive, type StripeClient, stripeClient } from "../_shared/stripe.ts";
 
 const WORDS: Record<string, string> = {
   NOT_SIGNED_IN: "Please sign in again.",
@@ -130,6 +130,18 @@ export async function handle(req: Request): Promise<Response> {
       return publishable;
     };
     const refs = async (biz: string) => await rpc("zella_billing_stripe_refs", { p_business_id: biz, p_livemode: stripe.livemode }) as { customer: string | null; subscription: string | null } | null;
+    // the card a confirmed payment used, from its PaymentIntent's payment method (our customer, our purchase); null on any doubt
+    const paidWith = async (biz: string, intentOf: (customer: string) => Promise<string | null>, purchaseId?: string) => {
+      try {
+        const ref = await refs(biz);
+        if (!ref?.customer) return null;
+        const piId = await intentOf(ref.customer);
+        if (!piId || !/^pi_[A-Za-z0-9_]{1,250}$/.test(piId)) return null;
+        const pi = await stripe.get(`/v1/payment_intents/${piId}`, { expand: ["payment_method"] }) as Record<string, any>;
+        if (pi.customer !== ref.customer || pi.status !== "succeeded" || (purchaseId && pi.metadata?.purchase_id !== purchaseId)) return null;
+        return cardSummary(pi.payment_method);
+      } catch { return null; }
+    };
     if (body.action === "checkout_start") {
       const publishable = await browserKey();
       if (publishable instanceof Response) return publishable;
@@ -178,7 +190,14 @@ export async function handle(req: Request): Promise<Response> {
     if (action === "invoice_pay_return") {
       await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId });   // the owner check first
       await applyEvents(rpc, stripe, 20, 8).catch(() => null);   // invoice.paid is what marks it paid; nothing here trusts the browser
-      return reply({ invoice: await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId }) });
+      const invoice = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId }) as Record<string, any>;
+      // once OUR record says paid: the card that paid it (brand, last 4, issuer), only as Stripe returns them
+      const card = invoice?.status === "paid" ? await paidWith(String(invoice.business_id), async (cus) => {
+        const si = await stripe.get(`/v1/invoices/${invoice.stripe_invoice_id}`) as Record<string, any>;
+        if (si.id !== invoice.stripe_invoice_id || (typeof si.customer === "string" ? si.customer : si.customer?.id) !== cus) return null;
+        return invoicePaymentIntent(si);
+      }) : null;
+      return reply(card ? { invoice, card } : { invoice });
     }
     if (action === "invoice_pay_start") {
       const publishable = await browserKey();
@@ -238,7 +257,9 @@ export async function handle(req: Request): Promise<Response> {
       if (!UUID.test(String(body.purchase_id ?? ""))) return refuse("INVALID_INPUT");
       await asOwner(url, anon, jwt, "zella_owner_pack_status", { p_business_id: business, p_purchase_id: body.purchase_id });
       await applyEvents(rpc, stripe, 20, 8).catch(() => null);
-      return reply({ purchase: await asOwner(url, anon, jwt, "zella_owner_pack_status", { p_business_id: business, p_purchase_id: body.purchase_id }) });
+      const purchase = await asOwner(url, anon, jwt, "zella_owner_pack_status", { p_business_id: business, p_purchase_id: body.purchase_id }) as Record<string, any>;
+      const card = purchase?.status === "granted" && typeof purchase.payment_intent === "string" ? await paidWith(business, async () => purchase.payment_intent, String(body.purchase_id)) : null;
+      return reply(card ? { purchase, card } : { purchase });
     }
     if (action === "pack_act_start") {
       if (!UUID.test(String(body.purchase_id ?? ""))) return refuse("INVALID_INPUT");

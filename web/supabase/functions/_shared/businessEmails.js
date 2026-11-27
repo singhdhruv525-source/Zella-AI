@@ -52,6 +52,11 @@ export const SAMPLE = {
 const M = true, O = false;
 const e = (code, group, name, when, mandatory, build) => ({ code, group, name, when, mandatory, build });
 const L = (d, path) => `${d.appUrl}${path}`;
+// Pay now (owner, 27 Nov 2026): the invoice's own Zella Voice page (/pay/invoice/<our invoice id>, sign in first; the id
+// alone grants nothing), else the business's Payments page, where Update card is too. Both ids are optional facts.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PAYMENTS = (d) => L(d, UUID_RE.test(String(d.businessId ?? "")) ? `/pay?business=${d.businessId}` : "/pay");
+const PAY = (d) => (UUID_RE.test(String(d.invoiceId ?? "")) ? L(d, `/pay/invoice/${d.invoiceId}`) : PAYMENTS(d));
 
 export const EMAILS = [
   // ---- notifications: the bell's own words, emailed (daily summary, weekly review, warnings and urgent alerts).
@@ -206,7 +211,7 @@ export const EMAILS = [
     intro: [`On ${d.renewDate} we will charge card ending ${d.card} about ${d.amount} plus any pay as you go minutes. Nothing to do.`], facts: [["Plan", d.plan], ["Estimated amount", d.amount]], button: ["Billing settings", L(d, "/settings/billing")] })),
   e("B2", "billing_b", "Card expiring soon", "30 days before the saved card expires", M, (d) => ({
     tone: "heads", subject: "Your card expires before your next renewal", heading: "Time for a new card",
-    intro: [`The card ending ${d.card} expires before your renewal on ${d.renewDate}. Update it so your receptionist keeps answering.`], button: ["Update card", L(d, "/settings/billing")] })),
+    intro: [`The card ending ${d.card} expires before your renewal on ${d.renewDate}. Update it so your receptionist keeps answering.`], button: ["Update card", PAYMENTS(d)] })),
   e("B3", "billing_b", "No card on file", "automatic payment is on but the card was removed or can't be used", M, (d) => ({
     tone: "heads", subject: "Add a card before your next renewal", heading: "There's no card to charge",
     intro: [`Add a card before ${d.renewDate} so your plan renews without a break.`], button: ["Add a card", L(d, "/settings/billing")] })),
@@ -232,7 +237,7 @@ export const EMAILS = [
     intro: [`Invoice ${d.invoice} was cancelled, so it no longer needs paying.`], button: ["Billing history", L(d, "/settings/billing")] })),
   e("C5", "billing_c", "Invoice due tomorrow", "1 day before the due date, if unpaid and automatic payment is off", M, (d) => ({
     tone: "heads", subject: `Invoice ${d.invoice} is due tomorrow`, heading: "Your invoice is due tomorrow",
-    facts: [["Amount", d.total], ["Due", d.dueDate]], button: ["Pay now", L(d, "/pay")], note: "Or pay in the app, under Settings, Billing." })),
+    facts: [["Amount", d.total], ["Due", d.dueDate]], button: ["Pay now", PAY(d)], note: "Or pay in the app, under Settings, Billing." })),
   e("C6", "billing_c", "Replacement invoice", "usage is billed again after an invoice was cancelled", M, (d) => ({
     tone: "info", subject: `Replacement invoice ${d.invoice}`, heading: "A corrected invoice",
     intro: ["This invoice replaces one we cancelled. The only change is the corrected pay as you go minutes."], lines: d.lines, total: d.total, button: ["View invoice", L(d, "/settings/billing")] })),
@@ -243,19 +248,19 @@ export const EMAILS = [
   e("D1", "billing_d", "Payment failed", "the first charge fails, or the due date passes unpaid", M, (d) => ({
     tone: "urgent", subject: `Payment of ${d.total} didn't go through`, heading: "Your payment didn't go through",
     intro: [`${d.reason} We will try again on ${d.retryDate}. Pay now or update your card to keep your receptionist answering.`], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]],
-    button: ["Pay now", L(d, "/pay")], secondary: [["Update card", L(d, "/settings/billing")]] })),
+    button: ["Pay now", PAY(d)], secondary: [["Update card", PAYMENTS(d)]] })),
   e("D2", "billing_d", "Confirm your payment", "the bank asks for confirmation (3D Secure)", M, (d) => ({
     tone: "heads", subject: "Your bank needs you to confirm a payment", heading: "Please confirm your payment",
-    intro: [`Your bank asked you to confirm the payment of ${d.total}. It takes a moment on Stripe's secure page.`], button: ["Confirm the payment", L(d, "/pay")] })),
+    intro: [`Your bank asked you to confirm the payment of ${d.total}. It takes a moment on Stripe's secure page.`], button: ["Confirm the payment", PAY(d)] })),
   e("D3", "billing_d", "Retry failed", "each failed retry", M, (d) => ({
     tone: "urgent", subject: `Payment attempt ${d.attempt} failed`, heading: "We still couldn't take the payment",
-    intro: [`${d.reason} Your receptionist pauses on ${d.pauseDate} unless the invoice is paid.`], button: ["Pay now", L(d, "/pay")], secondary: [["Update card", L(d, "/settings/billing")]] })),
+    intro: [`${d.reason} Your receptionist pauses on ${d.pauseDate} unless the invoice is paid.`], button: ["Pay now", PAY(d)], secondary: [["Update card", PAYMENTS(d)]] })),
   e("D4", "billing_d", "Final notice", "the day before the pause", M, (d) => ({
     tone: "urgent", subject: "Final notice: your service pauses tomorrow", heading: "Your service pauses tomorrow",
-    intro: [`Unless ${d.total} is paid today, calls go to ${d.fallbackPhone} from tomorrow and your receptionist stops answering.`], button: ["Pay now", L(d, "/pay")] })),
+    intro: [`Unless ${d.total} is paid today, calls go to ${d.fallbackPhone} from tomorrow and your receptionist stops answering.`], button: ["Pay now", PAY(d)] })),
   e("D5", "billing_d", "Service paused", "5 days after the failed payment", M, (d) => ({
     tone: "urgent", subject: "Your service is paused: payment overdue", heading: "Your receptionist is paused",
-    intro: [`Calls now go to ${d.fallbackPhone}. Pay now and your receptionist answers again within a minute.`], button: ["Pay now", L(d, "/pay")] })),
+    intro: [`Calls now go to ${d.fallbackPhone}. Pay now and your receptionist answers again within a minute.`], button: ["Pay now", PAY(d)] })),
   e("D6", "billing_d", "Payment recovered", "the overdue invoice is paid", M, (d) => ({
     tone: "good", subject: "Payment received: everything is back on", heading: "Welcome back",
     intro: ["Thank you. Your receptionist is answering calls again."], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]], button: ["Download receipt", L(d, "/settings/billing")] })),
@@ -291,7 +296,7 @@ export const EMAILS = [
     tone: d.accountPaused ? "heads" : "good", subject: d.accountPaused ? "Your account was paused" : "Your account is restored",
     heading: d.accountPaused ? "Your account is paused" : "Welcome back",
     intro: [d.accountPaused ? `Your account was paused because an invoice is unpaid. Calls go to ${d.fallbackPhone} until it is settled.` : "Your account is active again and your receptionist is answering calls."],
-    button: d.accountPaused ? ["Pay now", L(d, "/pay")] : ["Open Zella Voice", L(d, "/")] })),
+    button: d.accountPaused ? ["Pay now", PAY(d)] : ["Open Zella Voice", L(d, "/")] })),
 
   e("F1", "billing_f", "80% of minutes used", "minutes reach 80% of the plan", O, (d) => ({
     tone: "heads", subject: "You've used 80% of this month's minutes", heading: "Your receptionist has been busy",
@@ -308,7 +313,7 @@ export const EMAILS = [
     intro: [`Every caller got an answer. ${d.packPrice} charged; ${d.limitLeft} left of your ${d.limit} monthly limit.`], button: ["View receipt", L(d, "/settings/billing")] })),
   e("F5", "billing_f", "Auto reload failed", "the auto reload charge fails", M, (d) => ({
     tone: "urgent", subject: "Auto reload didn't go through", heading: "We couldn't top up your minutes",
-    intro: [`${d.reason} Once your minutes run out, new calls go to ${d.fallbackPhone}.`], button: ["Update card", L(d, "/settings/billing")] })),
+    intro: [`${d.reason} Once your minutes run out, new calls go to ${d.fallbackPhone}.`], button: ["Update card", PAYMENTS(d)] })),
   e("F6", "billing_f", "Spending limit reached", "the monthly limit stops new pay as you go minutes", M, (d) => ({
     tone: "heads", subject: "Your monthly spending limit is reached", heading: "Your spending limit is reached",
     intro: [`You've reached your ${d.limit} monthly limit, so new calls go to ${d.fallbackPhone} until your plan renews. You can raise the limit at any time.`], button: ["Raise the limit", L(d, "/settings/billing")] })),
@@ -341,7 +346,7 @@ export const EMAILS = [
     tone: "info", subject: "Your payment dispute is closed", heading: "The dispute is closed",
     intro: [d.disputeWon ? "The bank closed the dispute in our favour, so the original payment stands. Nothing else changes on your account."
       : `The bank closed the dispute in your favour and returned ${d.total} to you. The invoice is unpaid again; please pay it so your plan stays active.`],
-    button: d.disputeWon ? null : ["Pay now", L(d, "/pay")] })),
+    button: d.disputeWon ? null : ["Pay now", PAY(d)] })),
   e("G7", "billing_g", "Usage waived", "an admin waives usage after a cancelled invoice", M, (d) => ({
     tone: "good", subject: "Nothing to pay for these minutes", heading: "We've waived these minutes",
     intro: [`We've waived ${d.paygMinutes} pay as you go minutes (${d.paygAmount}). There is nothing to pay.`] })),
@@ -387,7 +392,7 @@ const safeUrl = (u) => (/^https:\/\//.test(String(u)) ? String(u) : "#");
 export function renderEmail(code, data = SAMPLE, { strict = false } = {}) {
   const def = emailByCode(code);
   if (!def) throw new Error(`UNKNOWN_EMAIL:${code}`);
-  const OPTIONAL = new Set(["supportEmail", "appUrl", "pagePath", "body", "severity", "role", "mandatory"]);
+  const OPTIONAL = new Set(["supportEmail", "appUrl", "pagePath", "body", "severity", "role", "mandatory", "invoiceId", "businessId"]);
   const d = strict
     ? new Proxy({ ...data }, { get: (t, k) => {
         if (typeof k !== "string" || k in t || OPTIONAL.has(k)) return t[k];

@@ -31,7 +31,7 @@ import { BusinessModulesPanel } from "./settings/BusinessModulesPanel";
 import TicketThread from "./settings/panels/TicketThread";
 import { CallContentAccess, CapabilitiesPanel } from "./settings/CapabilitiesPanel";
 import { BusinessCallingUsage } from "./settings/CallingUsagePanels";
-import { AutoReloadPanel, BillingBalancesPanel, BillingPlanPanel } from "./settings/BillingPanels";
+import { AutoReloadPanel, BillingBalancesPanel, BillingPlanPanel, PaymentsSettingsPanel } from "./settings/BillingPanels";
 import { AssignmentSettings, BusinessOffersSettings, LeadQuestions, LeadRules, WebsiteForms, WebsiteSources } from "./settings/BusinessLeadPanels";
 import { formatTimeZone } from "./lib/format";
 
@@ -999,6 +999,7 @@ function registry(w) {
       page("usage", "Usage and charges", () => <VoiceUsage w={w} />, "usage sms voice charges"),
       page("calling", "Calling usage", () => <BusinessCallingUsage w={w} />, "calling minutes calls call time usage history corrections allowance"),
       page("protection", "AI usage protection", () => <UsageProtection w={w} />, "pay as you go spending limit 80 100 fallback"),
+      page("invoices", "Invoices and payments", () => <PaymentsSettingsPanel w={w} />, "invoices pay now payment card update renewal auto charge buy pack receipt"),
       page("balances", "Balances and packs", () => <BillingBalancesPanel w={w} />, "rollover reset remaining packs top up minutes texts emails expiry"),
       page("auto-reload", "Auto reload", () => <AutoReloadPanel w={w} />, "auto reload top up pack spending cap limit"),
       page("offers", "Offers and promo codes", () => <BusinessOffersSettings w={w} />, "offer promo code discount deal claim"),

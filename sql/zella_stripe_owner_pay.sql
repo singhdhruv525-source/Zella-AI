@@ -13,7 +13,10 @@
 --   5. zella_owner_pack_status / zella_owner_pack_act_start: a pack the bank wanted to confirm, or whose saved card was
 --      declined, can be finished by the owner in Stripe's form on the SAME PaymentIntent (back to pending; granted only
 --      by Stripe's payment_intent.succeeded and the binding check, unchanged).
--- Needs sql/zella_stripe_invoices.sql and sql/zella_stripe_packs.sql. Rollback:
+--   6. zella_billing_email_invoice_trg (sql/zella_stripe_emails.sql's version, archived first, changed by one exact text
+--      replacement): the invoice emails' data also carries our invoice id, so their Pay now link opens that invoice's own
+--      page (/pay/invoice/<id>, sign in first) instead of the general Payments page.
+-- Needs sql/zella_stripe_invoices.sql, sql/zella_stripe_packs.sql and sql/zella_stripe_emails.sql. Rollback:
 -- sql/rollback/zella_stripe_owner_pay_rollback.sql (restores zella_owner_invoices exactly, drops the rest; refuses on
 -- drift). Tests: tests/stripe_owner_pay/stub_run.sh, web/supabase/functions/billing-api/handle_test.ts.
 begin;
@@ -23,11 +26,11 @@ declare s text; d text;
   v_from constant text := '60c0659f065c58b03dc279ffb007825c';   -- sql/zella_stripe_invoices.sql's zella_owner_invoices
   v_to constant text := 'effc5ab4a36f94ac7429909fd534849b';
   owned constant jsonb := '{
-    "public.zella_owner_invoice_pay_status(uuid)": "af72ce9f98b7f08a29cdf8c15de727c1",
+    "public.zella_owner_invoice_pay_status(uuid)": "acab0fd1e34d8ccad6df429abb49fe88",
     "public.zella_owner_invoice_pay_start(uuid)": "cb72de188cfae050d77a29bc3d627fd7",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
-    "public.zella_owner_pack_status(uuid,uuid)": "4d8eb9c51dd987c4f49b6e71877d8dc0",
+    "public.zella_owner_pack_status(uuid,uuid)": "a48b5589765fe94049fa3f6a2ca78a6d",
     "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7"
   }';
 begin
@@ -76,7 +79,7 @@ begin
   end if;
   perform public.zella_onboarding_authorize(i.business_id, false, false);
   return jsonb_build_object('invoice_id', i.id, 'business_id', i.business_id, 'business_name', (select name from public.businesses where id = i.business_id),
-    'number', i.number, 'status', i.status, 'kind', i.kind, 'total_minor', i.total_minor, 'amount_due_minor', i.amount_due_minor, 'amount_paid_minor', i.amount_paid_minor,
+    'stripe_invoice_id', i.stripe_invoice_id, 'number', i.number, 'status', i.status, 'kind', i.kind, 'total_minor', i.total_minor, 'amount_due_minor', i.amount_due_minor, 'amount_paid_minor', i.amount_paid_minor,
     'currency', i.currency, 'period_start', i.period_start, 'period_end', i.period_end, 'hosted_invoice_url', i.hosted_invoice_url, 'paid_at', i.paid_at,
     'payments_live', public.zella_payments_live(),
     'payable', i.status in ('open', 'payment_failed') and i.amount_due_minor > 0 and public.zella_payments_live());
@@ -130,7 +133,7 @@ begin
   select * into v from public.pack_purchases where id = p_purchase_id and business_id = p_business_id and source = 'owner_purchase';
   if v.id is null then raise exception 'NOT_FOUND'; end if;
   return jsonb_build_object('purchase_id', v.id, 'status', v.status, 'pack_code', v.pack_code, 'resource', v.resource, 'quantity', v.quantity,
-    'price_cents', v.price_cents, 'currency', 'usd', 'failure_reason', v.failure_reason,
+    'price_cents', v.price_cents, 'currency', 'usd', 'failure_reason', v.failure_reason, 'payment_intent', v.stripe_payment_intent,
     'can_act', v.status = 'failed' and v.stripe_payment_intent is not null
                and coalesce(v.failure_reason, '') in ('authentication_required', 'card_declined', 'expired_card', 'insufficient_funds', 'incorrect_cvc', 'processing_error'));
 end $$;
@@ -158,6 +161,25 @@ begin
   return jsonb_build_object('purchase_id', v.id, 'payment_intent', v.stripe_payment_intent, 'price_cents', v.price_cents, 'currency', 'usd');
 end $$;
 
+-- 6. the invoice emails carry our invoice id (one exact text replacement on a known version, archived first)
+do $x$
+declare d text;
+  v_from constant text := 'cc75a8987f19e2ae96c066395b79af45';   -- sql/zella_stripe_emails.sql's version
+  v_to constant text := 'e71bf72e22f1e906f1022c5e94f44f5e';
+  v_old constant text := $r$jsonb_build_object('invoice', new.number,$r$;
+  v_new constant text := $r$jsonb_build_object('invoiceId', new.id, 'invoice', new.number,$r$;
+begin
+  if to_regprocedure('public.zella_billing_email_invoice_trg()') is null then raise exception 'VERSION_MISMATCH: needs zella_stripe_emails.sql'; end if;
+  d := pg_get_functiondef('public.zella_billing_email_invoice_trg()'::regprocedure);
+  if md5(d) = v_to then return; end if;
+  if md5(d) <> v_from then raise exception 'VERSION_MISMATCH: public.zella_billing_email_invoice_trg() is not a version this file was written for'; end if;
+  if (length(d) - length(replace(d, v_old, ''))) / length(v_old) <> 1 then raise exception 'VERSION_MISMATCH: the text to change is not there exactly once'; end if;
+  insert into public.zella_function_archive (migration, signature, definition, definition_md5)
+  values ('zella_stripe_owner_pay', 'public.zella_billing_email_invoice_trg()', d, md5(d)) on conflict (migration, signature) do nothing;
+  execute replace(d, v_old, v_new);
+  if md5(pg_get_functiondef('public.zella_billing_email_invoice_trg()'::regprocedure)) <> v_to then raise exception 'VERSION_MISMATCH: the changed trigger function is not the expected version'; end if;
+end $x$;
+
 do $$ declare f text; begin
   foreach f in array array['zella_owner_invoices(uuid)', 'zella_owner_invoice_pay_status(uuid)', 'zella_owner_invoice_pay_start(uuid)',
     'zella_owner_billing_access(uuid,boolean)', 'zella_owner_pack_status(uuid,uuid)', 'zella_owner_pack_act_start(uuid,uuid)'] loop
@@ -173,11 +195,11 @@ do $$
 declare s text;
   made constant jsonb := '{
     "public.zella_owner_invoices(uuid)": "effc5ab4a36f94ac7429909fd534849b",
-    "public.zella_owner_invoice_pay_status(uuid)": "af72ce9f98b7f08a29cdf8c15de727c1",
+    "public.zella_owner_invoice_pay_status(uuid)": "acab0fd1e34d8ccad6df429abb49fe88",
     "public.zella_owner_invoice_pay_start(uuid)": "cb72de188cfae050d77a29bc3d627fd7",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
-    "public.zella_owner_pack_status(uuid,uuid)": "4d8eb9c51dd987c4f49b6e71877d8dc0",
+    "public.zella_owner_pack_status(uuid,uuid)": "a48b5589765fe94049fa3f6a2ca78a6d",
     "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7"
   }';
 begin
