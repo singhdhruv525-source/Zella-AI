@@ -129,7 +129,7 @@ Sample marketing messages:
 
 | Keyword | Reply |
 |---|---|
-| STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) | "{business}: You are unsubscribed and will receive no further messages. Reply START to resubscribe." The opt out applies to service and marketing texts and takes effect immediately |
+| STOP (and STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT) | "{business}: You are unsubscribed and will receive no further texts. Reply START to resubscribe." The opt out applies to service and marketing texts and takes effect immediately |
 | HELP | "{business}: For help, call {business_number} or visit {business_website}. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out." Sent to every number that texts HELP |
 | START (and UNSTOP, YES) | "{business}: You will receive service messages again, such as appointment reminders. You remain unsubscribed from marketing messages. Msg frequency varies. Msg and data rates may apply. Reply STOP to opt out, HELP for help." Restores service texts only |
 
