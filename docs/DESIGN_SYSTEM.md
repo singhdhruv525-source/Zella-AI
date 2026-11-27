@@ -119,6 +119,32 @@ are not changed by this.
   above the payment panel with the summary beside them; below that one column: card, payment details, summary. Panels
   have a light rim on the top edge (`--zella-sheen`), a contact and an ambient shadow, and a faint grain; Glass gets a
   stronger frost (28px blur), a fine light border (`--zella-border-strong`) and an inner glow from the primary.
+- **Add ons in the receipt** (`AddonPicker` in `web/src/billing/ReceiptExtras.jsx`, `.zgc-addons`; owner, 27 Nov 2026):
+  under the receipt's total, an "Add ons" heading and a short note, then one `fieldset` per type with its `legend`
+  (Minutes, Texts, Emails; small capitals in `--zella-text-secondary`). Each row is a real checkbox whose `label` is the
+  whole row (`.zgc-addon`, at least 48px tall): a drawn box (`--zella-border-strong`, ticked `--zella-primary` with
+  `--zella-on-primary` check), the pack's name (`--zella-text`, semibold) and a one line description
+  (`--zella-text-2`), and its price "$29 one time" on the right; a ticked row takes `--zella-primary-soft` and
+  `--zella-primary-border`; the keyboard focus ring is `--zella-focus` on the drawn box. Ticked packs are receipt lines
+  (icon `add_circle`), with "Add ons are one time and never renew." under the total (and, on Pay now, "Add ons are
+  charged separately right after your plan payment"); a change of total is announced politely ("Total due today
+  $278."). Below 360px the price moves under the name. Locked (dimmed, not clickable) while a start is in flight.
+- **"I agree" box above Pay** (`ConsentBox`, `.zgc-consent`): a real checkbox (`accent-color: --zella-primary`,
+  focus ring `--zella-focus`) with its label, on `--zella-subtle` with `--zella-border`; "Terms" and "Privacy Policy" are
+  `.ba-link`s opening in a new tab (each with a screen reader "opens in a new tab"). Unticked, Pay keeps its place
+  and its focus but looks disabled (`.zgc-pay-btn.is-blocked`, `aria-disabled="true"`); pressing it shows the error
+  under the box (`--zella-danger`, `role="alert"`, the box's border `--zella-danger-border`). Pay buttons show the full
+  total: "Continue to pay $278" opens Stripe's form, "Pay $278" pays.
+- **Add on progress after Pay now** (`AddonProgress`, `.zgc-addon-progress`): a card under the checkout once the plan
+  payment is confirmed, one row per add on: adding (`hourglass_top`), added (`--zella-success-bg`,
+  `--zella-success-border`) or "Plan paid. 100 minutes not added" (`--zella-danger-bg`, `--zella-danger-border`) with
+  Try again for that pack only; announced politely.
+- **Card problems** (`.zgc-field-error`, `.zgc-decline`, `.zgc.is-bankwait`, `.zgc-bank-preview`): Stripe's inline words
+  under a field in `--zella-danger` (the slot's border `--zella-danger-border`); a declined card in the Payment details
+  panel on `--zella-danger-bg` with `--zella-danger-border`, an icon, the title, what it means and "Try another card";
+  while the bank checks, the status says "Waiting for your bank to confirm" and the card's motion pauses; the local
+  preview's bank check is a modal card (`--zella-card`, `--zella-shadow-pop`, over `--zella-overlay`) with a "Preview
+  only" badge and Approve, Fail and Close.
 - **The card picture**: a photoreal ISO card (85.6 by 54 mm, corners 3.5% of the width) built from the look's
   primary (midnight, mocha, copper or the picture's colour): layered radial and linear gradients, film grain (an SVG
   `feTurbulence` texture), a holographic brushed sheen that moves with the pointer or the device's tilt, a thin bevel,

@@ -563,3 +563,23 @@ html[data-zella-theme="glass"]:has(.ba-root) .zgc-panel::before { opacity: 0.06;
 .zgc-addon-step.is-failed .ba-icon { color: var(--zella-danger); }
 @media (max-width: 420px) { .zgc-addon-step { grid-template-columns: auto minmax(0, 1fr); } .zgc-addon-step .ba-btn { grid-column: 1 / -1; } }
 @media (prefers-reduced-motion: reduce) { .zgc-addon { transition: none; } }
+
+/* ---- Wrong card details, a declined card, the bank's own check (owner question, 27 Nov 2026) ---- */
+.zgc-field-error { margin: 0; min-height: 0; color: var(--zella-danger); font-size: var(--zella-text-xs); font-weight: 600; }
+.zgc-field-error:empty { display: none; }
+.zgc-slot.has-error, .zgc-field .zgc-slot.has-error { border-color: var(--zella-danger-border); box-shadow: 0 0 0 1px var(--zella-danger-border); }
+.zgc-decline { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--zella-space-3); padding: var(--zella-space-3); border: 1px solid var(--zella-danger-border);
+  border-radius: var(--zella-radius-md); background: var(--zella-danger-bg); }
+.zgc-decline .ba-icon { color: var(--zella-danger); }
+.zgc-decline strong { color: var(--zella-text); font-size: var(--zella-text-sm); }
+.zgc-decline p { margin: var(--zella-space-1) 0 var(--zella-space-2); color: var(--zella-text-2); font-size: var(--zella-text-sm); }
+/* waiting for the bank: the card holds still while the bank's own window is open */
+.zgc.is-bankwait .zgc-card, .zgc.is-bankwait .zgc-card * { animation-play-state: paused !important; }
+.zgc.is-bankwait .zgc-card-tiltbox { transform: none !important; }
+/* the stand in's labelled preview of the bank's check (local preview only; live, Stripe draws the bank's real page) */
+.zgc-bank-preview { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: var(--zella-space-4); background: var(--zella-overlay); }
+.zgc-bank-preview-box { display: grid; gap: var(--zella-space-3); width: min(100%, 26rem); padding: var(--zella-space-5); border: 1px solid var(--zella-border);
+  border-radius: var(--zella-radius-lg); background: var(--zella-card); color: var(--zella-text); box-shadow: var(--zella-shadow-pop); }
+.zgc-bank-preview-box h2 { margin: 0; font-size: var(--zella-text-lg); }
+.zgc-bank-preview-box p { margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); }
+.zgc-bank-preview-actions { display: flex; flex-wrap: wrap; gap: var(--zella-space-2); }

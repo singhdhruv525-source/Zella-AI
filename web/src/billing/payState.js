@@ -15,13 +15,17 @@ export function invoiceAsPayment(inv) {
   return { status: "waiting", reason: "payments_not_connected", checkout_available: false };
 }
 
+import { savedCardDecline } from "./declines.js";
+
 // A pack purchase as the checkout's answer: granted is the only "confirmed"; a failure the owner can finish in Stripe's
 // form stops the wait with its kind.
 export function packAnswer(purchase) {
   if (purchase?.status === "granted") return { payment: { status: "confirmed" } };
   if (purchase?.status === "failed") {
     if (purchase.can_act && purchase.failure_reason === "authentication_required") return { payment: { status: "waiting" }, stopped: "needs_action" };
-    if (purchase.can_act) return { payment: { status: "waiting" }, stopped: "card_declined" };
+    // the saved card declined: why, in Stripe's decline code's words (insufficient funds, a code that is wrong; a lost or
+    // stolen card reads as a generic decline)
+    if (purchase.can_act) { const d = savedCardDecline(purchase.failure_reason); return { payment: { status: "waiting" }, stopped: "card_declined", stoppedWords: `${d.title}. ${d.body}` }; }
     return { payment: { status: "waiting" }, stopped: "no_card" };
   }
   return { payment: { status: "waiting", reason: "processing" } };

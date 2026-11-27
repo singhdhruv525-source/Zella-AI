@@ -131,6 +131,33 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   built for Pay now (owner, 27 Nov 2026); for the onboarding session it is still not built (no hosted link); whether a billing address changed in the checkout should update the business record (not built: we don't
   store it); Stripe's international card and conversion fees to confirm on the pricing page or Dashboard; and a
   review of Stripe Radar's rules against the any country decision (owner action).
+- **Add ons and the required "I agree" box (owner decisions, 27 Nov 2026), same branch, not merged, applied or
+  deployed.** Add ons on the pay page: the receipt panel lists the packs on offer as tick box rows grouped by type; the
+  page sends pack codes only. **A single payment at onboarding**: the packs are lines of the same Checkout Session,
+  granted only from the verified, bound first invoice, quarantined on any mismatch; a changed selection expires the
+  open session first. **Separate charges on Pay now**: the plan payment first, then each pack through the pack path
+  with its own key ("Add ons are charged separately right after your plan payment"; "Plan paid. 100 minutes not
+  added" with Try again for that pack). **The required agree checkbox** before every Pay, with the server's amounts,
+  rebuilt and hashed by the server, recorded in `billing_payment_consents`. **TODO (real terms versioning):** the terms
+  version recorded with each agreement is a constant (`terms-draft-2026-11-27`, `zella_billing_terms_version()`) until
+  the legal documents are published at `/terms` and `/privacy`; then version them and record the real version (a go
+  live gate, `docs/PAYMENTS_ARCHITECTURE.md` §14). **Open owner decisions:** (1) add ons bought with Pay now go on the
+  saved card (the pack path), not necessarily the card typed for the invoice, while the agreement says "this card";
+  either word it for that or charge the packs on the invoice's card (needs that card saved to the customer); (2) add
+  ons are not offered with a trial (nothing is charged today then); (3) a refund of an add on bought at onboarding is
+  not offered separately; (4) `docs/BACKEND_SCHEMA.md` regeneration is pending (needs an isolated copy of production;
+  the generator has the new tables' purposes).
+- **Card problems (owner question, 27 Nov 2026):** no screen of ours for the bank's code: live, Stripe.js opens the
+  bank's own check in Stripe's overlay; the page waits ("Waiting for your bank to confirm") and shows the outcome. Wrong
+  details inline, declines by Stripe's `decline_code` (lost and stolen read as generic), Try another card on the same
+  payment, and "nothing was charged" only on a definite answer. To prove in the sandbox (§16.8): the decline codes and
+  `payment_intent_authentication_failure` arrive on confirm as modelled, and a held authorization reads as processing.
+- **Review round 1 of PR #148 (27 Nov 2026):** fixed in the same branch: Auto pay pending while a command is in flight,
+  Auto pay on needs billing-api's fresh card check (`zella_billing_card_checked`), an off choice saved after linking is
+  applied, the rollback's write barrier and trigger drift check, `customer.updated` makes a card set on Stripe's card
+  page the subscription's default (whether the portal does it itself is a sandbox proof), Pay now's return expands
+  `payments`, the fake Stripe's 3D Secure challenge and `return_url` rule, and the page side findings. Lesson: a check
+  that billing-api runs must also be required by the database (here the card check), or a direct call skips it.
 - **Payments open their own CRM page (owner, 27 Nov 2026):** `/app/settings/billing/pay/<invoice id>` and
   `/app/settings/billing/pack/<code>` inside the CRM shell; Invoices and payments stays the overview; `/pay` and
   `/pay/invoice/<id>` only redirect there. The duplicate "Invoices" placeholder in the Billing settings menu was removed.

@@ -86,7 +86,7 @@ test("stand in: owner only, Pay now confirms only on the server's later look, a 
   const slots = { number: slot(), expiry: slot(), cvc: slot() };
   const events = [];
   const h = await api.mountPayment(slots, { clientSecret: a.client_secret, invoiceId: OPEN, onEvent: (e) => events.push(e), onComplete: () => { done = true; } });
-  await assert.rejects(h.submit(), (e) => e.code === "DECLINED", "nothing to pay with before the fields are complete");
+  await assert.rejects(h.submit(), (e) => e.code === "LOCAL_CHECK", "nothing to pay with before the fields are complete");
   await h.demo();
   // the events Stripe's fields would send: the brand while typing, the card turned over for the security code, then the preview
   assert.ok(events.some((e) => e.type === "change" && e.field === "number" && e.brand === "visa"));

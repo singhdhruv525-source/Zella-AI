@@ -58,7 +58,31 @@ function drawAddress(slot, prefill) {
   return { country, values };
 }
 
-export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPay, speed = 45, holderName = "Jordan Lee" } = {}) {
+// The bank's own check (3D Secure), as a clearly labelled PREVIEW: live, Stripe.js opens the bank's real page (a code or
+// an app approval) in Stripe's overlay and we never draw it. Approve, Fail or Close: resolves "approve" | "fail" | "cancel".
+function bankPreview(doc) {
+  return new Promise((resolve) => {
+    const shade = doc.createElement("div");
+    shade.className = "zgc-bank-preview";
+    const box = doc.createElement("div");
+    box.className = "zgc-bank-preview-box";
+    box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-labelledby", "zgc-bank-preview-t");
+    const badge = doc.createElement("span"); badge.className = "zgc-mock-badge"; badge.textContent = "Preview only";
+    const h = doc.createElement("h2"); h.id = "zgc-bank-preview-t"; h.textContent = "Preview of your bank's verification";
+    const p = doc.createElement("p"); p.textContent = "Live, your bank shows its own check here, in Stripe's secure window: a code by text or an approval in your banking app. Zella Voice never sees it.";
+    const row = doc.createElement("div"); row.className = "zgc-bank-preview-actions";
+    const btn = (label, cls, value) => { const b = doc.createElement("button"); b.type = "button"; b.className = `ba-btn ${cls}`; b.textContent = label; b.addEventListener("click", () => { shade.remove(); resolve(value); }); return b; };
+    const ok = btn("Approve", "primary", "approve");
+    row.append(ok, btn("Fail", "", "fail"), btn("Close", "", "cancel"));
+    box.append(badge, h, p, row); shade.append(box); doc.body.append(shade);
+    shade.addEventListener("keydown", (e) => { if (e.key === "Escape") { shade.remove(); resolve("cancel"); } });
+    ok.focus();
+  });
+}
+
+// outcomes: what each Pay does, in order (stand in scenarios), the last one repeating: "ok", "verify" (the bank's
+// check, then approve or fail), "declined:<Stripe decline code>", "unknown" (no answer from Stripe)
+export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPay, speed = 45, holderName = "Jordan Lee", outcomes = ["ok"] } = {}) {
   const doc = slots.number.ownerDocument;
   const address = slots.address ? drawAddress(slots.address, prefill) : null;
   const addressFilled = () => Boolean(address) && ["line1", "city", "postal_code"].every((k) => !address.values[k].classList.contains("is-placeholder"))
@@ -95,6 +119,18 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
     done.address = true;
     onEvent?.({ type: "address", name: text, complete: true });
   };
+  const plan = [...outcomes];
+  const next = () => (plan.length > 1 ? plan.shift() : plan[0] ?? "ok");
+  const failWith = (code, extra = {}) => Object.assign(new Error(extra.message ?? "The payment didn't go through."), { code, ...extra });
+  // a field Stripe reports invalid: its words under the field, not complete, no preview (Pay stays disabled)
+  const wrong = async (field, chars, error) => {
+    onEvent?.({ type: "focus", field });
+    boxes[field].textContent = chars; boxes[field].classList.remove("is-placeholder");
+    done[field] = false;
+    onEvent?.({ type: "change", field, empty: false, complete: false, error, ...(field === "number" ? { brand: "visa" } : {}) });
+    await wait(speed * 4);
+    onEvent?.({ type: "blur", field });
+  };
   const type = async (field, chars, { brandAt, hold = 4 } = {}) => {
     onEvent?.({ type: "focus", field });
     let text = "";
@@ -104,7 +140,7 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
       boxes[field].classList.remove("is-placeholder");
       const complete = i === chars.length - 1;
       done[field] = complete;
-      onEvent?.({ type: "change", field, empty: false, complete, ...(field === "number" ? { brand: i >= (brandAt ?? 0) ? "visa" : "unknown" } : {}) });
+      onEvent?.({ type: "change", field, empty: false, complete, error: null, ...(field === "number" ? { brand: i >= (brandAt ?? 0) ? "visa" : "unknown" } : {}) });
       await wait(speed);
     }
     await wait(speed * hold);
@@ -122,10 +158,40 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
       preview = { brand: "visa", last4: "4242", exp: "12/28" };
       onEvent?.({ type: "preview", card: preview });
     },
+    // wrong card details, as Stripe's fields report them inline (stand in: Stripe's wording style): an invalid number,
+    // a date in the past, an incomplete security code, an incomplete ZIP code; no preview, so no last 4
+    demoInvalid: async () => {
+      preview = null; onEvent?.({ type: "preview", card: null });
+      await wrong("number", "4242 4242 4242 4241", "Your card number is invalid.");
+      await wrong("expiry", "12 / 20", "Your card's expiration year is in the past.");
+      await wrong("cvc", "12", "Your card's security code is incomplete.");
+      if (address?.values.postal_code) {
+        address.values.postal_code.textContent = "1234"; address.values.postal_code.classList.remove("is-placeholder");
+        done.address = false;
+        onEvent?.({ type: "address", name: address.values.name.textContent === "Full name" ? "" : address.values.name.textContent, complete: false, error: address.country === "US" ? "Your ZIP code is incomplete." : "Your postal code is invalid." });
+      }
+    },
+    // "Try another card": the fields emptied, the same payment kept
+    clear: () => {
+      preview = null;
+      for (const [field, text] of [["number", "1234 1234 1234 1234"], ["expiry", "MM / YY"], ["cvc", "CVC"]]) { boxes[field].textContent = text; boxes[field].classList.add("is-placeholder"); done[field] = false;
+        onEvent?.({ type: "change", field, empty: true, complete: false, error: null }); }
+      onEvent?.({ type: "preview", card: null });
+    },
     submit: async () => {
-      if (!(done.number && done.expiry && done.cvc) || !preview) throw Object.assign(new Error("Complete the card details first."), { code: "DECLINED" });
-      if (!done.address) throw Object.assign(new Error("Complete the billing address first."), { code: "DECLINED" });
+      if (!(done.number && done.expiry && done.cvc) || !preview) throw Object.assign(new Error("Complete the card details first."), { code: "LOCAL_CHECK" });
+      if (!done.address) throw Object.assign(new Error("Complete the billing address first."), { code: "LOCAL_CHECK" });
       const w = doc.defaultView; if (w) w.__zgcConfirms = (w.__zgcConfirms ?? 0) + 1;   // the browser tests count confirms
+      const outcome = next();
+      await wait(speed * 4);
+      if (outcome.startsWith("declined:")) throw failWith("DECLINED", { decline_code: outcome.slice(9), stripe_type: "card_error", stripe_code: "card_declined" });
+      if (outcome === "unknown") throw failWith("UNKNOWN_OUTCOME");
+      if (outcome === "verify") {
+        onEvent?.({ type: "bank", waiting: true });
+        const answer = await bankPreview(doc);
+        onEvent?.({ type: "bank", waiting: false });
+        if (answer !== "approve") throw failWith("BANK_FAILED", { stripe_code: "payment_intent_authentication_failure" });
+      }
       await onPay?.();
       onComplete?.();
     },

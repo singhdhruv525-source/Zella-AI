@@ -67,7 +67,7 @@ export function reduce(current, event) {
     case "ALREADY_PAID": return { state: "confirming", attempt: 0 };   // ask the server; it says confirmed, never us
     // the server says the payment stopped (a pack the bank wants confirmed, a declined saved card): a server answer,
     // so it may end a confirming wait; it never says paid
-    case "STOPPED": return st === "confirmed" ? current : { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server" };
+    case "STOPPED": return st === "confirmed" ? current : { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server", ...(event.words ? { words: String(event.words) } : {}) };
     case "FAIL": {
       if (st === "confirmed") return current;
       // a lost connection while confirming isn't a failed payment: keep waiting calmly; a definite refusal from our server
@@ -133,7 +133,8 @@ export const WORDS = {
   confirming: { label: "Confirming your payment", body: "Stripe has your payment. We're waiting for Stripe to confirm it, which usually takes a few seconds." },
   // billing emails are held while email_live is off, so this promises only what always happens: the CRM notice
   // (zella_notify_owners "payment_received") and this page looking again by itself
-  pending: { label: "Still confirming", body: "This is taking longer than usual. You don't need to pay again. We'll let you know in your CRM as soon as it's confirmed, and this page updates by itself." },
+  // a bank that takes its time (an authorization held, a payment processing) waits here, honestly: neither paid nor failed
+  pending: { label: "Still confirming", body: "This is taking longer than usual, sometimes because your bank is still approving the payment. You don't need to pay again. We'll let you know in your CRM as soon as it's confirmed, and this page updates by itself." },
   confirmed: { label: "Payment received", body: "Thank you. Your payment is confirmed." },
 };
 export const ERROR_WORDS = {

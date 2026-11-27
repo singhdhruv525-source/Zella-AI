@@ -359,6 +359,25 @@ the owner's Zella Voice look. Only the place and the shape of the form changed; 
   3D Secure opens in Stripe's own frame. Whether `custom` Checkout accepts a PaymentMethod made by the split card
   fields is a sandbox proof (§16.8); if it does not, the fallback is the first invoice's own PaymentIntent, which needs
   the owner's go ahead before it is built.
+- **Card problems, in every pay flow (owner question, 27 Nov 2026; `web/src/billing/declines.js`).** *Wrong details before
+  any charge:* Stripe's fields say so inline (an invalid number, an expiry in the past, an incomplete security code, an
+  incomplete ZIP or postal code); the page shows Stripe's words under the field, Pay stays disabled until every field
+  is complete, and the card shows no last 4 until Stripe's preview of a valid card. *Declined at payment:* Stripe's
+  `decline_code` in our words in the Payment details panel (`generic_decline`, and `lost_card` and `stolen_card` shown
+  as the same generic decline; `insufficient_funds`; `incorrect_cvc`), with **Try another card** (Stripe's fields are
+  emptied; the same session or the invoice's same PaymentIntent is kept, so a new card is never a second payment);
+  the receipt and the agree box stay. "Nothing was charged" is said only when Stripe's answer is definite (a card
+  error, or the bank's check failing); when Stripe doesn't answer the outcome is unknown: the page says "Checking
+  whether the payment went through", asks our server, and for an invoice the server's answer (Stripe has a payment, or
+  none: "The payment didn't go through" with Pay again) decides. *The bank's own check (3D Secure, a code or an app
+  approval):* live, Stripe.js opens the bank's real page in Stripe's overlay during the confirm; we never draw it. Our
+  page says "Waiting for your bank to confirm" (from the stand in's signal, or after a confirm takes over 1.5 seconds)
+  and holds the card still; approved goes to confirming, failed or closed says "Your bank didn't confirm the payment.
+  Nothing was charged." The local preview has a clearly labelled "Preview of your bank's verification" (Approve, Fail,
+  Close). A redirect back (`?payment_intent=…&redirect_status=…`) is never trusted: removed from the address, the server
+  confirms. *A bank that takes time* (processing, an authorization held): the confirming and then "Still confirming"
+  states, which say the bank may still be approving it and that there's no need to pay again. A pack's saved card
+  declined: its `failure_reason` in the same words, with Pay with another card.
 - **After Stripe finishes** (the confirm, or the `return_url` after a payment method that redirects) the page only
   shows "Confirming your payment" and asks our server (`checkout_return`) with backoff (1, 2, 3, 5, 8, 13, 20 and
   30 seconds), then calmly once a minute ("Still confirming": never failed, never paid). The session id is removed
@@ -370,6 +389,44 @@ the owner's Zella Voice look. Only the place and the shape of the form changed; 
 The return to our page, or Stripe's confirm in the page, only shows "processing". **Access is granted only when the verified
 webhook (or the worker's fetch from Stripe) confirms the paid invoice, and the payment passes the binding check
 below.** A lost redirect never loses a payment, and a forged redirect or a faked confirm never grants anything.
+
+**Add ons on the Pay step: one single payment (owner decisions, 27 Nov 2026). Built switched off, not applied**
+(`sql/zella_stripe_owner_pay.sql` section 10, `billing-api` `checkout_start`, `web/src/billing/addons.js`). The right
+panel is a receipt; under it the packs on offer (`zella_owner_addon_catalog`, the server's `billing_pack_catalog`) are
+tick box rows. The page sends **pack codes only**; nothing about a price comes from it.
+
+- **The start** `zella_owner_billing_checkout_start(business, key, packs, autopay, consent hash)` (the two argument
+  version is server only now) prices the packs from the catalogue, refuses an unknown or inactive one (`UNKNOWN_PACK`)
+  and any with a trial (`ADDONS_NOT_IN_TRIAL`: nothing is charged today then), and stores them as
+  `billing_checkout_addons` rows at their catalogue price; the checkout's `first_amount_minor` is the plan price, the
+  setup fee and the packs. Its key is deterministic: `k<md5(page key | sorted codes)>-<attempt>` (`selection_key`),
+  so the same selection gets the same checkout (a double click, a second tab, a reload) and an expired or failed one
+  is followed by a new attempt.
+- **One open session at a time, even when the selection changes.** A different selection while a session is open marks
+  it `expiring` and queues `POST /v1/checkout/sessions/:id/expire` (`checkoutexpire:<checkout>`, the existing path);
+  billing-api sends that command at once and asks again; only after Stripe expired it does the new selection get its
+  own checkout and session. If the old session was paid meanwhile, Stripe refuses the expiry and that payment is
+  processed with the add ons recorded for THAT checkout. On the page, a change while Stripe's form is open goes back
+  to Pay for the new total (and unticks the agreement).
+- **The session.** `zella_billing_checkout_continue` (the embedded file's version, three exact text changes, archived
+  first) first makes each add on a one time Price at its catalogue amount (outbox kind `addon_price`, key
+  `price:addon:<add on id>`, body stored; `zella_stripe_after_addon_price` links it with its amount, local kind
+  `addon_price`), then queues the Checkout Session with the plan, the setup fee and those Prices as `line_items`, and
+  `metadata.addons` = the sorted codes. It refuses to queue the session until the owner's agreement for this checkout is
+  recorded (`CONSENT_REQUIRED`).
+- **The grant, only from the verified, bound first payment, exactly once.** `checkout.session.completed` checks the
+  fetched session's `metadata.addons` against our record (one exact text change). `invoice.paid` (subscription_create)
+  keeps every earlier check (the amount paid equals our amount, every line is one of our prices) and adds
+  `zella_billing_checkout_addons_bind`: each recorded add on is on the fetched invoice exactly once, quantity 1, at the
+  recorded price, through the Price we made for it, and that price is still the catalogue's for the same pack. Then, in
+  the same transaction as the plan's grant, `zella_billing_checkout_addons_grant` adds each as a granted pack
+  (`pack_purchases.source` `checkout_addon`, key `addon-<add on id>`, unique per business) with its balance until the
+  first period ends. A replayed event finds them and adds nothing. **Any mismatch** (an unknown or inactive pack, a
+  price that differs from ours or the catalogue's, a line missing or twice, other session metadata) raises BINDING:
+  quarantined with an urgent alert, nothing granted, never guessed (three exact text changes of
+  `zella_stripe_grant_subscription_create`, archived first). Renewals can never carry an add on:
+  `zella_stripe_renewals.sql`'s line check already refuses any line that isn't the plan Price or our invoice item
+  (tested, unchanged). A refund of an add on bought at onboarding is not offered separately (owner decision if wanted).
 
 **International cards (owner decision, 27 Nov 2026).** Customers can pay with a card from any country. There is no
 card country restriction anywhere: no `allowedCountries` on the Address Element, no check of the card's issuing
@@ -905,8 +962,14 @@ same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when
   fails to load or our checkout can't be shown does the error state offer "Pay on Stripe's secure page", using the
   invoice's `hosted_invoice_url` (https only, new tab, `rel="noopener"`). Nowhere else in the CRM.
 - **Update card** opens Stripe's **Customer Portal**, card update only (`flow_data.type: payment_method_update`), the
-  design §16.1 and §16.2 already named: Stripe hosts the card page, sets the new card as the default for the
-  subscription and its invoices, and needs no SetupIntent handling of ours. It returns to the Payments page. **An open
+  design §16.1 and §16.2 already named: Stripe hosts the card page and needs no SetupIntent handling of ours. The
+  portal sets the new card as the **customer's** default (`invoice_settings.default_payment_method`); whether it also
+  changes the **subscription's** own `default_payment_method` (which wins over the customer's for renewals when set,
+  and Checkout sets it) could not be confirmed from Stripe's pages in this session, so it is a sandbox proof (§16.8)
+  and nothing relies on it (review, round 1): `customer.updated` (now one of our events, fetched from Stripe) with a new
+  default card on OUR customer queues one command `POST /v1/subscriptions/:id { default_payment_method }` (key
+  `defaultpm:<subscription>:<payment method>`, body stored, §8.1), so the replacement card is the one charged at
+  renewal. Our record of the saved card still changes only from `customer.subscription.updated`. It returns to the Payments page. **An open
   past due invoice after a card update:** Smart Retries (§16.6, days 2, 3 and 4) try again on their schedule with the
   new default card, and the owner can also press Pay now at once. Whether the portal also retries the open invoice
   immediately after the update is to be proven in the sandbox (§16.8); nothing of ours depends on it.
@@ -922,6 +985,19 @@ same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when
   in the same panel; it is granted only by
   `payment_intent.succeeded` and the binding check, unchanged. No usable card: "There's no card to charge" with Update
   card.
+- **Add ons with Pay now (owner decision, 27 Nov 2026): separate charges.** Stripe can't add items to a finalized
+  invoice, so ticked packs are separate receipt lines with the note "Add ons are charged separately right after your
+  plan payment"; there is one Pay button for the total. `invoice_pay_start` takes the packs as `{ code, key }`: each key
+  is made by the page when Pay is first pressed and kept on retry and reload (sessionStorage), and the agreement names
+  them (`billing_payment_consents.addons`). Stripe takes only the invoice's own amount on its PaymentIntent. Once OUR
+  record says the invoice is paid (from `invoice.paid`), the page buys each pack through the existing pack path:
+  `pack_buy { invoice_id, consent_hash }` reaches `zella_owner_pack_buy(business, code, key, hash, invoice)`, which
+  refuses before the invoice is paid (`INVOICE_NOT_PAID`) and unless that invoice's agreement named this pack and this
+  key (`CONSENT_MISMATCH`); the same key always reaches the same purchase. `invoice_pay_status` lists the agreed add ons
+  and each one's purchase, so a reload mid way resumes them. A pack that fails says "Plan paid. 100 minutes not added"
+  with Try again for that pack only (a declined card opens that pack's own page on THAT purchase: "Pay with another
+  card"); the invoice is never charged again. **Note for the owner:** these packs are charged to the saved card (the
+  pack path), not necessarily the card typed for the invoice; see `docs/MEMORY.md`.
 - **The card's issuing bank** (owner, 27 Nov 2026) is shown after a confirmed payment only as Stripe's own
   `card.issuer` on the PaymentMethod the payment used (`checkout_return`, `invoice_pay_return`, `pack_status`), as
   plain text, trimmed, at most 40 characters; never guessed from the card number and never a logo. The pinned types
@@ -963,6 +1039,40 @@ Rules:
   happens only in production after the owner's approval (§14).
 
 **Built (lane F, switched off, `sql/zella_stripe_invoices.sql`):** `invoice.created`, `invoice.finalized` and `invoice.voided` record the fetched invoice; `invoice.deleted` follows the §16.5 rule (our draft only, else held). Admins read them on Plans & subscriptions, Payments (`web/src/admin/BillingRecords.jsx`, invoices, refunds with the owner's decision, disputes); owners through `zella_owner_invoices`. The invoice, receipt and payment emails are queued by the billing emails step.
+
+### 6.12 The owner's agreement before Pay (owner decision, 27 Nov 2026)
+
+Every payment the owner starts has a required "I agree" box above Pay: a real, labelled checkbox, unticked by
+default; Pay stays disabled (`aria-disabled`, still focusable) until it is ticked, and pressing it first announces "Tick
+the box to agree before you pay." through the box's live region. The words come from the server's figures, with Terms
+(`/terms`) and Privacy Policy (`/privacy`) opening in a new tab:
+
+| Case | Words |
+|---|---|
+| Auto pay on | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today and $Y on each renewal until I cancel. |
+| Auto pay off | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today. I'll pay future invoices myself. |
+| A pack on its own | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today for this add on. |
+| Add ons in the receipt | the plan wording, then "Add ons are one time and never renew." |
+
+$X is the total due today (onboarding: the plan, the setup fee and the packs; Pay now: the invoice's amount due and
+the packs; a pack: its price). $Y is the plan's renewal price only (the latest plan version); packs never renew.
+Money is written "$249" for whole dollars and "$29.50" otherwise. Words that change (a new total, Auto pay switched)
+untick the box.
+
+**The server is never trusting the page alone.** `checkout_start`, `invoice_pay_start`, `pack_buy` and
+`pack_act_start` refuse without `consent: true` and a sha256 (`CONSENT_REQUIRED`). The database rebuilds the words
+from its own figures (`zella_billing_consent_text`, `zella_billing_consent_money`) and refuses another sha256
+(`CONSENT_MISMATCH`); billing-api rebuilds them again from the figures the database answered
+(`_shared/paymentConsent.js`, the same module the page uses) before anything reaches Stripe or the browser gets a
+client secret. A test keeps the database's and the page's words identical (`tests/stripe_owner_pay/stub_run.sh`).
+
+**The consent record** `billing_payment_consents` (row security on; the business's active owner reads its own; no
+client writes; written only by the owner payment functions in the same transaction as the start): the time, the user,
+the business, the payment kind (`checkout`, `invoice`, `pack`, `pack_act`) and its id, the exact words and their
+sha256, the terms version (`zella_billing_terms_version()`, a constant until the legal documents are published and
+versioned), the amount today, whether it recurs and the recurring amount, and the add ons it covers (codes, prices and,
+for Pay now, the keys). One row per distinct agreement for a payment: the same agreement again (a double click, a
+retry, a reload) writes nothing. A rollback keeps the table while it holds rows.
 
 ### 6.8 Disputes (chargebacks)
 
@@ -1154,6 +1264,9 @@ stateDiagram-v2
 | Pack bought by the owner | Checkout (payment) or `POST /v1/payment_intents` | `pack:<purchase id>` | one per purchase | PaymentIntent by `metadata.purchase_id` |
 | Pack finished by the owner (bank confirmation, another card) | none: the same PaymentIntent is confirmed in Stripe's form | (no POST of ours) | the same purchase, back to pending once | the PaymentIntent by `metadata.purchase_id` |
 | Pay now on an open invoice | none: the invoice's own PaymentIntent is confirmed in Stripe's form | (no POST of ours) | the invoice's one intent | the invoice and its intent |
+| Add on Price for an onboarding checkout (27 Nov 2026) | `POST /v1/prices` (one time, the catalogue amount) | `price:addon:<add on id>` | one per add on row (unique checkout and pack) | the link `addon_price` with its amount |
+| Add on bought after Pay now (27 Nov 2026) | `POST /v1/payment_intents` (the pack path) | `pack:<purchase id>`; the purchase's own key is the page's per add on key, made when Pay is pressed and kept on retry and reload | one purchase per key; one pending owner purchase per pack | PaymentIntent by `metadata.purchase_id` |
+| A card set on Stripe's card page becomes the subscription's default (review, 27 Nov 2026) | `POST /v1/subscriptions/:id` (`default_payment_method`) | `defaultpm:<subscription>:<payment method>` | one command per new card | the subscription's `default_payment_method` from `customer.subscription.updated` |
 | Auto pay on or off (27 Nov 2026) | `POST /v1/subscriptions/:id` (`collection_method`, `days_until_due`) | `autopay:<subscription>:<version>:<attempt>` | one command per choice; older waiting ones cancelled | the subscription's `collection_method` from `customer.subscription.updated` |
 | Card update page (Customer Portal) | `POST /v1/billing_portal/sessions` | `portal:<business id>:<attempt key>` | none needed: a short lived page, no money; a new one per attempt | not needed |
 | Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
@@ -1202,6 +1315,13 @@ at Stripe; the page also never offers Pay while a payment for the same thing is 
 | 10 | Two invoices in two tabs | each start returns its own invoice's PaymentIntent and the amount from our record, checked against Stripe's | Deno `handle_test` |
 | 11 | Auto pay charges while the owner presses Pay now | Stripe's invoice PaymentIntent succeeds once; invoice.paid is granted once (unique keys, §6.0a); the page then shows processing | Deno `handle_test` (fake Stripe) |
 | 12 | Pack buy while auto reload fires | one pending auto reload per resource (index) and the owner's buy refused (`PACK_PENDING`) while it is pending; one pending owner purchase per pack | SQL `stub_run` |
+| 13 | Onboarding add ons, a double click or a second tab | the key is the page key and the sorted selection: the same checkout and session; the agreement recorded once | SQL `stub_run`, Deno `handle_test` |
+| 14 | Onboarding add ons changed while a session is open | the old session is expired at Stripe first (`expiring`), the new selection gets its own checkout only then; only the paid checkout's add ons are granted | SQL `stub_run` (old expired, only the new one granted), browser `stripe-pay-screen` |
+| 15 | The first invoice's `invoice.paid` delivered twice, or applied by the reconciler too | each add on granted once (`addon-<id>` unique per business), in the plan grant's transaction | SQL `stub_run` (replay) |
+| 16 | An add on's price or line differs on the first invoice | quarantined with an alert, nothing granted (the plan isn't granted either) | SQL `stub_run` (price mismatch, catalogue changed, pack inactive, line missing) |
+| 17 | Pay now with add ons: a pack fails after the plan payment | the plan stays paid; the invoice can't be charged again (`ALREADY_PAID`); Try again for that pack only, with its own key: the same purchase | SQL `stub_run`, unit `addonsConsent`, browser `crm-payments` |
+| 18 | Pay now add ons: a reload mid way, a retry, a double click | the server lists the agreed add ons and their purchases; each key reaches one purchase; one confirm of the plan payment | SQL `stub_run`, unit `addonsConsent`, browser `crm-payments` |
+| 19 | An add on bought before the plan payment is confirmed, or not in the agreement | refused (`INVOICE_NOT_PAID`, `CONSENT_MISMATCH`) | SQL `stub_run`, Deno `handle_test` |
 
 ### 8.2 Every way something could happen twice, and what stops it
 
@@ -1372,6 +1492,8 @@ flowchart LR
 2. The sandbox proofs in §16.8 passed, including that a `custom` session accepts the split fields' PaymentMethod and
    that the subscription's default payment method is set from it; if they fail, `onboarding_checkout_mode` = `hosted`.
 3. Stripe's SAQ A questionnaire in the Dashboard is completed with that CSP in place.
+4. The Terms and Privacy Policy the "I agree" box links to are published at `/terms` and `/privacy`, and the terms
+   version recorded with each agreement is real (today a constant, `terms-draft-2026-11-27`; §6.12).
 
 Each step: its own pull request reviewed by CodeRabbit, tests green, the owner's approval for anything that touches
 production or real money (`NN-3`, `NN-4`).
@@ -1522,6 +1644,7 @@ forget keys after 24 hours.
 | `customer.subscription.trial_will_end` | our trial reminder (§6.2) |
 | `customer.subscription.deleted` | `cancelled` at period end, or a trial cancel |
 | `customer.subscription.pending_update_expired` | Stripe dropped an unpaid pending upgrade: the confirmed plan change fails, the plan stays (§6.6) |
+| `customer.updated` | a new `invoice_settings.default_payment_method` on our customer (Stripe's card page) is made the subscription's default card through the outbox (§6.11, review 27 Nov 2026) |
 | `invoice.created` | add pay as you go to the renewal draft, then 200 quickly (§6.9) |
 | `invoice.paid` | binding check (§6.0a), then by the invoice's `billing_reason`: `subscription_create` → first period and buckets (§6.1, §6.2); `subscription_cycle` → renewal: new period, monthly reset, rollover (§6.3); `subscription_update` → the paid upgrade: new plan version and the prorated extra allowance for the **current** period, no reset (§6.6); `manual` → the invoice we created (final pay-as-you-go invoice, §6.9) matched by our stored invoice id. Any other reason is quarantined; then the Paid email (§6.11) |
 | `invoice.voided`, `invoice.deleted` | find, **from our own records**, every billing row (main, pending, late, re-bill) and every credit line attached to that invoice id; lock their periods in ascending period id, then in one transaction: each billing row `attached` → `held` with one alert and finance task, each claimed credit line back to open (§6.9). `invoice.voided`: the invoice is fetched first and nothing is done if it was paid. `invoice.deleted`: no fetch (Stripe deletes only drafts, and a deleted invoice may not be retrievable). It acts only if **our** `invoices` row for that id is still `draft`: we record `invoice.created` (draft) and every later status from `invoice.finalized`, `invoice.paid` and `invoice.voided`, and the event's own payload must also say `status: draft`. If our row says finalised or paid, or we have no row, nothing is changed: the event is held with an alert for a person. To be confirmed in the Stripe sandbox with the pinned API version before this goes live. `invoice.voided` for an invoice already emailed also sends the Invoice cancelled email (§6.11) |
@@ -1614,7 +1737,9 @@ dispute suspension is kept, the cancel still takes effect at period end); the fi
 | Flow | Prove in a Stripe sandbox |
 |---|---|
 | First payment | Checkout in USD with a 3-D Secure test card; `invoice.paid` carries the invoice and PaymentIntent; binding check passes |
-| Pay now and Update card (27 Nov 2026) | a finalised invoice's `confirmation_secret` comes back with `expand[]=confirmation_secret` on the pinned version and its intent is confirmed with `confirmCardPayment` and the card fields' PaymentMethod (3D Secure in Stripe's frame); `invoice.paid` follows; the portal's `payment_method_update` flow sets the default card, and whether a past due invoice is retried at once after it; a pack's `authentication_required` intent confirmed by the owner is granted by `payment_intent.succeeded`; `card.issuer` is absent or present |
+| Pay now and Update card (27 Nov 2026) | a finalised invoice's `confirmation_secret` comes back with `expand[]=confirmation_secret` on the pinned version and its intent is confirmed with `confirmCardPayment` and the card fields' PaymentMethod (3D Secure in Stripe's frame); `invoice.paid` follows; the portal's `payment_method_update` flow sets the customer's default card, whether it also sets the subscription's `default_payment_method` (if not, our `customer.updated` follow up does), and whether a past due invoice is retried at once after it; a pack's `authentication_required` intent confirmed by the owner is granted by `payment_intent.succeeded`; `card.issuer` is absent or present |
+| Card problems (27 Nov 2026) | the Element `change` events carry Stripe's inline errors; `confirmCardPayment` and Checkout's `confirm` return `type: card_error` with `decline_code` `generic_decline`, `insufficient_funds`, `lost_card`, `stolen_card`, `incorrect_cvc` for Stripe's test cards; a failed or closed 3D Secure check returns `payment_intent_authentication_failure`; a held authorization or a slow bank leaves the intent `processing` or `requires_capture`, and our server confirms from the events |
+| Add ons in the first payment (27 Nov 2026) | a `ui_mode: custom` subscription session accepts one time Prices beside the plan Price and charges them on the first invoice only; the first invoice's lines carry each one time Price with quantity 1 at its amount (our binding check reads them); expiring a session for a changed selection, then a new one for the same customer; the session's `metadata.addons` comes back on `checkout.session.completed` |
 | Card entry in our page (27 Nov 2026) | the pinned version accepts `ui_mode: custom` with `return_url`; retrieving the session returns its `client_secret`; Stripe.js `clover` `initCheckout` accepts it, and `loadActions().confirm({ paymentMethod, billingAddress })` accepts a PaymentMethod made by the split card fields (if not, report: the fallback is the first invoice's PaymentIntent, owner's go ahead); `createPaymentMethod` returns brand, last 4 and expiry and charges nothing; the Address Element in `mode: billing` prefills, changes format by country (United States, Canada) and its value arrives as the PaymentMethod's `billing_details`; whether its autocomplete calls any host beyond Stripe's (the CSP must allow it, and the privacy notes name it); a card issued outside the United States pays in USD and the fee Stripe shows; 3D Secure completes in Stripe's frame; the saved card's brand and last 4 come back with `expand[]=subscription.default_payment_method`; the report only CSP logs nothing for the Pay step; a test publishable key with a live secret key keeps the step closed |
 | Trial | `trial_end` 5 days ahead; no plan charge at the start; setup-fee timing; first charge at `trial_end` (test clock) |
 | Failed renewal | declining test card → `past_due`; retries on days 2, 3 and 4 (test clock); card update in the Customer Portal pays the open invoice |

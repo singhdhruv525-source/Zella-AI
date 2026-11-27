@@ -152,7 +152,9 @@ export async function mountCardFields(slots, { kind, clientSecret, publishableKe
     }
     el.on("change", (e) => {
       done[field] = e.complete === true;
-      onEvent?.({ type: "change", field, empty: e.empty === true, complete: e.complete === true, ...(field === "number" ? { brand: typeof e.brand === "string" ? e.brand : null } : {}) });
+      // Stripe's own inline words for an invalid or incomplete field (shown under it; Pay stays disabled meanwhile)
+      onEvent?.({ type: "change", field, empty: e.empty === true, complete: e.complete === true, error: typeof e.error?.message === "string" ? e.error.message.slice(0, 160) : null,
+        ...(field === "number" ? { brand: typeof e.brand === "string" ? e.brand : null } : {}) });
       // Stripe sends change only when the field's value changed: whatever was previewed no longer matches (a new digit
       // in a complete number stays complete), so the cached PaymentMethod is dropped, a preview on its way is ignored,
       // and a new one is made when all three are complete (review). With no change the cached one is reused at Pay.
@@ -163,29 +165,49 @@ export async function mountCardFields(slots, { kind, clientSecret, publishableKe
     el.on("blur", () => onEvent?.({ type: "blur", field }));
   }
   const instance = { destroy: () => Object.values(fields).forEach((f) => { try { f.destroy(); } catch { /* gone */ } }) };
+  // Stripe's error on confirm, kept as Stripe gave it (its type, code and decline code; never a card detail): a card
+  // error or the bank's check failing is a definite "failed"; anything else is unknown (owner question, 27 Nov 2026)
+  const refused = (error) => {
+    const authFailed = error?.code === "payment_intent_authentication_failure";
+    const definite = authFailed || error?.type === "card_error" || error?.type === "validation_error";
+    return Object.assign(fail(authFailed ? "BANK_FAILED" : definite ? "DECLINED" : "UNKNOWN_OUTCOME",
+      typeof error?.message === "string" ? error.message.slice(0, 200) : "The payment didn't go through."),
+      { decline_code: typeof error?.decline_code === "string" ? error.decline_code : undefined, stripe_code: typeof error?.code === "string" ? error.code : undefined,
+        stripe_type: typeof error?.type === "string" ? error.type : undefined });
+  };
+  const unknown = () => fail("UNKNOWN_OUTCOME", "We couldn't tell whether the payment went through.");
   current = instance;
   return {
     destroy: () => { if (current === instance) destroyCurrent(); else instance.destroy(); },
     submit: async () => {
-      if (!(done.number && done.expiry && done.cvc)) throw fail("DECLINED", "Complete the card details first.");
-      if (!done.address) throw fail("DECLINED", "Complete the billing address first.");
+      if (!(done.number && done.expiry && done.cvc)) throw fail("LOCAL_CHECK", "Complete the card details first.");
+      if (!done.address) throw fail("LOCAL_CHECK", "Complete the billing address first.");
       // the same PaymentMethod as the preview, or a new one when the billing address changed since
       const method = pm && pmFor === billingKey() ? pm : await makePaymentMethod();
       if (checkout) {
         const a = await checkout.loadActions();
-        if (a.type !== "success") throw fail("DECLINED", "Stripe's form isn't ready. Please try again.");
+        if (a.type !== "success") throw fail("LOCAL_CHECK", "Stripe's form isn't ready. Please try again.");
         const addr = Object.fromEntries(Object.entries(billing.address ?? {}).filter(([, v]) => v));
-        const r = await a.actions.confirm({ paymentMethod: method.id, redirect: "if_required", returnUrl,
-          ...(billing.address ? { billingAddress: { name: billing.name.trim().slice(0, 80), address: addr } } : {}) });
-        if (r.type !== "success") throw fail("DECLINED", typeof r.error?.message === "string" ? r.error.message : "The payment didn't go through. Nothing was charged.");
+        let r;
+        try { r = await a.actions.confirm({ paymentMethod: method.id, redirect: "if_required", returnUrl,
+          ...(billing.address ? { billingAddress: { name: billing.name.trim().slice(0, 80), address: addr } } : {}) }); }
+        catch { throw unknown(); }
+        if (r.type !== "success") throw refused(r.error);
         onComplete?.();
         return;
       }
-      const r = await stripe.confirmCardPayment(clientSecret, { payment_method: method.id });
-      if (r.error) throw fail("DECLINED", typeof r.error.message === "string" ? r.error.message : "The payment didn't go through. Nothing was charged.");
+      // the bank's own check (3D Secure, a code or an app approval) opens in Stripe's overlay inside this call; we never draw it
+      let r;
+      try { r = await stripe.confirmCardPayment(clientSecret, { payment_method: method.id }); }
+      catch { throw unknown(); }
+      if (r.error) throw refused(r.error);
+      // succeeded, processing or authorized and held (requires_capture): the server confirms from Stripe's events
       if (["succeeded", "processing", "requires_capture"].includes(r.paymentIntent?.status)) onComplete?.();
-      else throw fail("DECLINED", "The payment didn't go through. Nothing was charged.");
+      else if (r.paymentIntent?.status === "requires_payment_method") throw refused({ type: "card_error", code: "card_declined" });
+      else throw unknown();
     },
+    // "Try another card": Stripe's fields emptied, the same PaymentIntent or session kept (never a second payment)
+    clear: () => { pm = null; seq++; for (const [f, el] of Object.entries(fields)) if (f !== "address") { try { el.clear(); } catch { /* gone */ } done[f] = false; } onEvent?.({ type: "preview", card: null }); },
   };
 }
 

@@ -98,7 +98,9 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
   };
   // scenario "pay": payments connected; the embedded form's stand in completes, then the server confirms on its second
   // look (as the webhook would, a few seconds later), so "Confirming your payment" is seen first
-  const paying = () => st.scenario === "pay" || st.scenario === "payhtml" || st.scenario === "payjsfail";
+  // paydeclined, paybank, payunknown: Pay's first card is declined (another card then pays), the bank's own check (a
+  // labelled preview), or Stripe doesn't answer (the server is asked)
+  const paying = () => ["pay", "payhtml", "payjsfail", "paydeclined", "paybank", "payunknown"].includes(st.scenario);
   // due_now_minor in every state, as zella_onboarding_payment computes it from the plan whatever the state
   const paymentOut = () => (st.payment_confirmed ? { status: "confirmed", reason: null, checkout_available: false, due_now_minor: 89800, confirmed_at: now() }
     : st.identity.status !== "verified" ? { status: "locked", reason: "identity_first", checkout_available: false, due_now_minor: 89800, confirmed_at: null }
@@ -258,7 +260,8 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       await wait(delay * 2);
       if (st.scenario === "payjsfail") throw Object.assign(new Error("Stripe.js didn't load"), { code: "STRIPE_JS" });
       if (opts.clientSecret !== "cs_standin_secret_standin") throw Object.assign(new Error("not the stand in's checkout"), { code: "STRIPE_JS" });
-      return mountStandInCard(slots, opts, { onPay: () => { st.checkout_completed = true; st.return_looks = 0; save(); } });
+      const outcomes = { paydeclined: ["declined:generic_decline", "ok"], paybank: ["verify"], payunknown: ["unknown", "ok"] }[st.scenario] ?? ["ok"];
+      return mountStandInCard(slots, opts, { outcomes, onPay: () => { st.checkout_completed = true; st.return_looks = 0; save(); } });
     },
     checkoutReturn: (id) => db(() => {
       owner(id);

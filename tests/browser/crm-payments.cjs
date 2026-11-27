@@ -182,7 +182,7 @@ async function shot(page, look, width, state, axeSource) {
       const done = await a.page.evaluate(() => { const f = document.querySelector(".zgc-stage .zgc-card-done"); return { issuer: f?.querySelector(".zgc-cf-issuer")?.textContent, brand: f?.querySelector(".zgc-cf-brand")?.textContent, number: f?.querySelector(".zgc-cf-number")?.textContent }; });
       check(`${tag}: confirmed: issuer, brand and last 4 as the server returned them`, done.issuer === "Test Bank" && done.brand === "Visa" && done.number === "•••• •••• •••• 4242", JSON.stringify(done));
       await a.page.waitForSelector(".zgc-addon-step.is-added", { timeout: 15000 }).catch(() => {});
-      check(`${tag}: after the plan payment the add on is bought separately and added`, (await a.page.locator(".zgc-addon-step.is-added").innerText()).includes("100 AI minutes: Added"));
+      check(`${tag}: after the plan payment the add on is bought separately and added`, (await a.page.locator(".zgc-addon-step.is-added:has-text('100 AI minutes: Added')").count()) === 1);
       await shot(a.page, look, width, "confirmed", axeSource);
       check(`${tag}: confirmed: the page offers the way back`, await a.page.isVisible("button:has-text('Back to Billing and subscription')"));
       await a.page.click("button:has-text('Back to Billing and subscription')");
@@ -337,7 +337,7 @@ async function shot(page, look, width, state, axeSource) {
     await startPay(f.page);
     await f.page.waitForSelector(".zgc.is-error", { timeout: 10000 }).catch(() => {});
     const fb = f.page.locator("a:has-text(\"Pay on Stripe's secure page\")");
-    check(`${look.name} stripefail: the form didn't load, and Stripe's secure page is offered as the fallback`, (await f.page.locator("#zgc-status").innerText()) === "The secure form didn't load"
+    check(`${look.name} stripefail: the form didn't load, and Stripe's secure page is offered as the fallback`, (await f.page.locator("#zgc-status").innerText().catch(() => "")) === "The secure form didn't load"
       && (await fb.count()) === 1 && (await fb.getAttribute("href")) === "https://invoice.stripe.example/ZV-0042" && /noopener/.test(await fb.getAttribute("rel")));
     await shot(f.page, look, { name: "1440" }, "stripe-load-fallback", loadAxe());
     await f.ctx.close();
@@ -430,11 +430,11 @@ async function shot(page, look, width, state, axeSource) {
     await f.page.reload();
     await f.page.waitForSelector(".zgc-addon-step.is-failed", { timeout: 25000 }).catch(() => {});
     await f.page.waitForTimeout(500);
-    check("add ons: after a reload mid way the plan is paid and each add on is resumed with its own key", (await f.page.locator("#zgc-status").innerText()) === "Payment received"
+    check("add ons: after a reload mid way the plan is paid and each add on is resumed with its own key", (await f.page.locator("#zgc-status").innerText().catch(() => "")) === "Payment received"
       && await f.page.isVisible(".zgc-addon-step.is-added:has-text('100 AI minutes: Added')"));
     check("add ons: a pack failing after the plan payment says \"Plan paid. 500 texts not added\", with Try again for that pack only",
-      (await f.page.locator(".zgc-addon-step.is-failed strong").innerText()) === "Plan paid. 500 texts not added" && (await f.page.locator(".zgc-addon-step button:has-text('Try again')").count()) === 1);
-    check("add ons: the failure is announced politely", (await f.page.locator(".zgc-addon-progress [role=status]").innerText()) === "Plan paid. 500 texts not added.");
+      (await f.page.locator(".zgc-addon-step.is-failed strong").innerText().catch(() => "")) === "Plan paid. 500 texts not added" && (await f.page.locator(".zgc-addon-step button:has-text('Try again')").count()) === 1);
+    check("add ons: the failure is announced politely", (await f.page.locator(".zgc-addon-progress [role=status]").innerText().catch(() => "")) === "Plan paid. 500 texts not added.");
     check("add ons: one purchase per add on, whatever the reload and the double click", JSON.stringify(await f.page.evaluate(() => window.__zellaBillingFake?.debugCounts?.())) === JSON.stringify({ buys: 1, purchases: 2 })
       || (await f.page.evaluate(() => window.__zellaBillingFake?.debugCounts?.().purchases)) === 2);
     check("add ons: the invoice is never charged again: no Pay for it", (await f.page.locator(".zgc-pay-foot button:has-text('Pay $')").count()) === 0
@@ -445,11 +445,119 @@ async function shot(page, look, width, state, axeSource) {
     await f.page.waitForURL(/\/settings\/billing\/pack\/texts_500\?purchase=/, { timeout: 10000 }).catch(() => {});
     await f.page.waitForSelector(".zgc.is-error", { timeout: 15000 }).catch(() => {});
     check("add ons: Try again opens that pack's own page on the same purchase: Pay with another card", /\/settings\/billing\/pack\/texts_500\?purchase=/.test(f.page.url())
-      && (await f.page.locator("#zgc-status").innerText()) === "Your saved card was declined" && await f.page.isVisible(".zgc-pay-foot button:has-text('Pay with another card')"));
+      && (await f.page.locator("#zgc-status").innerText().catch(() => "")) === "Your saved card was declined" && await f.page.isVisible(".zgc-pay-foot button:has-text('Pay with another card')"));
     await shot(f.page, LOOKS[0], { name: "1440" }, "addon-retry", loadAxe());
     check("add ons: no page errors", f.errors.length === 0, f.errors.join("; "));
     check("add ons: nothing left this machine", f.hits.length === 0, f.hits.join(", "));
     await f.ctx.close();
+  }
+
+  // card problems in every look (owner question, 27 Nov 2026): wrong details inline, a declined card with Try another
+  // card, the bank's own check (a labelled preview) approved or failed, and the saved card declined for a pack
+  const fieldErrors = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".zgc-field-error")].map((e) => [e.id.replace("zgc-e-", ""), e.textContent])));
+  for (const look of LOOKS) {
+    const W = { name: "1440", viewport: { width: 1440, height: 900 } };
+    const axe = loadAxe();
+    // wrong card details: Stripe's words under each field, Pay disabled, no last 4 on the card
+    const i = await open(browser, look, W.viewport, `/app/settings/billing/pay/${OPEN}?scenario=`);
+    await startPay(i.page);
+    await i.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
+    await i.page.click("button:has-text('Show wrong card details')");
+    await i.page.waitForSelector("#zgc-e-address:not(:empty)", { timeout: 8000 }).catch(() => {});
+    await i.page.waitForTimeout(1200);   // the card back from its turn for the security code
+    const fe = await fieldErrors(i.page);
+    check(`${look.name}: wrong details: an invalid number, a past expiry, an incomplete code and ZIP, each under its field`, fe.number === "Your card number is invalid."
+      && fe.expiry === "Your card's expiration year is in the past." && fe.cvc === "Your card's security code is incomplete." && fe.address === "Your ZIP code is incomplete.", JSON.stringify(fe));
+    check(`${look.name}: wrong details: Pay stays disabled and the card shows no last 4`, await i.page.isDisabled(".zgc-pay-foot button:has-text('Pay $249')") && !/\d{4}/.test(await cardText(i.page)));
+    await shot(i.page, look, W, "invalid", axe);
+    await i.ctx.close();
+    // declined at payment: in the panel with Try another card; the receipt and the agree box stay; the next card pays
+    const d = await open(browser, look, W.viewport, `/app/settings/billing/pay/${OPEN}?scenario=declined`);
+    await startPay(d.page);
+    await fillCard(d.page); await waitFilled(d.page);
+    await d.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await d.page.waitForSelector(".zgc-decline", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: declined: Stripe's decline in the panel, nothing charged, Try another card`, (await d.page.locator(".zgc-decline strong").innerText().catch(() => "")) === "Your card was declined"
+      && (await d.page.locator(".zgc-decline p").innerText().catch(() => "")).endsWith("Nothing was charged.") && await d.page.isVisible(".zgc-decline button:has-text('Try another card')"));
+    check(`${look.name}: declined: the receipt and the agree box stay`, (await d.page.locator(".zgc-total strong").innerText()) === "$249" && await d.page.isChecked("#zgc-consent"));
+    await shot(d.page, look, W, "declined", axe);
+    await d.page.click(".zgc-decline button:has-text('Try another card')");
+    check(`${look.name}: Try another card: the fields are empty again, the card shows dots`, !(await d.page.isVisible(".zgc-decline")) && !/4242/.test(await cardText(d.page)));
+    await fillCard(d.page); await waitFilled(d.page);
+    await d.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await d.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    check(`${look.name}: another card on the same invoice pays it (its one PaymentIntent)`, (await d.page.locator("#zgc-status").innerText().catch(() => "")) === "Payment received"
+      && (await d.page.evaluate(() => window.__zgcConfirms)) === 2);
+    check(`${look.name}: declined flow: no page errors`, d.errors.length === 0, d.errors.join("; "));
+    await d.ctx.close();
+    // the bank's own check: a labelled preview; waiting for the bank, the card holds still; failed, then approved
+    const b = await open(browser, look, W.viewport, `/app/settings/billing/pay/${OPEN}?scenario=bankverify`);
+    await startPay(b.page);
+    await fillCard(b.page); await waitFilled(b.page);
+    await b.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await b.page.waitForSelector(".zgc-bank-preview", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: bank check: a clearly labelled preview of the bank's verification, our page waiting for the bank`, await b.page.isVisible("[role=dialog]:has-text('Preview of your bank\\'s verification')")
+      && await b.page.isVisible(".zgc-bank-preview .zgc-mock-badge:has-text('Preview only')") && (await b.page.locator("#zgc-status").innerText()) === "Waiting for your bank to confirm"
+      && (await b.page.locator(".zgc.is-bankwait").count()) === 1);
+    await shot(b.page, look, W, "bank-verify", axe);
+    await b.page.click(".zgc-bank-preview button:has-text('Fail')");
+    await b.page.waitForSelector(".zgc-decline", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: bank check failed: "Your bank didn't confirm the payment. Nothing was charged."`, (await b.page.locator(".zgc-decline strong").innerText().catch(() => "")) === "Your bank didn't confirm the payment"
+      && (await b.page.locator(".zgc-decline p").innerText().catch(() => "")).startsWith("Your bank didn't confirm the payment. Nothing was charged."));
+    await shot(b.page, look, W, "bank-failed", axe);
+    await b.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await b.page.waitForSelector(".zgc-bank-preview", { timeout: 10000 }).catch(() => {});
+    await b.page.click(".zgc-bank-preview button:has-text('Close')");
+    await b.page.waitForSelector(".zgc-decline", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: bank check closed: the same honest words, nothing charged`, (await b.page.locator(".zgc-decline strong").innerText().catch(() => "")) === "Your bank didn't confirm the payment");
+    await b.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await b.page.waitForSelector(".zgc-bank-preview", { timeout: 10000 }).catch(() => {});
+    await b.page.click(".zgc-bank-preview button:has-text('Approve')");
+    await b.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    check(`${look.name}: bank check approved: paid only when the server confirms`, (await b.page.locator("#zgc-status").innerText().catch(() => "")) === "Payment received");
+    await b.ctx.close();
+    // a pack: the saved card declined for insufficient funds, in Stripe's code's words, with another card offered
+    const k = await open(browser, look, W.viewport, `/app/settings/billing/pack/minutes_100?scenario=packdeclined`);
+    await k.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    await agree(k.page);
+    await k.page.click(".zgc-pay-foot button:has-text('Pay $29')");
+    await k.page.waitForSelector(".zgc.is-error", { timeout: 15000 }).catch(() => {});
+    check(`${look.name}: pack: the saved card declined, said as Stripe's code means it, Pay with another card`, (await k.page.locator("#zgc-status").innerText().catch(() => "")) === "Your saved card was declined"
+      && (await k.page.locator(".zgc-status p").first().innerText().catch(() => "")).startsWith("Your card doesn't have enough funds.") && await k.page.isVisible("button:has-text('Pay with another card')"));
+    await shot(k.page, look, W, "pack-declined", axe);
+    await k.ctx.close();
+  }
+  // the other decline codes, and Stripe not answering (unknown: never "nothing was charged"), in the Zella Voice look
+  for (const [scenario, title] of [["insufficient", "Your card doesn't have enough funds"], ["cvc", "The security code is incorrect"], ["lost", "Your card was declined"]]) {
+    const x = await open(browser, LOOKS[0], { width: 390, height: 844 }, `/app/settings/billing/pay/${OPEN}?scenario=${scenario}`);
+    await startPay(x.page); await fillCard(x.page); await waitFilled(x.page);
+    await x.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await x.page.waitForSelector(".zgc-decline", { timeout: 10000 }).catch(() => {});
+    check(`decline ${scenario}: "${title}"${scenario === "lost" ? " (a lost card reads as generic)" : ""}`, (await x.page.locator(".zgc-decline strong").innerText().catch(() => "")) === title);
+    if (scenario === "insufficient") await shot(x.page, LOOKS[0], { name: "390" }, "declined", loadAxe());
+    await x.ctx.close();
+  }
+  {
+    const u = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/pay/${OPEN}?scenario=unknown`);
+    await startPay(u.page); await fillCard(u.page); await waitFilled(u.page);
+    await u.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await u.page.waitForSelector(".zgc.is-confirming", { timeout: 10000 }).catch(() => {});
+    check("unknown: Stripe didn't answer: \"Checking whether the payment went through\", never \"nothing was charged\"", (await u.page.locator("#zgc-status").innerText().catch(() => "")) === "Checking whether the payment went through"
+      && !/Nothing was charged/.test(await u.page.locator(".zgc-status").innerText()));
+    await u.page.waitForSelector(".zgc.is-error", { timeout: 15000 }).catch(() => {});
+    check("unknown: the server says Stripe has no payment: \"The payment didn't go through\" with Pay again (review)", (await u.page.locator("#zgc-status").innerText().catch(() => "")) === "The payment didn't go through"
+      && await u.page.isVisible("button:has-text('Pay again')"));
+    await u.ctx.close();
+    // back from the bank's page (a redirect): never trusted; the address tidied and the server confirms
+    const r = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/pay/${OPEN}?scenario=`);
+    await startPay(r.page); await fillCard(r.page); await waitFilled(r.page);
+    await r.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await r.page.waitForSelector(".zgc.is-confirming, .zgc.is-confirmed", { timeout: 10000 }).catch(() => {});
+    await r.page.goto(`${APP}/app/settings/billing/pay/${OPEN}?scenario=&payment_intent=pi_standin&payment_intent_client_secret=pi_standin_secret_x&redirect_status=succeeded`);
+    await r.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    check("redirect return: confirmed by the server, Stripe's parameters removed from the address", (await r.page.locator("#zgc-status").innerText().catch(() => "")) === "Payment received"
+      && !/payment_intent|redirect_status/.test(r.page.url()));
+    await r.ctx.close();
   }
 
   // the emailed link: someone who isn't this invoice's owner gets nothing but "couldn't open"
@@ -485,6 +593,24 @@ async function shot(page, look, width, state, axeSource) {
     const to = path.join(process.env.VIDEO, "crm-paynow-addon-zella-1440.webm");
     fs.renameSync(await rec.path(), to);
     console.log(`video ${to}`);
+    // declined card, then another card, then the bank's check, then paid (owner question, 27 Nov 2026)
+    const c = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/pay/${OPEN}?scenario=demo`, { video: process.env.VIDEO });
+    await c.page.waitForTimeout(800);
+    await startPay(c.page); await fillCard(c.page); await waitFilled(c.page); await c.page.waitForTimeout(800);
+    await c.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await c.page.waitForSelector(".zgc-decline", { timeout: 10000 }).catch(() => {}); await c.page.waitForTimeout(2200);
+    await c.page.click(".zgc-decline button:has-text('Try another card')"); await c.page.waitForTimeout(800);
+    await fillCard(c.page); await waitFilled(c.page); await c.page.waitForTimeout(800);
+    await c.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await c.page.waitForSelector(".zgc-bank-preview", { timeout: 10000 }).catch(() => {}); await c.page.waitForTimeout(2200);
+    await c.page.click(".zgc-bank-preview button:has-text('Approve')");
+    await c.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    await c.page.waitForTimeout(4500);
+    const rec2 = c.page.video();
+    await c.ctx.close();
+    const to2 = path.join(process.env.VIDEO, "crm-card-problems-zella-1440.webm");
+    fs.renameSync(await rec2.path(), to2);
+    console.log(`video ${to2}`);
   }
   await browser.close();
   console.log(`${passes} passed, ${fails} failed`);

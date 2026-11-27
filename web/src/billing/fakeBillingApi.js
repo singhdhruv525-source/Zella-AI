@@ -14,6 +14,11 @@
 //   stripefail Stripe's form can't load: the error offers Stripe's secure page as the only fallback
 //   canada     as "", with a business address in Canada: Stripe's billing address fields in Canada's format
 //   addonfail  as "": the texts add on bought after the plan payment is declined ("Plan paid. 500 texts not added")
+//   declined, insufficient, cvc, lost: Pay now's first card is declined at payment (Stripe's decline code generic_decline,
+//              insufficient_funds, incorrect_cvc, lost_card shown as generic); another card then pays
+//   bankverify the bank's own check (a labelled preview: Approve, Fail or Close); demo: declined, then the bank's check
+//   unknown    Stripe doesn't answer the confirm: the page checks with the server and says the payment wasn't taken
+//   packdeclined buying a pack: the saved card is declined for insufficient funds
 // Like the server, every payment start checks the owner's agreement: the sha256 of the words for the stand in's own
 // figures (paymentConsent.js), refused without it (CONSENT_REQUIRED) or with other words (CONSENT_MISMATCH).
 import { mountStandInCard } from "./standinForm.js";
@@ -166,7 +171,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       if (existing) return { purchase_id: existing.purchase_id, status: existing.status };
       const purchase_id = `00000000-0000-4000-8000-${String(st.purchases.size + 1).padStart(12, "0")}`;
       st.purchases.set(purchase_id, { purchase_id, key, pack_code: code, resource: pack.resource, quantity: pack.quantity, price_cents: pack.price_cents,
-        status: "pending", looks: 0, outcome: scenario === "packauth" ? "authentication_required" : scenario === "addonfail" && code.startsWith("texts") ? "card_declined" : "ok" });
+        status: "pending", looks: 0, outcome: scenario === "packauth" ? "authentication_required" : scenario === "packdeclined" ? "insufficient_funds" : scenario === "addonfail" && code.startsWith("texts") ? "card_declined" : "ok" });
       st.buys = (st.buys ?? 0) + 1;
       persist();
       return { purchase_id, status: "pending" };
@@ -197,7 +202,9 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       await wait(delay * 2);
       if (scenario === "stripefail") throw Object.assign(new Error("Stripe.js didn't load"), { code: "STRIPE_JS" });
       if (opts.clientSecret !== "pi_standin_secret_standin") throw Object.assign(new Error("not the stand in's intent"), { code: "STRIPE_JS" });
-      return mountStandInCard(slots, opts, { speed: delay ? 45 : 0, onPay: async () => {
+      const outcomes = { declined: ["declined:generic_decline", "ok"], insufficient: ["declined:insufficient_funds", "ok"], cvc: ["declined:incorrect_cvc", "ok"],
+        lost: ["declined:lost_card", "ok"], bankverify: ["verify"], demo: ["declined:generic_decline", "verify"], unknown: ["unknown", "ok"] }[scenario] ?? ["ok"];
+      return mountStandInCard(slots, opts, { speed: delay ? 45 : 0, outcomes, onPay: async () => {
         await wait(delay);
         if (opts.invoiceId) { st.completed = opts.invoiceId; st.looks = 0; try { globalThis.sessionStorage?.setItem(`zella.fake.paid.${opts.invoiceId}`, "1"); } catch { /* none */ } }
         if (opts.purchaseId) { const p = st.purchases.get(opts.purchaseId); if (p) p.looks = 0; }

@@ -599,6 +599,15 @@ Deno.test("review: Pay now's return asks Stripe for the invoice's payments (incl
   assertEquals((await stripe.get(`/v1/invoices/${inv.id}`) as Record<string, unknown>).payments, undefined, "the fake, like Stripe, leaves payments out unless expanded");
 });
 
+Deno.test("review: while our record is still open, Pay now's return says whether Stripe has the payment (so the page can offer Pay again)", async () => {
+  const { customer, sub, inv } = await pastDue();
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub }, invoice: { invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, status: "open", payable: true } };
+  assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.invoice.processing, undefined, "Stripe has nothing for it: not processing");
+  const start = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  fake.confirmIntent(String(start.body.client_secret).split("_secret_")[0]);
+  assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.invoice.processing, true, "Stripe has it: confirming, never Pay again");
+});
+
 Deno.test("review: the fake Stripe models a 3D Secure challenge, and refuses a redirect method without return_url", async () => {
   const s = await newSession();
   fake.completeCheckout(s.id);

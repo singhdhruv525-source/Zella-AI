@@ -250,11 +250,12 @@ async function shot(page, look, width, state, axeSource) {
     const ap = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
     await startPay(ap.page);
     await ap.page.click(".zgc-autopay [role=switch]");
+    await ap.page.waitForTimeout(300);
     check("autopay off in the checkout: says the invoice waits in the CRM (no email promised while email is off)",
       (await ap.page.locator(".zgc-autopay-note").innerText()) === "Your invoice appears in the CRM; pay it there within 3 days.");
     check("agree: Auto pay off changes the words (the owner pays future invoices) and unticks the box, saying why",
       (await consentWords(ap.page)) === "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $898 today. I'll pay future invoices myself."
-      && !(await ap.page.isChecked("#zgc-consent")) && (await ap.page.locator(".zgc-consent [role=alert]").innerText()) === "The amount changed. Tick the box to agree to the new total.");
+      && !(await ap.page.isChecked("#zgc-consent")) && (await ap.page.locator(".zgc-consent [role=alert]").innerText()) === "The details changed. Tick the box again to agree to them.");
     await ap.page.screenshot({ path: path.join(SHOTS, "pay-zella-autopay-off-1440.png"), fullPage: true });
     await fillCard(ap.page); await waitFilled(ap.page);
     await pressBlocked(ap.page, ".zgc-pay-foot button:has-text('Pay $898')");
@@ -268,6 +269,53 @@ async function shot(page, look, width, state, axeSource) {
     const kept = await ap.page.evaluate(() => JSON.parse(localStorage.getItem("zella.onboardingFake.v2") ?? "{}").autopay_choice);
     check("autopay off: the choice went to the server with the start (a closed tab can't lose it)", kept === false, String(kept));
     await ap.ctx.close();
+  }
+
+  // card problems on the Pay step in every look (owner question, 27 Nov 2026)
+  {
+    const seededDec = await seed("paydeclined"), seededBank = await seed("paybank");
+    const W = { name: "1440", viewport: { width: 1440, height: 900 } };
+    for (const look of LOOKS) {
+      const i = await open(browser, { look, viewport: W.viewport, seeded: seededPay, scenario: "pay" });
+      await startPay(i.page); await i.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
+      await i.page.click("button:has-text('Show wrong card details')"); await i.page.waitForSelector("#zgc-e-address:not(:empty)", { timeout: 8000 }).catch(() => {}); await i.page.waitForTimeout(1200);
+      const fe = await i.page.evaluate(() => Object.fromEntries([...document.querySelectorAll(".zgc-field-error")].map((e) => [e.id.replace("zgc-e-", ""), e.textContent])));
+      check(`${look.name}: wrong details inline under Stripe's fields, Pay disabled, no last 4`, fe.number === "Your card number is invalid." && fe.expiry === "Your card's expiration year is in the past."
+        && fe.cvc === "Your card's security code is incomplete." && fe.address === "Your ZIP code is incomplete." && await i.page.isDisabled(".zgc-pay-foot button:has-text('Pay $898')") && !/\d{4}/.test(await cardText(i.page)), JSON.stringify(fe));
+      await shot(i.page, look, W, "invalid", axeSource);
+      await i.ctx.close();
+      const d = await open(browser, { look, viewport: W.viewport, seeded: seededDec, scenario: "paydeclined" });
+      await startPay(d.page); await fillCard(d.page); await waitFilled(d.page);
+      await d.page.click(".zgc-pay-foot button:has-text('Pay $898')");
+      await d.page.waitForSelector(".zgc-decline", { timeout: 10000 }).catch(() => {});
+      check(`${look.name}: declined at payment: in the panel, nothing charged, Try another card; the receipt and the agree box stay`, (await d.page.locator(".zgc-decline strong").innerText().catch(() => "")) === "Your card was declined"
+        && await d.page.isVisible(".zgc-decline button:has-text('Try another card')") && (await d.page.locator(".zgc-total strong").innerText()) === "$898" && await d.page.isChecked("#zgc-consent"));
+      await shot(d.page, look, W, "declined", axeSource);
+      await d.page.click(".zgc-decline button:has-text('Try another card')");
+      await fillCard(d.page); await waitFilled(d.page);
+      await d.page.click(".zgc-pay-foot button:has-text('Pay $898')");
+      await d.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+      check(`${look.name}: another card pays the same session, confirmed by the server`, (await d.page.locator("#zgc-status").innerText().catch(() => "")) === "Payment received");
+      await d.ctx.close();
+      const b = await open(browser, { look, viewport: W.viewport, seeded: seededBank, scenario: "paybank" });
+      await startPay(b.page); await fillCard(b.page); await waitFilled(b.page);
+      await b.page.click(".zgc-pay-foot button:has-text('Pay $898')");
+      await b.page.waitForSelector(".zgc-bank-preview", { timeout: 10000 }).catch(() => {});
+      check(`${look.name}: the bank's check: a labelled preview, "Waiting for your bank to confirm", the card still`, await b.page.isVisible(".zgc-bank-preview .zgc-mock-badge")
+        && (await b.page.locator("#zgc-status").innerText()) === "Waiting for your bank to confirm" && (await b.page.locator(".zgc.is-bankwait").count()) === 1);
+      await shot(b.page, look, W, "bank-verify", axeSource);
+      await b.page.click(".zgc-bank-preview button:has-text('Fail')");
+      await b.page.waitForSelector(".zgc-decline", { timeout: 10000 }).catch(() => {});
+      check(`${look.name}: the bank's check failed: "Your bank didn't confirm the payment. Nothing was charged."`, (await b.page.locator(".zgc-decline p").innerText().catch(() => "")).startsWith("Your bank didn't confirm the payment. Nothing was charged."));
+      await shot(b.page, look, W, "bank-failed", axeSource);
+      await b.page.click(".zgc-pay-foot button:has-text('Pay $898')");
+      await b.page.waitForSelector(".zgc-bank-preview", { timeout: 10000 }).catch(() => {});
+      await b.page.click(".zgc-bank-preview button:has-text('Approve')");
+      await b.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+      check(`${look.name}: the bank approved: Payment received only from the server`, (await b.page.locator("#zgc-status").innerText().catch(() => "")) === "Payment received");
+      check(`${look.name}: card problems: no page errors`, b.errors.length === 0 && d.errors.length === 0, [...b.errors, ...d.errors].join("; "));
+      await b.ctx.close();
+    }
   }
 
   // add ons changed while Stripe's form is open: back to Pay, the old session expired first, one session at a time

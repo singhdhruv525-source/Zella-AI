@@ -197,3 +197,51 @@ test("card fields: every change drops the earlier preview and makes a new one wh
   destroyCurrent();
   delete globalThis.Stripe;
 });
+
+test("card problems in the owner's words: declines by Stripe's code, the bank's check, and unknown outcomes (owner question)", async () => {
+  const { declineOf, savedCardDecline, FIELD_ERRORS } = await import("../src/billing/declines.js");
+  const dc = (decline_code) => declineOf({ code: "DECLINED", decline_code, stripe_type: "card_error", stripe_code: "card_declined" });
+  assert.equal(dc("generic_decline").title, "Your card was declined");
+  assert.equal(dc("lost_card").title, "Your card was declined", "lost or stolen reads as a generic decline");
+  assert.equal(dc("stolen_card").body, dc("generic_decline").body);
+  assert.equal(dc("insufficient_funds").title, "Your card doesn't have enough funds");
+  assert.equal(dc("incorrect_cvc").title, "The security code is incorrect");
+  for (const c of ["generic_decline", "insufficient_funds", "incorrect_cvc", "lost_card"]) assert.match(dc(c).body, /Nothing was charged\.$/, "a definite decline: nothing was charged");
+  const bank = declineOf({ code: "BANK_FAILED", stripe_code: "payment_intent_authentication_failure" });
+  assert.deepEqual([bank.kind, bank.title], ["bank_failed", "Your bank didn't confirm the payment"]);
+  assert.match(bank.body, /^Your bank didn't confirm the payment\. Nothing was charged\./);
+  const unk = declineOf({ code: "UNKNOWN_OUTCOME" });
+  assert.equal(unk.kind, "unknown");
+  assert.ok(!/Nothing was charged/.test(unk.body), "unknown never says nothing was charged");
+  assert.equal(declineOf({ code: "LOCAL_CHECK", message: "Complete the card details first." }), null, "a local check is not a decline");
+  assert.equal(savedCardDecline("insufficient_funds").title, "Your card doesn't have enough funds");
+  assert.equal(savedCardDecline("stolen_card").title, "Your card was declined");
+  for (const t of [...Object.values(FIELD_ERRORS), unk.body, bank.body, dc("incorrect_cvc").body]) assert.ok(!DASH.test(t), t);
+  const { packAnswer } = await import("../src/billing/payState.js");
+  const a = packAnswer({ status: "failed", can_act: true, failure_reason: "insufficient_funds" });
+  assert.equal(a.stopped, "card_declined");
+  assert.match(a.stoppedWords, /^Your card doesn't have enough funds\./);
+});
+
+test("the stand in's card fields: wrong details inline, no preview; a decline then another card; Try another card empties the fields", async () => {
+  const { mountStandInCard } = await import("../src/billing/standinForm.js");
+  const doc = { createElement: () => ({ setAttribute() {}, classList: { remove() {}, add() {}, contains: () => false }, textContent: "", dataset: {}, append() {}, addEventListener() {} }) };
+  const slot = () => ({ ownerDocument: doc, replaceChildren() {} });
+  const events = [];
+  let paid = 0;
+  const h = mountStandInCard({ number: slot(), expiry: slot(), cvc: slot() }, { onEvent: (e) => events.push(e), onComplete: () => {} },
+    { speed: 0, outcomes: ["declined:insufficient_funds", "ok"], onPay: () => { paid++; } });
+  await h.demoInvalid();
+  assert.deepEqual(events.filter((e) => e.type === "change" && e.error).map((e) => [e.field, e.error]),
+    [["number", "Your card number is invalid."], ["expiry", "Your card's expiration year is in the past."], ["cvc", "Your card's security code is incomplete."]]);
+  assert.ok(!events.some((e) => e.type === "preview" && e.card), "no last 4 until the card is valid");
+  await assert.rejects(h.submit(), (e) => e.code === "LOCAL_CHECK", "Pay can't go ahead with wrong details");
+  await h.demo();
+  await assert.rejects(h.submit(), (e) => e.code === "DECLINED" && e.decline_code === "insufficient_funds");
+  assert.equal(paid, 0, "declined: nothing taken");
+  h.clear();
+  assert.equal(events.at(-1).card, null, "Try another card: the fields emptied, no preview");
+  await h.demo();
+  await h.submit();
+  assert.equal(paid, 1, "another card pays, on the same payment");
+});

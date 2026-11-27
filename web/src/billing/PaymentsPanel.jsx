@@ -268,10 +268,16 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
       }
       for (let i = 0; i < 8; i++) {
         fresh = await api.invoiceStatus(invoiceId);
-        setItems(fromList(fresh?.addons, local));
-        if (!fromList(fresh?.addons, local).some((a) => a.step === "adding" || a.step === "todo")) break;
+        const now = fromList(fresh?.addons, local);
+        setItems(now);
+        const waiting = now.filter((a) => a.step === "adding" && a.purchase_id);
+        if (!waiting.length && !now.some((a) => a.step === "todo")) break;
         await new Promise((r) => setTimeout(r, 900 * (i + 1)));
+        // each pack's own status (the server applies Stripe's events there), as the pack page asks
+        for (const a of waiting) await api.packStatus(businessOf ?? businessId, a.purchase_id).catch(() => null);
       }
+      fresh = await api.invoiceStatus(invoiceId);
+      setItems(fromList(fresh?.addons, local));
     } catch (err) { setItems((cur) => cur.map((a) => (a.step === "added" ? a : { ...a, step: "failed", words: words(err) }))); }
     finally { run.current = false; setBuying(false); }
   }

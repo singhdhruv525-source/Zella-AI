@@ -3,6 +3,7 @@ import { ErrorBoundary, Icon } from "../BusinessUI";
 import { brandLabel, cardWords, expiredWhileConfirming, ERROR_WORDS, failureKind, formatMoney, fromServer, nextDelay, reduce, WORDS } from "./checkoutMachine";
 import { mountCardFields } from "./stripeEmbedded";
 import { addonName, chosen } from "./addons.js";
+import { declineOf } from "./declines.js";
 import { AddonPicker, ConsentBox } from "./ReceiptExtras";
 import "./glassCheckout.css";
 
@@ -62,7 +63,7 @@ function FallbackLink({ url }) {
 
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const finePointer = () => typeof window !== "undefined" && window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
-const NO_LIVE = { brand: null, focus: null, started: false, numberDone: false, preview: null, name: "", addressDone: false };
+const NO_LIVE = { brand: null, focus: null, started: false, numberDone: false, preview: null, name: "", addressDone: false, errors: {}, bank: false };
 
 function liveReduce(s, e) {
   if (e.type === "reset") return NO_LIVE;
@@ -70,8 +71,13 @@ function liveReduce(s, e) {
   if (e.type === "blur") return s.focus === e.field ? { ...s, focus: null } : s;
   if (e.type === "preview") return { ...s, preview: e.card ?? null };
   // Stripe's billing address: only the name is kept (memory only, for the card); the address never reaches the card
-  if (e.type === "address") return { ...s, name: typeof e.name === "string" ? e.name.slice(0, 80) : "", addressDone: e.complete === true };
-  if (e.type === "change" && e.field === "number") return { ...s, brand: e.brand && e.brand !== "unknown" ? e.brand : null, started: !e.empty, numberDone: e.complete === true };
+  if (e.type === "address") return { ...s, name: typeof e.name === "string" ? e.name.slice(0, 80) : "", addressDone: e.complete === true, errors: { ...s.errors, address: typeof e.error === "string" ? e.error : null } };
+  // the bank's own check is open (Stripe's overlay; the stand in's preview)
+  if (e.type === "bank") return { ...s, bank: e.waiting === true };
+  // Stripe's inline words for a wrong field (an invalid number, a date in the past, an incomplete code): under the field
+  const errors = e.type === "change" ? { ...s.errors, [e.field]: typeof e.error === "string" ? e.error : null } : s.errors;
+  if (e.type === "change" && e.field === "number") return { ...s, errors, brand: e.brand && e.brand !== "unknown" ? e.brand : null, started: !e.empty, numberDone: e.complete === true };
+  if (e.type === "change") return { ...s, errors };
   return s;
 }
 
@@ -89,7 +95,12 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
   const [card, setCard] = useState(null);
   const [demo, setDemo] = useState(false);
   const [sending, setSending] = useState(false);
-  const [inline, setInline] = useState("");   // Stripe's own words for a declined card, under its fields
+  const [inline, setInline] = useState("");   // a local check's words, under the fields
+  // a card declined or the bank's check failed at payment: what Stripe said, in the panel, with Try another card (the
+  // same payment is kept: a new card on the same invoice uses the same PaymentIntent)
+  const [decline, setDecline] = useState(null);
+  const [unknown, setUnknown] = useState(false);   // Stripe didn't answer: the server is asked, never "nothing was charged"
+  const [slowBank, setSlowBank] = useState(false);   // a confirm taking a while: most often the bank's own check
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   // the required "I agree" box (owner, 27 Nov 2026): unticked by default; other words (another total, Auto pay changed)
   // untick it, so what was agreed is always what is charged
@@ -101,7 +112,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
     if (lastText.current === consentText) return;
     const had = agreed;
     lastText.current = consentText;
-    if (had) { setAgreed(false); setConsentError("The amount changed. Tick the box to agree to the new total."); }
+    if (had) { setAgreed(false); setConsentError("The details changed. Tick the box again to agree to them."); }
   }, [consentText]); // eslint-disable-line react-hooks/exhaustive-deps
   const consentOk = () => {
     if (!needsConsent || agreed) return true;
@@ -156,13 +167,26 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
     if (!handle.current?.submit || sending || submitting.current) return;
     if (!consentOk()) return;
     submitting.current = true;
-    setSending(true); setInline("");
+    setSending(true); setInline(""); setDecline(null);
+    const slow = setTimeout(() => { if (alive.current) setSlowBank(true); }, 1500);
     // the choices on this panel (Auto pay) go to the server with the payment, before Stripe takes it (review M2)
-    try { if (beforeSubmit) await beforeSubmit(); await handle.current.submit(); }
-    catch (err) { if (alive.current) setInline(err?.code === "DECLINED" ? err.message : "The payment didn't go through. Nothing was charged. Please try again."); }
-    finally { submitting.current = false; if (alive.current) setSending(false); }
+    let stage = "ours";
+    try { if (beforeSubmit) await beforeSubmit(); stage = "stripe"; await handle.current.submit(); }
+    catch (err) {
+      if (alive.current && stage === "ours") setInline(`${err?.words ?? err?.message ?? "That didn't work."} Nothing was charged.`.replace(/\. Nothing was charged\. Nothing was charged\./, ". Nothing was charged."));
+      else if (alive.current) {
+        const d = declineOf(err);
+        // Stripe didn't answer: whether it was taken is unknown, so OUR server is asked (the confirming wait)
+        if (d?.kind === "unknown") { setUnknown(true); dispatch({ type: "COMPLETE" }); }
+        else if (d) setDecline(d);
+        else setInline(err?.code === "LOCAL_CHECK" ? err.message : "The payment didn't start. Nothing was charged. Please try again.");
+      }
+    }
+    finally { clearTimeout(slow); submitting.current = false; if (alive.current) { setSending(false); setSlowBank(false); } }
   }
   async function playDemo() { await handle.current?.demo?.(); }
+  async function playInvalid() { await handle.current?.demoInvalid?.(); }
+  function anotherCard() { setDecline(null); setInline(""); handle.current?.clear?.(); }
   // Stripe's own page (owner, 27 Nov 2026: the onboarding fallback): only Stripe's checkout address, and the return there
   // proves nothing (the server confirms)
   function goHosted(url) {
@@ -212,7 +236,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
         if (!on) return;
         if (r?.card) setCard(r.card);
         onPayment?.(r?.payment, r?.card ?? null);
-        if (r?.stopped) dispatch({ type: "STOPPED", kind: r.stopped });
+        if (r?.stopped) dispatch({ type: "STOPPED", kind: r.stopped, words: r.stoppedWords });
         else if (expiredWhileConfirming(r?.payment)) dispatch({ type: "STOPPED", kind: "expired" });
         else if (fromServer(r?.payment).state === "confirmed") dispatch({ type: "SERVER", payment: r.payment, card: r.card ?? null });
         else dispatch({ type: "STILL_WAITING" });
@@ -244,7 +268,11 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
   }, [m.state, m.kind]);
 
   const base = m.state === "error" ? ERROR_WORDS[m.kind] ?? ERROR_WORDS.server : WORDS[m.state] ?? WORDS.off;
-  const words = { ...base, ...(over[m.state === "error" ? m.kind : m.state] ?? {}), ...(m.state === "error" && m.kind === "refused" && m.words ? { body: `${m.words} Nothing was charged.` } : {}) };
+  const words = { ...base, ...(over[m.state === "error" ? m.kind : m.state] ?? {}),
+    ...(m.state === "error" && m.kind === "refused" && m.words ? { body: `${m.words} Nothing was charged.` } : {}),
+    ...(m.state === "error" && m.kind !== "refused" && m.words ? { body: m.words } : {}),
+    ...(m.state === "confirming" && unknown ? { label: "Checking whether the payment went through", body: "Stripe didn't answer in time, so we don't know yet whether it was taken. Don't pay again: we're asking Stripe, and this page shows the result." } : {}),
+    ...(m.state === "ready" && (live.bank || (sending && slowBank)) ? { label: "Waiting for your bank to confirm", body: "Your bank may ask you to approve this payment in its own window: a code by text or a tap in your banking app. Keep this page open." } : {}) };
   const server = m.state === "confirmed" ? cardWords(m.card ?? card) : null;
   // what the card shows: only Stripe's events and preview, the server's answer, and the name from Stripe's billing address
   const view = {
@@ -268,7 +296,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
   const blocked = needsConsent && !agreed;   // Pay looks disabled and says why when pressed (the box is the reason)
   const idleLabel = typeof payLabel === "function" ? payLabel(amount) : payLabel;
   return (
-    <section className={`zgc is-${m.state}`} aria-labelledby="zgc-status">
+    <section className={`zgc is-${m.state}${m.state === "ready" && (live.bank || (sending && slowBank)) ? " is-bankwait" : ""}`} aria-labelledby="zgc-status">
       <div className={`zob-status tone-${tone} zgc-status`}>
         <span className="ba-icon" aria-hidden="true">{{ confirmed: "paid", locked: "lock", off: "schedule", idle: "credit_card", submitting: "hourglass_top", loading: "hourglass_top", ready: "lock", confirming: "hourglass_top", pending: "schedule", error: "error" }[m.state]}</span>
         <div>
@@ -303,13 +331,15 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
                   {[["number", "Card number", true], ["expiry", "Expiration", false], ["cvc", "Security code", false]].map(([f, label, wide]) => (
                     <div key={f} className={`zgc-field${wide ? " wide" : ""}${live.focus === f ? " is-focus" : ""}`}>
                       <span className="zgc-label" id={`zgc-l-${f}`}>{label}</span>
-                      <div ref={slotRef(f)} className="zgc-input zgc-slot" data-field={f} />
+                      <div ref={slotRef(f)} className={`zgc-input zgc-slot${live.errors[f] ? " has-error" : ""}`} data-field={f} />
+                      <p className="zgc-field-error" id={`zgc-e-${f}`} aria-live="polite">{live.errors[f] ?? ""}</p>
                     </div>
                   ))}
                   {/* Stripe's Address Element (mode billing): full name and billing address, any country, the United States first */}
                   <div className="zgc-field wide zgc-address" role="group" aria-labelledby="zgc-l-address">
                     <span className="zgc-label" id="zgc-l-address">Billing address</span>
                     <div ref={slotRef("address")} className="zgc-addr-slot" data-field="address" />
+                    <p className="zgc-field-error" id="zgc-e-address" aria-live="polite">{live.errors.address ?? ""}</p>
                   </div>
                   {saveNote && <p className="zgc-save-note"><Icon name="bookmark" size="sm" /> {saveNote}</p>}
                 </div>
@@ -325,6 +355,13 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
                 </div>
               )}
               {m.state === "ready" && inline && <p className="ba-error" role="alert">{inline}</p>}
+              {m.state === "ready" && decline && (
+                <div className="zgc-decline" role="alert">
+                  <span className="ba-icon" aria-hidden="true">{decline.kind === "bank_failed" ? "gpp_bad" : "credit_card_off"}</span>
+                  <div><strong>{decline.title}</strong><p>{decline.body}</p>
+                    <button type="button" className="ba-btn sm" onClick={anotherCard}>Try another card</button></div>
+                </div>
+              )}
             </div>
             <div className="zgc-pay-foot">
               {consentShown && <ConsentBox id="zgc-consent" text={consentText} agreed={agreed} error={consentError}
@@ -337,6 +374,9 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               )}
               {m.state === "ready" && demo && !live.preview && (
                 <button type="button" className="ba-btn zgc-pay-btn" onClick={playDemo}><Icon name="play_arrow" size="sm" /> Fill with Stripe's test card</button>
+              )}
+              {m.state === "ready" && demo && !live.preview && handle.current?.demoInvalid && (
+                <button type="button" className="ba-btn zgc-pay-btn" onClick={playInvalid}><Icon name="error" size="sm" /> Show wrong card details</button>
               )}
               {formOpen && (
                 <button type="button" className={`ba-btn primary zgc-pay-btn${blocked ? " is-blocked" : ""}`} disabled={m.state !== "ready" || sending || !live.preview || !live.addressDone}
