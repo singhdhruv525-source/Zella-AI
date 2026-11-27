@@ -96,10 +96,10 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const confirm = () => api.checkoutReturn(state.business_id);
   const onPayment = (payment) => { if (payment && typeof payment === "object") onState((s) => ({ ...s, payment })); };
   const period = billingPeriod(p.billing_interval);
-  const lines = [["Plan price", `${money(p.price_cents, p.currency)} ${period}`]];
-  if (Number(p.setup_fee_cents) > 0) lines.push(["One time setup fee", money(p.setup_fee_cents, p.currency)]);
-  if (p.trial_enabled === true) lines.push(["Free trial", trial ? "Starts today" : "Not included"]);
-  if (p.minutes != null) lines.push(["Call minutes", `${allowance(p.minutes, "minute")} ${period}`]);
+  const lines = [["Plan price", `${money(p.price_cents, p.currency)} ${period}`, "workspace_premium"]];
+  if (Number(p.setup_fee_cents) > 0) lines.push(["One time setup fee", money(p.setup_fee_cents, p.currency), "build"]);
+  if (p.trial_enabled === true) lines.push(["Free trial", trial ? "Starts today" : "Not included", "redeem"]);
+  if (p.minutes != null) lines.push(["Call minutes", `${allowance(p.minutes, "minute")} ${period}`, "call"]);
   const summary = {
     kicker: "Order summary",
     title: p.tier ? `Your ${tierName(p.tier)} plan` : "Your plan",

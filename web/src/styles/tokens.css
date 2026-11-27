@@ -38,6 +38,7 @@
   --zella-success-bg: #DDF4E5;
   --zella-success: #1F7A45;
   --zella-on-success: #FFFFFF;   /* text on a solid success surface (the paid card): 5.3:1 on #1F7A45 */
+  --zella-sheen: rgba(255, 255, 255, 0.16);   /* light for a sheen or a highlight edge on a solid surface (the card picture) */
   --zella-success-border: #BFE5CC;
   --zella-info-bg: #E3EEFA;
   --zella-info: #2F5F96;

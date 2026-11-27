@@ -151,15 +151,14 @@ function Checkout({ summary, payment, start, confirm, onPayment, mount = mountEm
           <div className="zgc-panel zgc-pay">
             <div className="zgc-pay-head">
               <span className="zob-kicker">Payment</span>
-              <span className="zgc-secure"><Icon name="lock" size="sm" /> Secured by Stripe</span>
             </div>
-            <CardArt ref={cardRef} confirmed={false} card={null} />
+            <CardArt ref={cardRef} confirmed={false} card={null} tilt />
             <div className="zgc-form">
               {(m.state === "idle" || m.state === "submitting") && (
                 <>
                   <p className="zob-muted">{summary?.intro ?? <>You'll pay <strong>{amount}</strong> today.</>} When you continue, Stripe's secure form opens right here.</p>
                   <button type="button" className="ba-btn primary zgc-pay-btn" disabled={m.state === "submitting"} onClick={pay}>
-                    {m.state === "submitting" ? "Opening the secure form…" : payLabel}
+                    <Icon name="lock" size="sm" /> {m.state === "submitting" ? "Opening the secure form…" : payLabel}
                   </button>
                 </>
               )}
@@ -173,13 +172,22 @@ function Checkout({ summary, payment, start, confirm, onPayment, mount = mountEm
                 <div ref={formEl} className="zgc-embed-mount" />
               </div>
             </div>
+            <p className="zgc-trust">
+              <span><Icon name="lock" size="sm" /> Secured by Stripe</span>
+              <span><Icon name="verified_user" size="sm" /> Card details never reach Zella Voice</span>
+            </p>
           </div>
 
           <aside className="zgc-panel zgc-summary" aria-labelledby="zgc-summary-title">
             <span className="zob-kicker">{summary?.kicker ?? "Order summary"}</span>
             <h3 id="zgc-summary-title">{summary?.title ?? "Your plan"}</h3>
             <dl className="zgc-lines">
-              {(summary?.lines ?? []).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
+              {(summary?.lines ?? []).map(([label, value, icon]) => (
+                <div key={label}>
+                  <dt>{icon && <span className="zgc-line-icon" aria-hidden="true"><Icon name={icon} size="sm" /></span>}{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
             </dl>
             {amountKnown && <div className="zgc-total"><span>{totalLabel}</span><strong>{amount}</strong></div>}
             {summary?.footnote && <p className="zob-hint">{summary.footnote}</p>}
@@ -188,7 +196,13 @@ function Checkout({ summary, payment, start, confirm, onPayment, mount = mountEm
 
         {staged && (
           <div className="zgc-stage" aria-hidden="true">
-            <CardArt ref={stageCardRef} confirmed={m.state === "confirmed"} card={shownCard} big />
+            <div className="zgc-stage-card">
+              <span className="zgc-glow" />
+              <CardArt ref={stageCardRef} confirmed={m.state === "confirmed"} card={shownCard} big />
+            </div>
+            {m.state !== "confirmed" && (
+              <svg className="zgc-ring" viewBox="0 0 40 40" width="40" height="40"><circle className="zgc-ring-track" cx="20" cy="20" r="16" /><circle className="zgc-ring-arc" cx="20" cy="20" r="16" /></svg>
+            )}
             <p className="zgc-stage-caption">{m.state === "confirmed" ? "Payment received" : m.state === "pending" ? "Still confirming" : "Confirming your payment"}</p>
           </div>
         )}
@@ -197,20 +211,44 @@ function Checkout({ summary, payment, start, confirm, onPayment, mount = mountEm
   );
 }
 
-// A generic card: no digits, ever, before a verified payment; afterwards only the brand and last 4 Stripe returned.
-// Its colours are the look's own: primary for the card, the success token once confirmed.
-function CardArtInner({ confirmed, card, big }, ref) {
+// A premium looking card in the look's own colours (primary before, success once the server confirms). It never shows
+// digits before a verified payment: dots fill the number area. Afterwards only the brand and last 4 Stripe returned.
+// The card is aria-hidden: the status panel and the live region say everything it shows.
+function Chip() {
   return (
-    <div ref={ref} className={`zgc-card${big ? " big" : ""}${confirmed ? " ok" : ""}`} aria-hidden="true">
-      <div className="zgc-card-face zgc-card-base">
-        <span className="zgc-card-chip" />
-        <span className="zgc-card-label">Your card</span>
-        <span className="zgc-card-bars"><i /><i /><i /><i /></span>
-      </div>
-      <div className="zgc-card-face zgc-card-done">
-        <span className="zgc-card-chip" />
-        <span className="zgc-card-check"><Icon name="check_circle" /></span>
-        <span className="zgc-card-label">{card ? `${card.brand} ending ${card.last4}` : "Paid"}</span>
+    <svg className="zgc-chip" viewBox="0 0 46 34" width="46" height="34">
+      <rect x="0.75" y="0.75" width="44.5" height="32.5" rx="6" className="zgc-chip-body" />
+      <path className="zgc-chip-lines" d="M0.75 11.5h13M0.75 22.5h13M32.25 11.5h13M32.25 22.5h13M14 0.75v32.5M32 0.75v32.5M14 17h18" />
+    </svg>
+  );
+}
+function Contactless() {
+  return (
+    <svg className="zgc-contactless" viewBox="0 0 24 24" width="22" height="22">
+      <path d="M8 8.5a5 5 0 0 1 0 7M11.5 6a8.5 8.5 0 0 1 0 12M15 3.5a12 12 0 0 1 0 17" />
+    </svg>
+  );
+}
+function CardArtInner({ confirmed, card, big, tilt }, ref) {
+  return (
+    <div ref={ref} className={`zgc-card${big ? " big" : ""}${confirmed ? " ok" : ""}${tilt ? " tilt" : ""}`} aria-hidden="true">
+      <div className="zgc-card-inner">
+        <div className="zgc-card-face zgc-card-base">
+          <div className="zgc-card-row"><span className="zgc-card-mark">Zella Voice</span><span className="zgc-card-brand">Card</span></div>
+          <div className="zgc-card-row zgc-card-mid"><Chip /><Contactless /></div>
+          <div className="zgc-card-number">•••• •••• •••• ••••</div>
+          <div className="zgc-card-row"><span className="zgc-card-label">Your card</span></div>
+          <span className="zgc-card-shimmer" />
+        </div>
+        <div className="zgc-card-face zgc-card-done">
+          <div className="zgc-card-row"><span className="zgc-card-mark">Zella Voice</span><span className="zgc-card-brand">{card ? card.brand : ""}</span></div>
+          <div className="zgc-card-row zgc-card-mid">
+            <Chip />
+            <svg className="zgc-check" viewBox="0 0 36 36" width="36" height="36"><circle cx="18" cy="18" r="16" /><path d="M11 18.5l5 5 9.5 -10.5" /></svg>
+          </div>
+          <div className="zgc-card-number">{card ? `ending ${card.last4}` : "Paid"}</div>
+          <div className="zgc-card-row"><span className="zgc-card-label">Payment received</span></div>
+        </div>
       </div>
     </div>
   );

@@ -27,7 +27,7 @@ const TITLES = {
   identity: () => "Verify your identity",
   plan: () => "Your plan",
   // the title follows the server: confirming once Stripe has it, confirmed only when the server says so
-  payment: (s) => ({ confirmed: "Your payment is confirmed", processing: "Confirming your payment" })[paymentState(s.payment).key] ?? "Pay for your plan",
+  payment: (s) => ({ confirmed: "You're all set", processing: "Confirming your payment" })[paymentState(s.payment).key] ?? "Pay for your plan",
   // "You're all set" only once every go live check has passed; until then, say what is still to come
   done: (s) => (allChecksDone(s) ? "You're all set" : "Setup complete. One last check before you go live."),
 };

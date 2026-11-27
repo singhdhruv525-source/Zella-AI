@@ -3,11 +3,11 @@
    Colours, type, spacing and radii are tokens only, so every look
    (Zella Voice, Classic, Glass with or without "Match colours to
    the picture") re-points it. The motion is the owner approved
-   exception to the calm CRM motion: transform and opacity only,
-   and none at all with reduced motion.
+   exception to the calm CRM motion: transform and opacity (and the
+   check's stroke drawing) only, and none at all with reduced motion.
    ========================================================= */
 
-.zgc { display: flex; flex-direction: column; gap: var(--zella-space-4); min-width: 0; }
+.zgc { --zgc-ease: cubic-bezier(0.22, 1, 0.36, 1); display: flex; flex-direction: column; gap: var(--zella-space-4); min-width: 0; }
 .zgc-status h2 {
   margin: 0;
   color: var(--zella-text);
@@ -18,7 +18,18 @@
 /* a heading takes focus on state changes for keyboard and screen reader users; it isn't a control */
 .zgc-status h2:focus, .zgc-status h2:focus-visible { outline: none; box-shadow: none; }
 
-.zgc-stage-wrap { position: relative; min-width: 0; }
+/* ---------- the stage: a faint tinted backdrop behind the two panels, so the card has depth ---------- */
+.zgc-stage-wrap {
+  position: relative;
+  min-width: 0;
+  padding: var(--zella-space-3);
+  border-radius: calc(var(--zella-radius-lg) + var(--zella-space-2));
+  background:
+    radial-gradient(120% 90% at 0% 0%, var(--zella-primary-soft) 0%, transparent 60%),
+    radial-gradient(90% 80% at 100% 100%, var(--zella-primary-soft) 0%, transparent 55%),
+    var(--zella-alt);
+}
+@media (min-width: 520px) { .zgc-stage-wrap { padding: var(--zella-space-4); } }
 .zgc-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--zella-space-4); min-width: 0; }
 @media (min-width: 900px) { .zgc-grid { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; } }
 
@@ -31,14 +42,29 @@
   border: 1px solid var(--zella-border);
   border-radius: var(--zella-radius-lg);
   background: var(--zella-card);
-  box-shadow: var(--zella-shadow-sm);
+  /* soft layered elevation */
+  box-shadow: var(--zella-shadow-sm), var(--zella-shadow-md);
 }
 @media (min-width: 520px) { .zgc-panel { padding: var(--zella-space-5); } }
 .zgc-pay-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--zella-space-2); }
-.zgc-secure { display: inline-flex; align-items: center; gap: var(--zella-space-1); color: var(--zella-text-secondary); font-size: var(--zella-text-xs); font-weight: 600; }
 .zgc-form { display: flex; flex-direction: column; gap: var(--zella-space-3); min-width: 0; }
 .zgc-form .zob-muted strong { color: var(--zella-text); }
-.zgc-pay-btn { justify-content: center; width: 100%; min-height: calc(var(--zella-space-8) + var(--zella-space-3)); }
+.zgc-pay-btn { justify-content: center; gap: var(--zella-space-2); width: 100%; min-height: calc(var(--zella-space-8) + var(--zella-space-3)); }
+
+/* the trust row under the payment panel's content */
+.zgc-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zella-space-2) var(--zella-space-4);
+  margin: 0;
+  padding-top: var(--zella-space-3);
+  border-top: 1px solid var(--zella-border);
+  color: var(--zella-text-secondary);
+  font-size: var(--zella-text-xs);
+  font-weight: 600;
+}
+.zgc-trust span { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
+.zgc-trust .ba-icon { color: var(--zella-success); }
 
 /* Stripe's iframe sizes itself; while it loads, a skeleton holds roughly its first height so nothing jumps */
 .zgc-embed { position: relative; min-width: 0; }
@@ -65,49 +91,111 @@
 .zgc-standin strong { color: var(--zella-text); }
 .zgc-standin p { margin: 0; }
 
-/* the summary */
+/* ---------- the order summary ---------- */
 .zgc-summary h3 { margin: 0; color: var(--zella-text); font-size: var(--zella-text-lg); font-weight: 600; }
 .zgc-lines { display: flex; flex-direction: column; gap: var(--zella-space-2); margin: 0; }
-.zgc-lines > div { display: flex; justify-content: space-between; gap: var(--zella-space-3); padding-bottom: var(--zella-space-2); border-bottom: 1px solid var(--zella-border); }
-.zgc-lines dt { color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.zgc-lines > div { display: flex; align-items: center; justify-content: space-between; gap: var(--zella-space-3); padding-bottom: var(--zella-space-2); border-bottom: 1px solid var(--zella-border); }
+.zgc-lines dt { display: inline-flex; align-items: center; gap: var(--zella-space-2); min-width: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
 .zgc-lines dd { margin: 0; color: var(--zella-text); font-size: var(--zella-text-sm); font-weight: 600; text-align: right; overflow-wrap: anywhere; }
-.zgc-total { display: flex; align-items: baseline; justify-content: space-between; gap: var(--zella-space-3); color: var(--zella-text); }
-.zgc-total span { font-size: var(--zella-text-sm); font-weight: 600; }
-.zgc-total strong { font-size: var(--zella-text-xl); font-weight: 600; }
-
-/* ---------- the card picture: no digits, the look's own colours ---------- */
-.zgc-card {
-  position: relative;
-  width: min(100%, 300px);
-  aspect-ratio: 1.586;
-  border-radius: var(--zella-radius-lg);
-  box-shadow: var(--zella-shadow-md);
+.zgc-line-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-primary-soft);
+  color: var(--zella-primary);
 }
-.zgc-card.big { width: min(78vw, 340px); }
+/* Due today: the one number that matters */
+.zgc-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--zella-space-2);
+  padding: var(--zella-space-3) var(--zella-space-4);
+  border: 1px solid var(--zella-primary-border);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-primary-soft);
+  color: var(--zella-text);
+}
+.zgc-total span { font-size: var(--zella-text-sm); font-weight: 600; }
+.zgc-total strong { font-size: var(--zella-text-page); font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; }
+
+/* ---------- the card picture: a premium card in the look's own colours, no digits ---------- */
+.zgc-card { position: relative; width: min(100%, 320px); aspect-ratio: 1.586; perspective: 900px; }
+.zgc-card.big { width: min(78vw, 360px); }
+.zgc-card-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 800ms var(--zgc-ease);
+}
+.zgc-card.tilt:hover .zgc-card-inner { transform: rotateX(5deg) rotateY(-8deg) translateY(-2px); }
+.zgc-card.ok .zgc-card-inner { transform: rotateY(180deg); }
 .zgc-card-face {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: var(--zella-space-4);
-  border-radius: inherit;
-  transition: opacity 400ms cubic-bezier(0.22, 1, 0.36, 1);
+  grid-template-rows: auto 1fr auto auto;
+  gap: var(--zella-space-1);
+  overflow: hidden;
+  padding: var(--zella-space-4) var(--zella-space-5);
+  border-radius: var(--zella-radius-lg);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* a soft inner highlight edge and a layered shadow */
+  box-shadow: inset 0 1px 0 var(--zella-sheen), inset 0 0 0 1px var(--zella-sheen), var(--zella-shadow-md), var(--zella-shadow-pop);
+  /* the face that isn't showing is hidden half way through the flip, so it is never read or measured */
+  transition: visibility 0s linear 400ms;
 }
-.zgc-card-base { background: var(--zella-primary); color: var(--zella-on-primary); }
-.zgc-card-done { background: var(--zella-success); color: var(--zella-on-success); opacity: 0; }
-.zgc-card.ok .zgc-card-done { opacity: 1; }
-.zgc-card.ok .zgc-card-base { opacity: 0; }
-.zgc-card-chip { width: 38px; height: 28px; border-radius: var(--zella-radius-sm); background: currentColor; opacity: 0.35; }
-.zgc-card-label { align-self: end; font-size: var(--zella-text-base); font-weight: 600; letter-spacing: 0.01em; }
-.zgc-card-bars { display: flex; gap: var(--zella-space-2); align-self: center; }
-.zgc-card-bars i { flex: 1; height: 8px; border-radius: var(--zella-radius-full); background: currentColor; opacity: 0.3; }
-.zgc-card-check { align-self: center; justify-self: start; font-size: 0; }
-.zgc-card-check .ba-icon { font-size: 34px; }
+.zgc-card-base {
+  background-color: var(--zella-primary);
+  background-image:
+    linear-gradient(115deg, transparent 52%, var(--zella-sheen) 64%, transparent 76%),
+    linear-gradient(135deg, color-mix(in srgb, var(--zella-primary) 86%, var(--zella-on-primary)) 0%, var(--zella-primary) 48%, color-mix(in srgb, var(--zella-primary) 90%, var(--zella-text)) 100%);
+  color: var(--zella-on-primary);
+}
+.zgc-card-done {
+  background-color: var(--zella-success);
+  /* shaded toward the look's text colour (darker under white text, lighter under Glass's dark text), no sheen: the
+     small type on it keeps AA in every look */
+  background-image: linear-gradient(135deg, var(--zella-success) 0%, color-mix(in srgb, var(--zella-success) 82%, var(--zella-text)) 100%);
+  color: var(--zella-on-success);
+  transform: rotateY(180deg);
+  visibility: hidden;
+}
+.zgc-card.ok .zgc-card-done { visibility: visible; }
+.zgc-card.ok .zgc-card-base { visibility: hidden; }
+.zgc-card-row { display: flex; align-items: center; justify-content: space-between; gap: var(--zella-space-2); min-width: 0; }
+.zgc-card-mid { align-self: center; justify-content: flex-start; gap: var(--zella-space-3); }
+.zgc-card-mark { font-size: var(--zella-text-xs); font-weight: 700; letter-spacing: 0.04em; }
+.zgc-card-brand { font-size: var(--zella-text-sm); font-weight: 700; letter-spacing: 0.02em; }
+.zgc-card-number { font-family: var(--zella-font-mono); font-size: var(--zella-text-lg); font-weight: 600; letter-spacing: 0.12em; white-space: nowrap; overflow: hidden; }
+.zgc-card.big .zgc-card-number { font-size: var(--zella-text-xl); }
+.zgc-card-label { font-size: var(--zella-text-sm); font-weight: 600; }
+.zgc-chip-body { fill: color-mix(in srgb, var(--zella-primary) 45%, var(--zella-on-primary)); stroke: currentColor; stroke-opacity: 0.35; stroke-width: 1.5; }
+.zgc-card-done .zgc-chip-body { fill: color-mix(in srgb, var(--zella-success) 45%, var(--zella-on-success)); }
+.zgc-chip-lines { fill: none; stroke: currentColor; stroke-opacity: 0.45; stroke-width: 1.2; }
+.zgc-contactless path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; opacity: 0.85; }
+.zgc-check circle { fill: none; stroke: currentColor; stroke-width: 2; opacity: 0.35; }
+.zgc-check path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 26; stroke-dashoffset: 0; }
 
-/* ---------- confirming: the panels soften behind a frosted layer and the card moves to the centre ---------- */
+/* the shimmer that sweeps across the card while we confirm */
+.zgc-card-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, var(--zella-sheen) 50%, transparent 65%);
+  opacity: 0;
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+/* ---------- confirming: the panels blur and dim behind a frosted layer and the card flies to the centre ---------- */
 .zgc-stage {
   position: absolute;
-  inset: calc(var(--zella-space-2) * -1);
+  inset: 0;
   z-index: 2;
   display: flex;
   flex-direction: column;
@@ -115,43 +203,74 @@
   justify-content: center;
   gap: var(--zella-space-4);
   padding: var(--zella-space-4);
-  border-radius: var(--zella-radius-lg);
-  background: color-mix(in srgb, var(--zella-card) 72%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
-  backdrop-filter: blur(10px) saturate(120%);
-  animation: zgc-fade 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--zella-card) 70%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  backdrop-filter: blur(12px) saturate(120%);
+  animation: zgc-fade 600ms var(--zgc-ease) both;
 }
-/* no backdrop blur in this browser: a nearly solid layer instead, so the caption still reads */
+/* no backdrop blur in this browser: a plain surface instead, so the caption still reads */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .zgc-stage { background: var(--zella-card); }
   html[data-zella-theme="glass"]:has(.ba-root) .zgc-stage { background: var(--glass-solid); }
 }
 /* Glass: the card token is translucent, so the layer uses the look's nearly solid surface */
 html[data-zella-theme="glass"]:has(.ba-root) .zgc-stage { background: color-mix(in srgb, var(--glass-solid) 70%, transparent); }
+.zgc-stage-card { position: relative; display: grid; place-items: center; }
 .zgc-stage-caption { margin: 0; color: var(--zella-text); font-size: var(--zella-text-lg); font-weight: 600; text-align: center; }
-.zgc-fly { animation: zgc-fly 560ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.zgc-fly { animation: zgc-fly 850ms var(--zgc-ease) both; }
 @keyframes zgc-fade { from { opacity: 0; } to { opacity: 1; } }
+/* lifts off the panel, then settles in the centre a touch larger */
 @keyframes zgc-fly {
-  from { transform: translate(var(--zgc-dx, 0), var(--zgc-dy, 0)) scale(var(--zgc-scale, 1)); }
-  to { transform: none; }
+  0% { transform: translate(var(--zgc-dx, 0), var(--zgc-dy, 0)) scale(var(--zgc-scale, 1)); }
+  35% { transform: translate(calc(var(--zgc-dx, 0px) * 0.7), calc(var(--zgc-dy, 0px) * 0.7 - 28px)) scale(calc(var(--zgc-scale, 1) * 1.06)); }
+  100% { transform: none; }
 }
 /* the card in the panel steps back while its copy flies */
 .zgc.is-confirming .zgc-pay .zgc-card, .zgc.is-pending .zgc-pay .zgc-card, .zgc.is-confirmed .zgc-pay .zgc-card { opacity: 0; }
 
+/* processing: the shimmer sweeps and the ring turns */
+.zgc.is-confirming .zgc-stage .zgc-card-shimmer, .zgc.is-pending .zgc-stage .zgc-card-shimmer { animation: zgc-shimmer 1800ms var(--zgc-ease) 700ms infinite; }
+@keyframes zgc-shimmer { 0% { transform: translateX(-120%); opacity: 1; } 70%, 100% { transform: translateX(120%); opacity: 1; } }
+.zgc-ring { animation: zgc-spin 1100ms linear infinite; }
+.zgc-ring circle { fill: none; stroke-width: 3.5; }
+.zgc-ring-track { stroke: var(--zella-border-strong); }
+.zgc-ring-arc { stroke: var(--zella-primary); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 70; }
+@keyframes zgc-spin { to { transform: rotate(360deg); } }
+
+/* success: the card flips to the success colour, the check draws itself, a glow pulses */
+.zgc-glow {
+  position: absolute;
+  inset: 6%;
+  border-radius: var(--zella-radius-lg);
+  box-shadow: 0 0 48px 12px var(--zella-success);
+  opacity: 0;
+}
+.zgc.is-confirmed .zgc-glow { animation: zgc-glow 1600ms var(--zgc-ease) 700ms 2; }
+@keyframes zgc-glow { 0%, 100% { opacity: 0; } 50% { opacity: 0.45; } }
+.zgc.is-confirmed .zgc-check path { animation: zgc-draw 650ms var(--zgc-ease) 650ms both; }
+@keyframes zgc-draw { from { stroke-dashoffset: 26; } to { stroke-dashoffset: 0; } }
+
 /* the page around it: a wider card on the Pay step, so the two panels sit side by side on a desktop */
 @media (min-width: 960px) { .zob-page:has(.zgc) { max-width: 1040px; } }
 
-/* Glass frosts the panels like the rest of the journey */
+/* Glass: a stronger frost, a fine light border and an inner glow */
+html[data-zella-theme="glass"]:has(.ba-root) .zgc-stage-wrap { background: color-mix(in srgb, var(--zella-primary) 6%, transparent); }
 html[data-zella-theme="glass"]:has(.ba-root) .zgc-panel {
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-edge), var(--zella-shadow-md);
+  border-color: var(--zella-border-strong);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
+  box-shadow: var(--glass-edge), inset 0 0 32px color-mix(in srgb, var(--zella-primary) 9%, transparent), var(--zella-shadow-md);
 }
 
-/* reduced motion: no blur, no flight, no fades; the states simply change */
+/* reduced motion: no blur, no tilt, no flight, no flip, no shimmer, no spin, no glow; the states simply change */
 @media (prefers-reduced-motion: reduce) {
-  .zgc-stage, .zgc-fly, .zgc-skeleton span { animation: none; }
-  .zgc-card-face { transition: none; }
+  .zgc-stage, .zgc-fly, .zgc-skeleton span, .zgc-ring, .zgc-glow, .zgc-card-shimmer, .zgc-check path { animation: none !important; }
+  .zgc-card-inner, .zgc-card-face { transition: none; }
+  .zgc-card.tilt:hover .zgc-card-inner { transform: none; }
+  /* the success face shows without turning */
+  .zgc-card.ok .zgc-card-inner { transform: none; }
+  .zgc-card-done { transform: none; }
   .zgc-stage { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--zella-card); }
   html[data-zella-theme="glass"]:has(.ba-root) .zgc-stage { background: var(--glass-solid); }
 }

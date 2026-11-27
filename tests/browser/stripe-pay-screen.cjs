@@ -87,8 +87,8 @@ async function contrast(page) {
     }
     return out;
   });
-  await page.addStyleTag({ content: "*, *::before, *::after { color: transparent !important; text-shadow: none !important; caret-color: transparent !important; transition: none !important; }", }).then((h) => h.evaluate((s) => { s.id = "zgc-test-hide"; }));
-  await page.waitForTimeout(250);
+  await page.addStyleTag({ content: "*, *::before, *::after { color: transparent !important; text-shadow: none !important; caret-color: transparent !important; transition: none !important; } .zgc-card-shimmer { visibility: hidden !important; }", }).then((h) => h.evaluate((s) => { s.id = "zgc-test-hide"; }));
+  await page.waitForTimeout(250);   // (the card's shimmer is a moving highlight that passes in a moment: hidden while measuring)
   const png = readPng(await page.screenshot());
   await page.evaluate(() => document.getElementById("zgc-test-hide")?.remove());
   const bad = [];
@@ -133,8 +133,8 @@ async function seed(scenario) {
   return [...mem.entries()];
 }
 
-async function open(browser, { look, viewport, seeded, scenario, reduced = false, query = "" }) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: reduced ? "reduce" : "no-preference" });
+async function open(browser, { look, viewport, seeded, scenario, reduced = false, query = "", video = null }) {
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: reduced ? "reduce" : "no-preference", ...(video ? { recordVideo: { dir: video, size: viewport } } : {}) });
   const hits = [];
   await ctx.route((url) => ["http:", "https:"].includes(url.protocol), async (route) => {
     const url = new URL(route.request().url());
@@ -187,7 +187,9 @@ async function shot(page, look, width, state, axeSource) {
       await page.waitForSelector("text=Ready to pay", { timeout: 10000 }).catch(() => {});
       check(`${tag}: ready, with the server's amount`, await page.isVisible("text=Ready to pay") && (await page.locator(".zgc-total strong").innerText()) === "$898");
       check(`${tag}: Back and Finish later are there`, await page.isVisible("button:has-text('Back')") && await page.isVisible("button:has-text('Finish later')"));
-      check(`${tag}: the card has no digits before payment`, !/\d/.test(await cardText(page)));
+      check(`${tag}: the card has no digits before payment, only placeholder dots`, !/\d/.test(await cardText(page)) && (await cardText(page)).includes("••••"));
+      check(`${tag}: the trust row and an icon on each summary line`, (await page.locator(".zgc-trust").innerText()).includes("Card details never reach Zella Voice")
+        && (await page.locator(".zgc-lines > div").count()) === (await page.locator(".zgc-lines .zgc-line-icon").count()));
       await shot(page, look, width, "ready", axeSource);
 
       await page.click("button:has-text('Pay securely')");
@@ -207,15 +209,15 @@ async function shot(page, look, width, state, axeSource) {
       await shot(page, look, width, "processing", axeSource);
 
       await page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(500);
-      check(`${tag}: confirmed only by the server: Payment received, the title follows`, (await page.locator("#zgc-status").innerText()) === "Payment received" && (await h1(page)) === "Your payment is confirmed");
-      check(`${tag}: confirmed: brand and last 4 as the server returned them, nothing else`, (await cardText(page)).includes("Visa ending 4242") && !/\d{5,}/.test(await cardText(page)));
+      await page.waitForTimeout(4200);   // the flip, the check drawing and the glow's two pulses have finished
+      check(`${tag}: confirmed only by the server: Payment received, the title follows`, (await page.locator("#zgc-status").innerText()) === "Payment received" && (await h1(page)) === "You're all set");
+      check(`${tag}: confirmed: brand and last 4 as the server returned them, nothing else`, /\bVisa\b/.test(await cardText(page)) && (await cardText(page)).includes("ending 4242") && !/\d{5,}/.test(await cardText(page)));
       check(`${tag}: confirmed: the card is the look's success colour`, await page.evaluate(() => {
         const face = document.querySelector(".zgc-stage .zgc-card-done"), probe = document.createElement("i");
         if (!face) return false;
         probe.style.color = "var(--zella-success)"; document.body.append(probe);
         const want = getComputedStyle(probe).color; probe.remove();
-        return getComputedStyle(face).backgroundColor === want && getComputedStyle(face).opacity === "1";
+        return getComputedStyle(face).backgroundColor === want && getComputedStyle(face).visibility === "visible" && getComputedStyle(document.querySelector(".zgc-stage .zgc-card-base")).visibility === "hidden";
       }));
       check(`${tag}: confirmed: Continue is offered`, await page.isVisible("button:has-text('Continue')"));
       check(`${tag}: confirmed: the summary keeps the server's amount`, (await page.locator(".zgc-total strong").innerText()) === "$898");
@@ -244,13 +246,19 @@ async function shot(page, look, width, state, axeSource) {
     await rm.page.waitForSelector(".zgc-stage", { timeout: 8000 }).catch(() => {});
     const motion = await rm.page.evaluate(() => {
       const stage = getComputedStyle(document.querySelector(".zgc-stage")), card = document.querySelector(".zgc-stage .zgc-card");
+      const ring = document.querySelector(".zgc-ring"), shimmer = card.querySelector(".zgc-card-shimmer");
       return { blur: stage.backdropFilter, anim: stage.animationName, fly: card.classList.contains("zgc-fly"), cardAnim: getComputedStyle(card).animationName,
-        transition: getComputedStyle(card.querySelector(".zgc-card-face")).transitionDuration };
+        transition: getComputedStyle(card.querySelector(".zgc-card-inner")).transitionDuration,
+        ring: ring ? getComputedStyle(ring).animationName : "none", shimmer: getComputedStyle(shimmer).animationName };
     });
     check(`${look.name}: reduced motion: no blur, no fade, no flight, no colour fade`,
-      motion.blur === "none" && motion.anim === "none" && !motion.fly && motion.cardAnim === "none" && parseFloat(motion.transition) < 0.001, JSON.stringify(motion));
+      motion.blur === "none" && motion.anim === "none" && !motion.fly && motion.cardAnim === "none" && parseFloat(motion.transition) < 0.001 && motion.ring === "none" && motion.shimmer === "none", JSON.stringify(motion));
     await rm.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
     check(`${look.name}: reduced motion: still reaches Payment received through the server`, await rm.page.isVisible("#zgc-status:has-text('Payment received')"));
+    check(`${look.name}: reduced motion: the success face shows without turning`, await rm.page.evaluate(() => {
+      const inner = document.querySelector(".zgc-stage .zgc-card-inner"), done = document.querySelector(".zgc-stage .zgc-card-done");
+      return getComputedStyle(inner).transform === "none" && getComputedStyle(done).visibility === "visible" && getComputedStyle(done.querySelector(".zgc-check path")).animationName === "none";
+    }));
     await rm.ctx.close();
   }
 
@@ -276,6 +284,26 @@ async function shot(page, look, width, state, axeSource) {
     check("return: the session id is gone from the address bar", !r.page.url().includes("session_id") && !r.page.url().includes("checkout="));
     check("return: nothing left this machine", r.hits.length === 0, r.hits.join(", "));
     await r.ctx.close();
+  }
+  // VIDEO=<folder>: a recording of pay -> processing -> confirmed in the Zella Voice look and Glass over a picture
+  if (process.env.VIDEO) {
+    fs.mkdirSync(process.env.VIDEO, { recursive: true });
+    for (const look of [LOOKS[0], LOOKS[3]]) {
+      const v = await open(browser, { look, viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay", video: process.env.VIDEO });
+      await v.page.waitForTimeout(800);
+      await v.page.hover(".zgc-pay .zgc-card"); await v.page.waitForTimeout(900);
+      await v.page.click("button:has-text('Pay securely')");
+      await v.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
+      await v.page.waitForTimeout(1200);
+      await v.page.click("button:has-text('Complete the stand in payment')");
+      await v.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+      await v.page.waitForTimeout(4500);
+      const rec = v.page.video();
+      await v.ctx.close();
+      const to = path.join(process.env.VIDEO, `pay-motion-${look.name}-1440.webm`);
+      fs.renameSync(await rec.path(), to);
+      console.log(`video ${to}`);
+    }
   }
   await browser.close();
   console.log(`${passes} passed, ${fails} failed`);
