@@ -38,6 +38,7 @@ Change a value in `tokens.css` and every app follows. Don't add hex colours to a
 | Borders | `--zella-border` / `--zella-border-strong` | #E9E2D9 / #D9CFC3 |
 | Selected navigation | `--zella-nav-active` | #E7D9CB |
 | Success, info, warning, danger | `--zella-{success,info,warning,danger}` + `-bg`, `-border` | green, blue, amber, red |
+| Text on a solid success surface (27 Nov 2026) | `--zella-on-success` | #FFFFFF (5.3:1 on #1F7A45); Zella Voice #FFFFFF on #0B7A5E; Glass #0E2A1B on #86E3AE |
 
 The table above is Classic. The Zella Voice look re-points the same names (`zella-theme.css`): page #FAFAF7, cards and
 sidebar white, primary midnight #0B0F1A, `--zella-primary-soft` coral tint #FFE9E3, text #0B0F1A, borders #D9DCE1.
@@ -101,6 +102,23 @@ fade into `--zella-bg` to show it scrolls, and the open tab is scrolled into vie
 are not changed by this.
 
 ## Components added with the owner onboarding journey
+
+- **Glass checkout** (`web/src/billing/GlassCheckout.jsx`, `.zgc` in `billing/glassCheckout.css`; owner, 27 Nov
+  2026): the Pay step, and later the Pay now page for an unpaid invoice. A status panel (`.zob-status` tones, its `h2`
+  takes focus when the state changes), then a payment panel (a card picture, Pay securely, and Stripe's own Embedded
+  Checkout form, which sizes itself; a skeleton holds about 360px while it loads) beside an order summary (`dl` lines,
+  "Due today" with the server's amount). Panels stack below 900px; the journey card widens to 1040px from 960px on
+  this step. Tokens only, so every look follows: Zella Voice, Classic, and Glass with or without "Match colours to the
+  picture" (Glass frosts the panels). The card picture is `--zella-primary` with `--zella-on-primary` text and never
+  shows digits; once the server confirms a payment it shows `--zella-success` with `--zella-on-success` text and the
+  brand and last 4 only if the server returns them. One polite live region announces the changes. Errors (expired,
+  offline, Stripe's form not loading, server, key modes) show in the status panel with one next step.
+- **Checkout motion (owner approved exception to the calm CRM motion, 27 Nov 2026):** only the idea of the reference
+  video, in Zella Voice's own colours. When Stripe finishes, a frosted layer (`backdrop-filter: blur(10px)` over
+  `--zella-card` at 72%, or `--glass-solid` in Glass) fades in over the panels in 300ms, the card flies from its place
+  to the centre in 560ms (transform only, measured once), and the card's success face fades in over 400ms when the
+  server confirms. Everything behind the layer is `inert`. With reduced motion there is no blur (a plain surface), no
+  fade and no flight: the states simply change. Where `backdrop-filter` isn't supported the layer is a plain surface.
 
 - **Progress steps** (`web/src/onboarding/ProgressSteps.jsx`, `.zv-progress` in `onboarding/onboarding.css`): "Step 3 of 7" and the step's name, a mocha bar with `role="progressbar"` and an accessible value text, and one dot per step (done, here, to come). The words carry the meaning; the bar and dots back them up. Give it `screens` and the `current` index.
 - **Authenticator set up** (`web/src/AuthenticatorSetup.jsx`, `.zv-authsetup`): the three instructions, the QR code (kept black on white in every look), the key to type by hand, the six digit code and one main button. It uses the same calls as the admin sign in and Settings (`mfa.js`); `start` and `finish` can be passed in. It never decides who must use two step sign in.

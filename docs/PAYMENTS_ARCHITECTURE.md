@@ -22,7 +22,7 @@ Contents: [1 Goals](#1-goals-and-non-negotiables) · [2 Context](#2-system-conte
 
 | # | Goal | How |
 |---|---|---|
-| G1 | **No card data ever touches Zella Voice** (`NN-9`) | Cards are entered only on Stripe's hosted pages (Checkout, or the Customer Portal for card changes). We store provider IDs, never card numbers, CVV or bank details. PCI scope stays at the smallest level (hosted payment page). |
+| G1 | **No card data ever touches Zella Voice** (`NN-9`) | Cards are entered only into Stripe's own hosted forms: Stripe **Embedded Checkout** (owner, 27 Nov 2026: Stripe's Checkout form, served by Stripe inside Stripe's iframe on our Pay page; our page can't read it), or the Customer Portal for card changes. We have no card field of our own, and we store provider IDs, never card numbers, CVV, expiry or bank details. PCI scope stays at the smallest level: Stripe's PCI FAQ says using Checkout or Elements qualifies for SAQ A, because the card inputs sit in an iframe served from Stripe's domain; Embedded Checkout is Checkout in that iframe. We remain responsible for our own page (its scripts and CSP). §16.10 says what was read, and what to confirm on the live pages before go live. |
 | G2 | **No money movement is applied twice, and none is lost silently** | Layers that work together (§8): scoped idempotency keys, a de-duplicating webhook inbox, an outbox for every provider call, unique keys on provider object IDs and local operations, and reconciliation; an outcome we cannot confirm is held and alerted, never guessed. |
 | G3 | **The database decides; screens only ask** (`NN-6`, `SEC-5`) | Prices, eligibility, proration and limits are computed in database functions. The browser never sends an amount. |
 | G4 | **The provider is the source of truth for money; we are the source of truth for entitlement** | A payment is "paid" only when a verified webhook (or a server-side fetch from Stripe) says so. Minutes, texts and emails are granted only by our ledger. |
@@ -72,7 +72,7 @@ flowchart LR
 flowchart TB
   subgraph Browser[Untrusted: browser]
     UI[CRM Billing & Subscription page<br/>admin Create Business step 11]
-    RZJS[Stripe Checkout<br/>hosted, card entry]
+    RZJS[Stripe Embedded Checkout<br/>Stripe's form in Stripe's iframe<br/>on our Pay page: card entry]
   end
   subgraph Edge[Trusted: edge functions · stateless]
     BAPI[billing-api<br/>session + role checked<br/>idempotency key required]
@@ -87,7 +87,7 @@ flowchart TB
 
   UI -->|HTTPS + JWT + Idempotency-Key| BAPI
   UI --> RZJS
-  RZJS -->|redirect back with the Checkout Session id| BAPI
+  RZJS -->|onComplete, or return_url after a redirect method:<br/>only a prompt to ask the server| BAPI
   BAPI -->|rpc| FN --> T
   RZ -->|webhook| BWH -->|rpc: inbox insert| FN
   BWK -->|claim SKIP LOCKED| FN
@@ -279,10 +279,11 @@ sequenceDiagram
   BO->>API: POST start checkout (Idempotency-Key K1)
   API->>DB: zella_billing_start_checkout(K1) → invoice draft + outbox "create Checkout Session"
   WK->>RZ: Checkout Session (mode subscription · our Price · setup fee as a one-time item · metadata = our ids)
-  RZ-->>WK: session id + url (stored at once)
-  API-->>BO: redirect to Stripe Checkout
-  BO->>RZ: enter card on Stripe's page (3-D Secure when the bank asks)
-  RZ-->>BO: back to the Billing page with the session id → "processing"
+  RZ-->>WK: session id (stored at once; the client_secret is never stored)
+  API->>RZ: retrieve the session (ours? open? embedded? same mode?)
+  API-->>BO: client_secret + publishable key (memory only)
+  BO->>RZ: Stripe.js mounts Embedded Checkout in our page; card typed into Stripe's iframe (3-D Secure when the bank asks)
+  RZ-->>BO: onComplete (or return_url after a redirect method) → "Confirming your payment"
   RZ->>WH: checkout.session.completed · invoice.paid (signed)
   WH->>DB: inbox insert (dedupe on event id) → 200
   DB->>DB: binding check (§6.0a) → invoice paid, subscription active, buckets granted, ledger postings
@@ -298,9 +299,39 @@ first `invoice.paid` must equal our amount with only our prices; the trial puts 
 invoice (a pending invoice item), so nothing is charged at the start (REQ-BIL-12). Tested end to end against the local
 fake Stripe (`tests/stripe_checkout/flow_test.ts`).
 
-The return to our page only shows "processing". **Access is granted only when the verified webhook (or the worker's
-fetch from Stripe) confirms the paid invoice, and the payment passes the binding check below.** A lost redirect never
-loses a payment, and a forged redirect never grants anything.
+**Embedded Checkout (owner, 27 Nov 2026; built switched off, not applied: `sql/zella_stripe_embedded_checkout.sql`,
+`billing-api`, `web/src/billing/GlassCheckout.jsx`).** The Pay step is a glass checkout: a payment panel with Stripe's
+own form and an order summary, in the owner's Zella Voice look. Only the place the form appears changed; the money path
+above did not:
+
+- **The session body** (stored in the outbox with key `checkout:<id>`, §8.1) asks for `ui_mode: "embedded"`, a
+  `return_url` back to the Pay step and `redirect_on_completion: "if_required"`, instead of `success_url` and
+  `cancel_url` (Stripe refuses those with an embedded session). Metadata carries the business, the checkout and the
+  plan version; `client_reference_id` is our checkout id. One open checkout per business, as before: a double click,
+  a retry, a second tab or a reload gets the same session.
+- **`checkout_start`** answers `{ status: "open", client_secret, publishable_key, livemode, mode, amount_minor,
+  currency, expires_at }`, or `{ status: "processing" }` when Stripe already took the payment. Before any secret
+  leaves the server, it retrieves the session from Stripe and checks it is ours (our stored session id, our checkout,
+  this business, the key's mode), open and embedded; an expired one answers `CHECKOUT_EXPIRED` (start again, nothing
+  charged). The publishable key comes from `STRIPE_PUBLISHABLE_KEY` (not a secret) and must be in the same mode as
+  the secret key, otherwise the step stays closed (`PAYMENTS_MISCONFIGURED`) and an urgent platform alert
+  `stripe_key_mode_mismatch` is raised. The browser checks the modes again before mounting.
+- **The client secret** goes from Stripe's answer to the owner's browser and into Stripe.js: never stored (the
+  outbox drops `client_secret` from every stored response), never logged, never in the address bar or browser storage.
+- **Stripe.js** loads only on the Pay step, only after Pay is pressed with payments live, once, from
+  `https://js.stripe.com/clover/stripe.js` (the release for our pinned API version). The stand in api used for local
+  previews brings its own stand in form and never loads it.
+- **After Stripe finishes** (`onComplete`, or the `return_url` after a payment method that redirects) the page only
+  shows "Confirming your payment" and asks our server (`checkout_return`) with backoff (1, 2, 3, 5, 8, 13, 20 and
+  30 seconds), then calmly once a minute ("Still confirming": never failed, never paid). The session id is removed
+  from the address bar. "Payment received" shows only when the server confirms a verified, bound payment.
+- **The card picture** never shows digits. After a confirmed payment `checkout_return` adds `card: { brand, last4 }`
+  when Stripe returns both for the subscription's saved card (fetched with the server key, a known brand and exactly
+  four digits only, never stored); otherwise no digits are shown.
+
+The return to our page, or Stripe's `onComplete`, only shows "processing". **Access is granted only when the verified
+webhook (or the worker's fetch from Stripe) confirms the paid invoice, and the payment passes the binding check
+below.** A lost redirect never loses a payment, and a forged redirect or a faked `onComplete` never grants anything.
 
 **Owner decision (16 Nov 2026), built in `sql/zella_stripe_payment_gate.sql`:** the first payment is required for go live only while `payments_live` is true. While it is false, `zella_onboarding_rules().first_payment` is `not_until_payments_live`, the go live gate doesn't wait for a payment, and onboarding step 6 shows "Payment opens here soon" with Continue. Switching payments on applies "pay before going live" to every business not live yet.
 
@@ -756,7 +787,31 @@ Settings › Billing › Payment method (audited, confirmed by email): the subsc
 that one invoice, so it can never be paid twice. An invoice still unpaid at its due date follows the failed-payment path
 (§6.3): reminders, final notice, pause on day 5. Switching back on needs a working saved card.
 
-**Built (lane F, switched off, `sql/zella_stripe_emails.sql`, `_shared/billingEmails.ts`):** the database decides each notice from our own records (one key per business object, so doubled events never send twice); the worker renders it strictly with the shared catalogue and queues one copy per owner in the platform outbox, which stays in test mode while `email_live` is off. **Owner decision needed:** the templates that say "card ending 4242" (A2, A3, A4, A6, B1, B2, C1, C2, C3, D1) need the last 4 digits, which §9 says are never stored; until the owner decides (fetch them from Stripe at render time, or reword the templates), those emails are held with `MISSING_FIELD:<code>:card` and nothing invents a value. A1, C4, D2, D5 and similar card free notices are queued.
+**Pay now on our own page (owner request, 27 Nov 2026; design only, NOT BUILT).** The same glass checkout and motion
+as the Pay step, for an unpaid invoice:
+
+- The Pay now link (billing emails, and Settings › Billing › Invoices) opens a **Zella Voice page**, not Stripe's
+  hosted invoice page. The page needs the owner to sign in (the business's active owner, a code verified session,
+  checked in the database as for every owner billing call); the link carries only our invoice id, never a secret.
+- The page mounts Stripe's form inside it with the same component (`web/src/billing/GlassCheckout.jsx`, its `mount`
+  and `start` props). **Which Stripe form:** Embedded Checkout makes its own payment from line items or a
+  subscription, so it doesn't pay an invoice that already exists. An open invoice is paid with the **Payment
+  Element** confirmed against the invoice's own PaymentIntent: on the pinned API version the finalised invoice's
+  `confirmation_secret` (expand it) holds "the client_secret of the PaymentIntent that Stripe creates during invoice
+  finalization" (Stripe's API reference text, §16.10); `invoice.payment_intent` is not on this version. The browser
+  then calls `stripe.confirmPayment` with `redirect: "if_required"` from our own Pay button (the Payment Element has
+  no button of its own), so the component needs that button for this mount.
+- A new `billing-api` action would return that client secret only for an `open` invoice of this business that is ours
+  (`billing_invoices`), the same mode checks as the Pay step, and never store it. Paid stays decided by
+  `invoice.paid` and the binding check (§6.0a); paying twice is impossible because the invoice's one PaymentIntent is
+  confirmed, not a new charge.
+- **Fallback:** Stripe's hosted invoice page (`hosted_invoice_url`) stays, behind a "Pay on Stripe's page instead"
+  link and whenever Stripe.js can't load.
+- Before building: prove in the Stripe sandbox that the finalised invoice's `confirmation_secret` is returned with
+  `expand[]=confirmation_secret` on the pinned version, that 3D Secure completes inside the Payment Element, and that
+  the CSP below needs nothing more.
+
+**Built (lane F, switched off, `sql/zella_stripe_emails.sql`, `_shared/billingEmails.ts`):** the database decides each notice from our own records (one key per business object, so doubled events never send twice); the worker renders it strictly with the shared catalogue and queues one copy per owner in the platform outbox, which stays in test mode while `email_live` is off. **Owner decision needed:** the templates that say "card ending 4242" (A2, A3, A4, A6, B1, B2, C1, C2, C3, D1) need the last 4 digits, which §9 says are never stored; until the owner decides (fetch them from Stripe at render time, or reword the templates), those emails are held with `MISSING_FIELD:<code>:card` and nothing invents a value. **Owner decision (27 Nov 2026): the brand and last 4 may be shown in billing emails**, fetched from Stripe when the email is rendered and never stored. That fetch is not built yet, so these emails are still held. A1, C4, D2, D5 and similar card free notices are queued.
 
 The full list of billing emails, their content, the SMS copies of the urgent ones, settings and tests is in
 `docs/BILLING_EMAILS.md`.
@@ -1033,9 +1088,11 @@ stateDiagram-v2
 
 | Area | Control |
 |---|---|
-| Card data | Stripe-hosted pages only (Checkout, Customer Portal). No card fields in our pages, logs, analytics or support tools (`NN-9`). |
+| Card data | Stripe's hosted forms only: Embedded Checkout (Stripe's form in Stripe's iframe on our Pay page; our page can't read it) and the Customer Portal. No card fields of ours in our pages, logs, analytics or support tools (`NN-9`); the card picture on the Pay step never mirrors what is typed. |
 | Webhook authenticity | `Stripe-Signature`: HMAC-SHA256 with the endpoint secret over `<t>.<raw body>` (never parsed and re-serialised), constant-time compare against every `v1` value, timestamp within 5 minutes; reject on any mismatch. The event ID only de-duplicates deliveries; replays have no effect because of unique keys on Stripe object IDs and local operations (§8). During a secret roll both secrets are valid for the overlap Stripe allows. |
-| Checkout return | Not verified or trusted: the session id on the return URL only shows "processing" and lets the server fetch the session; the webhook or that server-side fetch grants access (§6.1). |
+| Checkout return | Not verified or trusted: Stripe.js's `onComplete` and the session id on the return URL only show "processing" and make the page ask the server; the webhook or the server-side fetch grants access (§6.1). |
+| Client secret | The embedded session's `client_secret` is handed from Stripe's answer to the owner's browser only after the server checked the session is ours, open and embedded; never stored, logged, put in the address bar or browser storage. |
+| Stripe.js and the CSP | Loaded only from `https://js.stripe.com`, only on the Pay step with payments live. `web/public/_headers` (report only today) allows `js.stripe.com` and `*.js.stripe.com` for scripts, those plus `hooks.stripe.com` and `checkout.stripe.com` for frames, and `api.stripe.com` and `checkout.stripe.com` for connections, as Stripe's integration security guide lists (§16.10). No Subresource Integrity: Stripe requires loading it from its own address, not bundled or hosted by us, and updates it there. |
 | Amount tampering | The browser never sends an amount. Every amount is computed in the database from `business_plans` and the pack catalog. |
 | Authorization | Business billing: **owner role only** (`TEN-9`), checked in the database. Admin billing: `billing.view` / `billing.manage`, MFA, audit. Row security on every billing table; server-only tables have no client policies. |
 | Sensitive actions | Refunds, credits, plan overrides, trial extensions: reason, second confirmation, audit (`SEC-18`). **Every provider refund needs the Zella Voice owner's approval** (REQ-BIL-45); there is no automatic or threshold-based refund. |
@@ -1043,7 +1100,7 @@ stateDiagram-v2
 | Restricted API key | The worker's key has only the permissions it uses (write: Customers, Checkout Sessions, Subscriptions, Subscription Schedules, Invoices, Invoice Items, PaymentIntents, Refunds, Billing Portal sessions; read: Events, Charges, Balance Transactions, Disputes). No secret key with full access is used by code. The webhook needs no API key except for fetch-before-grant reads. |
 | Stripe metadata | Our ids only (`business_id`, `outbox_id`, `purchase_id`, `refund_id`, `period_id`, `plan_version_id`); never names, emails, phone numbers or call content. |
 | Database access | Inbox, outbox, ledger, idempotency and quarantine tables have **no client policies** and no grants to `anon` or `authenticated`; only `security definer` functions with a pinned `search_path` and a role check first touch them. The service role is used only by the webhook and the worker. Owners read their billing only through owner-checked functions (`TEN-9`). Every money function is tested for cross-tenant denial in the isolated database. |
-| Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind**, not even the last 4 digits or the card brand; the owner manages the card on Stripe's own page. |
+| Data minimisation | Store only provider IDs, status and amounts. **No card details of any kind are stored**, not even the last 4 digits or the card brand; the owner manages the card on Stripe's own page. Owner decision (27 Nov 2026): the brand and last 4 may be shown (the Pay step after a confirmed payment, and billing emails); they are fetched from Stripe when needed and passed through, never stored. |
 | Rate limits | Checkout start, pack purchase and refund request: per user and per business limits; 429 with retry-after. |
 | Fraud | Trial guard (D-48); velocity checks on pack purchases; spend cap on auto-reload; alerts on unusual refund or dispute rates. |
 | Logging | Structured logs with business ID and correlation ID; no personal data, no tokens, no full provider payloads. |
@@ -1239,7 +1296,7 @@ pinned in the request header and changed only on purpose.
 | Need | Stripe product | Notes |
 |---|---|---|
 | Monthly or yearly plan charge | **Billing** subscription (a Product per business, a Price per plan version) | Stripe creates and charges each invoice and retries failures (Smart Retries) |
-| First payment and card entry | **Checkout** (hosted, mode `subscription`) | card entered on Stripe's page; saved for later charges |
+| First payment and card entry | **Checkout**, embedded (`ui_mode: embedded`, mode `subscription`; owner, 27 Nov 2026) | card entered into Stripe's form in Stripe's iframe on our Pay page; saved for later charges |
 | Setup fee | one-time line item on the Checkout Session | on the first invoice |
 | Trial | subscription `trial_end` | card collected at the start, first charge at `trial_end` |
 | Upgrade / downgrade | subscription update with `pending_if_incomplete` / subscription schedule | §6.6 |
@@ -1256,7 +1313,8 @@ pinned in the request header and changed only on purpose.
 |---|---|---|---|
 | Customer | `POST /v1/customers` | email, name, `metadata.business_id` | one per business, stored |
 | Product and Price | `POST /v1/products`, `POST /v1/prices` | `unit_amount` cents, `currency: usd`, `recurring.interval` month or year | a new Price per sold `business_plans` version; Prices are never edited |
-| Checkout Session | `POST /v1/checkout/sessions` | `mode: subscription`, our Price, setup fee item, `subscription_data.trial_end` (trial), `customer`, `success_url`, `metadata` | §6.1, §6.2 |
+| Checkout Session | `POST /v1/checkout/sessions` | `mode: subscription`, `ui_mode: embedded`, `return_url`, `redirect_on_completion: if_required`, our Price, setup fee item, `subscription_data.trial_end` (trial), `customer`, `client_reference_id`, `metadata` | §6.1, §6.2 |
+| Checkout Session, retrieve | `GET /v1/checkout/sessions/:id` (with `expand[]=subscription.default_payment_method` once paid) | | `billing-api`: the `client_secret` for Stripe.js after the binding checks; the saved card's brand and last 4 |
 | Update subscription | `POST /v1/subscriptions/:id` | item `price`, `proration_behavior: always_invoice`, `proration_date` (the preview's), `payment_behavior: pending_if_incomplete` | upgrade (§6.6) |
 | Subscription schedule | `POST /v1/subscription_schedules` | `from_subscription`, next phase with the lower Price | downgrade at period end |
 | Preview invoice | `POST /v1/invoices/create_preview` | the proposed change, `subscription_details.proration_date` | the upgrade quote |
@@ -1297,7 +1355,7 @@ forget keys after 24 hours.
 | What | How |
 |---|---|
 | Webhook | `Stripe-Signature: t=<unix>,v1=<hex>[,…]`; HMAC-SHA256(endpoint secret, `<t>.<raw body>`); compare in constant time with **every** `v1`; reject if `t` is more than 5 minutes from now; ignore other entries (`v0` and debug metadata are never trusted). Already built this way in `billing-webhook/logic.ts` (`verifySignature`). |
-| Return from Checkout | not trusted: the session id is only used to show "processing" and to fetch the session server-side |
+| Return from Checkout | not trusted: Stripe.js's `onComplete` and the session id on the `return_url` are only used to show "processing" and to make the server look again |
 | De-duplication | the event `id`, unique in the inbox; `created` is not used for ordering |
 
 ### 16.5 Webhook events we subscribe to
@@ -1334,6 +1392,7 @@ yet is kept and applied when its parent arrives, fetching the object from the AP
 | Customer emails | Stripe's invoice, receipt and failed-payment emails **off**: Zella Voice sends every invoice, receipt and payment notice itself (§6.11) | *prove* in the sandbox that Stripe sends none |
 | Customer Portal | card update only (no plan changes or cancel there) | plan changes go through our checks |
 | Payment methods | cards | USD, US customers |
+| Checkout branding (Settings, Branding; applies to Embedded Checkout) | **owner decision**: Zella Voice's default look (midnight button, paper background, Inter if offered) | Stripe.js takes no appearance option for Embedded Checkout (its options are the client secret and callbacks, §16.10): the form inside the iframe follows the account's branding, or a session's `branding_settings` (background colour, button colour, border style, font family, display name, icon or logo). Either is one look for every owner, so the form can't follow each person's Zella Voice look; the panel around it does. Sending `branding_settings` per session would change the stored body and needs the owner's choice of values |
 | Separate sandbox and live webhook endpoints | sandbox → staging, live → production; each endpoint pinned to the same API version as our requests | a sandbox event can never grant in live (§6.0a: `livemode` and account checked); payload shapes stay what we tested |
 
 ### 16.7 The owner's account checklist (needs the owner; nothing here is done by Claude)
@@ -1354,7 +1413,9 @@ come first, on staging, before any live key. Then these three steps, first on st
 
 1. **Secrets and price IDs.** In Supabase, Edge Functions, Secrets: `STRIPE_SECRET_KEY` (the restricted key of §9;
    `rk_test_` on staging, `rk_live_` in production) and `STRIPE_WEBHOOK_SECRET` (the endpoint's signing secret from
-   step 2). Plan prices need no IDs: the worker creates a Stripe Product per business and a Price per plan version.
+   step 2). Also `STRIPE_PUBLISHABLE_KEY` (not a secret: Stripe.js uses it in the owner's browser; `pk_test_` on
+   staging, `pk_live_` in production). It must be in the same mode as the secret key: otherwise the Pay step stays
+   closed and an urgent `stripe_key_mode_mismatch` alert is raised. Plan prices need no IDs: the worker creates a Stripe Product per business and a Price per plan version.
    Pack prices come from `billing_pack_catalog` and need no IDs either; `STRIPE_API_BASE` stays unset (tests only).
 2. **The webhook.** In Stripe, Developers, Webhooks: add an endpoint at
    `https://<project>.supabase.co/functions/v1/billing-webhook`, pinned to the API version in
@@ -1392,6 +1453,7 @@ dispute suspension is kept, the cancel still takes effect at period end); the fi
 | Flow | Prove in a Stripe sandbox |
 |---|---|
 | First payment | Checkout in USD with a 3-D Secure test card; `invoice.paid` carries the invoice and PaymentIntent; binding check passes |
+| Embedded Checkout (27 Nov 2026) | the pinned version accepts `ui_mode: embedded` with `return_url` and `redirect_on_completion: if_required`; retrieving the session returns its `client_secret`; Stripe.js `clover` mounts it and `onComplete` fires without a redirect for a card; 3D Secure completes inside the iframe; the saved card's brand and last 4 come back with `expand[]=subscription.default_payment_method`; the report only CSP logs nothing for the Pay step; a test publishable key with a live secret key keeps the step closed |
 | Trial | `trial_end` 5 days ahead; no plan charge at the start; setup-fee timing; first charge at `trial_end` (test clock) |
 | Failed renewal | declining test card → `past_due`; retries on days 2, 3 and 4 (test clock); card update in the Customer Portal pays the open invoice |
 | Pay as you go | invoice item added on `invoice.created` appears on the renewal invoice; a late item goes on the next one |
@@ -1409,3 +1471,22 @@ usage-based (legacy). Payments: save and reuse a payment method (off-session), c
 Webhooks: receive events, signatures. API: idempotent requests, create and update subscription, create invoice item.
 Refunds, disputes, Stripe Tax for subscriptions, go-live checklist. All under `docs.stripe.com`. The earlier Razorpay
 reading (also 13 Nov 2026) is kept in `docs/MEMORY.md` as a lesson.
+
+### 16.10 Embedded Checkout: what was read (27 Nov 2026)
+
+`docs.stripe.com` could not be reached from the build session (the host was outside its network allowlist), so the
+pages themselves were not opened. What was read instead, on 27 Nov 2026:
+
+| Source | What it says that we rely on |
+|---|---|
+| Stripe's Node SDK `stripe@19.0.0` (pinned to `2025-09-30.clover`, our version), `types/Checkout/SessionsResource.d.ts` and `Sessions.d.ts`: Stripe's API reference text for Checkout Sessions | `ui_mode` is `hosted`, `embedded` or `custom`; `return_url` "is required if `ui_mode` is `embedded` or `custom` and redirect-based payment methods are enabled"; `cancel_url` and `success_url` are "not allowed if ui_mode is `embedded`"; `redirect_on_completion` is `always` (default), `if_required` or `never`; `client_secret` "for `ui_mode: embedded` ... is to be used when initializing Stripe.js embedded checkout"; `branding_settings` (background and button colour, border style, font family, display name, icon or logo) |
+| The latest `stripe@23.2.0` (`2026-11-18.endive`) and its changelog | from API version `2026-03-25.dahlia` the values are `hosted_page`, `embedded_page`, `elements`, `form`: **when the pinned version is raised, `embedded` must become `embedded_page`** (and Stripe.js's `initEmbeddedCheckout` is `createEmbeddedCheckoutPage` on the newest train) |
+| `@stripe/stripe-js@8.11.0` (release train `clover`) types and README | Stripe.js URL `https://js.stripe.com/clover/stripe.js`; `stripe.initEmbeddedCheckout({ fetchClientSecret, onComplete })` returns a Promise of an instance with `mount`, `unmount` and `destroy`, one instance at a time; **no appearance option** (only the client secret and callbacks); README: "To be PCI compliant, you must load Stripe.js directly from https://js.stripe.com. You cannot include it in a bundle or host it yourself." |
+| `stripe@19.0.0` `types/Invoices.d.ts` | `confirmation_secret`: "Currently, this contains the client_secret of the PaymentIntent that Stripe creates during invoice finalization" (the Pay now design above) |
+| Search excerpts of Stripe's integration security guide (`docs.stripe.com/security/guide`) | CSP for Stripe.js: `script-src` and `frame-src` `https://js.stripe.com` and `https://*.js.stripe.com`, `frame-src https://hooks.stripe.com` (3D Secure and redirects), `connect-src https://api.stripe.com`; for Checkout: `https://checkout.stripe.com` in `frame-src` and `connect-src` (also `script-src`, and `img-src https://*.stripe.com`, which our page itself doesn't load). A third party note (report-uri.com) says Stripe now asks merchants to attest to a CSP, in line with PCI DSS v4's SAQ A eligibility about script attacks on the payment page |
+| Search excerpts of Stripe's PCI compliance FAQ (`support.stripe.com/questions/pci-compliance-faq`), its PCI guide (`stripe.com/guides/pci-compliance`) and security page | "Using Stripe Elements, Checkout, or a mobile SDK qualifies you for SAQ A"; Checkout and Elements host the card inputs "within an iframe served from Stripe's domain (not yours)"; Stripe helps complete the questionnaire in the Dashboard; "you remain responsible for your own environment" (our page, its scripts and its CSP) |
+
+**To confirm on the live pages before go live** (needs the network or the owner): the SAQ A wording for embedded
+Checkout on the security guide's "Validating PCI compliance" section; the exact CSP list for Embedded Checkout; that
+retrieving an embedded session returns its `client_secret` (§16.8); and whether our report only CSP must be enforcing
+for the SAQ A attestation (owner decision; today it is report only).

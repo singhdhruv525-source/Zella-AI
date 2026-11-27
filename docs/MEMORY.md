@@ -115,6 +115,17 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 ## 4. Open problems
 
+- **Glass Pay step with Stripe Embedded Checkout (owner, 27 Nov 2026), branch `claude/glass-embedded-checkout`, not
+  merged, applied or deployed.** Before payments go live it needs: `sql/zella_stripe_embedded_checkout.sql` applied
+  after `zella_stripe_checkout.sql` (owner approval; md5s computed on a stand in copy, confirm against production);
+  `STRIPE_PUBLISHABLE_KEY` set in the same mode as the secret key; the Embedded Checkout sandbox proofs in
+  `docs/PAYMENTS_ARCHITECTURE.md` §16.8 (notably that retrieving an embedded session returns its `client_secret`);
+  three owner decisions: the form's look (Dashboard branding or per session `branding_settings`; Stripe.js has no
+  appearance option for Embedded Checkout, so the form inside the iframe can't follow each person's look), whether
+  the CSP must be enforcing (not report only) for the SAQ A attestation, and whether to offer Stripe's hosted page as
+  a fallback when Stripe.js is blocked (not built: an embedded session has no hosted link, so it would need a second
+  session type).
+
 - **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
   CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
   **report only** until a release runs without reports, then rename the header to `Content-Security-Policy`. Live
@@ -168,6 +179,17 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
+
+- **Glass checkout with Stripe Embedded Checkout (owner, 27 Nov 2026):** the onboarding Pay step is a glass checkout
+  in Zella Voice's own looks (Zella Voice, Classic, Glass with or without the picture's colours); only the motion of the
+  owner's reference video is borrowed (the panels soften, the card moves to the centre while confirming, it turns the
+  look's success colour, the title changes). Card entry moves from a redirect to Stripe Checkout to **Embedded
+  Checkout** (Stripe's form in Stripe's iframe inside our page; still Stripe hosted, NN-9 unchanged). "Payment
+  received" still needs the server's verified, bound payment. **Brand and last 4** may be shown (the Pay step after a
+  confirmed payment, and billing emails), fetched from Stripe and never stored. The same component is planned for the
+  **Pay now** link of an unpaid invoice (design in `docs/PAYMENTS_ARCHITECTURE.md` §6.11, not built). Built on
+  `claude/glass-embedded-checkout` (`web/src/billing/GlassCheckout.jsx`, `billing-api`,
+  `sql/zella_stripe_embedded_checkout.sql`).
 
 - **Phone navigation (owner, 25 Nov 2026, "Yes to all"; `docs/ARCHITECTURE.md` §23.1d, REQ-MOB-02 to REQ-MOB-11):**
   all of P1 to P29 approved for both apps. Built in the phone navigation pull request (not merged when written):
@@ -633,6 +655,19 @@ Waiting on the owner:
   and keep the "Zella Voice" wording, never to bypass the guard.
 - **Order matters.** `zella_seating_handoff.sql` must run after `zella_review_sql_fixes.sql`. A combined file can be
   run only once: on the second run the guard rightly rejects the newer function.
+- **Stripe's docs site can be out of reach from a cloud session (27 Nov 2026).** `docs.stripe.com` was outside the
+  session's network allowlist. Stripe's own SDK packages from npm carry the API reference text: `stripe@<the release
+  pinned to our API version>` (`types/**/*.d.ts`, `CHANGELOG.md`) and `@stripe/stripe-js` (types and README). Read
+  those, record what was read and from where (`docs/PAYMENTS_ARCHITECTURE.md` §16.10), and list what still has to be
+  confirmed on the live pages. **Stripe renames things between API versions:** Checkout's `ui_mode: embedded` is
+  `embedded_page` from `2026-03-25.dahlia`, so read the SDK release that matches the pinned version, not the latest.
+- **axe can't judge text over glass or a picture (27 Nov 2026):** it reports translucent or image backgrounds as
+  "incomplete", not as checked. `tests/browser/stripe-pay-screen.cjs` measures contrast from the rendered pixels behind
+  each text (a screenshot with all text made transparent, transitions off first, or fading text is measured as its
+  own background).
+- **The lane F SQL suites need the `zprod3` template (27 Nov 2026):** on a server that only has `zfull` and `zbase`,
+  `zella_writing_cleanup.sql` refuses (VERSION_MISMATCH) and no lane F suite can build. A function level stand in
+  (`tests/stripe_embedded_checkout/stub_run.sh`) proves a migration's guards and body; say which one ran.
 - **Vault secrets are made with `vault.create_secret`, never `insert into vault.secrets`.** On production the migration
   role can read and delete Vault rows but not insert them (permission denied for Vault's encryption function); the
   isolated test database's stub allows the insert, so only production shows it (`zella_stripe_pipeline.sql`, 24 Nov 2026).
