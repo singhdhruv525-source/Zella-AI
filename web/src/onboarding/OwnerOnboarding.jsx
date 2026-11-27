@@ -7,7 +7,7 @@ import { SidebarBrand } from "../navigation/SidebarBrand";
 import { getApi } from "./api";
 import ProgressSteps from "./ProgressSteps";
 import { ErrorText, Failed, Loading, NotReady } from "./kit";
-import { SCREENS, STEP_KEYS, afterCompleteError, canOpen, errorCode, isNotReady, previousStep, resumeStep, movedNotice, stateAfterResume, stepAfterError } from "./steps";
+import { SCREENS, STEP_KEYS, afterCompleteError, canOpen, errorCode, isNotReady, paymentState, previousStep, resumeStep, movedNotice, stateAfterResume, stepAfterError } from "./steps";
 import { SecurityScreen, WelcomeScreen } from "./StartScreens";
 import { DetailsScreen } from "./DetailsScreen";
 import { IdentityScreen } from "./IdentityScreen";
@@ -26,7 +26,8 @@ const TITLES = {
   details: () => "Check your details",
   identity: () => "Verify your identity",
   plan: () => "Your plan",
-  payment: () => "Pay for your plan",
+  // the title follows the server: confirming once Stripe has it, confirmed only when the server says so
+  payment: (s) => ({ confirmed: "Your payment is confirmed", processing: "Confirming your payment" })[paymentState(s.payment).key] ?? "Pay for your plan",
   // "You're all set" only once every go live check has passed; until then, say what is still to come
   done: (s) => (allChecksDone(s) ? "You're all set" : "Setup complete. One last check before you go live."),
 };

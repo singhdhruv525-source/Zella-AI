@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
-import { Actions, EmptyNote, ErrorText, useAction, useLatest } from "./kit";
-import { allowance, billingPeriod, errorCode, errorWords, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
+import GlassCheckout from "../billing/GlassCheckout";
+import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
+import { allowance, billingPeriod, errorCode, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
 
 // Screens 5 to 7: Your plan, Pay, and You're all set.
 
@@ -65,86 +66,60 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
   );
 }
 
-// Pay. While payments aren't connected (rule payments_connected false) the owner sees a calm waiting screen. Once they
-// are, "Pay securely" opens Stripe Checkout (billing-api) and Stripe sends the owner back here; the screen then asks
-// the server to look again and shows "Confirming" until a verified payment arrives. "Payment received" shows only when
-// the server says the payment is confirmed: coming back from Stripe proves nothing by itself.
+// Pay (owner, 27 Nov 2026): the glass checkout (billing/GlassCheckout.jsx) with Stripe's Embedded Checkout inside the
+// page. While payments aren't switched on, the step says payment opens here soon and can be passed (owner decision,
+// 16 Nov 2026). Once they are, Pay securely asks billing-api for the checkout (one key per attempt; a double click,
+// a second tab or a reload gets the same open checkout from the server) and Stripe's own form opens in place. When
+// Stripe finishes, or sends the owner back from a redirect, the screen asks OUR server again with backoff and shows
+// "Payment received" only when the server confirms a verified, bound payment: Stripe finishing proves nothing by itself.
 const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, "");
 export function PaymentScreen({ api, state, onState, onComplete }) {
   const st = paymentState(state.payment);
-  const [checking, setChecking] = useState(false);
-  const [problem, setProblem] = useState("");
-  // one key per attempt: a double click reuses it, but after a failed start the next try uses a new one (an expired
-  // or failed Checkout is never handed back for the old key)
-  const [key, setKey] = useState(newKey);
-  const inFlight = useRef(false);
+  // one key per attempt: a double click reuses it, but after a failed or expired start the next try uses a new one
+  const key = useRef(newKey());
   const [returned] = useState(() => new URLSearchParams(window.location.search).get("checkout"));
   const action = useAction();
-  const trial = state.payment?.checkout?.mode === "trial" || state.payment?.due_now_minor === 0;
-  const reads = useLatest();
-  async function refresh(fromStripe = false) {
-    const ticket = reads.start();
-    setChecking(true);
-    try {
-      const fresh = fromStripe && api.checkoutReturn ? (await api.checkoutReturn(state.business_id)).payment : await api.paymentStatus(state.business_id);
-      if (reads.isLatest(ticket)) { onState((s) => ({ ...s, payment: fresh })); setProblem(""); }
-    } catch (err) { if (reads.isLatest(ticket)) setProblem(errorWords(err)); }
-    finally { if (reads.isLatest(ticket)) setChecking(false); }
-  }
-  async function pay() {
-    let r;
-    try { r = await api.startCheckout(state.business_id, key); }
-    catch (err) { setKey(newKey()); throw err; }
-    if (typeof r?.url !== "string") { setKey(newKey()); throw new Error("We couldn't open the payment page. Please try again in a minute."); }
-    window.location.assign(r.url);
-  }
-  // back from Stripe: ask the server to look again (it applies the verified events), then tidy the address bar
+  const pay = state.payment ?? {};
+  const p = state.plan?.current ?? {};
+  const trial = pay.checkout?.mode === "trial" || pay.due_now_minor === 0;
+  // back from Stripe (a payment method that redirects): the session id never stays in the address bar
   useEffect(() => {
-    if (returned !== "return") return;
-    refresh(true);
+    if (!returned) return;
     const u = new URL(window.location.href);
     ["checkout", "session_id"].forEach((k) => u.searchParams.delete(k));
     window.history.replaceState(null, "", u.pathname + u.search);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // while confirming, look again every 5 seconds; otherwise once a minute while the page is in view
-  useEffect(() => {
-    if (st.key === "confirmed") return undefined;
-    const every = st.key === "processing" || returned === "return" ? 5000 : 60000;
-    // never a second look while one is still on its way (a slow answer still updates the screen)
-    const t = setInterval(() => {
-      if (document.visibilityState !== "visible" || inFlight.current) return;
-      inFlight.current = true;
-      refresh(st.key === "processing").finally(() => { inFlight.current = false; });
-    }, every);
-    return () => clearInterval(t);
-  }, [st.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function start() {
+    try { return await api.startCheckout(state.business_id, key.current); }
+    catch (err) { key.current = newKey(); throw err; }
+  }
+  const confirm = () => api.checkoutReturn(state.business_id);
+  const onPayment = (payment) => { if (payment && typeof payment === "object") onState((s) => ({ ...s, payment })); };
+  const period = billingPeriod(p.billing_interval);
+  const lines = [["Plan price", `${money(p.price_cents, p.currency)} ${period}`]];
+  if (Number(p.setup_fee_cents) > 0) lines.push(["One time setup fee", money(p.setup_fee_cents, p.currency)]);
+  if (p.trial_enabled === true) lines.push(["Free trial", trial ? "Starts today" : "Not included"]);
+  if (p.minutes != null) lines.push(["Call minutes", `${allowance(p.minutes, "minute")} ${period}`]);
+  const summary = {
+    kicker: "Order summary",
+    title: p.tier ? `Your ${tierName(p.tier)} plan` : "Your plan",
+    lines,
+    totalLabel: "Due today",
+    amountMinor: pay.checkout?.amount_minor ?? pay.due_now_minor,
+    currency: pay.checkout?.currency ?? p.currency ?? "USD",
+    intro: trial ? "Add a card to start your free trial. Nothing is charged until the trial ends." : undefined,
+    footnote: "Stripe processes this payment for Zella Voice. The amount comes from the plan you accepted.",
+  };
   return (
     <>
-      <div className={`zob-status tone-${st.tone}`} role="status" aria-live="polite">
-        <span className="ba-icon" aria-hidden="true">{{ confirmed: "paid", locked: "lock", waiting: "schedule", ready: "credit_card", processing: "hourglass_top" }[st.key]}</span>
-        <div>
-          <strong>{st.label}</strong>
-          <p>{{
-            confirmed: "Thank you. Your payment is confirmed.",
-            locked: "You'll be able to pay once your identity is verified.",
-            waiting: "You'll pay for your plan right here. We're finishing this part now. Nothing is charged until then.",
-            ready: trial ? "Add a card on Stripe's secure page to start your trial. Nothing is charged until the trial ends."
-                         : `You'll pay ${money(state.payment?.checkout?.amount_minor ?? state.payment?.due_now_minor)} today on Stripe's secure page. Your card details never reach Zella Voice.`,
-            processing: "Stripe sent you back. We're waiting for Stripe to confirm the payment, which usually takes a few seconds.",
-          }[st.key]}</p>
-        </div>
-      </div>
-      {returned === "cancelled" && st.key === "ready" && <p className="zob-muted">You left the payment page. Nothing was charged.</p>}
+      <GlassCheckout summary={summary} payment={state.payment} start={start} confirm={confirm} onPayment={onPayment}
+        mount={api.mountCheckout} returned={returned === "return"} payLabel={trial ? "Add a card and start my trial" : "Pay securely"} />
       {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. We'll ask for payment here once it's switched on.</p>}
       {st.key !== "confirmed" && state.payment?.required !== false && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}
-      <ErrorText>{problem || action.error}</ErrorText>
-      <Actions>
-        {st.key === "confirmed" || paymentPassed(state.payment)
-          ? <button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(() => onComplete("payment"))}>{action.busy ? "One moment…" : "Continue"}</button>
-          : st.key === "ready"
-            ? <button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(pay)}>{action.busy ? "Opening Stripe…" : trial ? "Add a card and start my trial" : "Pay securely"}</button>
-            : <button type="button" className="ba-btn" disabled={checking} onClick={() => refresh(st.key === "processing")}>{checking ? "Checking…" : "Check again"}</button>}
-      </Actions>
+      <ErrorText>{action.error}</ErrorText>
+      {(st.key === "confirmed" || paymentPassed(state.payment)) && (
+        <Actions><button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(() => onComplete("payment"))}>{action.busy ? "One moment…" : "Continue"}</button></Actions>
+      )}
     </>
   );
 }

@@ -35,3 +35,15 @@ test("every outside address in the built app is allowed by the CSP", () => {
   assert.ok(csp["img-src"].includes("https://pffqxlumqhjdbzvvoszm.supabase.co"), "stored images in img-src");
   assert.ok(!/<script>(?!\s*<\/script>)/.test(readFileSync(new URL("index.html", dist), "utf8")), "no inline script");
 });
+
+test("Stripe Embedded Checkout on the Pay step: exactly what Stripe's guide lists for Stripe.js and Checkout", async () => {
+  const { STRIPE_JS_URL } = await import("../src/billing/stripeEmbedded.js");
+  assert.equal(new URL(STRIPE_JS_URL).origin, "https://js.stripe.com", "Stripe.js only from js.stripe.com");
+  assert.ok(csp["script-src"].includes("https://js.stripe.com") && csp["script-src"].includes("https://*.js.stripe.com"));
+  for (const f of ["https://js.stripe.com", "https://*.js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com"]) assert.ok(csp["frame-src"].includes(f), `${f} in frame-src`);
+  for (const c of ["https://api.stripe.com", "https://checkout.stripe.com"]) assert.ok(csp["connect-src"].includes(c), `${c} in connect-src`);
+  // nothing wider than needed: no stripe wildcard for scripts or connections beyond those, and no other Stripe host
+  const stripeHosts = Object.values(csp).flat().filter((v) => /stripe\.com/.test(v));
+  assert.deepEqual([...new Set(stripeHosts)].sort(), ["https://*.js.stripe.com", "https://api.stripe.com", "https://checkout.stripe.com", "https://hooks.stripe.com", "https://js.stripe.com"]);
+  assert.deepEqual(csp["frame-ancestors"], ["'none'"], "our own pages still can't be framed");
+});

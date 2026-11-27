@@ -1,0 +1,130 @@
+// The glass checkout as one explicit state machine (owner, 27 Nov 2026). Pure: no React, no Stripe, no network, so
+// every transition is unit tested (web/tests/glassCheckout.test.mjs). GlassCheckout.jsx renders the state and turns
+// events from the server, Stripe.js and the owner into dispatches.
+//
+//   off ............ payments aren't switched on (the step says payment opens soon and can be passed)
+//   locked ......... payment opens after an earlier step (identity)
+//   idle ........... ready to pay: the summary and Pay securely
+//   submitting ..... Pay pressed: asking our server for the checkout (the button is disabled)
+//   loading ........ Stripe.js loading and Stripe's form mounting (a skeleton holds the space)
+//   ready .......... Stripe's own form is on the page; the card is typed only there (NN-9)
+//   confirming ..... Stripe finished (onComplete, or back from a redirect): asking OUR server, with backoff
+//   pending ........ the backoff ran out without a confirmation: calm, never failed and never success
+//   confirmed ...... the server confirmed a verified, bound payment. The only state that says paid.
+//   error .......... with a kind: expired, network, stripe_load, server, misconfigured
+//
+// Nothing here can reach "confirmed" except the server's own answer (SERVER says confirmed); Stripe's onComplete
+// only moves to "confirming".
+
+export const STATES = ["off", "locked", "idle", "submitting", "loading", "ready", "confirming", "pending", "confirmed", "error"];
+export const ERROR_KINDS = ["expired", "network", "stripe_load", "server", "misconfigured"];
+
+// The server's payment state (zella_owner_onboarding_payment_status) as a starting point.
+export function fromServer(payment) {
+  const s = String(payment?.status ?? "");
+  if (s === "confirmed") return { state: "confirmed" };
+  if (s === "locked") return { state: "locked" };
+  if (s === "waiting" && payment?.reason === "processing") return { state: "confirming" };
+  if (s === "waiting" && payment?.checkout_available === true) return { state: "idle" };
+  return { state: "off" };
+}
+
+// Polling after Stripe finished: quick at first (the webhook usually lands in seconds), then slower; after the last
+// step the screen shows "pending" and looks again only once a minute.
+export const CONFIRM_DELAYS_MS = [1000, 2000, 3000, 5000, 8000, 13000, 20000, 30000];
+export const PENDING_EVERY_MS = 60000;
+
+const ACTIVE = new Set(["submitting", "loading", "ready", "confirming"]);   // a flow the owner started: the server's idle state never interrupts it
+
+export function reduce(current, event) {
+  const st = current?.state ?? "off";
+  switch (event?.type) {
+    case "SERVER": {
+      const next = fromServer(event.payment);
+      if (next.state === "confirmed") return { state: "confirmed", card: event.card ?? current?.card ?? null };
+      // the same answer again changes nothing (the same object), so a running backoff is never restarted
+      if (next.state === "confirming") return st === "confirming" || st === "pending" ? current : { state: "confirming", attempt: 0 };
+      if (next.state === "locked" || next.state === "off") return ACTIVE.has(st) ? current : next;
+      // idle: keep a flow in progress, a pending wait and an error on screen until the owner acts
+      return ACTIVE.has(st) || st === "pending" || st === "error" ? current : next;
+    }
+    case "PAY": return st === "idle" || st === "error" ? { state: "submitting" } : current;
+    case "SECRET": return st === "submitting" ? { state: "loading" } : current;
+    case "PROCESSING": return st === "submitting" || st === "loading" || st === "ready" ? { state: "confirming", attempt: 0 } : current;
+    case "MOUNTED": return st === "loading" ? { state: "ready" } : current;
+    case "COMPLETE": return st === "ready" || st === "loading" ? { state: "confirming", attempt: 0 } : current;
+    case "RETURNED": return st === "confirmed" ? current : { state: "confirming", attempt: 0 };
+    case "STILL_WAITING": {
+      if (st !== "confirming") return current;
+      const attempt = (current.attempt ?? 0) + 1;
+      return attempt >= CONFIRM_DELAYS_MS.length ? { state: "pending" } : { state: "confirming", attempt };
+    }
+    case "ALREADY_PAID": return { state: "confirming", attempt: 0 };   // ask the server; it says confirmed, never us
+    case "FAIL": {
+      if (st === "confirmed") return current;
+      // a lost connection while confirming isn't a failed payment: keep waiting calmly
+      if (st === "confirming" || st === "pending") return event.kind === "network" ? current : { state: "pending" };
+      return { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server" };
+    }
+    case "RETRY": return st === "error" ? { state: "idle" } : current;
+    default: return current;
+  }
+}
+
+// How long to wait before the next look while confirming (null when not confirming).
+export function nextDelay(current) {
+  if (current?.state === "confirming") return CONFIRM_DELAYS_MS[Math.min(current.attempt ?? 0, CONFIRM_DELAYS_MS.length - 1)];
+  if (current?.state === "pending") return PENDING_EVERY_MS;
+  return null;
+}
+
+// A failure from our server or the network, as an error kind.
+export function failureKind(err) {
+  const code = String(err?.code ?? "");
+  if (code === "CHECKOUT_EXPIRED") return "expired";
+  if (code === "PAYMENTS_MISCONFIGURED" || code === "MODE_MISMATCH") return "misconfigured";
+  if (code === "STRIPE_JS") return "stripe_load";
+  if (code === "ALREADY_PAID") return "already_paid";
+  const text = String(err?.message ?? "");
+  if ((typeof navigator !== "undefined" && navigator.onLine === false) || /failed to fetch|network|load failed|fetch failed/i.test(text)) return "network";
+  return "server";
+}
+
+// What each state says (no dashes or hyphens, US spelling, "Zella Voice" in full).
+export const WORDS = {
+  off: { label: "Payment opens here soon", body: "You'll pay for your plan right here. We're finishing this part now. Nothing is charged until then." },
+  locked: { label: "Payment opens after verification", body: "You'll be able to pay once your identity is verified." },
+  idle: { label: "Ready to pay", body: "Your card goes into Stripe's secure form on this page. Your card details never reach Zella Voice." },
+  submitting: { label: "Opening the secure form", body: "One moment while we get Stripe's secure form ready." },
+  loading: { label: "Opening the secure form", body: "One moment while we get Stripe's secure form ready." },
+  ready: { label: "Enter your card", body: "Type your card into Stripe's secure form below. If your bank asks you to confirm, Stripe shows that step here." },
+  confirming: { label: "Confirming your payment", body: "Stripe has your payment. We're waiting for Stripe to confirm it, which usually takes a few seconds." },
+  // billing emails are held while email_live is off, so this promises only what always happens: the CRM notice
+  // (zella_notify_owners "payment_received") and this page looking again by itself
+  pending: { label: "Still confirming", body: "This is taking longer than usual. You don't need to pay again. We'll let you know in your CRM as soon as it's confirmed, and this page updates by itself." },
+  confirmed: { label: "Payment received", body: "Thank you. Your payment is confirmed." },
+};
+export const ERROR_WORDS = {
+  expired: { label: "This payment form expired", body: "Nothing was charged. Start again to get a new secure form.", action: "Start again" },
+  network: { label: "You're offline", body: "We couldn't reach Zella Voice. Check your connection, then try again. Nothing was charged.", action: "Try again" },
+  stripe_load: { label: "The secure form didn't load", body: "Stripe's form couldn't load on this page. Check your connection, or allow js.stripe.com if a blocker is on, then try again. Nothing was charged.", action: "Try again" },
+  server: { label: "We couldn't open the secure form", body: "Something went wrong on our side. Nothing was charged. Please try again in a minute.", action: "Try again" },
+  misconfigured: { label: "Payments can't open right now", body: "Nothing has been charged, and Zella Voice has been told. Please try again later.", action: "Try again" },
+};
+
+// Money as the server sent it: integer minor units and the plan's currency.
+export function formatMoney(minor, currency = "USD") {
+  const n = Number(minor);
+  if (minor === null || minor === undefined || minor === "" || !Number.isFinite(n)) return "Not set";
+  const code = /^[A-Za-z]{3}$/.test(String(currency ?? "")) ? String(currency).toUpperCase() : "USD";
+  const value = n / 100;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: code, minimumFractionDigits: Number.isInteger(value) ? 0 : 2 }).format(value);
+}
+
+// The card as Stripe reported it after a verified payment: brand and last 4 only, or nothing.
+const BRANDS = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", diners: "Diners Club", jcb: "JCB",
+  unionpay: "UnionPay", cartes_bancaires: "Cartes Bancaires", eftpos_au: "eftpos", link: "Link" };
+export function cardWords(card) {
+  const brand = BRANDS[card?.brand];
+  return brand && /^\d{4}$/.test(String(card?.last4 ?? "")) ? { brand, last4: String(card.last4) } : null;
+}
