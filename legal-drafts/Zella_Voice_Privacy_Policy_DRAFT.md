@@ -129,7 +129,7 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 | Meta (where enabled and connected) | Facebook and Instagram lead ads |
 | Shopify (where a store connects it) | Order lookup |
 | **[MONITORING PROVIDER NAME]** | Uptime checks, logs and alerts; no Personal Data |
-| Stripe (where enabled) | Payments for Customers' Plans |
+| Stripe (where enabled) | Payments for Customers' Plans: Stripe receives the billing name and billing address entered at checkout, and the card details, which go directly to Stripe and never to Zella Voice |
 | Google Fonts (Google) | Typeface for the web application |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Owner identity checks |
 | **[EMAIL INBOX PROVIDER]** | Our own email inboxes, including support and privacy requests, which may contain Customer Personal Data |

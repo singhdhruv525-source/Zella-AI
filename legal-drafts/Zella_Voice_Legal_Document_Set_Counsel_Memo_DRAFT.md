@@ -73,7 +73,7 @@ The separate files were removed after merging; their full text is inside the mer
 
 ## 4. Launch blockers
 
-**The public documents must not be published until each blocker below is built and verified in the product, or the promise is removed from the public text.** No public text is published while it is untrue. Each fix that changes production needs the owner's explicit approval for that specific change (NN 3, NN 4). The Owner Action Pack lists the same items as owner actions before launch. **Exception for recording (blockers 1 and 33; actions 1 and 33):** removing the public promise is not an option for either. Call recording must stay disabled for every Customer until recording consent and caller disclosures have passed legal review, whatever the public text says, and the live Vapi recording setting must be confirmed, for the account and for each assistant, and the result recorded with the date and the person who checked (blocker and action 1). Before recording is enabled for any Customer, stored recordings must hold no spoken card details, including audio kept by Vapi and audio behind any stored recording link, with the control verified and legally reviewed (blocker and action 33); this is mandatory whatever happens to the public text. **Separation between businesses (blocker and action 31)** cannot be cleared by removing a public promise either: automated isolation tests that run on every change, and the refuse and alert rule for conflicting call identifiers with its automated conflict test, are required before launch whatever the public text says.
+**The public documents must not be published until each blocker below is built and verified in the product, or the promise is removed from the public text.** No public text is published while it is untrue. Removing a public promise does not resolve blocker and action 4: the 30 day cancellation retention period in the rulebook and the 90 day database fallback must be reconciled (counsel memo, section 3) before publication, whatever the public text says, and the documents stay unpublished until every applicable launch blocker is cleared. Each fix that changes production needs the owner's explicit approval for that specific change (NN 3, NN 4). The Owner Action Pack lists the same items as owner actions before launch. **Exception for recording (blockers 1 and 33; actions 1 and 33):** removing the public promise is not an option for either. Call recording must stay disabled for every Customer until recording consent and caller disclosures have passed legal review, whatever the public text says, and the live Vapi recording setting must be confirmed, for the account and for each assistant, and the result recorded with the date and the person who checked (blocker and action 1). Before recording is enabled for any Customer, stored recordings must hold no spoken card details, including audio kept by Vapi and audio behind any stored recording link, with the control verified and legally reviewed (blocker and action 33); this is mandatory whatever happens to the public text. **Separation between businesses (blocker and action 31)** cannot be cleared by removing a public promise either: automated isolation tests that run on every change, and the refuse and alert rule for conflicting call identifiers with its automated conflict test, are required before launch whatever the public text says.
 
 **Card details.** Zella Voice's policy is that it never collects or stores full card numbers or security codes, and never stores card details a caller speaks; for billing notices it keeps only the card brand, last 4 digits and expiry from Stripe (owner decision, 27 Nov 2026; blocker 22). Card masking (blocker 11) must therefore be built and verified before any live call is answered or placed, and blocker 33 before recording is enabled for any Customer, even if the public promise of masking were removed from the text, because callers may speak card numbers on any call.
 
@@ -467,6 +467,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[CONFIDENTIALITY PERIOD]**
 - **[COUNSEL TO REVIEW THIS NOTICE]**
 - **[GOVERNING LAW AND COURTS]**
+- **[SIGNATURE]**
 - **[SIGNATORY NAME]**
 - **[SIGNATORY TITLE]**
 - **[SIGNATURE DATE]**
@@ -485,7 +486,6 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[COUNSEL TO CONFIRM FOR THE EMPLOYEE'S STATE]**
 - **[EMPLOYEE GOVERNING LAW]**
 - **[STATE STATUTORY NOTICE TEXT]**
-- **[SIGNATURE]**
 - **[FOUNDER NAME]**
 - **[FOUNDER NAMES]**
 - **[CONSIDERATION, FOR EXAMPLE MEMBERSHIP INTERESTS ISSUED OR ONE DOLLAR AND OTHER GOOD AND VALUABLE CONSIDERATION]**

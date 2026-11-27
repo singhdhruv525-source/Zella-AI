@@ -50,6 +50,7 @@ A5.2 This NDA is governed by **[GOVERNING LAW AND COURTS]**. It is the entire ag
 | Zella Voice | Counterparty |
 |---|---|
 | **[LEGAL ENTITY NAME]** | **[COUNTERPARTY LEGAL NAME]** |
+| Signature: **[SIGNATURE]** | Signature: **[SIGNATURE]** |
 | Name: **[SIGNATORY NAME]** | Name: **[SIGNATORY NAME]** |
 | Title: **[SIGNATORY TITLE]** | Title: **[SIGNATORY TITLE]** |
 | Date: **[SIGNATURE DATE]** | Date: **[SIGNATURE DATE]** |
@@ -103,6 +104,7 @@ B5.3 This agreement is governed by **[GOVERNING LAW AND COURTS]** and may be sig
 | Zella Voice | Contractor |
 |---|---|
 | **[LEGAL ENTITY NAME]** | **[CONTRACTOR LEGAL NAME]** |
+| Signature: **[SIGNATURE]** | Signature: **[SIGNATURE]** |
 | Name: **[SIGNATORY NAME]** | Name: **[SIGNATORY NAME]** |
 | Date: **[SIGNATURE DATE]** | Date: **[SIGNATURE DATE]** |
 
@@ -147,7 +149,8 @@ C4.2 This agreement is governed by **[EMPLOYEE GOVERNING LAW]** and may be signe
 | Zella Voice | Employee |
 |---|---|
 | **[LEGAL ENTITY NAME]** | **[EMPLOYEE NAME]** |
-| Name: **[SIGNATORY NAME]** | Signature: **[SIGNATURE]** |
+| Signature: **[SIGNATURE]** | Signature: **[SIGNATURE]** |
+| Name: **[SIGNATORY NAME]** | Name: **[EMPLOYEE NAME]** |
 | Date: **[SIGNATURE DATE]** | Date: **[SIGNATURE DATE]** |
 
 ## Part D. Founder Intellectual Property Assignment
@@ -179,8 +182,10 @@ This assignment is governed by **[GOVERNING LAW AND COURTS]**. It is the entire 
 | Founder | Company |
 |---|---|
 | **[FOUNDER NAME]** | **[LEGAL ENTITY NAME]** |
-| Signature: **[SIGNATURE]** | Name: **[SIGNATORY NAME]** |
+| Signature: **[SIGNATURE]** | Signature: **[SIGNATURE]** |
+| Name: **[FOUNDER NAME]** | Name: **[SIGNATORY NAME]** |
 | Date: **[SIGNATURE DATE]** | Title: **[SIGNATORY TITLE]** |
+| | Date: **[SIGNATURE DATE]** |
 
 ## Part E. Reseller and Referral Partner Agreement
 
@@ -242,6 +247,7 @@ E6.5 This agreement is governed by **[GOVERNING LAW AND COURTS]** and may be sig
 | Zella Voice | Partner |
 |---|---|
 | **[LEGAL ENTITY NAME]** | **[PARTNER LEGAL NAME]** |
+| Signature: **[SIGNATURE]** | Signature: **[SIGNATURE]** |
 | Name: **[SIGNATORY NAME]** | Name: **[SIGNATORY NAME]** |
 | Title: **[SIGNATORY TITLE]** | Title: **[SIGNATORY TITLE]** |
 | Date: **[SIGNATURE DATE]** | Date: **[SIGNATURE DATE]** |
@@ -265,6 +271,7 @@ Placeholders in this document:
 - **[CONFIDENTIALITY PERIOD]**
 - **[COUNSEL TO REVIEW THIS NOTICE]**
 - **[GOVERNING LAW AND COURTS]**
+- **[SIGNATURE]**
 - **[SIGNATORY NAME]**
 - **[SIGNATORY TITLE]**
 - **[SIGNATURE DATE]**
@@ -283,7 +290,6 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM FOR THE EMPLOYEE'S STATE]**
 - **[EMPLOYEE GOVERNING LAW]**
 - **[STATE STATUTORY NOTICE TEXT]**
-- **[SIGNATURE]**
 - **[FOUNDER NAME]**
 - **[FOUNDER NAMES]**
 - **[CONSIDERATION, FOR EXAMPLE MEMBERSHIP INTERESTS ISSUED OR ONE DOLLAR AND OTHER GOOD AND VALUABLE CONSIDERATION]**
