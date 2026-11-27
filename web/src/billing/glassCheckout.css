@@ -87,6 +87,9 @@
 .zgc-pay-foot { display: flex; flex-direction: column; gap: var(--zella-space-2); margin-top: auto; }
 .zgc-pay-btn { justify-content: center; gap: var(--zella-space-2); width: 100%; min-height: calc(var(--zella-space-8) + var(--zella-space-3)); }
 
+/* Stripe's hosted page, offered only when Stripe's form can't load */
+.zgc-fallback { margin: 0; text-align: center; font-size: var(--zella-text-sm); }
+.zgc-fallback .ba-link { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
 /* the trust row at the foot of the payment panel */
 .zgc-trust {
   display: flex;
@@ -274,9 +277,11 @@ html[data-zella-theme="glass"]:has(.ba-root) .zgc-input { background: color-mix(
   transition: opacity 700ms var(--zgc-ease), visibility 0s linear 700ms;
 }
 .zgc-card.ok .zgc-card-done { opacity: 1; visibility: visible; transition: opacity 700ms var(--zgc-ease), visibility 0s; }
-/* the face turned away is hidden half way through the turn, so it is never read, focused or measured */
-.zgc-card-front { transition: visibility 0s linear 380ms; }
-.zgc-card.is-back .zgc-card-front { visibility: hidden; }
+/* the face turned away is hidden once the turn is well past half way, so it is never read, focused or measured; the
+   face turning toward us is shown at once (backface-visibility keeps it out of sight until it really faces us), so the
+   card never disappears mid turn */
+.zgc-card-front { transition: visibility 0s; }
+.zgc-card.is-back .zgc-card-front { visibility: hidden; transition: visibility 0s linear 380ms; }
 .zgc-card.ok .zgc-card-front { visibility: hidden; transition: visibility 0s linear 700ms; }
 .zgc-card-back {
   display: flex;
@@ -290,7 +295,7 @@ html[data-zella-theme="glass"]:has(.ba-root) .zgc-input { background: color-mix(
   visibility: hidden;
   transition: visibility 0s linear 380ms;
 }
-.zgc-card.is-back .zgc-card-back { visibility: visible; }
+.zgc-card.is-back .zgc-card-back { visibility: visible; transition: visibility 0s; }
 .zgc-cb-stripe { display: block; height: 18%; background: linear-gradient(180deg, var(--zella-text) 0%, color-mix(in srgb, var(--zella-text) 80%, var(--zella-sheen)) 50%, var(--zella-text) 100%); }
 html[data-zella-theme="glass"]:has(.ba-root) .zgc-cb-stripe { background: linear-gradient(180deg, var(--zella-on-primary) 0%, color-mix(in srgb, var(--zella-on-primary) 80%, var(--zella-sheen)) 50%, var(--zella-on-primary) 100%); }
 .zgc-cb-sig { display: flex; align-items: stretch; gap: 0; margin: 0 6.5cqw; height: 13cqw; }
@@ -483,3 +488,8 @@ html[data-zella-theme="glass"]:has(.ba-root) .zgc-panel::before { opacity: 0.06;
   .zgc-stage { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--zella-card); }
   html[data-zella-theme="glass"]:has(.ba-root) .zgc-stage { background: var(--glass-solid); }
 }
+/* Auto pay in the checkout: "Pay automatically each renewal", on by default (owner, 27 Nov 2026) */
+.zgc-autopay { display: grid; gap: var(--zella-space-1); padding: var(--zella-space-3); border: 1px solid var(--zella-border); border-radius: var(--zella-radius-md); background: var(--zella-subtle); }
+.zgc-autopay-row { display: flex; align-items: center; justify-content: space-between; gap: var(--zella-space-3); }
+.zgc-autopay-label { font-weight: 600; color: var(--zella-text); }
+.zgc-autopay-note { margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); }

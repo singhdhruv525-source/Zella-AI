@@ -116,7 +116,7 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
     demo: async () => {
       await type("number", "4242 4242 4242 4242", { brandAt: 0 });
       await type("expiry", "12 / 28");
-      await type("cvc", "123", { hold: 28 });   // a moment on the security code, with the card turned over
+      await type("cvc", "123", { hold: 60 });   // a moment on the security code, with the card turned over
       await typeName();
       if (!alive) return;
       preview = { brand: "visa", last4: "4242", exp: "12/28" };

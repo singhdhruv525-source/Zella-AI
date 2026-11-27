@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCardUpdate } from "./useCardUpdate";
-import { Icon } from "../BusinessUI";
+import { Icon, Modal } from "../BusinessUI";
 import GlassCheckout from "./GlassCheckout";
 import { cardWords, formatMoney } from "./checkoutMachine";
-import { invoiceAsPayment, packAnswer } from "./payState.js";
+import { autopayWords, invoiceAsPayment, packAnswer } from "./payState.js";
 import { mountCardFields } from "./stripeEmbedded";
 import "./payments.css";
 
@@ -16,15 +16,42 @@ const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 const RES = { minutes: "AI minutes", texts: "texts", emails: "emails" };
 const STATUS = { paid: ["good", "Paid"], open: ["heads", "Open"], payment_failed: ["urgent", "Payment failed"], void: ["info", "Cancelled"], uncollectible: ["urgent", "Unpaid"] };
-const cardLine = (c) => { const w = cardWords(c); return w ? `${w.brand} ending ${w.last4}` : null; };
+const cardLine = (c) => { const w = cardWords(c); return w ? `${w.brand} •••• ${w.last4}` : null; };
+const plusDays = (iso, n) => (iso ? new Date(new Date(iso).getTime() + n * 86400000).toISOString() : null);
 const words = (err) => err?.words ?? err?.message ?? "Something went wrong. Please try again.";
 
 export default function PaymentsPanel({ api, businessId, cardReturned = false }) {
   const [view, setView] = useState({ kind: "list" });
   const [data, setData] = useState({ status: "loading" });
   const update = useCardUpdate(api, businessId);
-  const fetchAll = () => Promise.all([api.overview(businessId), api.invoices(businessId), api.cardSummary(businessId).catch(() => null)])
-    .then(([overview, invoices, card]) => ({ status: "ok", overview, invoices: Array.isArray(invoices) ? invoices : [], card }), (error) => ({ status: "error", error }));
+  const fetchAll = () => Promise.all([api.overview(businessId), api.invoices(businessId), api.cardSummary(businessId).catch(() => null),
+    api.autopayStatus ? api.autopayStatus(businessId).catch(() => null) : null])
+    .then(([overview, invoices, card, autopay]) => ({ status: "ok", overview, invoices: Array.isArray(invoices) ? invoices : [], card, autopay }), (error) => ({ status: "error", error }));
+  // Auto pay (owner, 27 Nov 2026): a switch, confirmed in a short dialog both ways; Stripe's event changes it, so the
+  // page looks again until the change is through
+  const [ask, setAsk] = useState(null);   // { on } while the dialog is open
+  const [apBusy, setApBusy] = useState(false);
+  const [apError, setApError] = useState("");
+  const apKey = useRef(null);
+  async function setAutopay(on) {
+    if (apBusy) return;
+    setApBusy(true); setApError("");
+    apKey.current = apKey.current ?? newKey();   // a double submit sends the same key
+    try {
+      const a = await api.autopaySet(businessId, on, apKey.current);
+      apKey.current = null; setAsk(null);
+      setData((d) => (d.status === "ok" ? { ...d, autopay: a ?? d.autopay } : d));
+      for (let i = 0; i < 6 && a?.pending; i++) {
+        await new Promise((r) => setTimeout(r, 600 * (i + 1)));
+        const now = await api.autopayStatus(businessId).catch(() => null);
+        if (now) setData((d) => (d.status === "ok" ? { ...d, autopay: now } : d));
+        if (now && !now.pending) break;
+      }
+    } catch (err) {
+      apKey.current = null;
+      setApError(words(err));
+    } finally { setApBusy(false); }
+  }
   function load() { setData({ status: "loading" }); fetchAll().then(setData); }
   useEffect(() => {
     let alive = true;
@@ -42,18 +69,35 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false })
       <p>{notOwner ? "Only the owner can see and pay invoices. Ask them, or contact Zella Voice support." : words(data.error)}</p>
       {!notOwner && <button type="button" className="ba-btn sm" onClick={() => load()}>Try again</button>}</div></div>;
   }
-  const { overview, invoices, card } = data;
+  const { overview, invoices, card, autopay } = data;
   const sub = overview?.subscription;
-  const renews = sub?.current_period_end && ["active", "past_due"].includes(sub.status) ? day(sub.current_period_end) : null;
+  const active = sub?.current_period_end && ["active", "past_due"].includes(sub.status);
+  const renews = active ? day(sub.current_period_end) : null;
   const which = cardLine(card);
+  const apOn = autopay?.on !== false;
+  const due = active ? day(plusDays(sub.current_period_end, Number(autopay?.days_until_due ?? 3))) : null;
+  const canSwitch = Boolean(autopay && autopay.subscribed !== false && autopay.payments_live !== false && api.autopaySet);
+  const needCard = ask?.on && (autopay?.has_card === false || !card);
   return (
     <div className="zpay">
       <section className="zpay-card" aria-labelledby="zpay-how">
         <h3 id="zpay-how">How you pay</h3>
-        <p className="zpay-lead">{renews
-          ? <>Your plan renews on <strong>{renews}</strong>. We'll charge {which ? <>your <strong>{which}</strong></> : "the card you saved with Stripe"}.</>
-          : "Your plan's renewal date appears here once your first payment is confirmed."}</p>
-        <p className="zob-muted">Auto charge is on: Stripe charges your saved card on each renewal date. If a payment doesn't go through, Stripe tries again a few days later, and you can pay the open invoice below at any time.</p>
+        <p className="zpay-lead">{!renews ? "Your plan's renewal date appears here once your first payment is confirmed."
+          : apOn ? <>Your plan renews on <strong>{renews}</strong>. We'll charge {which ? <>your <strong>{which}</strong></> : "the card you saved with Stripe"}.</>
+          : <>Your next invoice is due <strong>{due}</strong>. Pay it with <strong>Pay now</strong> below.</>}</p>
+        <div className="zpay-autopay">
+          <div className="zpay-autopay-text">
+            <strong id="zpay-autopay-label">Auto pay</strong>
+            <span className="zob-hint">{apOn ? "On: Stripe charges your saved card on each renewal date. If a payment doesn't go through, Stripe tries again a few days later, and you can pay the open invoice below at any time."
+              : `Off: ${autopayWords(autopay?.email_live === true).offText}`}</span>
+          </div>
+          {canSwitch && (
+            <button type="button" role="switch" aria-checked={autopay?.desired ?? apOn} aria-labelledby="zpay-autopay-label" className={`ba-switch${(autopay?.desired ?? apOn) ? " on" : ""}`}
+              disabled={apBusy || autopay?.pending} onClick={() => { setApError(""); setAsk({ on: !(autopay?.desired ?? apOn) }); }}><span /></button>
+          )}
+        </div>
+        {autopay?.pending && <p className="zpay-note" role="status"><Icon name="hourglass_top" size="sm" /> {autopay.desired ? "Turning Auto pay on" : "Turning Auto pay off"}: waiting for Stripe to confirm the change.</p>}
+        {apError && !ask && <p className="ba-error" role="alert">{apError}</p>}
         {sub?.status === "past_due" && <p className="zpay-alert" role="status"><Icon name="warning" size="sm" /> A payment didn't go through. Pay the open invoice below, or update your card: Stripe's next try uses your saved card.</p>}
         {cardReturned && <p className="zpay-note" role="status"><Icon name="task_alt" size="sm" /> You're back from Stripe. The card shown is the one Stripe has saved now.</p>}
         <div className="zpay-actions">
@@ -62,6 +106,23 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false })
         </div>
         {update.error && <p className="ba-error" role="alert">{update.error}</p>}
       </section>
+
+      {ask && (
+        <Modal title={ask.on ? "Turn Auto pay on?" : "Turn Auto pay off?"} busy={apBusy} onClose={() => setAsk(null)}
+          footer={<>
+            <button type="button" className="ba-btn" disabled={apBusy} onClick={() => setAsk(null)}>Cancel</button>
+            {needCard
+              ? <button type="button" className="ba-btn primary" disabled={update.busy} onClick={() => { setAsk(null); update.run(); }}><Icon name="credit_card" size="sm" /> Update card</button>
+              : <button type="button" className="ba-btn primary" disabled={apBusy} onClick={() => setAutopay(ask.on)}>{apBusy ? "Saving…" : ask.on ? "Turn on" : "Turn off"}</button>}
+          </>}>
+          <div className="zpay-dialog">
+            {ask.on
+              ? <p>{needCard ? "Auto pay needs a working saved card. Update your card on Stripe's secure page first, then turn Auto pay on." : `Stripe will charge ${which ? `your ${which}` : "your saved card"} on each renewal date.`}</p>
+              : <p>Stripe will stop charging your card automatically. {autopayWords(autopay?.email_live === true).offText} An unpaid invoice pauses your receptionist 5 days after it's due.</p>}
+            {apError && <p className="ba-error" role="alert">{apError}</p>}
+          </div>
+        </Modal>
+      )}
 
       <section className="zpay-card" aria-labelledby="zpay-invoices">
         <h3 id="zpay-invoices">Invoices</h3>
@@ -80,7 +141,6 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false })
                   <div className="zpay-row-actions">
                     {i.payable && i.id && <button type="button" className="ba-btn primary sm" onClick={() => setView({ kind: "invoice", id: i.id })}>Pay now</button>}
                     {i.status === "paid" && i.id && <button type="button" className="ba-btn sm" onClick={() => setView({ kind: "invoice", id: i.id })}>View</button>}
-                    {i.hosted_invoice_url && <a className="ba-link zpay-ext" href={i.hosted_invoice_url} target="_blank" rel="noopener noreferrer">On Stripe <Icon name="open_in_new" size="sm" /></a>}
                   </div>
                 </li>
               );
@@ -109,10 +169,31 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false })
 }
 
 // Pay now for one invoice (the list above, or the emailed link /pay/invoice/<id>): Stripe's card fields and billing address on the
-// invoice's own PaymentIntent, our Pay button under it. Already paid, it says so; Stripe's hosted page stays the fallback.
+// invoice's own PaymentIntent, our Pay button under it. Already paid, it says so, with the PDF. Stripe's hosted invoice
+// page is offered only as an error fallback, when Stripe's form can't load here (owner, 27 Nov 2026).
+const safeUrl = (u) => (typeof u === "string" && /^https:\/\/[^\s"'<>]+$/.test(u) ? u : null);
 export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabel = "All invoices" }) {
   const [inv, setInv] = useState({ status: "loading" });
   const [paidBefore, setPaidBefore] = useState(false);
+  // Auto pay (owner, 27 Nov 2026): on by default; starts from what Stripe has; a change is sent once the payment is confirmed
+  const [ap, setAp] = useState(null);
+  const [apOn, setApOn] = useState(true);
+  const [apNote, setApNote] = useState("");
+  const apSent = useRef(false);
+  const businessOf = inv.status === "ok" ? inv.invoice?.business_id : null;
+  useEffect(() => {
+    if (!businessOf || !api.autopayStatus) return undefined;
+    let alive = true;
+    api.autopayStatus(businessOf).then((a) => { if (alive && a) { setAp(a); setApOn(a.on !== false); } }, () => {});
+    return () => { alive = false; };
+  }, [api, businessOf]);
+  function onPayment(p) {
+    if (p?.status !== "confirmed" || apSent.current || !ap || !api.autopaySet || apOn === (ap.on !== false)) return;
+    apSent.current = true;
+    api.autopaySet(businessOf, apOn, newKey()).then(
+      () => setApNote(apOn ? "Auto pay is on: Stripe charges your saved card on each renewal date." : `Auto pay is off. ${autopayWords(ap.email_live === true).offText}`),
+      (err) => setApNote(`Auto pay wasn't changed. ${words(err)}`));
+  }
   useEffect(() => {
     let alive = true;
     api.invoiceStatus(invoiceId).then((i) => { if (alive) { setInv({ status: "ok", invoice: i }); setPaidBefore(i?.status === "paid"); } },
@@ -144,15 +225,17 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
     <div className="zpay-checkout">
       {back}
       <GlassCheckout summary={summary} payment={payment} words={over} payLabel="Pay now" onUpdateCard={onUpdateCard}
+        fallbackUrl={i.status !== "paid" ? safeUrl(i.hosted_invoice_url) : null} onPayment={onPayment}
+        autopay={ap && !paidBefore ? { on: apOn, onChange: setApOn, ...autopayWords(ap.email_live === true, "your saved card") } : null}
         start={() => api.invoiceStart(invoiceId)}
         confirm={async () => { const r = await api.invoiceReturn(invoiceId); return { payment: invoiceAsPayment(r.invoice), card: r.card }; }}
         kind="intent" saveNote="Stripe uses this card for this invoice only. Your saved card stays as it is."
         mount={(slots, opts) => (api.mountPayment ? api.mountPayment(slots, { ...opts, invoiceId }) : mountCardFields(slots, opts))} />
-      {i.hosted_invoice_url && i.status !== "paid" && (
-        <p className="zob-muted zpay-fallback">
-          Prefer Stripe's own page?{" "}
-          <a className="ba-link" href={i.hosted_invoice_url} target="_blank" rel="noopener noreferrer">Pay on Stripe's invoice page</a>
-        </p>
+      {apNote && <p className="zob-muted zpay-apnote" role="status">{apNote}</p>}
+      {safeUrl(i.invoice_pdf) && (
+        <div className="zpay-actions zpay-pdf">
+          <a className="ba-btn" href={safeUrl(i.invoice_pdf)} target="_blank" rel="noopener noreferrer"><Icon name="download" size="sm" /> Download PDF</a>
+        </div>
       )}
     </div>
   );

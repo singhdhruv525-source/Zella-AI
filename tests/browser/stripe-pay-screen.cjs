@@ -29,7 +29,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0, passes = 0;
 const check = (name, ok, detail = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? " - " + detail : ""}`); if (ok) passes++; else fails++; };
 
-const { LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
+const { backFace, LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
 
 async function seed(scenario) {
   const { createFakeApi } = await import(path.join(__dirname, "../../web/src/onboarding/fakeApi.js"));
@@ -107,10 +107,14 @@ async function shot(page, look, width, state, axeSource) {
       check(`${tag}: billing address: prefilled from the business, United States format`, addr?.country === "US" && addr.labels.includes("ZIP code") && addr.labels.includes("State")
         && addr.values.line1 === "214 Maple Street" && addr.values.name === "", JSON.stringify(addr));
       check(`${tag}: the address never shows on the card`, !(await cardText(page)).includes("Maple"));
+      check(`${tag}: Auto pay: "Pay automatically each renewal", on by default, with what it means`, (await page.getAttribute(".zgc-autopay [role=switch]", "aria-checked")) === "true"
+        && (await page.locator(".zgc-autopay-note").innerText()) === "Stripe charges this card on each renewal date.");
       check(`${tag}: Pay waits until every card field is complete`, await page.isDisabled(".zgc-pay-foot button:has-text('Pay $898')"));
       await fillCard(page);
       await page.waitForSelector(".zgc-cardcol .zgc-card.is-back", { timeout: 10000 }).catch(() => {});
       check(`${tag}: typing the security code turns the card over`, await page.locator(".zgc-cardcol .zgc-card.is-back").count() === 1);
+      const bf = await backFace(page);   // after the turn has settled
+      check(`${tag}: once turned, the back face is shown and its magnetic stripe is dark`, bf?.isBack === true && bf.visible === true && bf.luminance !== null && bf.luminance < 0.12, JSON.stringify(bf));
       await shot(page, look, width, "card-back", axeSource);
       await waitFilled(page);
       await page.waitForTimeout(900);
@@ -209,6 +213,21 @@ async function shot(page, look, width, state, axeSource) {
     check("issuer: shown as plain text, escaped, never markup", issuer.text === "<b>Bold Bank</b>" && issuer.kids === 0, JSON.stringify(issuer));
     check("issuer: no script ran", x.errors.length === 0, x.errors.join("; "));
     await x.ctx.close();
+  }
+
+  // Auto pay switched off in the checkout: honest words while email is off, and the choice is sent once the server confirms
+  {
+    const ap = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
+    await ap.page.click("button:has-text('Pay securely')");
+    await ap.page.click(".zgc-autopay [role=switch]");
+    check("autopay off in the checkout: says the invoice waits in the CRM (no email promised while email is off)",
+      (await ap.page.locator(".zgc-autopay-note").innerText()) === "Your invoice appears in the CRM; pay it there within 3 days.");
+    await ap.page.screenshot({ path: path.join(SHOTS, "pay-zella-autopay-off-1440.png"), fullPage: true });
+    await fillCard(ap.page); await waitFilled(ap.page);
+    await ap.page.click(".zgc-pay-foot button:has-text('Pay $898')");
+    await ap.page.waitForSelector("p[role=status]:has-text('Auto pay is off')", { timeout: 20000 }).catch(() => {});
+    check("autopay off: applied once the payment is confirmed", await ap.page.isVisible("p[role=status]:has-text('Auto pay is off')"));
+    await ap.ctx.close();
   }
 
   // back from a redirect payment method (Stripe's return_url): confirmed through the server, the address bar tidied

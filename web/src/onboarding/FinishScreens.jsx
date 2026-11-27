@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
 import GlassCheckout from "../billing/GlassCheckout";
+import { autopayWords } from "../billing/payState.js";
 import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
 import { allowance, billingPeriod, errorCode, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
 
@@ -75,6 +76,23 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
 const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, "");
 export function PaymentScreen({ api, state, onState, onComplete }) {
   const st = paymentState(state.payment);
+  // Auto pay (owner, 27 Nov 2026: on by default): the owner's choice, sent once the server has confirmed the payment
+  const [autopayOn, setAutopayOn] = useState(true);
+  const [emailLive, setEmailLive] = useState(false);
+  const [autopayNote, setAutopayNote] = useState("");
+  const autopaySent = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    Promise.resolve(api.autopayStatus?.(state.business_id)).then((a) => { if (alive && a) setEmailLive(a.email_live === true); }, () => {});
+    return () => { alive = false; };
+  }, [api, state.business_id]);
+  useEffect(() => {
+    if (st.key !== "confirmed" || autopayOn || autopaySent.current || !api.autopaySet) return;
+    autopaySent.current = true;
+    api.autopaySet(state.business_id, false, newKey()).then(
+      () => setAutopayNote("Auto pay is off. " + autopayWords(emailLive).offText),
+      (err) => setAutopayNote(`Auto pay is still on. ${err?.words ?? "You can switch it off in your CRM, under Payments."}`));
+  }, [st.key, autopayOn]); // eslint-disable-line react-hooks/exhaustive-deps
   // one key per attempt: a double click reuses it, but after a failed or expired start the next try uses a new one
   const key = useRef(newKey());
   const [returned] = useState(() => new URLSearchParams(window.location.search).get("checkout"));
@@ -113,7 +131,9 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   return (
     <>
       <GlassCheckout summary={summary} payment={state.payment} start={start} confirm={confirm} onPayment={onPayment}
-        kind="checkout" saveNote="Stripe saves this card for your plan's renewals." mount={api.mountCheckout} returned={returned === "return"} payLabel={trial ? "Add a card and start my trial" : "Pay securely"} />
+        kind="checkout" saveNote="Stripe saves this card for your plan's renewals." mount={api.mountCheckout} returned={returned === "return"} payLabel={trial ? "Add a card and start my trial" : "Pay securely"}
+        autopay={{ on: autopayOn, onChange: setAutopayOn, ...autopayWords(emailLive) }} />
+      {autopayNote && <p className="zob-muted" role="status">{autopayNote}</p>}
       {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. We'll ask for payment here once it's switched on.</p>}
       {st.key !== "confirmed" && state.payment?.required !== false && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}
       <ErrorText>{action.error}</ErrorText>

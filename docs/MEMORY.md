@@ -127,10 +127,22 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   `docs/PAYMENTS_ARCHITECTURE.md` §16.8 (notably that a `ui_mode: custom` session returns its `client_secret` and that
   its confirm accepts a PaymentMethod made by the split card fields; if not, the fallback is the first invoice's own
   PaymentIntent, which needs the owner's go ahead); and owner decisions: whether the CSP must be enforcing (not report
-  only) for the SAQ A attestation; whether to offer Stripe's hosted page as a fallback when Stripe.js is blocked (not
-  built); whether a billing address changed in the checkout should update the business record (not built: we don't
+  only) for the SAQ A attestation; Stripe's hosted page as the fallback when Stripe.js is blocked is now
+  built for Pay now (owner, 27 Nov 2026); for the onboarding session it is still not built (no hosted link); whether a billing address changed in the checkout should update the business record (not built: we don't
   store it); Stripe's international card and conversion fees to confirm on the pricing page or Dashboard; and a
   review of Stripe Radar's rules against the any country decision (owner action).
+- **Auto pay switch, on by default (owner decision, 27 Nov 2026):** built on this branch, switched off. A switch in the
+  checkout ("Pay automatically each renewal") and in Payments › How you pay (owner only, confirmed both ways). Off sets
+  the Stripe subscription to `send_invoice`, due in 3 days; on needs a working saved card. Our record of the mode
+  changes only from `customer.subscription.updated`. The SQL extends the unapplied `sql/zella_stripe_owner_pay.sql`
+  (now also needs `zella_stripe_cancel.sql` and `zella_stripe_plan_change.sql`, whose customer.subscription.updated
+  handler it changes by two exact text replacements, archived first). The H1 email is queued and held while
+  `email_live` is off; its "card ending" wording waits on the card at render decision. The onboarding choice is sent
+  after the payment is confirmed; a closed tab before then leaves Auto pay on.
+- **Stripe's hosted invoice page in the CRM (owner decision, 27 Nov 2026):** removed from the Payments UI: no "On
+  Stripe" link on invoice rows and no "Pay on Stripe's invoice page" line under the checkout. It is offered only as an
+  error fallback ("Pay on Stripe's secure page") when Stripe.js fails to load or our checkout can't be shown. View on
+  an invoice offers Download PDF from Stripe's `invoice_pdf` URL when we have one. Our emails keep their links.
 - **Privacy Policy draft (open, not edited):** the draft in `sql/zella_privacy_retention.sql` names "Stripe:
   payments" as a processor but does not say that the billing name and address typed in the checkout go to Stripe
   with the card. The owner (or counsel) should add it; the legal drafts were not changed. They say nothing like "US

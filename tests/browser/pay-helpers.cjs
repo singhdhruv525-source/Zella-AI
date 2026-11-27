@@ -41,7 +41,8 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
 async function contrast(page) {
   const items = await page.evaluate(() => {
     const out = [];
-    const root = document.querySelector(".zob-page") ?? document.body;
+    // a modal dialog open: only its text is read (the page behind it is dimmed on purpose and can't be reached)
+    const root = document.querySelector("[role=dialog][aria-modal=true]") ?? document.querySelector(".zob-page") ?? document.body;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement, text = n.textContent.trim();
@@ -119,4 +120,24 @@ const addressMock = (page) => page.evaluate(() => {
 });
 const waitFilled = (page) => page.waitForFunction(() => document.querySelector(".zgc-cardcol .zgc-card-front .zgc-cf-number")?.textContent.includes("4242"), null, { timeout: 15000 }).catch(() => {});
 
-module.exports = { LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock };
+// the card's back once the turn has settled: the back face shown, and its magnetic stripe drawn dark (mean relative
+// luminance of the stripe's middle band, from the rendered pixels)
+async function backFace(page) {
+  await page.waitForTimeout(900);   // the turn takes 760ms; the security code stays focused longer than that
+  const info = await page.evaluate(() => {
+    const card = document.querySelector(".zgc-cardcol .zgc-card");
+    const back = card?.querySelector(".zgc-card-back"), stripe = back?.querySelector(".zgc-cb-stripe");
+    if (!back || !stripe) return null;
+    const r = stripe.getBoundingClientRect();
+    return { isBack: card.classList.contains("is-back"), visible: getComputedStyle(back).visibility === "visible", rect: [r.x + window.scrollX, r.y + window.scrollY, r.width, r.height] };   // page coordinates
+  });
+  if (!info || info.rect[2] < 4 || info.rect[3] < 2) return { ...info, luminance: null };
+  const [x, y, w, h] = info.rect;
+  const png = readPng(await page.screenshot({ fullPage: true, clip: { x: x + w * 0.25, y: y + h * 0.3, width: Math.max(2, w * 0.5), height: Math.max(2, h * 0.4) } }));
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  let sum = 0, n = 0;
+  for (let i = 0; i < png.width; i++) for (let j = 0; j < png.height; j++) { const [r0, g0, b0] = png.at(i, j); sum += 0.2126 * lin(r0) + 0.7152 * lin(g0) + 0.0722 * lin(b0); n++; }
+  return { ...info, luminance: sum / n };
+}
+
+module.exports = { backFace, LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock };

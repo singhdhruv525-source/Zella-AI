@@ -80,6 +80,9 @@ export const realApi = {
   // plan. The browser sends no amount; it comes back from Stripe and asks the server to look again.
   startCheckout: (businessId, idempotencyKey) => billing("checkout_start", { business_id: businessId, idempotency_key: idempotencyKey }),
   checkoutReturn: (businessId) => billing("checkout_return", { business_id: businessId }),
+  // Auto pay (owner, 27 Nov 2026): the owner's choice, sent once the server confirmed the first payment
+  autopayStatus: (businessId) => rpc("zella_owner_autopay_status", { p_business_id: businessId }),
+  autopaySet: async (businessId, on, key) => (await billing("autopay_set", { business_id: businessId, on, idempotency_key: key })).autopay,
 };
 
 async function billing(action, payload) {

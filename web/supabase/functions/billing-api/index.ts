@@ -21,6 +21,10 @@
 //   POST { action: "pack_status", business_id, purchase_id } -> { purchase } after applying any events
 //   POST { action: "pack_act_start", business_id, purchase_id } -> the pack's own PaymentIntent for Stripe's form, when
 //        the bank asked to confirm or the saved card was declined (never a second charge)
+//   POST { action: "autopay_set", business_id, on, idempotency_key } -> { autopay } (owner decision, 27 Nov 2026: "Auto pay
+//        switch, on by default"): the database checks the owner and records the choice; turning it on needs a usable
+//        saved card (checked with Stripe here and in the database); the Stripe subscription update is sent from the
+//        outbox with its stored body (§8.1). Our record of Auto pay changes only from customer.subscription.updated.
 //   POST { action: "pack_buy", business_id, pack_code, idempotency_key } -> { purchase_id, status } (charged on the saved card;
 //                                                                    the pack is added when Stripe confirms the payment)
 //   POST { action: "refund_options", business_id }  /  { action: "refund_request", business_id, kind, payment_id, idempotency_key }
@@ -59,7 +63,16 @@ const WORDS: Record<string, string> = {
   NOT_FOUND: "We couldn't find that for your account. Check you're signed in as the business owner.",
   NOT_PAYABLE: "This can't be paid online right now. Nothing was charged.",
   NO_CUSTOMER: "Your card is added with your first payment. There's nothing to update yet.",
+  NO_SUBSCRIPTION: "Auto pay can be changed once your plan is active.",
 };
+// a saved card Stripe can still charge: a card PaymentMethod whose expiry hasn't passed
+export function usableCard(pm: unknown, now = new Date()): boolean {
+  const c = (pm as Record<string, any> | null)?.card;
+  if (!c || typeof c !== "object") return false;
+  const m = Number(c.exp_month), y = Number(c.exp_year);
+  if (!Number.isInteger(m) || !Number.isInteger(y)) return false;
+  return y > now.getUTCFullYear() || (y === now.getUTCFullYear() && m >= now.getUTCMonth() + 1);
+}
 const INVOICE_ACTIONS = new Set(["invoice_pay_status", "invoice_pay_start", "invoice_pay_return"]);
 const OPEN_INTENT = new Set(["requires_payment_method", "requires_action", "requires_confirmation"]);
 const intentOf = (secret: string) => secret.split("_secret_")[0];
@@ -288,6 +301,25 @@ export async function handle(req: Request): Promise<Response> {
       if (!OPEN_INTENT.has(String(pi.status)) || typeof pi.client_secret !== "string") return refuse("NOT_PAYABLE");
       return reply({ status: "open", client_secret: pi.client_secret, publishable_key: publishable, livemode: stripe.livemode, amount_minor: act.price_cents, currency: "usd",
         billing_prefill: await prefill(business) });
+    }
+    if (action === "autopay_set") {
+      const key = String(body.idempotency_key ?? "");
+      if (typeof body.on !== "boolean" || !/^[A-Za-z0-9_-]{8,100}$/.test(key)) return refuse("INVALID_INPUT");
+      if (body.on) {
+        // turning Auto pay on needs a saved card Stripe can charge (the owner check first)
+        await asOwner(url, anon, jwt, "zella_owner_billing_access", { p_business_id: business, p_write: true });
+        const ref = await refs(business);
+        const sub = ref?.subscription && ref.customer
+          ? await stripe.get(`/v1/subscriptions/${ref.subscription}`, { expand: ["default_payment_method"] }).catch(() => null) as Record<string, any> | null : null;
+        if (!sub || sub.customer !== ref?.customer || !usableCard(sub.default_payment_method)) return refuse("NO_SAVED_CARD", 409);
+      }
+      await asOwner(url, anon, jwt, "zella_owner_autopay_set", { p_business_id: business, p_on: body.on, p_idempotency_key: key });
+      const next = await rpc("zella_billing_autopay_next_command", { p_business_id: business }) as string | null;
+      if (next) {
+        await sendOutboxNow(rpc, stripe, next);
+        await applyEvents(rpc, stripe, 20, 4).catch(() => null);   // Stripe's customer.subscription.updated is what changes our record
+      }
+      return reply({ autopay: await asOwner(url, anon, jwt, "zella_owner_autopay_status", { p_business_id: business }) });
     }
     if (body.action === "pack_buy") {
       const bought = await asOwner(url, anon, jwt, "zella_owner_pack_buy", { p_business_id: business, p_pack_code: String(body.pack_code ?? ""), p_idempotency_key: String(body.idempotency_key ?? "") }) as Record<string, unknown>;

@@ -55,9 +55,15 @@
 .zpay-ext { display: inline-flex; align-items: center; gap: 2px; font-size: var(--zella-text-sm); }
 .zpay-loading { margin: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
 .zpay-checkout { display: flex; flex-direction: column; gap: var(--zella-space-3); min-width: 0; }
-.zpay-fallback { text-align: center; }
+.zpay-pdf { justify-content: center; margin-top: var(--zella-space-3); }
 html[data-zella-theme="glass"]:has(.ba-root) .zpay-card {
   border-color: var(--zella-border-strong);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
 }
+/* Auto pay (owner, 27 Nov 2026): the switch beside its words; the confirm dialog's text */
+.zpay-autopay { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--zella-space-3); padding: var(--zella-space-3) 0; border-top: 1px solid var(--zella-border); }
+.zpay-autopay-text { display: grid; gap: var(--zella-space-1); min-width: 0; }
+.zpay-dialog { display: grid; gap: var(--zella-space-2); padding: 0 var(--zella-space-4) var(--zella-space-3); }
+.zpay-dialog p { margin: 0; }
+.zpay-apnote { text-align: center; }

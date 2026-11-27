@@ -18,7 +18,11 @@ const { handle } = await import("./index.ts");
 // the database stand in: what the owner functions and the server functions answer
 type Answer = Record<string, unknown> | Error | null;
 type Db = { checkout: Record<string, unknown> | null; payment: Record<string, unknown>; start?: Record<string, unknown> | Error;
-  invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer; prefill?: unknown };
+  invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer; prefill?: unknown; autopay?: AutoPay };
+// Auto pay's database stand in: the owner's choice (versioned), our record of Stripe's value (changed ONLY by an applied
+// customer.subscription.updated), the outbox rows, and the Stripe events not yet applied
+type AutoPay = { owner: boolean; card: boolean; sub: string; on: boolean; desired: boolean | null; version: number; keys: Set<string>;
+  outbox: { id: string; idempotency_key: string; method: "POST"; path: string; body: Record<string, unknown>; attempts: number; status: string }[]; applied: Set<string>; hold?: boolean };
 let db: Db;
 const calls: { fn: string; args: Record<string, unknown>; as: string }[] = [];
 const realFetch = globalThis.fetch;
@@ -41,6 +45,27 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
   if (fn === "zella_owner_pack_act_start") return answer(db.packAct);
   if (fn === "zella_owner_pack_status") return answer(db.pack);
   if (fn === "zella_owner_onboarding_payment_status") return json(db.payment);
+  const ap = db.autopay;
+  if (ap && fn === "zella_owner_autopay_status") return ap.owner ? json({ on: ap.on, desired: ap.desired ?? ap.on, pending: ap.desired !== null && ap.desired !== ap.on }) : json({ message: "NOT_ALLOWED" }, 400);
+  if (ap && fn === "zella_owner_autopay_set") {
+    if (!ap.owner) return json({ message: "NOT_ALLOWED" }, 400);
+    if (ap.keys.has(args.p_idempotency_key) || (ap.desired ?? ap.on) === args.p_on) return json({});
+    if (args.p_on && !ap.card) return json({ message: "NO_SAVED_CARD" }, 400);
+    ap.keys.add(args.p_idempotency_key); ap.desired = args.p_on; ap.version++;
+    ap.outbox.push({ id: crypto.randomUUID(), idempotency_key: `autopay:${ap.sub}:${ap.version}:1`, method: "POST", path: `/v1/subscriptions/${ap.sub}`,
+      body: args.p_on ? { collection_method: "charge_automatically" } : { collection_method: "send_invoice", days_until_due: 3 }, attempts: 1, status: "pending" });
+    return json({});
+  }
+  if (ap && fn === "zella_billing_autopay_next_command") return json(ap.outbox.find((o) => o.status === "pending")?.id ?? null);
+  if (ap && fn === "zella_billing_outbox_claim") { const o = ap.outbox.find((x) => x.id === args.p_id && x.status === "pending"); if (o) o.status = "sending"; return json(o ? [o] : []); }
+  if (ap && fn === "zella_billing_outbox_result") { const o = ap.outbox.find((x) => x.id === args.p_id)!; o.status = args.p_ok ? "sent" : "held"; return json(o.status); }
+  if (ap && fn === "zella_stripe_claim_events") {
+    if (ap.hold) return json([]);
+    const rows = fake.events.filter((e) => e.type === "customer.subscription.updated" && e.data.object.id === ap.sub && !ap.applied.has(e.id))
+      .map((e) => ({ id: e.id, type: e.type, object_type: "subscription", object_id: e.data.object.id, livemode: false, payload: null }));
+    return json(rows);
+  }
+  if (ap && fn === "zella_stripe_apply_event") { ap.applied.add(args.p_event_id); ap.on = args.p_object.collection_method !== "send_invoice"; return json("applied"); }
   if (fn === "zella_billing_events_claim" || fn.startsWith("zella_billing_")) return json(null);
   if (fn === "zella_platform_alert") return json(null);
   return json(null);
@@ -288,4 +313,69 @@ Deno.test("a pack the bank wants confirmed: the same PaymentIntent for Stripe's 
 });
 
 // the fake was started at module load, before any test: stopping it is not a leak of this step
+
+// Auto pay (owner decision, 27 Nov 2026: "Auto pay switch, on by default")
+async function subscribed() {
+  const s0 = await newSession();
+  fake.completeCheckout(s0.id);
+  const sub = fake.objects.get(fake.objects.get(s0.id)!.subscription)!;
+  return sub;
+}
+const autopayDb = (sub: Record<string, any>, extra: Partial<AutoPay> = {}): Db => ({ checkout: null, payment: {}, refs: { customer: sub.customer, subscription: sub.id },
+  autopay: { owner: true, card: true, sub: sub.id, on: true, desired: null, version: 0, keys: new Set(), outbox: [], applied: new Set(fake.events.map((e) => e.id)), ...extra } });
+
+Deno.test("Auto pay off: the database records the choice, Stripe's subscription is updated with the stored body, and our record follows Stripe's event", async () => {
+  const sub = await subscribed();
+  db = autopayDb(sub);
+  const r = await act({ action: "autopay_set", business_id: BIZ, on: false, idempotency_key: "autopay-key-0001" });
+  assertEquals(r.status, 200, JSON.stringify(r.body));
+  const req = fake.requests.findLast((x) => x.path === `/v1/subscriptions/${sub.id}` && x.method === "POST")!;
+  assertEquals([req.key, req.body.collection_method, req.body.days_until_due], [`autopay:${sub.id}:1:1`, "send_invoice", "3"]);
+  assertEquals([fake.objects.get(sub.id)!.collection_method, fake.objects.get(sub.id)!.days_until_due], ["send_invoice", 3]);
+  assertEquals(db.autopay!.on, false, "off only once customer.subscription.updated was applied");
+  assertEquals(r.body.autopay, { on: false, desired: false, pending: false });
+  // a double submit: the same key changes nothing at Stripe
+  const posts = fake.requests.filter((x) => x.method === "POST").length;
+  const again = await act({ action: "autopay_set", business_id: BIZ, on: false, idempotency_key: "autopay-key-0001" });
+  assertEquals([again.status, fake.requests.filter((x) => x.method === "POST").length], [200, posts]);
+});
+
+Deno.test("Auto pay: our record never changes from the browser or our own command; until Stripe's event is applied it stays as it was", async () => {
+  const sub = await subscribed();
+  db = autopayDb(sub, { hold: true });
+  const r = await act({ action: "autopay_set", business_id: BIZ, on: false, idempotency_key: "autopay-key-0002" });
+  assertEquals(r.status, 200, JSON.stringify(r.body));
+  assertEquals(fake.objects.get(sub.id)!.collection_method, "send_invoice", "Stripe has it");
+  assertEquals(r.body.autopay, { on: true, desired: false, pending: true }, "still on in our record, the change pending");
+});
+
+Deno.test("Auto pay: another business's owner is refused, nothing reaches Stripe", async () => {
+  const sub = await subscribed();
+  db = autopayDb(sub, { owner: false });
+  const posts = fake.requests.filter((x) => x.method === "POST").length;
+  const r = await act({ action: "autopay_set", business_id: BIZ, on: false, idempotency_key: "autopay-key-0003" });
+  assertEquals([r.status, r.body.code], [400, "NOT_ALLOWED"]);
+  assertEquals(fake.requests.filter((x) => x.method === "POST").length, posts);
+});
+
+Deno.test("Auto pay on: refused with no usable saved card (checked with Stripe), and with bad input", async () => {
+  const sub = await subscribed();
+  db = autopayDb(sub, { on: false });
+  fake.objects.get(sub.id)!.default_payment_method = null;
+  const r = await act({ action: "autopay_set", business_id: BIZ, on: true, idempotency_key: "autopay-key-0004" });
+  assertEquals([r.status, r.body.code], [409, "NO_SAVED_CARD"]);
+  assertEquals(db.autopay!.outbox.length, 0, "nothing queued");
+  assertEquals((await act({ action: "autopay_set", business_id: BIZ, on: "yes", idempotency_key: "autopay-key-0005" })).body.code, "INVALID_INPUT");
+  assertEquals((await act({ action: "autopay_set", business_id: BIZ, on: true, idempotency_key: "bad key" })).body.code, "INVALID_INPUT");
+});
+
+Deno.test("Auto pay: an expired card isn't a usable card", async () => {
+  const { usableCard } = await import("./index.ts");
+  const now = new Date("2026-11-27T00:00:00Z");
+  assertEquals(usableCard({ card: { exp_month: 11, exp_year: 2026 } }, now), true);
+  assertEquals(usableCard({ card: { exp_month: 10, exp_year: 2026 } }, now), false);
+  assertEquals(usableCard({ id: "pm_1" }, now), false);
+  assertEquals(usableCard(null, now), false);
+});
+
 Deno.test({ name: "cleanup", sanitizeResources: false, sanitizeOps: false, fn: async () => { globalThis.fetch = realFetch; await fake.stop(); } });

@@ -35,6 +35,9 @@ export const realBillingApi = {
   packBuy: (businessId, packCode, key) => billing("pack_buy", { business_id: businessId, pack_code: packCode, idempotency_key: key }),
   packStatus: (businessId, purchaseId) => billing("pack_status", { business_id: businessId, purchase_id: purchaseId }),
   packActStart: (businessId, purchaseId) => billing("pack_act_start", { business_id: businessId, purchase_id: purchaseId }),
+  // Auto pay (owner, 27 Nov 2026): the database answers what Stripe has (from its events) and checks the owner
+  autopayStatus: (businessId) => rpc("zella_owner_autopay_status", { p_business_id: businessId }),
+  autopaySet: async (businessId, on, key) => (await billing("autopay_set", { business_id: businessId, on, idempotency_key: key })).autopay,
   // Stripe's real card fields and billing address come from stripeEmbedded.js (mountCardFields); the stand in brings its own
 };
 

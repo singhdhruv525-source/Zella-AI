@@ -1,6 +1,12 @@
 // Pure: the server's answers for an invoice or a pack, in the glass checkout's terms (unit tested in web/tests).
 
 // The server's invoice as the checkout's payment state: paid only from our record (invoice.paid applied).
+// Auto pay's words (owner, 27 Nov 2026): honest about email while billing emails are held (email_live off)
+export function autopayWords(emailLive, card = "this card") {
+  return { onText: `Stripe charges ${card} on each renewal date.`,
+    offText: emailLive ? "We'll email your invoice; pay it within 3 days in the CRM." : "Your invoice appears in the CRM; pay it there within 3 days." };
+}
+
 export function invoiceAsPayment(inv) {
   if (inv?.status === "paid") return { status: "confirmed" };
   if (inv?.payable === true) return { status: "waiting", reason: "checkout_not_started", checkout_available: true };

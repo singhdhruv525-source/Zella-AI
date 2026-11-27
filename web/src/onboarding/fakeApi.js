@@ -236,6 +236,15 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       const card = { brand: "visa", last4: "4242", issuer: st.scenario === "payhtml" ? "<b>Bold Bank</b>" : "Test Bank" };
       return st.payment_confirmed && st.checkout_completed ? { payment: paymentOut(), card } : { payment: paymentOut() };
     }),
+    // Auto pay (fake): on by default; the choice applies once the payment is confirmed (the subscription exists)
+    autopayStatus: (id) => db(() => { owner(id); return { on: st.autopay !== false, desired: st.autopay !== false, pending: false, email_live: false, subscribed: Boolean(st.payment_confirmed) }; }),
+    autopaySet: (id, on, key) => db(() => {
+      owner(id);
+      if (!/^[A-Za-z0-9_-]{8,100}$/.test(String(key)) || typeof on !== "boolean") throw dbError("INVALID_INPUT");
+      if (!st.payment_confirmed) throw Object.assign(new Error("Auto pay can be changed once your plan is active."), { code: "NO_SUBSCRIPTION", status: 400 });
+      st.autopay = on; save();
+      return { on, desired: on, pending: false, email_live: false, subscribed: true };
+    }),
     finishLater: (id) => db(() => { owner(id); st.paused_at = now(); return { changed: true, state: stateOut() }; }),
     resume: (id) => db(() => { owner(id); const changed = Boolean(st.paused_at); st.paused_at = null; return { changed, state: stateOut() }; }),
 

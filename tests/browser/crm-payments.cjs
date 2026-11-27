@@ -51,7 +51,9 @@ async function open(browser, look, viewport, url, { video = null } = {}) {
 
 async function shot(page, look, width, state, axeSource) {
   const file = path.join(SHOTS, `crm-${look.name}-${state}-${width.name}.png`);
-  await page.screenshot({ path: file, fullPage: true });
+  // a dialog is fixed to the window: the window is what the person sees (a full page capture re-lays it out)
+  const dialog = (await page.locator("[role=dialog][aria-modal=true]").count()) > 0;
+  await page.screenshot({ path: file, fullPage: !dialog });
   const tag = `${look.name} ${width.name} ${state}`;
   check(`${tag}: no horizontal scroll`, !(await overflow(page)));
   const c = await contrast(page);
@@ -71,15 +73,20 @@ async function shot(page, look, width, state, axeSource) {
       // ---- the list, then Pay now on the open invoice ----
       const a = await open(browser, look, width.viewport, `/pay?business=${BIZ}&scenario=`);
       await a.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
-      check(`${tag}: auto charge: the renewal date and the saved card from Stripe`, (await a.page.locator(".zpay-lead").innerText()).includes("We'll charge your Visa ending 4242"));
+      check(`${tag}: auto charge: the renewal date and the saved card from Stripe`, (await a.page.locator(".zpay-lead").innerText()).includes("We'll charge your Visa •••• 4242"));
+      check(`${tag}: Auto pay: a switch, on, for the owner`, (await a.page.getAttribute(".zpay-autopay [role=switch]", "aria-checked")) === "true");
       check(`${tag}: the open invoice offers Pay now, the paid one doesn't`, (await a.page.locator(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')").count()) === 1
         && (await a.page.locator(".zpay-row:has-text('ZV-0031') button:has-text('Pay now')").count()) === 0);
-      check(`${tag}: Stripe's hosted invoice page stays as a link`, (await a.page.locator(".zpay-row a.zpay-ext").count()) === 2);
+      check(`${tag}: no link to Stripe's hosted invoice page in the list (owner, 27 Nov 2026)`, (await a.page.locator(".zpay-row a").count()) === 0
+        && (await a.page.locator("text=On Stripe").count()) === 0);
       await shot(a.page, look, width, "list", axeSource);
       await a.page.click(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')");
       await a.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
       check(`${tag}: the glass checkout for the invoice, the amount from the server`, (await a.page.locator(".zgc-total strong").innerText()) === "$249");
-      check(`${tag}: the hosted invoice page is the fallback`, await a.page.isVisible("a:has-text(\"Pay on Stripe's invoice page\")"));
+      check(`${tag}: Stripe's hosted page isn't offered while the checkout works, and no PDF for an open invoice without one`,
+        (await a.page.locator("a:has-text(\"Stripe's secure page\"), a:has-text(\"Stripe's invoice page\")").count()) === 0 && (await a.page.locator("a:has-text('Download PDF')").count()) === 0);
+      check(`${tag}: Pay now: "Pay automatically each renewal", on by default, with what it means`, (await a.page.getAttribute(".zgc-autopay [role=switch]", "aria-checked")) === "true"
+        && (await a.page.locator(".zgc-autopay-note").innerText()) === "Stripe charges your saved card on each renewal date.");
       await a.page.click(".zgc-pay button:has-text('Pay now')");
       await a.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
       check(`${tag}: paying: the stand in's card fields and billing address in Payment details, Pay waits for them`, await a.page.isVisible(".zgc-pay .zgc-addr-mock") && await a.page.locator(".zgc input").count() === 0
@@ -109,6 +116,10 @@ async function shot(page, look, width, state, axeSource) {
       await b.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
       await b.page.waitForTimeout(300);
       check(`${tag}: already paid: says so, nothing to pay`, (await b.page.locator("#zgc-status").innerText()) === "This invoice is paid" && (await b.page.locator(".zgc-pay-btn").count()) === 0);
+      const pdf = b.page.locator("a:has-text('Download PDF')");
+      check(`${tag}: already paid: Download PDF opens Stripe's PDF in a new tab`, (await pdf.count()) === 1 && (await pdf.getAttribute("href")) === "https://invoice.stripe.example/ZV-0042.pdf"
+        && (await pdf.getAttribute("target")) === "_blank" && /noopener/.test(await pdf.getAttribute("rel")));
+      check(`${tag}: already paid: no hosted page link`, (await b.page.locator("a:has-text(\"Stripe's secure page\")").count()) === 0);
       await shot(b.page, look, width, "already-paid", axeSource);
       await b.ctx.close();
 
@@ -126,7 +137,7 @@ async function shot(page, look, width, state, axeSource) {
       await p.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
       await p.page.click(".zpay-row:has-text('100 AI minutes') button:has-text('Buy')");
       await p.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
-      check(`${tag}: pack: the price from the server and the card it is charged to`, (await p.page.locator(".zgc-total strong").innerText()) === "$29" && await p.page.isVisible("text=Charged to your Visa ending 4242"));
+      check(`${tag}: pack: the price from the server and the card it is charged to`, (await p.page.locator(".zgc-total strong").innerText()) === "$29" && await p.page.isVisible("text=Charged to your Visa •••• 4242"));
       await shot(p.page, look, width, "pack-confirm", axeSource);
       await p.page.click(".zgc-pay-foot button:has-text('Pay $29')");
       await p.page.waitForSelector(".zgc.is-error", { timeout: 15000 }).catch(() => {});
@@ -175,6 +186,75 @@ async function shot(page, look, width, state, axeSource) {
     check(`canada ${width.name}: paid like any other card, confirmed by the server`, (await c.page.locator("#zgc-status").innerText()) === "Payment received");
     check(`canada ${width.name}: nothing left this machine`, c.hits.length === 0, c.hits.join(", "));
     await c.ctx.close();
+  }
+
+  // Auto pay in How you pay: off and back on, each confirmed in a dialog; Stripe's event (a moment later) changes it
+  for (const look of LOOKS) {
+    for (const width of [WIDTHS[0], WIDTHS[1]]) {
+      const tag = `${look.name} ${width.name} autopay`;
+      const t = await open(browser, look, width.viewport, `/pay?business=${BIZ}&scenario=`);
+      await t.page.waitForSelector(".zpay-autopay [role=switch]", { timeout: 10000 }).catch(() => {});
+      await shot(t.page, look, width, "autopay-on", axeSource);
+      await t.page.click(".zpay-autopay [role=switch]");
+      await t.page.waitForSelector("[role=dialog]", { timeout: 5000 }).catch(() => {}); await t.page.waitForTimeout(500);   // the dialog's opening motion
+      check(`${tag}: turning it off asks first, saying what changes`, (await t.page.locator("[role=dialog]").innerText()).includes("Turn Auto pay off?")
+        && (await t.page.locator("[role=dialog]").innerText()).includes("Your invoice appears in the CRM; pay it there within 3 days."));
+      await shot(t.page, look, width, "autopay-confirm-off", axeSource);
+      await t.page.click("[role=dialog] button:has-text('Turn off')");
+      await t.page.waitForSelector(".zpay-note:has-text('waiting for Stripe')", { timeout: 5000 }).catch(() => {});
+      const pending = await t.page.locator(".zpay-note:has-text('waiting for Stripe')").count();
+      await t.page.waitForFunction(() => document.querySelector(".zpay-autopay [role=switch]")?.getAttribute("aria-checked") === "false"
+        && !document.querySelector(".zpay-note"), null, { timeout: 15000 }).catch(() => {});
+      check(`${tag}: off only after Stripe's change came back (pending first)`, pending === 1 && (await t.page.locator(".zpay-lead").innerText()).includes("Your next invoice is due")
+        && (await t.page.locator(".zpay-lead").innerText()).includes("Pay now"));
+      await shot(t.page, look, width, "autopay-off", axeSource);
+      await t.page.click(".zpay-autopay [role=switch]");
+      await t.page.waitForSelector("[role=dialog]", { timeout: 5000 }).catch(() => {}); await t.page.waitForTimeout(500);   // the dialog's opening motion
+      check(`${tag}: turning it on asks first too`, (await t.page.locator("[role=dialog]").innerText()).includes("Turn Auto pay on?"));
+      await shot(t.page, look, width, "autopay-confirm-on", axeSource);
+      await t.page.click("[role=dialog] button:has-text('Turn on')");
+      await t.page.waitForFunction(() => document.querySelector(".zpay-autopay [role=switch]")?.getAttribute("aria-checked") === "true" && !document.querySelector(".zpay-note"), null, { timeout: 15000 }).catch(() => {});
+      check(`${tag}: back on: renews on the date, the saved card`, (await t.page.locator(".zpay-lead").innerText()).includes("We'll charge your Visa •••• 4242"));
+      check(`${tag}: no page errors, nothing left this machine`, t.errors.length === 0 && t.hits.length === 0, [...t.errors, ...t.hits].join("; "));
+      await t.ctx.close();
+    }
+  }
+  // turning Auto pay on with no saved card: the dialog offers Update card first, and nothing changes
+  {
+    const n = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/pay?business=${BIZ}&scenario=nocard`);
+    await n.page.waitForSelector(".zpay-autopay [role=switch]", { timeout: 10000 }).catch(() => {});
+    await n.page.click(".zpay-autopay [role=switch]");
+    await n.page.click("[role=dialog] button:has-text('Turn off')");
+    await n.page.waitForFunction(() => document.querySelector(".zpay-autopay [role=switch]")?.getAttribute("aria-checked") === "false" && !document.querySelector(".zpay-note"), null, { timeout: 15000 }).catch(() => {});
+    await n.page.click(".zpay-autopay [role=switch]");
+    await n.page.waitForSelector("[role=dialog]", { timeout: 5000 }).catch(() => {}); await n.page.waitForTimeout(500);
+    check("autopay no card: turning it on offers Update card first", await n.page.isVisible("[role=dialog] button:has-text('Update card')")
+      && (await n.page.locator("[role=dialog] button:has-text('Turn on')").count()) === 0);
+    await shot(n.page, LOOKS[0], WIDTHS[0], "autopay-needs-card", loadAxe());
+    await n.ctx.close();
+  }
+
+  // View on a paid invoice from the list: its PDF, from our stored record
+  {
+    const v = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/pay?business=${BIZ}&scenario=`);
+    await v.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
+    await v.page.click(".zpay-row:has-text('ZV-0031') button:has-text('View')");
+    await v.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    await v.page.waitForTimeout(300);
+    check("view: Download PDF for a paid invoice with a PDF", (await v.page.locator("a:has-text('Download PDF')").getAttribute("href").catch(() => null)) === "https://invoice.stripe.example/ZV-0031.pdf");
+    await v.ctx.close();
+  }
+  // Stripe's form can't load: the error state is the ONE place Stripe's hosted page is offered
+  for (const look of LOOKS) {
+    const f = await open(browser, look, { width: 1440, height: 900 }, `/pay/invoice/${OPEN}?scenario=stripefail`);
+    await f.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    await f.page.click(".zgc-pay button:has-text('Pay now')");
+    await f.page.waitForSelector(".zgc.is-error", { timeout: 10000 }).catch(() => {});
+    const fb = f.page.locator("a:has-text(\"Pay on Stripe's secure page\")");
+    check(`${look.name} stripefail: the form didn't load, and Stripe's secure page is offered as the fallback`, (await f.page.locator("#zgc-status").innerText()) === "The secure form didn't load"
+      && (await fb.count()) === 1 && (await fb.getAttribute("href")) === "https://invoice.stripe.example/ZV-0042" && /noopener/.test(await fb.getAttribute("rel")));
+    await shot(f.page, look, { name: "1440" }, "stripe-load-fallback", loadAxe());
+    await f.ctx.close();
   }
 
   // the emailed link: someone who isn't this invoice's owner gets nothing but "couldn't open"

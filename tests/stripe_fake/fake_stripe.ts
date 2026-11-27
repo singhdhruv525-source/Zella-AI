@@ -196,7 +196,13 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       if (method === "DELETE") { if (sub.status !== "canceled") { sub.status = "canceled"; sub.canceled_at = clock; emit("customer.subscription.deleted", sub); } return ok(sub); }
       if (method === "POST") {
         if (b.cancel_at_period_end !== undefined) sub.cancel_at_period_end = b.cancel_at_period_end === "true";
-        if (b.collection_method) sub.collection_method = b.collection_method;
+        // Auto pay (owner, 27 Nov 2026): send_invoice needs days_until_due, as at Stripe; charging automatically clears it
+        if (b.collection_method) {
+          if (!["charge_automatically", "send_invoice"].includes(b.collection_method)) return err(400, "invalid_request_error", "Invalid collection_method", "parameter_invalid_string");
+          if (b.collection_method === "send_invoice" && b.days_until_due === undefined) return err(400, "invalid_request_error", "days_until_due is required with send_invoice", "parameter_missing");
+          sub.collection_method = b.collection_method;
+          sub.days_until_due = b.collection_method === "send_invoice" ? Number(b.days_until_due) : null;
+        }
         const newPrice = b.items?.[0]?.price;
         if (newPrice) {
           const np = need(newPrice, "price"), item = sub.items.data[0], op = get(item.price.id)!;
@@ -376,7 +382,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       const start = trial ?? clock;
       // the card the owner typed into Stripe's form: only what Stripe itself returns about it (brand, last 4 of Stripe's
       // public test card), never a number, CVC or expiry
-      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer, livemode, created: clock, card: { brand: "visa", last4: "4242", issuer: "Test Bank" } });
+      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer, livemode, created: clock, card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2028, issuer: "Test Bank" } });
       const sub = put({ id: id("sub"), object: "subscription", customer, status: trial ? "trialing" : "active", cancel_at_period_end: false, livemode, created: clock,
         default_payment_method: pm.id,
         trial_start: trial ? clock : null, trial_end: trial, metadata: s._sub_metadata, collection_method: "charge_automatically", latest_invoice: null, pending_update: null,
@@ -412,7 +418,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       if (card !== "ok") { pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" }; emit("payment_intent.payment_failed", pi); return clone(pi); }
       const ch = put({ id: id("ch"), object: "charge", amount: pi.amount, amount_refunded: 0, refunded: false, payment_intent: pi.id, customer: pi.customer, livemode, created: clock });
       // the card the customer used in the form: only what Stripe returns about it (Stripe's public test card)
-      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer: pi.customer, livemode, created: clock, card: { brand: "visa", last4: "4242", issuer: "Test Bank" } });
+      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer: pi.customer, livemode, created: clock, card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2028, issuer: "Test Bank" } });
       pi.status = "succeeded"; pi.latest_charge = ch.id; pi.last_payment_error = null; pi.payment_method = pm.id;
       const inv = pi.metadata?.invoice ? get(pi.metadata.invoice) : null;
       if (inv) {

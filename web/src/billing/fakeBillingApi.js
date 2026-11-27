@@ -10,6 +10,8 @@
 //   packauth   buying a pack: the bank wants to confirm; finishing it in Stripe's form grants it
 //   nocard     no card saved yet: Update card and buying a pack say there's no card to charge
 //   off        payments aren't switched on: no Pay now, no buying
+//   autopayoff Auto pay is off: invoices are emailed (held while email is off) and paid with Pay now
+//   stripefail Stripe's form can't load: the error offers Stripe's secure page as the only fallback
 //   canada     as "", with a business address in Canada: Stripe's billing address fields in Canada's format
 import { mountStandInCard } from "./standinForm.js";
 
@@ -25,12 +27,17 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
     invoices: [
       { id: OPEN, number: "ZV-0042", status: scenario === "paid" ? "paid" : "open", total_minor: 24900, amount_due_minor: scenario === "paid" ? 0 : 24900,
         amount_paid_minor: scenario === "paid" ? 24900 : 0, currency: "usd", period_start: day(20), period_end: day(30) + "", hosted_invoice_url: "https://invoice.stripe.example/ZV-0042",
-        paid_at: scenario === "paid" ? day(21) : null, created_at: day(20) },
+        invoice_pdf: scenario === "paid" ? "https://invoice.stripe.example/ZV-0042.pdf" : null, paid_at: scenario === "paid" ? day(21) : null, created_at: day(20) },
       { id: PAID, number: "ZV-0031", status: "paid", total_minor: 89800, amount_due_minor: 0, amount_paid_minor: 89800, currency: "usd",
-        period_start: day(1), period_end: day(20), hosted_invoice_url: "https://invoice.stripe.example/ZV-0031", paid_at: day(1), created_at: day(1) },
+        period_start: day(1), period_end: day(20), hosted_invoice_url: "https://invoice.stripe.example/ZV-0031", invoice_pdf: "https://invoice.stripe.example/ZV-0031.pdf",
+        paid_at: day(1), created_at: day(1) },
     ],
     looks: 0, purchases: new Map(), cardUpdated: false,
+    // Auto pay: what Stripe has (changed only by its event, a moment after the command) and the owner's latest choice
+    autopay: { on: scenario !== "autopayoff", desired: null, keys: new Set() },
   };
+  const autopayOut = () => ({ on: st.autopay.on, desired: st.autopay.desired ?? st.autopay.on, pending: st.autopay.desired !== null && st.autopay.desired !== st.autopay.on,
+    days_until_due: st.autopay.on ? null : 3, current_period_end: day(30), email_live: false, has_card: scenario !== "nocard", subscribed: true, payments_live: live });
   const session = { user: { id: "00000000-0000-4000-8000-0000000000a1", email: "owner@example.test" } };
   const payable = (i) => live && ["open", "payment_failed"].includes(i.status) && i.amount_due_minor > 0;
   const out = (i) => ({ ...i, payable: payable(i) });
@@ -52,6 +59,18 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       plan: { tier: "pro", price_cents: 24900, billing_interval: "monthly", setup_fee_cents: 64900 },
       subscription: { status: scenario === "" || scenario === "canada" ? "past_due" : "active", current_period_end: day(30) }, packs: PACKS, payments_live: live }; },
     invoices: async (id) => { await wait(delay); owner(id); return st.invoices.map(out); },
+    autopayStatus: async (id) => { await wait(delay); owner(id); return autopayOut(); },
+    autopaySet: async (id, on, key) => {
+      await wait(delay); owner(id);
+      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. Nothing has been charged.");
+      if (typeof on !== "boolean" || !/^[A-Za-z0-9_-]{8,100}$/.test(String(key))) throw refuse("INVALID_INPUT");
+      if (st.autopay.keys.has(key) || (st.autopay.desired ?? st.autopay.on) === on) return autopayOut();
+      if (on && scenario === "nocard") throw refuse("NO_SAVED_CARD", "Add a card in Settings, Billing first.");
+      st.autopay.keys.add(key); st.autopay.desired = on;
+      // Stripe's customer.subscription.updated, applied by the server a moment later: only then does Auto pay change
+      setTimeout(() => { st.autopay.on = on; st.autopay.desired = null; }, delay * 3);
+      return autopayOut();
+    },
     cardSummary: async (id) => { await wait(delay); owner(id); return scenario === "nocard" ? null : CARD; },
     cardUpdateStart: async (id) => {
       await wait(delay); owner(id);
@@ -113,6 +132,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
     // the stand in for Stripe's card fields (no input elements; demo() plays the test card); submit() is our Pay button
     mountPayment: async (slots, opts) => {
       await wait(delay * 2);
+      if (scenario === "stripefail") throw Object.assign(new Error("Stripe.js didn't load"), { code: "STRIPE_JS" });
       if (opts.clientSecret !== "pi_standin_secret_standin") throw Object.assign(new Error("not the stand in's intent"), { code: "STRIPE_JS" });
       return mountStandInCard(slots, opts, { speed: delay ? 45 : 0, onPay: async () => {
         await wait(delay);

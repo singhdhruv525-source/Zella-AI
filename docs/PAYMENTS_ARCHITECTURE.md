@@ -824,8 +824,34 @@ Settings › Billing › Payment method (audited, confirmed by email): the subsc
 `collection_method: send_invoice` with `days_until_due: 3`, and each invoice is paid by the owner, either by the
 **Pay now** link in our email or in the app (Settings › Billing and subscription › Invoices and payments). Both open
 the owner's own Zella Voice page for that one invoice (owner, 27 Nov 2026; below), which confirms the invoice's one
-PaymentIntent, so it can never be paid twice; Stripe's hosted invoice page stays as the fallback link. An invoice still unpaid at its due date follows the failed-payment path
+PaymentIntent, so it can never be paid twice. Stripe's hosted invoice page is an error fallback only (owner, 27 Nov 2026; below). An invoice still unpaid at its due date follows the failed-payment path
 (§6.3): reminders, final notice, pause on day 5. Switching back on needs a working saved card.
+
+**Auto pay switch, on by default (owner decision, 27 Nov 2026). Built switched off, not applied**
+(`sql/zella_stripe_owner_pay.sql` extended, since it is not applied yet; `billing-api` `autopay_set`;
+`web/src/billing/`). The design above, built as "Auto pay":
+
+- **In the checkout** (onboarding and Pay now), Payment details has a switch "Pay automatically each renewal", on by
+  default. On: "Stripe charges this card on each renewal date" (Pay now: "your saved card"). Off: "We'll email your
+  invoice; pay it within 3 days in the CRM", or, while billing emails are held (`email_live` off), "Your invoice
+  appears in the CRM; pay it there within 3 days". The choice is sent only after the server confirms the payment (the
+  subscription exists then); Pay now starts from the current mode. A choice lost to a closed tab leaves Auto pay on,
+  and the owner can change it in the CRM.
+- **In CRM › Payments › How you pay**, the owner (only) has an Auto pay switch. Each direction asks first in a short
+  dialog. Turning it on needs a working saved card (Stripe's saved card for the subscription, not expired, checked by
+  `billing-api` with Stripe, and a default card in our record); without one the dialog offers Update card instead.
+  The text shows the mode: on, "Your plan renews on <date>. We'll charge your Visa •••• 4242"; off, "Your next invoice
+  is due <date>. Pay it with Pay now below" (the renewal date plus `days_until_due`).
+- **Server.** `billing-api` `autopay_set { business_id, on, idempotency_key }` runs `zella_owner_autopay_set` (active
+  owner of that business, code verified session, payments live; the same key, or the same choice again, changes
+  nothing). Each change raises the subscription's `autopay_version`, writes one audit entry `billing.autopay_changed`,
+  queues the H1 email (held while `email_live` is off; its card wording waits for the card at render decision) and
+  one outbox command `POST /v1/subscriptions/:id` with key `autopay:<subscription>:<version>:<attempt>` and the stored
+  body `{ collection_method: send_invoice, days_until_due: 3 }` or `{ collection_method: charge_automatically }`
+  (§8.1); older waiting choices are cancelled, so the latest wins. **Our record changes only from
+  `customer.subscription.updated`** (its fetched object's `collection_method` and `days_until_due`), never from the
+  browser or our own command; while they differ the page says the change is waiting for Stripe. A mismatch with
+  nothing waiting is resent with the next attempt (after a send and on each event).
 
 **Paying from inside the CRM: "auto charge plus Pay now" (owner decision, 27 Nov 2026). Built switched off, not
 applied** (`sql/zella_stripe_owner_pay.sql`, `billing-api`, `web/src/billing/`). Every payment the owner makes uses the
@@ -847,7 +873,12 @@ same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when
   creates nothing at Stripe, so a double start, a second tab and the emailed link reach the same intent, and Stripe
   having it already answers "processing". Paid comes only from `invoice.paid` through the binding check (§6.0a), read
   back by `invoice_pay_return` with the same confirming and pending polling as the Pay step. An invoice already paid
-  opens "This invoice is paid". Stripe's hosted invoice page stays as the fallback link.
+  opens "This invoice is paid", with **Download PDF** (Stripe's `invoice_pdf` URL from our stored invoice, in a new tab,
+  `rel="noopener"`; hidden when there is none).
+- **Stripe's hosted invoice page is an error fallback only (owner decision, 27 Nov 2026).** The CRM shows no "On
+  Stripe" link on the invoice rows and no "Pay on Stripe's invoice page" line under the checkout. Only when Stripe.js
+  fails to load or our checkout can't be shown does the error state offer "Pay on Stripe's secure page", using the
+  invoice's `hosted_invoice_url` (https only, new tab, `rel="noopener"`). Nowhere else in the CRM.
 - **Update card** opens Stripe's **Customer Portal**, card update only (`flow_data.type: payment_method_update`), the
   design §16.1 and §16.2 already named: Stripe hosts the card page, sets the new card as the default for the
   subscription and its invoices, and needs no SetupIntent handling of ours. It returns to the Payments page. **An open
@@ -1090,6 +1121,7 @@ stateDiagram-v2
 | Pack bought by the owner | Checkout (payment) or `POST /v1/payment_intents` | `pack:<purchase id>` | one per purchase | PaymentIntent by `metadata.purchase_id` |
 | Pack finished by the owner (bank confirmation, another card) | none: the same PaymentIntent is confirmed in Stripe's form | (no POST of ours) | the same purchase, back to pending once | the PaymentIntent by `metadata.purchase_id` |
 | Pay now on an open invoice | none: the invoice's own PaymentIntent is confirmed in Stripe's form | (no POST of ours) | the invoice's one intent | the invoice and its intent |
+| Auto pay on or off (27 Nov 2026) | `POST /v1/subscriptions/:id` (`collection_method`, `days_until_due`) | `autopay:<subscription>:<version>:<attempt>` | one command per choice; older waiting ones cancelled | the subscription's `collection_method` from `customer.subscription.updated` |
 | Card update page (Customer Portal) | `POST /v1/billing_portal/sessions` | `portal:<business id>:<attempt key>` | none needed: a short lived page, no money; a new one per attempt | not needed |
 | Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
 | Yearly pay as you go | `POST /v1/payment_intents` | `payg:<period id>` | one per period | PaymentIntent by `metadata.period_id` |

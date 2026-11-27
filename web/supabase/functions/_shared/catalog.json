@@ -39,6 +39,7 @@
     "automation_channel_resolved": "Resolved automation channel",
     "automations.updated": "Updated automations",
     "billing.auto_reload_updated": "Updated auto reload",
+    "billing.autopay_changed": "Switched Auto pay on or off",
     "billing.checkout_started": "Started plan checkout",
     "billing.dispute_lost": "Card dispute lost",
     "billing.dispute_opened": "Card dispute opened",

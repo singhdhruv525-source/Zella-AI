@@ -28,17 +28,25 @@ import "./glassCheckout.css";
 //   mount        (slots, opts) => Promise<{ destroy, submit, demo? }>; default Stripe's card fields (stripeEmbedded.js)
 //   onUpdateCard opens Stripe's card update (for "There's no card to charge")
 //   words        per state overrides; payLabel the first button; saveNote a line under the fields
+//   autopay      { on, onChange(on), onText, offText }: the "Pay automatically each renewal" switch (owner, 27 Nov 2026)
+//   fallbackUrl  Stripe's hosted invoice page: offered ONLY when Stripe's form can't load or our checkout can't be shown
 export default function GlassCheckout(props) {
   return (
     <ErrorBoundary resetKey="glass-checkout" fallback={(retry) => (
       <div className="zob-state zob-state-box error" role="alert">
         <Icon name="error" />
-        <div><strong>The payment form couldn't be shown</strong><p>Nothing was charged. Try again, or come back later.</p><button type="button" className="ba-btn sm" onClick={retry}>Try again</button></div>
+        <div><strong>The payment form couldn't be shown</strong><p>Nothing was charged. Try again, or come back later.</p><button type="button" className="ba-btn sm" onClick={retry}>Try again</button>
+          {props.fallbackUrl && <FallbackLink url={props.fallbackUrl} />}</div>
       </div>
     )}>
       <Checkout {...props} />
     </ErrorBoundary>
   );
+}
+
+// the one place Stripe's hosted page is offered: an error fallback (owner, 27 Nov 2026)
+function FallbackLink({ url }) {
+  return <p className="zgc-fallback"><a className="ba-link" href={url} target="_blank" rel="noopener noreferrer">Pay on Stripe's secure page <Icon name="open_in_new" size="sm" /></a></p>;
 }
 
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -57,7 +65,7 @@ function liveReduce(s, e) {
 }
 
 function Checkout({ summary, payment, kind = "checkout", start, actStart, confirm, onPayment, mount, returned = false, payLabel = "Pay securely",
-  words: over = {}, onUpdateCard, detailsNote, saveNote }) {
+  words: over = {}, onUpdateCard, detailsNote, saveNote, fallbackUrl, autopay }) {
   const [m, dispatch] = useReducer(reduce, payment, (p) => (returned && fromServer(p).state !== "confirmed" ? { state: "confirming", attempt: 0 } : fromServer(p)));
   const [live, onLive] = useReducer(liveReduce, NO_LIVE);
   const secret = useRef(null);           // { clientSecret, publishableKey, livemode }: memory only, dropped once mounted
@@ -234,6 +242,16 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
                   {saveNote && <p className="zgc-save-note"><Icon name="bookmark" size="sm" /> {saveNote}</p>}
                 </div>
               )}
+              {autopay && ["idle", "submitting", "loading", "ready"].includes(m.state) && (
+                <div className="zgc-autopay">
+                  <div className="zgc-autopay-row">
+                    <span className="zgc-autopay-label" id="zgc-autopay-label">Pay automatically each renewal</span>
+                    <button type="button" role="switch" aria-checked={autopay.on} aria-labelledby="zgc-autopay-label" aria-describedby="zgc-autopay-note"
+                      className={`ba-switch${autopay.on ? " on" : ""}`} disabled={sending} onClick={() => autopay.onChange(!autopay.on)}><span /></button>
+                  </div>
+                  <p className="zgc-autopay-note" id="zgc-autopay-note">{autopay.on ? autopay.onText : autopay.offText}</p>
+                </div>
+              )}
               {m.state === "ready" && inline && <p className="ba-error" role="alert">{inline}</p>}
             </div>
             <div className="zgc-pay-foot">
@@ -253,6 +271,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               {m.state === "error" && words.action && (
                 <button type="button" className="ba-btn primary zgc-pay-btn" onClick={errorAction}>{words.action}</button>
               )}
+              {m.state === "error" && m.kind === "stripe_load" && fallbackUrl && <FallbackLink url={fallbackUrl} />}
               {m.state === "error" && m.kind === "card_declined" && onUpdateCard && (
                 <button type="button" className="ba-btn zgc-pay-btn" onClick={onUpdateCard}>Update saved card</button>
               )}
