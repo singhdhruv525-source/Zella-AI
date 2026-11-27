@@ -210,7 +210,7 @@ async function shot(page, look, width, state, axeSource) {
 
       await page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(4200);   // the flip, the check drawing and the glow's two pulses have finished
-      check(`${tag}: confirmed only by the server: Payment received, the title follows`, (await page.locator("#zgc-status").innerText()) === "Payment received" && (await h1(page)) === "You're all set");
+      check(`${tag}: confirmed only by the server: Payment received, the title follows`, (await page.locator("#zgc-status").innerText()) === "Payment received" && (await h1(page)) === "Payment confirmed");
       check(`${tag}: confirmed: brand and last 4 as the server returned them, nothing else`, /\bVisa\b/.test(await cardText(page)) && (await cardText(page)).includes("ending 4242") && !/\d{5,}/.test(await cardText(page)));
       check(`${tag}: confirmed: the card is the look's success colour`, await page.evaluate(() => {
         const face = document.querySelector(".zgc-stage .zgc-card-done"), probe = document.createElement("i");

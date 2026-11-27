@@ -128,7 +128,7 @@ are not changed by this.
   70%, or `--glass-solid` in Glass), and the card lifts off the panel and flies to the centre a touch larger in 850ms
   (transform only, measured once). While confirming, a `--zella-sheen` shimmer sweeps across the card and a progress
   ring turns under it. When the server confirms, the card flips (800ms) to the success colour, the check draws itself
-  (stroke dash offset, 650ms) and a `--zella-success` glow pulses twice; the title becomes "You're all set".
+  (stroke dash offset, 650ms) and a `--zella-success` glow pulses twice; the title becomes "Payment confirmed" (pending the owner's confirmation; step 7 owns "You're all set").
   Everything behind the layer is `inert`. With reduced motion there is no blur (a plain surface), tilt, flight, flip,
   shimmer, spin, glow or drawing: the states simply change. Without `backdrop-filter` the layer is a plain surface.
 - **Progress steps** (`web/src/onboarding/ProgressSteps.jsx`, `.zv-progress` in `onboarding/onboarding.css`): "Step 3 of 7" and the step's name, a mocha bar with `role="progressbar"` and an accessible value text, and one dot per step (done, here, to come). The words carry the meaning; the bar and dots back them up. Give it `screens` and the `current` index.
