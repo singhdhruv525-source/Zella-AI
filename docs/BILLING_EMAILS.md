@@ -51,7 +51,7 @@ can turn it off in Settings › Billing › Emails).
 | # | Email | When | Main content | M/O |
 |---|---|---|---|---|
 | B1 | Your plan renews on <date> | scheduled by our worker from the subscription's period end: 3 days before each renewal; **yearly plans also 7 days before** | plan, period, estimated amount (plan + expected pay-as-you-go), and **one of three**: auto-debit on → "we will charge card ending 4242, nothing to do"; auto-debit off → "your invoice will be due on <date>, pay by the link or in the app"; payment needed (auto-debit on but no card or last charge failed) → "pay now / update card" | M |
-| B2 | Card expiring soon (held pending owner decision: rewrite without card expiry, rely on Stripe's own expiring card email, or remove) | Pending: the card's expiry is not stored (R59) | Pending | M |
+| B2 | Card expiring soon (held pending owner decision: rewrite without card expiry, rely on Stripe's own expiring card email, or remove) | Pending: the card's expiry is not stored (R59) | Pending | M, unless disabled because the owner chose Stripe's own expiring card email |
 | B3 | No card on file | auto-debit is on and the saved card was removed or is unusable | "add a card before <next renewal>" | M |
 | B4 | Price change notice | 30 days before a plan's price changes for this business | old and new price, from which renewal, how to change plan or cancel | M |
 | B5 | Discount ending | 7 days before a discount or promo stops | renewal amount without the discount | M |
@@ -203,11 +203,11 @@ our own row, e.g. the data-deletion schedule for E8), only to an owner who has g
 - Auto-debit off: invoice due in 3 days, overdue path on day 4, pause on day 5.
 - Renewal notice: auto-debit text with a working card; auto-debit-off text; payment-needed text with no card or a failed last charge.
 - Mismatch held; bounce recorded and alerted; optional email off → not sent, mandatory → always sent.
-- Stripe sandbox proof that Stripe itself sends no customer email.
+- Stripe sandbox proof that Stripe itself sends no customer email, except its expiring card email if the owner chooses that for B2 (then Zella Voice's B2 stays disabled, and the test checks that it is never sent).
 
 ## 10. Open choices for the owner
 
-B2 stays held until the owner decides whether to revise its trigger and copy to work without card expiry or remove the template.
+B2 stays held until the owner decides whether to revise its trigger and copy to work without card expiry, rely on Stripe's own expiring card email, or remove the template. If the owner chooses Stripe's own expiring card email, Zella Voice's B2 notice stays disabled.
 
 Decided by the owner (14 Nov 2026): owners can switch auto-debit off and pay by the email link or in the app;
 renewal reminder 3 days before, and also 7 days before for yearly plans; urgent ones (D1, D4, D5) also by SMS.
