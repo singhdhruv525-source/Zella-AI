@@ -121,6 +121,33 @@ n8n (done 2026-10-28, all unpublished): Follow-up Texts and Follow-up Emails sen
 "Post reply on Google", and the Anthropic key on "Ask AI". Google's v4 review endpoints are untested against the real API.
 Tests: `tests/features/run.sh` (staging only, 69 checks).
 
+## Event based dispatch (`sql/zella_event_dispatch.sql`). Built 26 Nov 2026, not applied; each step needs approval
+Saving work wakes n8n at once instead of waiting for the once a minute `zella_dispatch` job (architecture §8.3,
+REQ-AUT-10). Production does not have it (read only check, 26 Nov 2026). Never re-run `sql/zella_dispatcher.sql` for it:
+that would also put an old dispatcher back and switch the timers on.
+1. Check production still matches, read only: `select md5(pg_get_functiondef('public.zella_dispatch_n8n()'::regprocedure));`
+   must be `48ebbf41429852c7f5a04a35bd09ff4f` (otherwise the file stops with VERSION_MISMATCH and changes nothing).
+2. Apply `sql/zella_event_dispatch.sql`. It adds `zella_kick_dispatch()` and the eight triggers **switched off**; nothing
+   is called yet. Check: `select tgrelid::regclass, tgenabled from pg_trigger where tgname = 'zella_kick_dispatch';`
+   gives 8 rows, all `D`.
+3. Live switch, separately approved: switch the triggers on. From then on the next save calls n8n for real, because
+   `n8n_dispatch_enabled` is true and the base address and `zella_n8n_secret` are set. Publish the workflows first: an
+   unpublished workflow answers 404 and raises a warning alert per workflow.
+   ```sql
+   do $$ declare t text; begin
+     foreach t in array array['automation_events', 'followup_tasks', 'staff_notifications', 'appointment_reminders',
+                              'meta_events', 'meta_outbox', 'website_pages', 'website_sources'] loop
+       execute format('alter table public.%I enable trigger zella_kick_dispatch', t);
+     end loop;
+   end $$;
+   ```
+   To switch them off again, the same with `disable trigger`. The master switch `n8n_dispatch_enabled` also stops every call.
+4. The kick is not the whole wake up: a save within 2 seconds of the last kick, and work that falls due later (a
+   reminder at 3 pm), wait for the next kick or for the `zella_dispatch` job, which is still off.
+5. Rollback: `sql/rollback/run.sh sql/rollback/zella_event_dispatch_rollback.sql ...` drops the triggers and the
+   function and deletes the `_kick` row from `n8n_dispatch_state`.
+Tests: `tests/event_dispatch/run.sh` (isolated test database only).
+
 ## Required Resend authentication and proxy limits
 
 <!-- coderabbit-ai-generated:v1 -->
