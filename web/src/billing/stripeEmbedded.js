@@ -151,11 +151,13 @@ export async function mountCardFields(slots, { kind, clientSecret, publishableKe
       continue;
     }
     el.on("change", (e) => {
-      const was = done[field];
       done[field] = e.complete === true;
       onEvent?.({ type: "change", field, empty: e.empty === true, complete: e.complete === true, ...(field === "number" ? { brand: typeof e.brand === "string" ? e.brand : null } : {}) });
-      if (was && !done[field]) { pm = null; seq++; onEvent?.({ type: "preview", card: null }); }
-      if (!was && done[field]) maybePreview();
+      // Stripe sends change only when the field's value changed: whatever was previewed no longer matches (a new digit
+      // in a complete number stays complete), so the cached PaymentMethod is dropped, a preview on its way is ignored,
+      // and a new one is made when all three are complete (review). With no change the cached one is reused at Pay.
+      pm = null; seq++;
+      if (done.number && done.expiry && done.cvc) maybePreview(); else onEvent?.({ type: "preview", card: null });
     });
     el.on("focus", () => onEvent?.({ type: "focus", field }));
     el.on("blur", () => onEvent?.({ type: "blur", field }));

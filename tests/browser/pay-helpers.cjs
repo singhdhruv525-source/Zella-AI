@@ -111,7 +111,21 @@ const focused = (page) => page.evaluate(() => document.activeElement?.id || docu
 const zellaOnCard = (page) => page.evaluate(() => [...document.querySelectorAll(".zgc-card")].some((c) => /Zella\s*Voice/i.test(c.textContent)));
 // no input of ours at all: Stripe's card fields and its billing address fields are slots (Stripe's frames live, static
 // text in the stand in), never inputs
-const mockHasInputs = (page) => page.evaluate(() => document.querySelectorAll(".zgc input, .zgc textarea, .zgc select").length);
+// no field of ours in the checkout: the only inputs are the "I agree" box and the add on tick boxes (owner, 27 Nov 2026),
+// never a card or address field (NN-9)
+const mockHasInputs = (page) => page.evaluate(() => [...document.querySelectorAll(".zgc input, .zgc textarea, .zgc select")]
+  .filter((e) => !(e.type === "checkbox" && (e.id === "zgc-consent" || e.closest(".zgc-addon")))).length);
+// the "I agree" words as shown (the screen reader's "opens in a new tab" left out): exactly the words whose sha256 is sent
+const consentWords = (page) => page.evaluate(() => { const l = document.querySelector(".zgc-consent label")?.cloneNode(true); l?.querySelectorAll(".zob-sr").forEach((n) => n.remove()); return l?.textContent ?? ""; });
+// a press on Pay while the box is unticked: Pay is aria-disabled (still focusable and pressable, so it can say why)
+const pressBlocked = (page, selector) => page.click(selector, { force: true });
+// the required "I agree" box, then the first Pay button (it opens Stripe's form; the server records the agreement)
+async function agree(page) { await page.check("#zgc-consent"); }
+async function startPay(page, label = "Continue to pay") {
+  await page.waitForSelector("#zgc-consent", { timeout: 10000 }).catch(() => {});
+  await agree(page);
+  await page.click(`.zgc-pay-foot button:has-text('${label}')`);
+}
 // the stand in's live fill: Stripe's test card played into the card slots, then the name into the billing address
 async function fillCard(page) {
   await page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
@@ -169,4 +183,4 @@ async function enforcePayPageCsp(ctx, route) {
 const watchCsp = (ctx) => ctx.addInitScript(() => { window.__cspViolations = []; document.addEventListener("securitypolicyviolation", (e) => window.__cspViolations.push(`${e.violatedDirective} ${e.blockedURI}`)); });
 const cspViolations = (page) => page.evaluate(() => window.__cspViolations ?? []);
 
-module.exports = { enforcePayPageCsp, watchCsp, cspViolations, payPagePolicy, backFace, LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock };
+module.exports = { agree, startPay, consentWords, pressBlocked, enforcePayPageCsp, watchCsp, cspViolations, payPagePolicy, backFace, LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock };

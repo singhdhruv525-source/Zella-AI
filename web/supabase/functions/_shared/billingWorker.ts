@@ -32,6 +32,8 @@ const FETCH_PATH: Record<string, (id: string) => string> = {
   charge: (id) => `/v1/charges/${id}`,
   refund: (id) => `/v1/refunds/${id}`,
   dispute: (id) => `/v1/disputes/${id}`,
+  // customer.updated: a new default card set on Stripe's card page, made the subscription's card for renewals (review)
+  customer: (id) => `/v1/customers/${id}`,
 };
 
 type OutboxRow = { id: string; method: "POST" | "DELETE"; path: string; body: Json; idempotency_key: string; attempts: number };

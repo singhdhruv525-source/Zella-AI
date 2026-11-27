@@ -210,7 +210,7 @@ test("the card fields and the billing address: the name reaches the card, the ad
   assert.equal(f.el("address").options.defaultValues.address.country, "CA");
   for (const t of ["cardNumber", "cardExpiry", "cardCvc"]) f.el(t).fire("change", { complete: true, empty: false, brand: "visa" });
   await new Promise((r) => setTimeout(r, 0));
-  assert.deepEqual(events.find((e) => e.type === "preview").card, { brand: "visa", last4: "4242", exp: "12/28" });
+  assert.deepEqual(events.filter((e) => e.type === "preview").at(-1).card, { brand: "visa", last4: "4242", exp: "12/28" });
   await assert.rejects(h.submit(), /billing address/, "Pay waits for a complete billing address");
   const addr = { line1: "100 King St W", line2: "", city: "Toronto", state: "ON", postal_code: "M5H 3T4", country: "CA" };
   f.el("address").fire("change", { complete: true, value: { name: "Jordan Lee", address: addr } });

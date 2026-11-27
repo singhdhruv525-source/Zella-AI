@@ -3,7 +3,8 @@
 // never loaded and nothing reaches Supabase or Stripe: every request off this machine is refused here and counted.
 //
 // Every state, in every Zella Voice look, at 1440x900 and 390 wide (and 320 for the layout):
-//   ready ...... Ready to pay, the summary with the server's amount, Pay securely
+//   ready ...... Ready to pay, the summary with the server's amount, the add ons, the required "I agree" box
+//   addons ..... one add on ticked (a receipt line, the total and Pay follow) and the box ticked
 //   form ....... the embedded form's area with the stand in mounted
 //   processing . after the form completes: the panels soften, the card moves to the centre, "Confirming your payment"
 //   confirmed .. only after the server confirms: the card turns the look's success colour, brand and last 4 only
@@ -29,7 +30,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0, passes = 0;
 const check = (name, ok, detail = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? " - " + detail : ""}`); if (ok) passes++; else fails++; };
 
-const { enforcePayPageCsp, watchCsp, cspViolations, backFace, LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
+const { agree, startPay, consentWords, pressBlocked, enforcePayPageCsp, watchCsp, cspViolations, backFace, LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
 
 async function seed(scenario) {
   const { createFakeApi } = await import(path.join(__dirname, "../../web/src/onboarding/fakeApi.js"));
@@ -99,19 +100,45 @@ async function shot(page, look, width, state, axeSource) {
       check(`${tag}: the card has no digits before payment, only placeholder dots`, !/\d/.test(await cardText(page)) && (await cardText(page)).includes("••••"));
       check(`${tag}: the trust row and an icon on each summary line`, (await page.locator(".zgc-trust").innerText()).includes("Card details never reach Zella Voice")
         && (await page.locator(".zgc-lines > div").count()) === (await page.locator(".zgc-lines .zgc-line-icon").count()));
-      await shot(page, look, width, "ready", axeSource);
+      // the required "I agree" box (owner, 27 Nov 2026): unticked, Pay disabled until it is ticked, the server's amounts
+      const words0 = (await consentWords(page));
+      check(`${tag}: agree: a real labelled checkbox above Pay, unticked; the words use the server's amounts (Auto pay on)`, !(await page.isChecked("#zgc-consent"))
+        && words0 === "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $898 today and $249 on each renewal until I cancel.", words0);
+      check(`${tag}: agree: Terms and Privacy Policy open in a new tab`, (await page.getAttribute(".zgc-consent a[href='/terms']", "target")) === "_blank"
+        && (await page.getAttribute(".zgc-consent a[href='/privacy']", "target")) === "_blank" && (await page.getAttribute(".zgc-consent a[href='/privacy']", "rel")).includes("noopener"));
+      check(`${tag}: agree: Pay looks disabled until the box is ticked`, (await page.getAttribute(".zgc-pay-foot button:has-text('Continue to pay')", "aria-disabled")) === "true");
+      await pressBlocked(page, ".zgc-pay-foot button:has-text('Continue to pay')");
+      check(`${tag}: agree: Pay without ticking announces the error in the live region and opens nothing`,
+        (await page.locator(".zgc-consent [role=alert]").innerText()) === "Tick the box to agree before you pay." && await page.isVisible("text=Ready to pay") && !(await page.isVisible(".zgc-slot")));
+      // add ons in the receipt panel: tick box rows grouped by type, server prices, total and Pay follow
+      check(`${tag}: add ons: tick box rows grouped Minutes, Texts, Emails, each with name, description and "one time" price`,
+        (await page.locator(".zgc-addon-group legend").allTextContents()).join(",") === "Minutes,Texts,Emails"
+        && (await page.locator(".zgc-addon").first().innerText()).replace(/\s+/g, " ").includes("100 AI minutes Extra call time for your AI receptionist $29 one time")
+        && (await page.locator(".zgc-addon input[type=checkbox]").count()) === (await page.locator(".zgc-addon").count()));
+      await page.click(".zgc-addon:has-text('100 AI minutes')");
+      await page.waitForTimeout(150);
+      check(`${tag}: add ons: ticking adds a receipt line, the total and the Pay button follow ($898 + $29 = $927)`,
+        (await page.locator(".zgc-total strong").innerText()) === "$927" && await page.isVisible(".zgc-lines dt:has-text('100 AI minutes')")
+        && await page.isVisible(".zgc-pay-foot button:has-text('Continue to pay $927')") && await page.isVisible("text=Add ons are one time and never renew."));
+      check(`${tag}: add ons: the new total is announced politely`, (await page.locator(".zgc-summary [aria-live=polite]").innerText()) === "Total due today $927.");
+      check(`${tag}: agree: the words follow the total and say add ons are one time`, (await consentWords(page))
+        === "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $927 today and $249 on each renewal until I cancel. Add ons are one time and never renew.");
+      await agree(page);
+      check(`${tag}: agree: ticking it clears the error and Pay is no longer blocked`, (await page.getAttribute(".zgc-pay-foot button:has-text('Continue to pay')", "aria-disabled")) === null
+        && (await page.locator(".zgc-consent [role=alert]").innerText()) === "");
+      await shot(page, look, width, "addons", axeSource);
 
-      await page.click("button:has-text('Pay securely')");
+      await page.click(".zgc-pay-foot button:has-text('Continue to pay $927')");
       await page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
       check(`${tag}: Payment details: the stand in's card fields and billing address (no inputs), clearly badged`, await page.isVisible(".zgc-pay .zgc-addr-mock") && await page.isVisible("text=Preview of Stripe's form")
-        && await page.locator(".zgc-slot").count() === 3 && await page.locator(".zgc input").count() === 0);
+        && await page.locator(".zgc-slot").count() === 3 && await page.locator(".zgc-fields input").count() === 0);
       const addr = await addressMock(page);
       check(`${tag}: billing address: prefilled from the business, United States format`, addr?.country === "US" && addr.labels.includes("ZIP code") && addr.labels.includes("State")
         && addr.values.line1 === "214 Maple Street" && addr.values.name === "", JSON.stringify(addr));
       check(`${tag}: the address never shows on the card`, !(await cardText(page)).includes("Maple"));
       check(`${tag}: Auto pay: "Pay automatically each renewal", on by default, with what it means`, (await page.getAttribute(".zgc-autopay [role=switch]", "aria-checked")) === "true"
         && (await page.locator(".zgc-autopay-note").innerText()) === "Stripe charges this card on each renewal date.");
-      check(`${tag}: Pay waits until every card field is complete`, await page.isDisabled(".zgc-pay-foot button:has-text('Pay $898')"));
+      check(`${tag}: Pay waits until every card field is complete`, await page.isDisabled(".zgc-pay-foot button:has-text('Pay $927')"));
       await fillCard(page);
       await page.waitForSelector(".zgc-cardcol .zgc-card.is-back", { timeout: 10000 }).catch(() => {});
       check(`${tag}: typing the security code turns the card over`, await page.locator(".zgc-cardcol .zgc-card.is-back").count() === 1);
@@ -128,13 +155,13 @@ async function shot(page, look, width, state, axeSource) {
       check(`${tag}: Stripe.js is never loaded by the stand in`, await page.evaluate(() => ![...document.scripts].some((s) => s.src.includes("stripe.com"))));
       await shot(page, look, width, "form", axeSource);
 
-      await page.click(".zgc-pay-foot button:has-text('Pay $898')");
+      await page.click(".zgc-pay-foot button:has-text('Pay $927')");
       await page.waitForFunction(() => document.querySelector("h1")?.textContent.includes("Confirming your payment"), null, { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(150);
       check(`${tag}: processing: "Confirming your payment", the card in the centre, nothing says paid yet`,
         await page.isVisible(".zgc-stage") && (await h1(page)) === "Confirming your payment" && !(await page.isVisible("text=Payment received")));
       check(`${tag}: processing: focus on the status heading`, (await focused(page)) === "zgc-status");
-      check(`${tag}: processing: the live region says so`, (await page.locator(".zgc [aria-live]").innerText()).includes("Confirming your payment"));
+      check(`${tag}: processing: the live region says so`, (await page.locator(".zgc > p[role=status]").innerText()).includes("Confirming your payment"));
       check(`${tag}: processing: still only the last 4 and the expiry`, onlyLast4AndExpiry(await cardText(page)));
       await shot(page, look, width, "processing", axeSource);
 
@@ -151,7 +178,7 @@ async function shot(page, look, width, state, axeSource) {
         return getComputedStyle(face).backgroundColor === want && getComputedStyle(face).visibility === "visible" && getComputedStyle(document.querySelector(".zgc-stage .zgc-card-front")).visibility === "hidden";
       }));
       check(`${tag}: confirmed: Continue is offered`, await page.isVisible("button:has-text('Continue')"));
-      check(`${tag}: confirmed: the summary keeps the server's amount`, (await page.locator(".zgc-total strong").innerText()) === "$898");
+      check(`${tag}: confirmed: the summary keeps the server's amount, the plan and the add on in one payment`, (await page.locator(".zgc-total strong").innerText()) === "$927");
       await shot(page, look, width, "confirmed", axeSource);
       check(`${tag}: the Pay step came with its ENFORCING policy and nothing was blocked`, (ctx.__cspServed ?? 0) >= 1 && (await cspViolations(page)).length === 0, (await cspViolations(page)).join("; "));
       check(`${tag}: no page errors`, errors.length === 0, errors.join("; "));
@@ -162,7 +189,7 @@ async function shot(page, look, width, state, axeSource) {
       const off = await open(browser, { look, viewport: width.viewport, seeded: seededOff, scenario: "" });
       await off.page.waitForSelector("text=Payment opens here soon", { timeout: 10000 }).catch(() => {});
       check(`${look.name} ${width.name}: payments off: opens soon, Continue, no Pay button`,
-        await off.page.isVisible("#zgc-status:has-text('Payment opens here soon')") && await off.page.isVisible("button:has-text('Continue')") && !(await off.page.isVisible("button:has-text('Pay securely')")));
+        await off.page.isVisible("#zgc-status:has-text('Payment opens here soon')") && await off.page.isVisible("button:has-text('Continue')") && !(await off.page.isVisible("button:has-text('Continue to pay')")) && !(await off.page.isVisible("#zgc-consent")));
       check(`${look.name} ${width.name}: payments off: nothing is due today, the amount is due when payment opens`,
         (await off.page.locator(".zgc-total").innerText()).replace(/\s+/g, " ") === "Due when payment opens $898");
       await shot(off.page, look, width, "off", axeSource);
@@ -172,7 +199,7 @@ async function shot(page, look, width, state, axeSource) {
 
     // reduced motion, in this look: no blur, no flight, the states simply change
     const rm = await open(browser, { look, viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay", reduced: true });
-    await rm.page.click("button:has-text('Pay securely')");
+    await startPay(rm.page);
     await fillCard(rm.page); await waitFilled(rm.page);
     await rm.page.click(".zgc-pay-foot button:has-text('Pay $898')");
     await rm.page.waitForSelector(".zgc-stage", { timeout: 8000 }).catch(() => {});
@@ -198,7 +225,7 @@ async function shot(page, look, width, state, axeSource) {
   for (const look of [LOOKS[0], LOOKS[3]]) {
     const n = await open(browser, { look, viewport: { width: 320, height: 640 }, seeded: seededPay, scenario: "pay" });
     check(`${look.name} 320: ready, no horizontal scroll`, !(await overflow(n.page)));
-    await n.page.click("button:has-text('Pay securely')");
+    await startPay(n.page);
     await n.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
     check(`${look.name} 320: form, no horizontal scroll`, !(await overflow(n.page)));
     await n.ctx.close();
@@ -208,7 +235,7 @@ async function shot(page, look, width, state, axeSource) {
   {
     const seededHtml = await seed("payhtml");
     const x = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededHtml, scenario: "payhtml" });
-    await x.page.click("button:has-text('Pay securely')");
+    await startPay(x.page);
     await fillCard(x.page); await waitFilled(x.page);
     await x.page.click(".zgc-pay-foot button:has-text('Pay $898')");
     await x.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
@@ -221,12 +248,19 @@ async function shot(page, look, width, state, axeSource) {
   // Auto pay switched off in the checkout: honest words while email is off, and the choice is sent once the server confirms
   {
     const ap = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
-    await ap.page.click("button:has-text('Pay securely')");
+    await startPay(ap.page);
     await ap.page.click(".zgc-autopay [role=switch]");
     check("autopay off in the checkout: says the invoice waits in the CRM (no email promised while email is off)",
       (await ap.page.locator(".zgc-autopay-note").innerText()) === "Your invoice appears in the CRM; pay it there within 3 days.");
+    check("agree: Auto pay off changes the words (the owner pays future invoices) and unticks the box, saying why",
+      (await consentWords(ap.page)) === "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $898 today. I'll pay future invoices myself."
+      && !(await ap.page.isChecked("#zgc-consent")) && (await ap.page.locator(".zgc-consent [role=alert]").innerText()) === "The amount changed. Tick the box to agree to the new total.");
     await ap.page.screenshot({ path: path.join(SHOTS, "pay-zella-autopay-off-1440.png"), fullPage: true });
     await fillCard(ap.page); await waitFilled(ap.page);
+    await pressBlocked(ap.page, ".zgc-pay-foot button:has-text('Pay $898')");
+    check("agree: Pay with the box unticked charges nothing and says so", (await ap.page.locator(".zgc-consent [role=alert]").innerText()) === "Tick the box to agree before you pay."
+      && !(await ap.page.isVisible(".zgc.is-confirming")));
+    await agree(ap.page);
     await ap.page.click(".zgc-pay-foot button:has-text('Pay $898')");
     await ap.page.waitForSelector(".zgc.is-confirming, .zgc.is-confirmed", { timeout: 10000 }).catch(() => {});
     // the choice went with the start and is kept with the checkout (the stand in's own record, as the server keeps it): a
@@ -236,10 +270,34 @@ async function shot(page, look, width, state, axeSource) {
     await ap.ctx.close();
   }
 
+  // add ons changed while Stripe's form is open: back to Pay, the old session expired first, one session at a time
+  {
+    const c = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
+    await startPay(c.page, "Continue to pay $898");
+    await c.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
+    await c.page.click(".zgc-addon:has-text('500 texts')");
+    await c.page.waitForTimeout(300);
+    check("add ons: ticking one while Stripe's form is open goes back to Pay for the new total, the box unticked", await c.page.isVisible("text=Ready to pay")
+      && !(await c.page.isVisible(".zgc-slot")) && !(await c.page.isChecked("#zgc-consent")) && await c.page.isVisible(".zgc-pay-foot button:has-text('Continue to pay $916')"));
+    // keyboard: Tab reaches the tick boxes and Space toggles them
+    await c.page.focus(".zgc-addon:has-text('500 texts') input");
+    await c.page.keyboard.press("Space");
+    check("add ons: a real checkbox: Space unticks it, the total goes back", (await c.page.locator(".zgc-total strong").innerText()) === "$898");
+    await c.page.keyboard.press("Space");
+    await c.page.focus("#zgc-consent"); await c.page.keyboard.press("Space");
+    await c.page.click(".zgc-pay-foot button:has-text('Continue to pay $916')");
+    await c.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
+    const st = await c.page.evaluate(() => JSON.parse(localStorage.getItem("zella.onboardingFake.v2") ?? "{}"));
+    check("add ons: the new selection got a new session only after the old one was expired", st.sessions_expired === 1 && st.sessions_made === 2 && st.checkout_amount === 91600
+      && st.checkout_selection === "texts_500", JSON.stringify({ e: st.sessions_expired, m: st.sessions_made, a: st.checkout_amount }));
+    check("add ons: no page errors", c.errors.length === 0, c.errors.join("; "));
+    await c.ctx.close();
+  }
+
   // double payment protections on the Pay step (owner priority, 27 Nov 2026)
   {
     const d = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
-    await d.page.click("button:has-text('Pay securely')");
+    await startPay(d.page);
     await fillCard(d.page); await waitFilled(d.page);
     await d.page.dblclick(".zgc-pay-foot button:has-text('Pay $898')").catch(() => {});
     await d.page.keyboard.press("Enter").catch(() => {});
@@ -249,13 +307,13 @@ async function shot(page, look, width, state, axeSource) {
     await d.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
     await d.page.waitForTimeout(400);
     check("case 1: a reload while confirming goes back to confirming from the server, with no Pay", await d.page.isVisible(".zgc.is-confirming, .zgc.is-pending, .zgc.is-confirmed")
-      && (await d.page.locator("button:has-text('Pay securely'), button:has-text('Pay $898')").count()) === 0);
+      && (await d.page.locator("button:has-text('Continue to pay'), button:has-text('Pay $898')").count()) === 0);
     await d.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
     await d.page.goBack().catch(() => {}); await d.page.goForward().catch(() => {});
     await d.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
     await d.page.waitForTimeout(400);
     check("case 2: Back and Forward after success show it confirmed, nothing to pay", await d.page.isVisible("#zgc-status:has-text('Payment received')")
-      && (await d.page.locator("button:has-text('Pay securely')").count()) === 0);
+      && (await d.page.locator("button:has-text('Continue to pay')").count()) === 0);
     await d.ctx.close();
     // case 9: a stale or duplicate return from Stripe: never trusted; the server is asked and the query is removed
     const q = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay",
@@ -271,7 +329,7 @@ async function shot(page, look, width, state, axeSource) {
     const seededJs = await seed("payjsfail");
     const j = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededJs, scenario: "payjsfail" });
     const going = j.page.waitForRequest((r) => r.url().startsWith("https://checkout.stripe.com/"), { timeout: 10000 }).catch(() => null);
-    await j.page.click("button:has-text('Pay securely')");
+    await startPay(j.page);
     const req = await going;
     check("Stripe.js didn't load: the Pay step goes to Stripe's own page (hosted fallback)", Boolean(req) && req.url() === "https://checkout.stripe.com/c/pay/cs_standin_hosted");
     await j.ctx.close();
@@ -280,7 +338,7 @@ async function shot(page, look, width, state, axeSource) {
   // back from a redirect payment method (Stripe's return_url): confirmed through the server, the address bar tidied
   {
     const r = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
-    await r.page.click("button:has-text('Pay securely')");
+    await startPay(r.page);
     await fillCard(r.page); await waitFilled(r.page);
     await r.page.click(".zgc-pay-foot button:has-text('Pay $898')");
     await r.page.waitForSelector(".zgc.is-confirming, .zgc.is-confirmed", { timeout: 10000 }).catch(() => {});   // Stripe has it, then the bank's redirect
@@ -298,11 +356,15 @@ async function shot(page, look, width, state, axeSource) {
       const v = await open(browser, { look, viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay", video: process.env.VIDEO });
       await v.page.waitForTimeout(800);
       await v.page.hover(".zgc-cardcol .zgc-card"); await v.page.waitForTimeout(900);
-      await v.page.click("button:has-text('Pay securely')");
+      // an add on and the agree box (owner, 27 Nov 2026)
+      await v.page.click(".zgc-addon:has-text('100 AI minutes')"); await v.page.waitForTimeout(900);
+      await pressBlocked(v.page, ".zgc-pay-foot button:has-text('Continue to pay')"); await v.page.waitForTimeout(1200);   // the error, announced
+      await agree(v.page); await v.page.waitForTimeout(900);
+      await v.page.click(".zgc-pay-foot button:has-text('Continue to pay')");
       await fillCard(v.page);
       await waitFilled(v.page);
       await v.page.waitForTimeout(1200);
-      await v.page.click(".zgc-pay-foot button:has-text('Pay $898')");
+      await v.page.click(".zgc-pay-foot button:has-text('Pay $927')");
       await v.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await v.page.waitForTimeout(4500);
       const rec = v.page.video();

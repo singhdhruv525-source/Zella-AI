@@ -7,6 +7,12 @@ import assert from "node:assert/strict";
 import { ERROR_WORDS, cardWords, failureKind, fromServer, reduce } from "../src/billing/checkoutMachine.js";
 import { invoiceAsPayment, packAnswer } from "../src/billing/payState.js";
 import { createFakeBillingApi, FAKE_BUSINESS } from "../src/billing/fakeBillingApi.js";
+import { consentHash, consentText } from "../supabase/functions/_shared/paymentConsent.js";
+
+// the owner's agreement as the page sends it: the sha256 of the words for these figures
+const agree = async (f) => ({ consentHash: await consentHash(consentText(f)) });
+const PLAN = (today, extra = {}) => agree({ kind: "plan", todayMinor: today, autopay: true, renewalMinor: 24900, ...extra });
+const PACK = (price) => agree({ kind: "pack", todayMinor: price });
 
 const DASH = /[—–]|[A-Za-z]-[A-Za-z]/;
 const OPEN = "00000000-0000-4000-8000-0000000000e2", PAID = "00000000-0000-4000-8000-0000000000e1";
@@ -70,7 +76,7 @@ test("stand in: owner only, Pay now confirms only on the server's later look, a 
   assert.deepEqual(list.map((i) => [i.number, i.status, i.payable]), [["ZV-0042", "open", true], ["ZV-0031", "paid", false]]);
   await assert.rejects(api.invoiceStart(PAID), (e) => e.code === "ALREADY_PAID");
   await assert.rejects(api.invoiceStatus("00000000-0000-4000-8000-00000000ffff"), (e) => e.code === "NOT_FOUND");
-  const a = await api.invoiceStart(OPEN), b = await api.invoiceStart(OPEN);
+  const a = await api.invoiceStart(OPEN, await PLAN(24900)), b = await api.invoiceStart(OPEN, await PLAN(24900));
   assert.equal(a.client_secret, b.client_secret, "a double start: the same intent");
   assert.equal(a.amount_minor, 24900);
   assert.equal((await api.invoiceReturn(OPEN)).invoice.status, "open", "nothing happened yet");
@@ -89,7 +95,7 @@ test("stand in: owner only, Pay now confirms only on the server's later look, a 
   assert.ok(!JSON.stringify(events).match(/\d{5,}|4242 4242/), "no event ever carries more than the last 4");
   await h.submit();
   assert.ok(done);
-  assert.deepEqual(await api.invoiceStart(OPEN), { status: "processing" }, "Stripe has it: no second form");
+  assert.deepEqual(await api.invoiceStart(OPEN, await PLAN(24900)), { status: "processing" }, "Stripe has it: no second form");
   assert.equal((await api.invoiceReturn(OPEN)).invoice.status, "open", "the first look after paying: not yet");
   const paid = await api.invoiceReturn(OPEN);
   assert.equal(paid.invoice.status, "paid");
@@ -99,24 +105,24 @@ test("stand in: owner only, Pay now confirms only on the server's later look, a 
 
 test("stand in: a pack the bank wants to confirm is finished on the same intent; no card and payments off refuse", async () => {
   const api = createFakeBillingApi({ scenario: "packauth", delay: 0 });
-  const r1 = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0001"), r2 = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0001");
+  const r1 = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0001", await PACK(2900)), r2 = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0001", await PACK(2900));
   assert.equal(r1.purchase_id, r2.purchase_id, "the same key: the same purchase");
   assert.equal((await api.packStatus(FAKE_BUSINESS, r1.purchase_id)).purchase.status, "pending");
   const failed = (await api.packStatus(FAKE_BUSINESS, r1.purchase_id)).purchase;
   assert.equal(packAnswer(failed).stopped, "needs_action");
-  const act = await api.packActStart(FAKE_BUSINESS, r1.purchase_id);
+  const act = await api.packActStart(FAKE_BUSINESS, r1.purchase_id, await PACK(2900));
   assert.equal(act.amount_minor, 2900);
   await api.packStatus(FAKE_BUSINESS, r1.purchase_id);
   const done = await api.packStatus(FAKE_BUSINESS, r1.purchase_id);
   assert.equal(done.purchase.status, "granted");
   await assert.rejects(api.packActStart(FAKE_BUSINESS, r1.purchase_id), (e) => e.code === "ALREADY_PAID");
   const none = createFakeBillingApi({ scenario: "nocard", delay: 0 });
-  await assert.rejects(none.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0002"), (e) => failureKind(e) === "no_card");
+  await assert.rejects(none.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0002", await PACK(2900)), (e) => failureKind(e) === "no_card");
   await assert.rejects(none.cardUpdateStart(FAKE_BUSINESS, "card-key-0001"), (e) => failureKind(e) === "no_card");
   assert.equal(await none.cardSummary(FAKE_BUSINESS), null);
   const off = createFakeBillingApi({ scenario: "off", delay: 0 });
   assert.ok((await off.invoices(FAKE_BUSINESS)).every((i) => i.payable === false));
-  await assert.rejects(off.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0003"), (e) => e.code === "PAYMENTS_NOT_LIVE");
+  await assert.rejects(off.packBuy(FAKE_BUSINESS, "minutes_100", "pack-key-0003", await PACK(2900)), (e) => e.code === "PAYMENTS_NOT_LIVE");
 });
 
 test("billing emails: Pay now opens the invoice's own page when the data names it, else the business's Payments page", async () => {
@@ -161,6 +167,11 @@ test("the old /pay addresses redirect into the CRM's own payment pages, keeping 
   const { payRedirect } = await import("../src/billing/payRedirect.js");
   assert.equal(payRedirect(`/pay/invoice/${OPEN}`, ""), `/app/settings/billing/pay/${OPEN}`);
   assert.equal(payRedirect(`/pay/invoice/${OPEN}/`, "?scenario=paid&x=1"), `/app/settings/billing/pay/${OPEN}?scenario=paid`);
-  assert.equal(payRedirect("/pay", `?business=${FAKE_BUSINESS}&card=updated`), "/app/settings/billing/invoices?card=updated");
+  // the business goes through the redirect (an owner of several opens the right workspace; the server still checks the owner)
+  assert.equal(payRedirect("/pay", `?business=${FAKE_BUSINESS}&card=updated`), `/app/settings/billing/invoices?card=updated&business=${FAKE_BUSINESS}`);
+  assert.equal(payRedirect(`/pay/invoice/${OPEN}`, `?business=${FAKE_BUSINESS}`), `/app/settings/billing/pay/${OPEN}?business=${FAKE_BUSINESS}`);
+  assert.equal(payRedirect(`/pay/invoice/${OPEN}`, "?business=not-a-business"), `/app/settings/billing/pay/${OPEN}`, "only a real business id");
+  // a malformed escape: the invoices page, never a page stuck loading (review)
+  assert.equal(payRedirect("/pay/invoice/%E0%A4%A", ""), "/app/settings/billing/invoices");
   assert.equal(payRedirect("/pay/invoice/a%2Fb", ""), "/app/settings/billing/pay/a%2Fb", "an odd id stays one path part (the page refuses it)");
 });

@@ -46,8 +46,9 @@ export default function BillingPayRoute({ workspace, kind, id, base = "/app" }) 
       )}>
         {workspace.role !== "owner" ? <NotFound what={kind === "pack" ? "pack" : "invoice"} />   /* the server refuses too; the same page either way */
           : !api ? <p className="zpay-loading" role="status">Loading…</p>
-          : kind === "pay" ? <PayInvoice api={api} workspace={workspace} id={id} onTitle={setTitle} onDone={back} returned={returned} />
-          : <BuyPack api={api} workspace={workspace} code={id} onTitle={setTitle} onDone={back} returned={returned} />}
+          // keyed by the address's id: another invoice or pack is a fresh page, never the last one's state (review)
+          : kind === "pay" ? <PayInvoice key={`pay:${id}`} api={api} workspace={workspace} id={id} onTitle={setTitle} onDone={back} returned={returned} base={base} />
+          : <BuyPack key={`pack:${id}`} api={api} workspace={workspace} code={id} onTitle={setTitle} onDone={back} returned={returned} />}
       </ErrorBoundary>
     </section>
   );
@@ -57,7 +58,15 @@ function DoneLink({ onDone }) {
   return <div className="zpay-actions zpay-route-done"><button type="button" className="ba-btn primary" onClick={onDone}><Icon name="arrow_back" size="sm" /> Back to Billing and subscription</button></div>;
 }
 
-function PayInvoice({ api, workspace, id, onTitle, onDone, returned }) {
+// an add on whose card was declined after the plan payment: its own pack page, on THAT purchase (full navigation: the
+// payment pages carry their own security policy)
+function openPackPurchase(base, code, purchaseId) {
+  const q = new URLSearchParams(window.location.search);
+  const keep = new URLSearchParams({ purchase: purchaseId });
+  if (q.get("scenario") != null) keep.set("scenario", q.get("scenario"));
+  window.location.assign(`${base}/settings/billing/pack/${encodeURIComponent(code)}?${keep}`);
+}
+function PayInvoice({ api, workspace, id, onTitle, onDone, returned, base = "/app" }) {
   const update = useCardUpdate(api, workspace.id);
   const [done, setDone] = useState(false);
   const valid = UUID.test(id);
@@ -65,6 +74,7 @@ function PayInvoice({ api, workspace, id, onTitle, onDone, returned }) {
     <>
       {valid
         ? <InvoiceCheckout api={api} invoiceId={id.toLowerCase()} businessId={workspace.id} onUpdateCard={update.run}
+            onOpenPack={(code, purchaseId) => (CODE.test(code) && UUID.test(String(purchaseId)) ? openPackPurchase(base, code, purchaseId) : null)}
             onInvoice={() => onTitle("Pay for your plan")} onSettled={() => setDone(true)} returned={returned} />
         : <NotFound />}
       {update.error && <p className="ba-error" role="alert">{update.error}</p>}

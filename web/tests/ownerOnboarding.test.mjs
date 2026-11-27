@@ -288,7 +288,11 @@ test("stand in, scenario pay: Checkout opens with a key, the return confirms onl
   assert.equal((await api.checkoutReturn(id)).payment.status, "waiting", "coming back without starting proves nothing");
   await assert.rejects(api.startCheckout(id, "bad key!"), (e) => errorCode(e) === "INVALID_INPUT");
   await assert.rejects(api.startCheckout("someone-else", "a-good-key-1"), (e) => errorCode(e) === "NOT_ALLOWED");
-  const r = await api.startCheckout(id, "a-good-key-1");
+  await assert.rejects(api.startCheckout(id, "a-good-key-1"), (e) => e.code === "CONSENT_REQUIRED", "the agreement is required");
+  const { consentHash, consentText } = await import("../supabase/functions/_shared/paymentConsent.js");
+  const words = consentText({ kind: "plan", todayMinor: 89800, autopay: true, renewalMinor: 24900 });
+  await assert.rejects(api.startCheckout(id, "a-good-key-1", { consentHash: await consentHash(words + " ") }), (e) => e.code === "CONSENT_MISMATCH", "other words are refused");
+  const r = await api.startCheckout(id, "a-good-key-1", { consentHash: await consentHash(words) });
   // Embedded Checkout's answer: a client secret for Stripe's form in the page, no hosted page link
   assert.equal(r.status, "open");
   assert.equal(typeof r.client_secret, "string");

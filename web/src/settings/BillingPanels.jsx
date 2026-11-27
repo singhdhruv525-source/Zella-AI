@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import PaymentsPanel from "../billing/PaymentsPanel";
 import { getBillingApi } from "../billing/billingApi";
+import { payPageAddress } from "../billing/payRedirect.js";
 import "../onboarding/onboarding.css";
 import { friendly } from "../BusinessShared";
 import { Banner, Card, Facts, Field, LoadState, Pill, SaveBar, Table, useAsync, useForm } from "./SettingsKit";
@@ -123,9 +124,9 @@ export function BillingPlanPanel({ w }) {
 // A payment page is opened as a full page load, so it arrives with its own ENFORCING Content Security Policy (web/public/
 // _headers; owner decision, 27 Nov 2026: a go live gate for Stripe's card fields in our pages). The preview keeps the
 // address's stand in scenario.
-function openPayPage(path) {
-  const scenario = new URLSearchParams(window.location.search).get("scenario");
-  window.location.assign(path + (scenario != null ? `?scenario=${encodeURIComponent(scenario)}` : ""));
+// The workspace goes with it (?business=, payRedirect.js), so the page opens in the same business for an owner of several (review).
+function openPayPage(path, businessId) {
+  window.location.assign(payPageAddress(path, businessId, window.location.search));
 }
 
 export function PaymentsSettingsPanel({ w }) {
@@ -135,8 +136,8 @@ export function PaymentsSettingsPanel({ w }) {
   const base = window.location.pathname.startsWith("/app/preview") ? "/app/preview" : "/app";
   if (!api) return <Card title="Invoices and payments" sub="Loading…" />;
   return <PaymentsPanel api={api} businessId={w.id} cardReturned={cardReturned}
-    onOpenInvoice={(id) => openPayPage(`${base}/settings/billing/pay/${encodeURIComponent(id)}`)}
-    onOpenPack={(code) => openPayPage(`${base}/settings/billing/pack/${encodeURIComponent(code)}`)} />;
+    onOpenInvoice={(id) => openPayPage(`${base}/settings/billing/pay/${encodeURIComponent(id)}`, w.id)}
+    onOpenPack={(code) => openPayPage(`${base}/settings/billing/pack/${encodeURIComponent(code)}`, w.id)} />;
 }
 
 // Settings > Billing and subscription > Balances and packs

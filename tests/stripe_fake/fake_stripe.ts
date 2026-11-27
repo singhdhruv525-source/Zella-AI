@@ -141,6 +141,11 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
     ({ id: id("il"), object: "line_item", amount: price.unit_amount * qty, metadata: {}, period, pricing: { type: "price_details", price_details: { price: price.id } } });
 
   // ---- API ----
+  // an invoice's includable fields come only when asked for (expand[]), as at Stripe: payments here
+  function includable(inv: Json, b: Json): Json {
+    if (!([] as string[]).concat(b.expand ?? []).includes("payments")) delete inv.payments;
+    return inv;
+  }
   function api(method: string, path: string, b: Json): { status: number; out: Json } {
     const seg = path.split("?")[0].split("/").filter(Boolean).slice(1);   // drop "v1"
     const [r0, r1, r2] = seg;
@@ -148,6 +153,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
     const need = (oid: string | undefined, object: string) => { const o = oid ? get(oid) : undefined; return o && o.object === object ? o : null; };
     const metadata = b.metadata ?? {};
     if (method === "POST" && r0 === "customers" && !r1) return ok(put({ id: id("cus"), object: "customer", email: b.email ?? null, metadata, livemode, created: clock }));
+    if (method === "GET" && r0 === "customers" && r1) { const c = need(r1, "customer"); return c ? ok(clone(c)) : err(404, "invalid_request_error", "No such customer", "resource_missing"); }
     if (method === "POST" && r0 === "products" && !r1) return ok(put({ id: id("prod"), object: "product", name: b.name, metadata, livemode }));
     if (method === "POST" && r0 === "prices" && !r1) {
       const amount = Number(b.unit_amount);
@@ -168,6 +174,10 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
         if (!inPage && (b.return_url || b.redirect_on_completion)) return err(400, "invalid_request_error", "return_url and redirect_on_completion apply only to an in page session", "parameter_unknown");
         if (b.ui_mode === "custom" && b.redirect_on_completion) return err(400, "invalid_request_error", "redirect_on_completion applies only to ui_mode embedded", "parameter_unknown");
         if (b.redirect_on_completion && !["always", "if_required", "never"].includes(b.redirect_on_completion)) return err(400, "invalid_request_error", "Invalid redirect_on_completion", "parameter_invalid_string");
+        // a payment method that redirects (iDEAL, Bancontact and the like) needs somewhere to come back to: an in page
+        // session that enables one without return_url is refused, as Stripe refuses it; a card only session needs none
+        const types = ([] as string[]).concat(b.payment_method_types ?? []);
+        if (inPage && !b.return_url && types.some((t) => t !== "card")) return err(400, "invalid_request_error", "return_url is required when a payment method that redirects is enabled", "parameter_missing");
         const sid = id("cs");
         return ok(put({ id: sid, object: "checkout.session", mode: b.mode, status: "open", payment_status: "unpaid", customer: b.customer ?? null,
           subscription: null, payment_intent: null, ui_mode: inPage ? b.ui_mode : "hosted",
@@ -252,7 +262,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
           piId = pid;
         }
         const pi = piId ? get(piId) : null;
-        return ok({ ...clone(inv), confirmation_secret: pi ? { client_secret: pi.client_secret, type: "payment_intent" } : null });
+        return ok(includable({ ...clone(inv), confirmation_secret: pi ? { client_secret: pi.client_secret, type: "payment_intent" } : null }, b));
       }
       if (method === "POST" && r1 === "create_preview") {
         const sub = need(b.subscription, "subscription");
@@ -284,7 +294,7 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       if (method === "POST" && r2 === "pay") return ok(pay(inv));
       if (method === "POST" && r2 === "void") { if (inv.status === "open") { inv.status = "void"; emit("invoice.voided", inv); } return ok(inv); }
       if (method === "GET" && r2 === "lines") return ok({ object: "list", data: inv.lines.data.map(clone), has_more: false });
-      return ok(inv);
+      return ok(method === "GET" ? includable(clone(inv), b) : inv);
     }
     if (r0 === "invoiceitems" && method === "POST" && !r1) {
       const amount = Number(b.amount);
@@ -415,6 +425,8 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
     confirmIntent(piId, card = "ok") {
       const pi = get(piId)!;
       if (pi.status === "succeeded") return clone(pi);
+      // "auth": the bank asks for 3D Secure again (an authentication challenge, nothing taken); any other card is declined
+      if (card === "auth") { pi.status = "requires_action"; pi.last_payment_error = { code: "authentication_required" }; emit("payment_intent.requires_action", pi); return clone(pi); }
       if (card !== "ok") { pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" }; emit("payment_intent.payment_failed", pi); return clone(pi); }
       const ch = put({ id: id("ch"), object: "charge", amount: pi.amount, amount_refunded: 0, refunded: false, payment_intent: pi.id, customer: pi.customer, livemode, created: clock });
       // the card the customer used in the form: only what Stripe returns about it (Stripe's public test card)

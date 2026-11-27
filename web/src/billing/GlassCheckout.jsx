@@ -2,6 +2,8 @@ import { forwardRef, useEffect, useLayoutEffect, useReducer, useRef, useState } 
 import { ErrorBoundary, Icon } from "../BusinessUI";
 import { brandLabel, cardWords, expiredWhileConfirming, ERROR_WORDS, failureKind, formatMoney, fromServer, nextDelay, reduce, WORDS } from "./checkoutMachine";
 import { mountCardFields } from "./stripeEmbedded";
+import { addonName, chosen } from "./addons.js";
+import { AddonPicker, ConsentBox } from "./ReceiptExtras";
 import "./glassCheckout.css";
 
 // The glass checkout (owner, 27 Nov 2026): three panels like a real checkout: the customer's card on the left, a
@@ -32,6 +34,13 @@ import "./glassCheckout.css";
 //   beforeSubmit () => Promise, run before Stripe confirms (sends the Auto pay choice with the payment)
 //   hostedFallback () => start(...) asking for Stripe's own Checkout page, used at once when Stripe.js can't load (onboarding)
 //   fallbackUrl  Stripe's hosted invoice page: offered ONLY when Stripe's form can't load or our checkout can't be shown
+//   addons       { offer, selected, onChange(code, on), note } (owner, 27 Nov 2026): tick box rows under the receipt; each
+//                ticked pack is a receipt line; the parent's summary.amountMinor is the full total (server prices)
+//   consentText  the required "I agree" words (paymentConsent.js, from the server's figures): Pay stays disabled until the
+//                box is ticked; a change of the words unticks it; start() and beforeSubmit() send their sha256
+//   restartKey   the add on selection: a change while Stripe's form is open goes back to Pay (onboarding: one session
+//                per selection, the server expires the old one)
+//   after        shown under the checkout once paid (Pay now: each add on's progress)
 export default function GlassCheckout(props) {
   return (
     <ErrorBoundary resetKey="glass-checkout" fallback={(retry) => (
@@ -67,7 +76,7 @@ function liveReduce(s, e) {
 }
 
 function Checkout({ summary, payment, kind = "checkout", start, actStart, confirm, onPayment, mount, returned = false, payLabel = "Pay securely",
-  words: over = {}, onUpdateCard, detailsNote, saveNote, fallbackUrl, autopay, hostedFallback, beforeSubmit }) {
+  words: over = {}, onUpdateCard, detailsNote, saveNote, fallbackUrl, autopay, hostedFallback, beforeSubmit, addons = null, consentText = null, restartKey = "", after = null }) {
   const [m, dispatch] = useReducer(reduce, payment, (p) => (returned && fromServer(p).state !== "confirmed" ? { state: "confirming", attempt: 0 } : fromServer(p)));
   const [live, onLive] = useReducer(liveReduce, NO_LIVE);
   const secret = useRef(null);           // { clientSecret, publishableKey, livemode }: memory only, dropped once mounted
@@ -82,12 +91,45 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
   const [sending, setSending] = useState(false);
   const [inline, setInline] = useState("");   // Stripe's own words for a declined card, under its fields
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  // the required "I agree" box (owner, 27 Nov 2026): unticked by default; other words (another total, Auto pay changed)
+  // untick it, so what was agreed is always what is charged
+  const [agreed, setAgreed] = useState(false);
+  const [consentError, setConsentError] = useState("");
+  const needsConsent = typeof consentText === "string" && consentText.length > 0;
+  const lastText = useRef(consentText);
+  useEffect(() => {
+    if (lastText.current === consentText) return;
+    const had = agreed;
+    lastText.current = consentText;
+    if (had) { setAgreed(false); setConsentError("The amount changed. Tick the box to agree to the new total."); }
+  }, [consentText]); // eslint-disable-line react-hooks/exhaustive-deps
+  const consentOk = () => {
+    if (!needsConsent || agreed) return true;
+    setConsentError("Tick the box to agree before you pay.");
+    return false;
+  };
+  // the add ons changed while Stripe's form was open: back to Pay for the new total
+  const lastSelection = useRef(restartKey);
+  useEffect(() => {
+    if (lastSelection.current === restartKey) return;
+    lastSelection.current = restartKey;
+    if (m.state === "loading" || m.state === "ready") dispatch({ type: "RESET" });
+  }, [restartKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // a change of the total is announced politely (not on first view)
+  const [totalNote, setTotalNote] = useState("");
+  const lastTotal = useRef(summary?.amountMinor);
+  useEffect(() => {
+    if (lastTotal.current === summary?.amountMinor) return;
+    lastTotal.current = summary?.amountMinor;
+    setTotalNote(`Total due today ${formatMoney(summary?.amountMinor, summary?.currency)}.`);
+  }, [summary?.amountMinor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the server's word moves the machine (it is the only source of "confirmed")
   useEffect(() => { dispatch({ type: "SERVER", payment }); }, [payment]);
 
   async function begin(which) {
     if (m.state !== "idle" && m.state !== "error") return;
+    if (!consentOk()) return;
     dispatch({ type: "PAY" });
     setInline(""); onLive({ type: "reset" });
     try {
@@ -112,6 +154,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
   const submitting = useRef(false);   // a double click or Enter twice before React re-renders: one confirm
   async function submit() {
     if (!handle.current?.submit || sending || submitting.current) return;
+    if (!consentOk()) return;
     submitting.current = true;
     setSending(true); setInline("");
     // the choices on this panel (Auto pay) go to the server with the payment, before Stripe takes it (review M2)
@@ -218,7 +261,12 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
   const totalLabel = m.state === "off" || m.state === "locked" ? "Due when payment opens" : summary?.totalLabel ?? "Due today";
   const tone = m.state === "confirmed" ? "good" : m.state === "error" ? "urgent" : m.state === "pending" ? "heads" : "info";
   const formOpen = m.state === "loading" || m.state === "ready";
-
+  const picked = addons ? chosen(addons.offer ?? [], addons.selected ?? []) : [];
+  const lines = [...(summary?.lines ?? []), ...picked.map((a) => [addonName(a), formatMoney(a.price_cents, "usd"), "add_circle"])];
+  const actKinds = m.state === "error" && (m.kind === "needs_action" || m.kind === "card_declined");
+  const consentShown = needsConsent && (["idle", "submitting", "loading", "ready"].includes(m.state) || actKinds);
+  const blocked = needsConsent && !agreed;   // Pay looks disabled and says why when pressed (the box is the reason)
+  const idleLabel = typeof payLabel === "function" ? payLabel(amount) : payLabel;
   return (
     <section className={`zgc is-${m.state}`} aria-labelledby="zgc-status">
       <div className={`zob-status tone-${tone} zgc-status`}>
@@ -279,21 +327,26 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               {m.state === "ready" && inline && <p className="ba-error" role="alert">{inline}</p>}
             </div>
             <div className="zgc-pay-foot">
+              {consentShown && <ConsentBox id="zgc-consent" text={consentText} agreed={agreed} error={consentError}
+                onChange={(v) => { setAgreed(v); if (v) setConsentError(""); }} />}
               {(m.state === "idle" || m.state === "submitting") && (
-                <button type="button" className="ba-btn primary zgc-pay-btn" disabled={m.state === "submitting"} onClick={() => begin("start")}>
-                  <Icon name="lock" size="sm" /> {m.state === "submitting" ? "Opening the secure form…" : payLabel}
+                <button type="button" className={`ba-btn primary zgc-pay-btn${blocked ? " is-blocked" : ""}`} disabled={m.state === "submitting"} aria-disabled={blocked ? "true" : undefined}
+                  aria-describedby={consentShown ? "zgc-consent-e" : undefined} onClick={() => begin("start")}>
+                  <Icon name="lock" size="sm" /> {m.state === "submitting" ? "Opening the secure form…" : idleLabel}
                 </button>
               )}
               {m.state === "ready" && demo && !live.preview && (
                 <button type="button" className="ba-btn zgc-pay-btn" onClick={playDemo}><Icon name="play_arrow" size="sm" /> Fill with Stripe's test card</button>
               )}
               {formOpen && (
-                <button type="button" className="ba-btn primary zgc-pay-btn" disabled={m.state !== "ready" || sending || !live.preview || !live.addressDone} onClick={submit}>
+                <button type="button" className={`ba-btn primary zgc-pay-btn${blocked ? " is-blocked" : ""}`} disabled={m.state !== "ready" || sending || !live.preview || !live.addressDone}
+                  aria-disabled={blocked ? "true" : undefined} aria-describedby={consentShown ? "zgc-consent-e" : undefined} onClick={submit}>
                   <Icon name="lock" size="sm" /> {sending ? "Paying…" : `Pay ${amount}`}
                 </button>
               )}
               {m.state === "error" && words.action && (
-                <button type="button" className="ba-btn primary zgc-pay-btn" onClick={errorAction}>{words.action}</button>
+                <button type="button" className={`ba-btn primary zgc-pay-btn${actKinds && blocked ? " is-blocked" : ""}`} aria-disabled={actKinds && blocked ? "true" : undefined}
+                  aria-describedby={actKinds && consentShown ? "zgc-consent-e" : undefined} onClick={errorAction}>{words.action}</button>
               )}
               {m.state === "error" && m.kind === "stripe_load" && fallbackUrl && <FallbackLink url={fallbackUrl} />}
               {m.state === "error" && m.kind === "card_declined" && onUpdateCard && (
@@ -310,7 +363,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
             <span className="zob-kicker">{summary?.kicker ?? "Order summary"}</span>
             <h3 id="zgc-summary-title">{summary?.title ?? "Your plan"}</h3>
             <dl className="zgc-lines">
-              {(summary?.lines ?? []).map(([label, value, icon]) => (
+              {lines.map(([label, value, icon]) => (
                 <div key={label}>
                   <dt>{icon && <span className="zgc-line-icon" aria-hidden="true"><Icon name={icon} size="sm" /></span>}{label}</dt>
                   <dd>{value}</dd>
@@ -318,7 +371,12 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               ))}
             </dl>
             {amountKnown && <div className="zgc-total"><span>{totalLabel}</span><strong>{amount}</strong></div>}
+            {picked.length > 0 && <p className="zgc-addon-onetime"><Icon name="info" size="sm" /> Add ons are one time and never renew.{addons?.note ? ` ${addons.note}.` : ""}</p>}
+            <p className="zob-sr" aria-live="polite">{totalNote}</p>
             {summary?.footnote && <p className="zob-hint">{summary.footnote}</p>}
+            {addons && (addons.offer ?? []).length > 0 && m.state !== "confirmed" && !staged && (
+              <AddonPicker offer={addons.offer} selected={addons.selected ?? []} onChange={addons.onChange} locked={m.state === "submitting" || sending} />
+            )}
           </aside>
         </div>
 
@@ -336,6 +394,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
           </div>
         )}
       </div>
+      {after}
     </section>
   );
 }

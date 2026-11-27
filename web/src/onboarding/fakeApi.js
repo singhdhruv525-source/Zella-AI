@@ -16,6 +16,14 @@
 // Test hooks (fake only): approveIdentity(), rejectIdentity(note), adminChangeDone(section, note), confirmPayment().
 
 import { mountStandInCard } from "../billing/standinForm.js";
+import { consentHash, consentText } from "../../supabase/functions/_shared/paymentConsent.js";
+
+// the packs on offer at the Pay step (as zella_owner_addon_catalog answers; made up for the stand in)
+const ADDONS = [{ code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900, currency: "usd" },
+  { code: "minutes_250", resource: "minutes", quantity: 250, price_cents: 8900, currency: "usd" },
+  { code: "texts_500", resource: "texts", quantity: 500, price_cents: 1800, currency: "usd" },
+  { code: "emails_10000", resource: "emails", quantity: 10000, price_cents: 2500, currency: "usd" }];
+const DUE = 89800, RENEWAL = 24900;
 
 const KEY = "zella.onboardingFake.v2";
 const BUSINESS = "00000000-0000-4000-8000-0000000000b1";
@@ -212,19 +220,38 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     identityStatus: (id) => db(() => { owner(id); return identityOut(); }),
     paymentStatus: (id) => db(() => { owner(id); return paymentOut(); }),
     // billing-api checkout_start for Stripe's card fields in the page (ui_mode custom): the same answer shape, made up values (no real key or secret)
-    startCheckout: (id, key, opts = {}) => db(() => {
+    // the agreement and the add ons as the server checks them: the words rebuilt from the stand in's figures (the plan,
+    // the setup fee and the packs at catalogue prices), refused without the box or with other words; a different
+    // selection while a session is open expires that one first (one session at a time)
+    addonCatalog: (id) => db(() => { owner(id); return ADDONS.map((a) => ({ ...a })); }),
+    startCheckout: async (id, key, opts = {}) => {
+      const packs = [...new Set(opts.packs ?? [])].sort();
+      const sum = packs.reduce((t, c) => t + (ADDONS.find((a) => a.code === c)?.price_cents ?? NaN), 0);
+      const words = consentText({ kind: "plan", todayMinor: DUE + sum, autopay: opts.autopay !== false, renewalMinor: RENEWAL, addons: packs.length > 0 });
+      const expected = words ? await consentHash(words) : null;
+      return db(() => {
       owner(id);
       if (!paying()) throw dbError("PAYMENTS_NOT_LIVE");
       if (!/^[A-Za-z0-9_-]{8,100}$/.test(String(key))) throw dbError("INVALID_INPUT");
       if (st.payment_confirmed) throw Object.assign(new Error("Your payment is already confirmed."), { code: "ALREADY_PAID", status: 400 });
       if (st.checkout_completed) return { status: "processing" };
+      if (!Number.isFinite(sum)) throw dbError("UNKNOWN_PACK");
+      if (!/^[0-9a-f]{64}$/.test(String(opts.consentHash ?? ""))) throw Object.assign(new Error("Tick the box to agree before you pay. Nothing was charged."), { code: "CONSENT_REQUIRED", status: 400 });
+      if (opts.consentHash !== expected) throw Object.assign(new Error("The amounts changed. Check them, tick the box again, then pay. Nothing was charged."), { code: "CONSENT_MISMATCH", status: 409 });
+      const selection = packs.join(",");
+      if (st.checkout_started && (st.checkout_selection ?? "") !== selection) st.sessions_expired = (st.sessions_expired ?? 0) + 1;   // the old session expired first
+      if (!st.checkout_started || (st.checkout_selection ?? "") !== selection) st.sessions_made = (st.sessions_made ?? 0) + 1;
+      st.checkout_selection = selection; st.checkout_amount = DUE + sum;
+      (st.consents ??= []).push(opts.consentHash);
       st.checkout_started = true;
       if (typeof opts.autopay === "boolean") { st.autopay_choice = opts.autopay; save(); }   // kept with the checkout, as on the server
       // Stripe's own page (the fallback): a made up address of Stripe's checkout host; the test browser never reaches it
       if (opts.hosted) return { status: "redirect", url: "https://checkout.stripe.com/c/pay/cs_standin_hosted", mode: "pay", amount_minor: 89800, currency: "usd" };
-      return { status: "open", client_secret: "cs_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, mode: "pay", amount_minor: 89800, currency: "usd",
-        billing_prefill: { line1: "214 Maple Street", city: "Springfield", state: "IL", postal_code: "62701", country: "US" } };   // fake business address
-    }),
+      save();
+      return { status: "open", client_secret: "cs_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, mode: "pay", amount_minor: DUE + sum, currency: "usd",
+        renewal_minor: RENEWAL, addons: packs, billing_prefill: { line1: "214 Maple Street", city: "Springfield", state: "IL", postal_code: "62701", country: "US" } };   // fake business address
+      });
+    },
     // the stand in for Stripe's embedded form (fake only): a box in the page with one button; Stripe.js is never loaded
     // the stand in for Stripe's card fields (billing/standinForm.js: no input elements; demo() plays the test card)
     mountCheckout: async (slots, opts) => {
@@ -241,7 +268,8 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       return st.payment_confirmed && st.checkout_completed ? { payment: paymentOut(), card } : { payment: paymentOut() };
     }),
     // Auto pay (fake): on by default; the choice applies once the payment is confirmed (the subscription exists)
-    autopayStatus: (id) => db(() => { owner(id); const on = st.autopay !== false && !(st.payment_confirmed && st.autopay_choice === false);
+    // a later Auto pay change wins over the checkout's choice; the checkout's off choice applies once paid (review)
+    autopayStatus: (id) => db(() => { owner(id); const on = typeof st.autopay === "boolean" ? st.autopay : !(st.payment_confirmed && st.autopay_choice === false);
       return { on, desired: on, pending: false, email_live: false, subscribed: Boolean(st.payment_confirmed) }; }),
     autopaySet: (id, on, key) => db(() => {
       owner(id);

@@ -56,7 +56,9 @@ const L = (d, path) => `${d.appUrl}${path}`;
 // alone grants nothing), else the business's Payments page, where Update card is too. Both ids are optional facts.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PAYMENTS = (d) => L(d, UUID_RE.test(String(d.businessId ?? "")) ? `/pay?business=${d.businessId}` : "/pay");
-const PAY = (d) => (UUID_RE.test(String(d.invoiceId ?? "")) ? L(d, `/pay/invoice/${d.invoiceId}`) : PAYMENTS(d));
+// the business goes with the invoice link too, so an owner of several opens it in the right workspace (review)
+const PAY = (d) => (UUID_RE.test(String(d.invoiceId ?? ""))
+  ? L(d, `/pay/invoice/${d.invoiceId}${UUID_RE.test(String(d.businessId ?? "")) ? `?business=${d.businessId}` : ""}`) : PAYMENTS(d));
 
 export const EMAILS = [
   // ---- notifications: the bell's own words, emailed (daily summary, weekly review, warnings and urgent alerts).

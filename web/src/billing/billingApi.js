@@ -30,11 +30,17 @@ export const realBillingApi = {
   cardSummary: async (businessId) => (await billing("card_summary", { business_id: businessId }))?.card ?? null,
   cardUpdateStart: (businessId, key) => billing("card_update_start", { business_id: businessId, idempotency_key: key }),
   invoiceStatus: async (invoiceId) => (await billing("invoice_pay_status", { invoice_id: invoiceId })).invoice,
-  invoiceStart: (invoiceId, opts) => billing("invoice_pay_start", { invoice_id: invoiceId, ...(opts ? { autopay: opts.autopay, autopay_key: opts.autopayKey } : {}) }),
+  // every start carries the owner's agreement (consent: true and the sha256 of the words shown; owner, 27 Nov 2026)
+  invoiceStart: (invoiceId, opts = {}) => billing("invoice_pay_start", { invoice_id: invoiceId, consent: true, consent_hash: opts.consentHash,
+    ...(typeof opts.autopay === "boolean" ? { autopay: opts.autopay } : {}), ...(opts.autopayKey ? { autopay_key: opts.autopayKey } : {}),
+    addons: Array.isArray(opts.addons) ? opts.addons : [] }),
   invoiceReturn: (invoiceId) => billing("invoice_pay_return", { invoice_id: invoiceId }),
-  packBuy: (businessId, packCode, key) => billing("pack_buy", { business_id: businessId, pack_code: packCode, idempotency_key: key }),
+  packBuy: (businessId, packCode, key, opts = {}) => billing("pack_buy", { business_id: businessId, pack_code: packCode, idempotency_key: key, consent: true,
+    consent_hash: opts.consentHash, ...(opts.invoiceId ? { invoice_id: opts.invoiceId } : {}) }),
   packStatus: (businessId, purchaseId) => billing("pack_status", { business_id: businessId, purchase_id: purchaseId }),
-  packActStart: (businessId, purchaseId) => billing("pack_act_start", { business_id: businessId, purchase_id: purchaseId }),
+  packActStart: (businessId, purchaseId, opts = {}) => billing("pack_act_start", { business_id: businessId, purchase_id: purchaseId, consent: true, consent_hash: opts.consentHash }),
+  // the packs on offer, priced by the server's catalogue (add ons on the Pay pages)
+  addonCatalog: (businessId) => rpc("zella_owner_addon_catalog", { p_business_id: businessId }),
   // Auto pay (owner, 27 Nov 2026): the database answers what Stripe has (from its events) and checks the owner
   autopayStatus: (businessId) => rpc("zella_owner_autopay_status", { p_business_id: businessId }),
   autopaySet: async (businessId, on, key) => (await billing("autopay_set", { business_id: businessId, on, idempotency_key: key })).autopay,

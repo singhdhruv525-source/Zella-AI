@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
 import GlassCheckout from "../billing/GlassCheckout";
 import { autopayWords } from "../billing/payState.js";
-import { keyIsSpent } from "../billing/checkoutMachine";
+import { keyIsSpent, formatMoney } from "../billing/checkoutMachine";
+import { addonsTotal, consentHash, offerFrom, planConsent, selectionKey, toggle } from "../billing/addons.js";
 import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
 import { allowance, billingPeriod, errorCode, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
 
@@ -92,6 +93,21 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const pay = state.payment ?? {};
   const p = state.plan?.current ?? {};
   const trial = pay.checkout?.mode === "trial" || pay.due_now_minor === 0;
+  // add ons (owner, 27 Nov 2026: one single payment): the packs on offer from the server's catalogue, ticked here, priced
+  // by the server; not offered with a trial (nothing is charged today then)
+  const [offer, setOffer] = useState([]);
+  const [selected, setSelected] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    if (trial || !api.addonCatalog) return undefined;
+    Promise.resolve(api.addonCatalog(state.business_id)).then((c) => { if (alive) setOffer(offerFrom(c)); }, () => {});
+    return () => { alive = false; };
+  }, [api, state.business_id, trial]);
+  const picked = trial ? [] : selected;
+  const baseDue = Number.isFinite(Number(pay.due_now_minor)) ? Number(pay.due_now_minor) : null;
+  const totalDue = baseDue === null ? null : baseDue + addonsTotal(offer, picked);
+  // the required "I agree" words, from the server's figures (the plan's due today and renewal price, the packs' prices)
+  const consent = totalDue === null ? null : planConsent({ todayMinor: totalDue, autopay: autopayOn, renewalMinor: p.price_cents, addons: picked.length });
   // back from Stripe (a payment method that redirects): the session id never stays in the address bar
   useEffect(() => {
     if (!returned) return;
@@ -103,7 +119,7 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   // the Auto pay choice goes with the start and is kept with the checkout on the server (review M2); the key changes only
   // once the server says this attempt is over (a lost reply and Try again reach the same checkout, review M1)
   async function start(opts = {}) {
-    try { return await api.startCheckout(state.business_id, key.current, { autopay: autopayOn, ...opts }); }
+    try { return await api.startCheckout(state.business_id, key.current, { autopay: autopayOn, packs: picked, consentHash: consent ? await consentHash(consent) : null, ...opts }); }
     catch (err) { if (keyIsSpent(err)) key.current = newKey(); throw err; }
   }
   // Stripe.js couldn't load: Stripe's own Checkout page instead (owner, 27 Nov 2026); an open in page session is expired
@@ -128,15 +144,20 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
     title: p.tier ? `Your ${tierName(p.tier)} plan` : "Your plan",
     lines,
     totalLabel: "Due today",
-    amountMinor: pay.checkout?.amount_minor ?? pay.due_now_minor,
+    amountMinor: totalDue,
     currency: pay.checkout?.currency ?? p.currency ?? "USD",
-    intro: trial ? "Add a card to start your free trial. Nothing is charged until the trial ends." : undefined,
+    // the trial's words follow the server's amount due today, never the trial alone (review)
+    intro: !trial ? undefined : totalDue === 0 ? "Add a card to start your free trial. Nothing is charged until the trial ends."
+      : `You'll pay ${formatMoney(totalDue, p.currency ?? "USD")} today. Your plan's own charge starts when the trial ends.`,
     footnote: "Stripe processes this payment for Zella Voice. The amount comes from the plan you accepted.",
   };
   return (
     <>
       <GlassCheckout summary={summary} payment={state.payment} start={start} confirm={confirm} onPayment={onPayment}
-        kind="checkout" saveNote="Stripe saves this card for your plan's renewals." mount={api.mountCheckout} returned={returned === "return"} payLabel={trial ? "Add a card and start my trial" : "Pay securely"}
+        kind="checkout" saveNote="Stripe saves this card for your plan's renewals." mount={api.mountCheckout} returned={returned === "return"}
+        payLabel={trial ? "Add a card and start my trial" : (a) => `Continue to pay ${a}`}
+        addons={trial ? null : { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)) }}
+        consentText={consent} restartKey={selectionKey(picked)}
         autopay={{ on: autopayOn, onChange: setAutopayOn, ...autopayWords(emailLive) }} hostedFallback={hostedFallback} beforeSubmit={() => start()} />
       {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. We'll ask for payment here once it's switched on.</p>}
       {st.key !== "confirmed" && state.payment?.required !== false && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}

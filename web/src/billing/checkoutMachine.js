@@ -19,7 +19,8 @@
 export const STATES = ["off", "locked", "idle", "submitting", "loading", "ready", "confirming", "pending", "confirmed", "error"];
 // For payments from the CRM also: needs_action (the bank wants to confirm), card_declined (the saved card was
 // declined), no_card, not_payable, not_found, refused (the server's own words).
-export const ERROR_KINDS = ["expired", "network", "stripe_load", "server", "misconfigured", "needs_action", "card_declined", "no_card", "not_payable", "not_found", "refused"];
+// not_taken: the server says the invoice is still payable and Stripe has no payment for it (the owner can pay again).
+export const ERROR_KINDS = ["expired", "network", "stripe_load", "server", "misconfigured", "needs_action", "card_declined", "no_card", "not_payable", "not_found", "refused", "not_taken"];
 
 // The server's payment state (zella_owner_onboarding_payment_status) as a starting point.
 export function fromServer(payment) {
@@ -42,6 +43,8 @@ export function reduce(current, event) {
   const st = current?.state ?? "off";
   switch (event?.type) {
     case "SERVER": {
+      // an answer without a status says nothing about the payment: the checkout stays as it is (review)
+      if (!event.payment || typeof event.payment.status !== "string") return current;
       const next = fromServer(event.payment);
       if (next.state === "confirmed") return { state: "confirmed", card: event.card ?? current?.card ?? null };
       // the same answer again changes nothing (the same object), so a running backoff is never restarted
@@ -76,6 +79,9 @@ export function reduce(current, event) {
       return { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server", ...(event.words ? { words: String(event.words) } : {}) };
     }
     case "RETRY": return st === "error" ? { state: "idle" } : current;
+    // the add ons changed while Stripe's form was open (onboarding: one session per selection): back to Pay, so the next
+    // start makes the session for the new total (the server expires the old one first)
+    case "RESET": return st === "loading" || st === "ready" || st === "error" ? { state: "idle" } : current;
     default: return current;
   }
 }
@@ -142,6 +148,7 @@ export const ERROR_WORDS = {
   not_payable: { label: "This can't be paid online", body: "Nothing was charged. If you think this is wrong, contact Zella Voice support.", action: null },
   not_found: { label: "We couldn't find this", body: "Check you're signed in as the business owner. Nothing was charged.", action: null },
   refused: { label: "This can't go ahead yet", body: "Nothing was charged.", action: "Try again" },
+  not_taken: { label: "The payment didn't go through", body: "Stripe didn't take this payment, so nothing was charged. You can pay again now.", action: "Pay again" },
 };
 
 // Money as the server sent it: integer minor units and the plan's currency.

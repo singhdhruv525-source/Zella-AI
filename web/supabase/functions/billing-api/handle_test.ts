@@ -5,6 +5,8 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { startFakeStripe } from "../../../../tests/stripe_fake/fake_stripe.ts";
 import { stripeClient } from "../_shared/stripe.ts";
+import { consentHash, consentText } from "../_shared/paymentConsent.js";
+import { fetchEventObject } from "../_shared/billingWorker.ts";
 
 const BACKEND = "http://supabase.test.local";
 const BIZ = "11111111-1111-4111-8111-111111111111", CHECKOUT = "22222222-2222-4222-8222-222222222222";
@@ -19,7 +21,12 @@ const { handle, resetApplyThrottle } = await import("./index.ts");
 type Answer = Record<string, unknown> | Error | null;
 type Db = { checkout: Record<string, unknown> | null; payment: Record<string, unknown>; start?: Record<string, unknown> | Error;
   invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer; prefill?: unknown; autopay?: AutoPay;
-  limited?: boolean; noMigration?: boolean; reopened?: Record<string, unknown>[]; checkoutAutopay?: unknown[]; hosted?: string[]; expired?: string[] };
+  limited?: boolean; noMigration?: boolean; reopened?: Record<string, unknown>[]; checkoutAutopay?: unknown[]; hosted?: string[]; expired?: string[];
+  startSeq?: Record<string, unknown>[]; packBuys?: Record<string, unknown>[]; cardChecks?: Record<string, unknown>[] };
+// what the database's start answers by default: the amount it computed and the figures of the agreement's words
+const START_FIGURES = { amount_minor: 29900, renewal_minor: 29900, autopay: true, addons: [] as string[], mode: "pay", currency: "usd" };
+const CATALOG = [{ code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900, currency: "usd" }, { code: "texts_500", resource: "texts", quantity: 500, price_cents: 1800, currency: "usd" }];
+const PURCHASE_BUY = "88888888-8888-4888-8888-888888888888";
 // Auto pay's database stand in: the owner's choice (versioned), our record of Stripe's value (changed ONLY by an applied
 // customer.subscription.updated), the outbox rows, and the Stripe events not yet applied
 type AutoPay = { owner: boolean; card: boolean; sub: string; on: boolean; desired: boolean | null; version: number; keys: Set<string>;
@@ -35,7 +42,14 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
   const auth = new Headers(init?.headers).get("authorization") ?? "";
   calls.push({ fn, args, as: auth.endsWith("server-test") ? "server" : "owner" });
   const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { "Content-Type": "application/json" } });
-  if (fn === "zella_owner_billing_checkout_start") return db.start instanceof Error ? json({ message: db.start.message }, 400) : json(db.start ?? { checkout_id: CHECKOUT, status: db.checkout?.status });
+  if (fn === "zella_owner_billing_checkout_start") {
+    const next = db.startSeq?.shift();
+    if (next) return json(next);
+    return db.start instanceof Error ? json({ message: db.start.message }, 400) : json(db.start ?? { checkout_id: CHECKOUT, status: db.checkout?.status, ...START_FIGURES });
+  }
+  if (fn === "zella_owner_addon_catalog") return json(CATALOG);
+  if (fn === "zella_owner_pack_buy") { (db.packBuys ??= []).push(args); return json({ purchase_id: PURCHASE_BUY, status: "pending", price_cents: 2900 }); }
+  if (fn === "zella_billing_card_checked") { (db.cardChecks ??= []).push(args); return json(true); }
   if (fn === "zella_billing_checkout_session") return db.noMigration ? json({ code: "PGRST202", message: "Could not find the function public.zella_billing_checkout_session" }, 404) : json(db.checkout);
   const answer = (a: Answer | undefined) => a instanceof Error ? json({ message: a.message }, 400) : json(a ?? null);
   if (fn === "zella_owner_invoice_pay_status") return answer(db.invoice);
@@ -86,7 +100,23 @@ async function newSession(extra: Record<string, unknown> = {}) {
     line_items: [{ price: price.id, quantity: 1 }], metadata: { business_id: BIZ, checkout_id: CHECKOUT }, ...extra }, `checkout:${crypto.randomUUID()}`);
 }
 const openRow = (sid: string, status = "open") => ({ checkout_id: CHECKOUT, status, stripe_session_id: sid, mode: "pay", amount_minor: 29900, currency: "usd", expires_at: "2026-11-28T10:00:00Z" });
-const post = async (body: Record<string, unknown>) => {
+// The owner's agreement, as the page sends it: the sha256 of the words for the figures the server will answer (from the
+// stand in's own answer). A test that sends its own consent fields (or none: consent: undefined) is not changed.
+const NEEDS_CONSENT = new Set(["checkout_start", "invoice_pay_start", "pack_act_start", "pack_buy"]);
+const hashOf = async (f: Parameters<typeof consentText>[0]) => { const t = consentText(f); return t ? await consentHash(t) : "0".repeat(64); };
+async function withConsent(body: Record<string, unknown>) {
+  if (!NEEDS_CONSENT.has(String(body.action)) || "consent" in body) return body;
+  let f: Parameters<typeof consentText>[0] | null = null;
+  if (body.action === "checkout_start") { const s = db.start instanceof Error ? START_FIGURES : { ...START_FIGURES, ...(db.start ?? {}) } as typeof START_FIGURES;
+    f = { kind: "plan", todayMinor: s.amount_minor, autopay: body.autopay !== false, renewalMinor: s.renewal_minor, addons: (s.addons ?? []).length > 0 }; }
+  if (body.action === "invoice_pay_start" && db.invoiceStart && !(db.invoiceStart instanceof Error)) { const i = db.invoiceStart as Record<string, any>;
+    f = { kind: "plan", todayMinor: i.total_minor, autopay: i.autopay !== false, renewalMinor: i.renewal_minor, addons: (i.addons ?? []).length > 0 }; }
+  if (body.action === "pack_act_start" && db.packAct && !(db.packAct instanceof Error)) f = { kind: "pack", todayMinor: (db.packAct as Record<string, any>).price_cents };
+  if (body.action === "pack_buy") f = { kind: "pack", todayMinor: CATALOG.find((c) => c.code === body.pack_code)?.price_cents };
+  return { ...body, consent: true, consent_hash: f ? await hashOf(f) : "0".repeat(64) };
+}
+const post = async (raw: Record<string, unknown>) => {
+  const body = await withConsent(raw);
   const r = await handle(new Request("http://fn", { method: "POST", headers: { Authorization: "Bearer owner-jwt", "Content-Type": "application/json" }, body: JSON.stringify(body) }));
   return { status: r.status, body: await r.json() };
 };
@@ -196,7 +226,8 @@ async function pastDue() {
   return { customer: sub.customer as string, sub: sub.id as string, inv };
 }
 const invRow = (inv: Record<string, any>, extra: Record<string, unknown> = {}) => ({ invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, number: inv.number,
-  amount_due_minor: inv.amount_due, currency: "usd", hosted_invoice_url: inv.hosted_invoice_url, livemode: false, ...extra });
+  amount_due_minor: inv.amount_due, currency: "usd", hosted_invoice_url: inv.hosted_invoice_url, livemode: false,
+  total_minor: inv.amount_due, renewal_minor: 29900, autopay: true, addons: [], ...extra });
 
 Deno.test("Pay now: the open invoice's own PaymentIntent for Stripe's form; a double start gives the same intent and creates nothing", async () => {
   const { customer, sub, inv } = await pastDue();
@@ -449,7 +480,8 @@ Deno.test("checkout: the owner's Auto pay choice is kept with the checkout on th
   db = { checkout: openRow(sess.id), payment: {} };
   const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "autopay-ck-0001", autopay: false });
   assertEquals(r.status, 200, JSON.stringify(r.body));
-  assertEquals(db.checkoutAutopay, [{ p_business_id: BIZ, p_checkout_id: CHECKOUT, p_on: false }]);
+  // the choice goes with the start itself: the database keeps it with the checkout and words the agreement by it
+  assertEquals(calls.findLast((c) => c.fn === "zella_owner_billing_checkout_start")?.args.p_autopay, false);
 });
 
 Deno.test("hosted fallback: a hosted session answers Stripe's own page; asking for hosted over an open in page session expires it at Stripe first", async () => {
@@ -465,4 +497,131 @@ Deno.test("hosted fallback: a hosted session answers Stripe's own page; asking f
   const req = fake.requests.findLast((x) => x.path === `/v1/checkout/sessions/${custom.id}/expire`)!;
   assertEquals(req.key, `expire:${custom.id}`);
 });
+// ---- the required "I agree" box (owner decision, 27 Nov 2026) and the add ons ----
+Deno.test("agreement: every payment start is refused without consent and a sha256, before the database or Stripe is asked", async () => {
+  db = { checkout: null, payment: {}, invoiceStart: { invoice_id: INVOICE }, packAct: { purchase_id: PURCHASE, payment_intent: "pi_x", price_cents: 2900 } };
+  for (const body of [{ action: "checkout_start", business_id: BIZ, idempotency_key: "consent-key-001" }, { action: "invoice_pay_start", invoice_id: INVOICE },
+    { action: "pack_buy", business_id: BIZ, pack_code: "minutes_100", idempotency_key: "consent-key-002" }, { action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE }]) {
+    for (const consent of [{ consent: undefined }, { consent: false, consent_hash: "a".repeat(64) }, { consent: true, consent_hash: "not-a-sha" }, { consent: true }]) {
+      calls.length = 0;
+      const r = await act({ ...body, ...consent });
+      assertEquals([r.status, r.body.code], [400, "CONSENT_REQUIRED"], `${body.action} ${JSON.stringify(consent)}`);
+      assert(!calls.some((c) => c.as === "owner"), "the database isn't asked");
+    }
+  }
+});
+
+Deno.test("agreement: words that don't match the server's figures are refused, and nothing reaches Stripe or the browser", async () => {
+  const sess = await newSession();
+  db = { checkout: openRow(sess.id), payment: {}, start: { checkout_id: CHECKOUT, status: "preparing", ...START_FIGURES, amount_minor: 34600, addons: ["minutes_100", "texts_500"] } };
+  calls.length = 0;
+  const wrong = await hashOf({ kind: "plan", todayMinor: 29900, autopay: true, renewalMinor: 29900 });   // the page without the add ons
+  const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "consent-key-003", packs: ["minutes_100", "texts_500"], consent: true, consent_hash: wrong });
+  assertEquals([r.status, r.body.code, "client_secret" in r.body], [409, "CONSENT_MISMATCH", false]);
+  assert(!calls.some((c) => c.fn === "zella_billing_checkout_continue"), "nothing is prepared at Stripe");
+  assertEquals(calls.find((c) => c.fn === "zella_owner_billing_checkout_start")?.args.p_packs, ["minutes_100", "texts_500"], "pack codes only reach the database");
+  // Pay now: the database answered the invoice plus two add ons; the page's words without them are refused, no secret
+  const { customer, sub, inv } = await pastDue();
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv, { total_minor: inv.amount_due + 4700, addons: [{ code: "minutes_100" }, { code: "texts_500" }] }), refs: { customer, subscription: sub } };
+  const p = await act({ action: "invoice_pay_start", invoice_id: INVOICE, addons: [{ code: "minutes_100", key: "addon-key-001" }, { code: "texts_500", key: "addon-key-002" }],
+    consent: true, consent_hash: await hashOf({ kind: "plan", todayMinor: inv.amount_due, autopay: true, renewalMinor: 29900 }) });
+  assertEquals([p.status, p.body.code, "client_secret" in p.body], [409, "CONSENT_MISMATCH", false]);
+  const ok = await act({ action: "invoice_pay_start", invoice_id: INVOICE, addons: [{ code: "minutes_100", key: "addon-key-001" }, { code: "texts_500", key: "addon-key-002" }] });
+  assertEquals([ok.status, ok.body.status, ok.body.amount_minor], [200, "open", inv.amount_due], "the invoice's own amount is what Stripe takes; the add ons follow separately");
+  assertEquals(calls.findLast((c) => c.fn === "zella_owner_invoice_pay_start")?.args.p_addons, [{ code: "minutes_100", key: "addon-key-001" }, { code: "texts_500", key: "addon-key-002" }]);
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE, addons: [{ code: "MINUTES", key: "addon-key-001" }] })).body.code, "INVALID_INPUT");
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE, addons: [{ code: "minutes_100", key: "x" }] })).body.code, "INVALID_INPUT");
+  // finishing a pack: the words for another amount are refused before the purchase is reopened
+  db = { checkout: null, payment: {}, refs: { customer, subscription: sub }, packAct: { purchase_id: PURCHASE, payment_intent: "pi_x", price_cents: 2900 } };
+  const a = await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE, consent: true, consent_hash: await hashOf({ kind: "pack", todayMinor: 1800 }) });
+  assertEquals([a.status, a.body.code, db.reopened ?? []], [409, "CONSENT_MISMATCH", []]);
+});
+
+Deno.test("add ons: the pack page's words come from the catalogue; an add on agreed with Pay now goes to the database with its invoice", async () => {
+  db = { checkout: null, payment: {}, refs: { customer: null, subscription: null } };
+  const bad = await act({ action: "pack_buy", business_id: BIZ, pack_code: "minutes_100", idempotency_key: "pack-key-0001", consent: true, consent_hash: await hashOf({ kind: "pack", todayMinor: 1800 }) });
+  assertEquals([bad.status, bad.body.code, db.packBuys ?? []], [409, "CONSENT_MISMATCH", []]);
+  assertEquals((await act({ action: "pack_buy", business_id: BIZ, pack_code: "minutes_999", idempotency_key: "pack-key-0001", consent: true, consent_hash: "a".repeat(64) })).body.code, "UNKNOWN_PACK");
+  const ok = await act({ action: "pack_buy", business_id: BIZ, pack_code: "minutes_100", idempotency_key: "pack-key-0001" });
+  assertEquals([ok.status, ok.body.purchase_id], [200, PURCHASE_BUY]);
+  assertEquals(db.packBuys?.[0]?.p_invoice_id, null);
+  const hash = "b".repeat(64);
+  await act({ action: "pack_buy", business_id: BIZ, pack_code: "texts_500", idempotency_key: "pay-now-key-a1", invoice_id: INVOICE, consent: true, consent_hash: hash });
+  assertEquals([db.packBuys?.[1]?.p_invoice_id, db.packBuys?.[1]?.p_consent_hash, db.packBuys?.[1]?.p_idempotency_key], [INVOICE, hash, "pay-now-key-a1"],
+    "the database checks the Pay now agreement named this pack and this key, and that the invoice is paid");
+  assertEquals((await act({ action: "pack_buy", business_id: BIZ, pack_code: "texts_500", idempotency_key: "pay-now-key-a1", invoice_id: "nope", consent: true, consent_hash: hash })).body.code, "INVALID_INPUT");
+});
+
+Deno.test("add ons at onboarding: a changed selection expires the open session first (its stored command), then starts again", async () => {
+  const sess = await newSession();
+  db = { checkout: openRow(sess.id), payment: {}, startSeq: [{ checkout_id: "99999999-9999-4999-8999-999999999999", status: "expiring", amount_minor: 29900, mode: "pay", currency: "usd" }] };
+  calls.length = 0;
+  const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "select-key-0001", packs: [] });
+  assertEquals(r.status, 200, JSON.stringify(r.body));
+  assertEquals(calls.filter((c) => c.fn === "zella_owner_billing_checkout_start").length, 2, "asked again once the old one is being expired");
+  assertEquals(calls.find((c) => c.fn === "zella_billing_checkout_next_command")?.args.p_checkout_id, "99999999-9999-4999-8999-999999999999", "the old checkout's expiry is sent");
+  db = { checkout: openRow(sess.id), payment: {}, startSeq: [{ checkout_id: CHECKOUT, status: "expiring" }, { checkout_id: CHECKOUT, status: "expiring" }] };
+  assertEquals((await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "select-key-0002" })).body.code, "CHECKOUT_NOT_READY", "never two open sessions");
+  assertEquals((await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "select-key-0003", packs: ["Minutes 100"] })).body.code, "INVALID_INPUT");
+});
+
+Deno.test("review: Pay now turning Auto pay on runs the same usable card check first; a refusal never blocks paying", async () => {
+  const { customer, sub, inv } = await pastDue();
+  fake.objects.get(sub)!.default_payment_method = null;   // no usable saved card at Stripe
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv, { autopay: true }), refs: { customer, subscription: sub },
+    autopay: { owner: true, card: true, sub, on: false, desired: null, version: 0, keys: new Set(), outbox: [], applied: new Set() } };
+  calls.length = 0;
+  const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE, autopay: true, autopay_key: "autopay-pay-key-1" });
+  assertEquals([r.status, r.body.status, r.body.autopay_error], [200, "open", "NO_SAVED_CARD"]);
+  assert(!calls.some((c) => c.fn === "zella_owner_autopay_set"), "the Auto pay change isn't attempted without a usable card");
+});
+
+Deno.test("review: turning Auto pay on records the card billing-api checked with Stripe (the database needs it)", async () => {
+  const s = await newSession();
+  fake.completeCheckout(s.id);
+  const sub = fake.objects.get(fake.objects.get(s.id)!.subscription)!;
+  db = { checkout: null, payment: {}, refs: { customer: sub.customer, subscription: sub.id },
+    autopay: { owner: true, card: true, sub: sub.id, on: false, desired: null, version: 0, keys: new Set(), outbox: [], applied: new Set(), hold: true } };
+  await act({ action: "autopay_set", business_id: BIZ, on: true, idempotency_key: "autopay-card-0001" });
+  const pm = typeof sub.default_payment_method === "string" ? sub.default_payment_method : sub.default_payment_method?.id;
+  assertEquals(db.cardChecks?.map((c) => [c.p_business_id, c.p_payment_method]), [[BIZ, pm]]);
+});
+
+Deno.test("review: Pay now's return asks Stripe for the invoice's payments (includable), so the card that paid is found", async () => {
+  const { customer, sub, inv } = await pastDue();
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub } };
+  const start = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  fake.confirmIntent(String(start.body.client_secret).split("_secret_")[0]);
+  db = { ...db, invoice: { invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, status: "paid" } };
+  const r = await act({ action: "invoice_pay_return", invoice_id: INVOICE });
+  assertEquals(r.body.card?.last4, "4242");
+  assertEquals(fake.requests.findLast((x) => x.method === "GET" && x.path === `/v1/invoices/${inv.id}`)?.body.expand, ["payments"]);
+  assertEquals((await stripe.get(`/v1/invoices/${inv.id}`) as Record<string, unknown>).payments, undefined, "the fake, like Stripe, leaves payments out unless expanded");
+});
+
+Deno.test("review: the fake Stripe models a 3D Secure challenge, and refuses a redirect method without return_url", async () => {
+  const s = await newSession();
+  fake.completeCheckout(s.id);
+  const sub = fake.objects.get(fake.objects.get(s.id)!.subscription)!;
+  const pi = await stripe.post("/v1/payment_intents", { customer: sub.customer, amount: 2900, currency: "usd", off_session: true, confirm: true, metadata: {} }, `pack:${crypto.randomUUID()}`) as Record<string, any>;
+  const challenged = fake.confirmIntent(pi.id, "auth") as Record<string, any>;
+  assertEquals([challenged.status, challenged.last_payment_error?.code], pi.status === "succeeded" ? ["succeeded", undefined] : ["requires_action", "authentication_required"]);
+  const p2 = fake.objects.get((await stripe.post("/v1/payment_intents", { customer: sub.customer, amount: 2900, currency: "usd", metadata: {} }, `pack:${crypto.randomUUID()}`) as Record<string, any>).id)!;
+  p2.status = "requires_payment_method";
+  assertEquals((fake.confirmIntent(p2.id, "auth") as Record<string, any>).status, "requires_action", "auth is a challenge, not a decline");
+  assertEquals((fake.confirmIntent(p2.id, "decline") as Record<string, any>).last_payment_error?.code, "card_declined", "other cards still decline");
+  assertEquals((fake.confirmIntent(p2.id) as Record<string, any>).status, "succeeded");
+  const price = await stripe.post("/v1/prices", { product: (await stripe.post("/v1/products", { name: "x" }, `product:${crypto.randomUUID()}`)).id, currency: "usd", unit_amount: 100 }, `price:${crypto.randomUUID()}`);
+  const refused = await stripe.post("/v1/checkout/sessions", { mode: "payment", ui_mode: "custom", payment_method_types: ["card", "ideal"], line_items: [{ price: price.id, quantity: 1 }] }, `checkout:${crypto.randomUUID()}`).catch((e) => e);
+  assert(refused instanceof Error, "iDEAL without return_url is refused");
+  const cardOnly = await stripe.post("/v1/checkout/sessions", { mode: "payment", ui_mode: "custom", payment_method_types: ["card"], line_items: [{ price: price.id, quantity: 1 }] }, `checkout:${crypto.randomUUID()}`);
+  assertEquals(cardOnly.status, "open", "a card only session needs no return_url");
+});
+
+Deno.test("review: customer.updated is fetched from Stripe (a card set on Stripe's card page)", async () => {
+  const cus = await stripe.post("/v1/customers", { metadata: { business_id: BIZ } }, `customer:${crypto.randomUUID()}`) as Record<string, any>;
+  const got = await fetchEventObject(stripe, { id: "e1", type: "customer.updated", object_type: "customer", object_id: cus.id, livemode: false, payload: null } as never) as Record<string, any>;
+  assertEquals([got.id, got.object], [cus.id, "customer"]);
+});
+
 Deno.test({ name: "cleanup", sanitizeResources: false, sanitizeOps: false, fn: async () => { globalThis.fetch = realFetch; await fake.stop(); } });

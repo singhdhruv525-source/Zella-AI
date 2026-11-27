@@ -40,6 +40,7 @@
     "automations.updated": "Updated automations",
     "billing.auto_reload_updated": "Updated auto reload",
     "billing.autopay_changed": "Switched Auto pay on or off",
+    "billing.checkout_addons_granted": "Added the add ons paid with the first payment",
     "billing.checkout_started": "Started plan checkout",
     "billing.dispute_lost": "Card dispute lost",
     "billing.dispute_opened": "Card dispute opened",
