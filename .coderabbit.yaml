@@ -35,7 +35,9 @@ reviews:
         could read or change another business's data. Never allow secrets, API keys or tokens in code, tests, fixtures
         or logs (tests must use obviously fake values). No code may send real calls, texts or emails, switch on live
         flags (sms_live, email_live, calls_live, n8n dispatch) or change live voice assistants. Card details are never
-        collected or stored. The source-of-truth documents are listed in CLAUDE.md: flag a change that adds or
+        collected or stored: no full card number, security code, or card details spoken on a call. The only card
+        fields Zella Voice may keep or show are the brand and last 4 digits that Stripe returns, for billing notices
+        (owner decision, 27 Nov 2026). The source-of-truth documents are listed in CLAUDE.md: flag a change that adds or
         changes a feature or page without updating docs/PRODUCT.md, changes the schema without regenerating
         docs/BACKEND_SCHEMA.md, or changes what is live, a decision or a known problem without updating docs/MEMORY.md.
 
@@ -75,6 +77,17 @@ reviews:
       instructions: >
         Reports must match the evidence: test counts, what ran against mocks versus a real backend, and what was
         or wasn't deployed. Flag claims of legal or regulatory compliance.
+
+    - path: "legal-drafts/**/*.md"
+      instructions: >
+        Unpublished legal drafts for counsel. By the owner's decision, the public documents (Terms and its
+        schedules, Privacy Policy, DPA, Messaging Terms, Order Form, Consent and Carrier Registration Pack, Trust
+        and Security Overview) are written as the final versions for an operating service, with no build status
+        wording. Every gap between what they promise and what the product does today must be a launch blocker in
+        the counsel memo (section 4) and the Owner Action Pack (section 7), and no public document is published
+        until its blockers are cleared. So do not ask for "not yet", "planned" or status wording in the public
+        documents; instead flag a promise that is missing from the launch blockers, a blocker that is wrong or
+        incomplete, a wrong cross reference, a contradiction between documents, or a legal drafting error.
 
   tools:
     gitleaks:
