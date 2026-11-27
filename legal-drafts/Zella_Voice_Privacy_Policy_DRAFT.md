@@ -77,7 +77,7 @@ We use Customer Personal Data only to provide the Services to the Customer under
 
 ### 4.3 What we do not do
 
-**We do not sell Personal Data, we do not share it for cross context behavioral advertising, and we do not use it for advertising. We do not use Customer Data to train artificial intelligence models, and we do not send it to any provider that does.**
+**We do not sell Personal Data, we do not share it for cross context behavioral advertising, and we do not use it for Zella Voice's own advertising. We do not use Customer Data to train artificial intelligence models, and we do not send it to any provider that does.** Marketing messages that a Customer sends to its own customers through the Services are the Customer's messages: they are sent only with the recorded consent and after the checks described in sections 4.1 and 7.1.
 
 ## 5. Artificial intelligence
 
