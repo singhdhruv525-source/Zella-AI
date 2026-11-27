@@ -154,6 +154,9 @@ Deno.test("the fake models Embedded Checkout: client secret and no hosted url; s
     assertEquals([e.ui_mode, e.url, typeof e.client_secret, e.redirect_on_completion], ["embedded", null, "string", "if_required"]);
     assertEquals((await assertRejects(() => stripe.post("/v1/checkout/sessions", { ...base, ui_mode: "embedded", success_url: "https://x.test" }, "checkout:e2"), StripeError)).status, 400);
     assertEquals((await assertRejects(() => stripe.post("/v1/checkout/sessions", { ...base, return_url: "https://x.test" }, "checkout:e3"), StripeError)).status, 400);
+    const c = await stripe.post("/v1/checkout/sessions", { ...base, ui_mode: "custom", return_url: "https://app.example.test/r" }, "checkout:c1");
+    assertEquals([c.ui_mode, c.url, typeof c.client_secret, c.redirect_on_completion], ["custom", null, "string", null]);
+    assertEquals((await assertRejects(() => stripe.post("/v1/checkout/sessions", { ...base, ui_mode: "custom", redirect_on_completion: "if_required" }, "checkout:c2"), StripeError)).status, 400, "redirect_on_completion is embedded only");
     fake.completeCheckout(e.id);
     const got = await stripe.get(`/v1/checkout/sessions/${e.id}`, { expand: ["subscription.default_payment_method"] }) as Record<string, any>;
     assertEquals(cardSummary(got.subscription.default_payment_method), { brand: "visa", last4: "4242", issuer: "Test Bank" });

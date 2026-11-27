@@ -4,7 +4,7 @@ import { Icon } from "../BusinessUI";
 import GlassCheckout from "./GlassCheckout";
 import { cardWords, formatMoney } from "./checkoutMachine";
 import { invoiceAsPayment, packAnswer } from "./payState.js";
-import { mountPaymentElement } from "./stripeEmbedded";
+import { mountCardFields } from "./stripeEmbedded";
 import "./payments.css";
 
 // Paying from inside the CRM (owner decision, 27 Nov 2026: "auto charge plus Pay now"). Auto charge stays the default:
@@ -108,7 +108,7 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false })
   );
 }
 
-// Pay now for one invoice (the list above, or the emailed link /pay/invoice/<id>): Stripe's Payment Element on the
+// Pay now for one invoice (the list above, or the emailed link /pay/invoice/<id>): Stripe's card fields and billing address on the
 // invoice's own PaymentIntent, our Pay button under it. Already paid, it says so; Stripe's hosted page stays the fallback.
 export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabel = "All invoices" }) {
   const [inv, setInv] = useState({ status: "loading" });
@@ -146,7 +146,8 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
       <GlassCheckout summary={summary} payment={payment} words={over} payLabel="Pay now" onUpdateCard={onUpdateCard}
         start={() => api.invoiceStart(invoiceId)}
         confirm={async () => { const r = await api.invoiceReturn(invoiceId); return { payment: invoiceAsPayment(r.invoice), card: r.card }; }}
-        mount={(el, opts) => (api.mountPayment ? api.mountPayment(el, { ...opts, invoiceId }) : mountPaymentElement(el, opts))} />
+        kind="intent" saveNote="Stripe uses this card for this invoice only. Your saved card stays as it is."
+        mount={(slots, opts) => (api.mountPayment ? api.mountPayment(slots, { ...opts, invoiceId }) : mountCardFields(slots, opts))} />
       {i.hosted_invoice_url && i.status !== "paid" && (
         <p className="zob-muted zpay-fallback">
           Prefer Stripe's own page?{" "}
@@ -158,7 +159,7 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
 }
 
 // Buying a pack: charged to the saved card with our Pay button (no form). If the bank wants to confirm, or the saved card
-// is declined, Stripe's Payment Element opens in the same panel on the pack's own PaymentIntent. Added only when the
+// is declined, Stripe's card fields open in the same panel on the pack's own PaymentIntent. Added only when the
 // server confirms it.
 export function PackCheckout({ api, businessId, pack, card, onBack, onUpdateCard }) {
   const key = useRef(newKey());
@@ -185,7 +186,8 @@ export function PackCheckout({ api, businessId, pack, card, onBack, onUpdateCard
         }}
         actStart={() => api.packActStart(businessId, purchase.current)}
         confirm={async () => { const r = await api.packStatus(businessId, purchase.current); return { ...packAnswer(r.purchase), card: r.card }; }}
-        mount={(el, opts) => (api.mountPayment ? api.mountPayment(el, { ...opts, purchaseId: purchase.current }) : mountPaymentElement(el, opts))} />
+        kind="intent" saveNote="Stripe uses this card for this pack only."
+        mount={(slots, opts) => (api.mountPayment ? api.mountPayment(slots, { ...opts, purchaseId: purchase.current }) : mountCardFields(slots, opts))} />
     </div>
   );
 }

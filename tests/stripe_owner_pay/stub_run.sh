@@ -32,7 +32,8 @@ q "do \$\$ begin
    create function auth.jwt() returns jsonb language sql stable as \$f\$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb \$f\$;
    grant execute on all functions in schema auth to authenticated, anon, service_role;
    create table public.zella_function_archive (migration text, signature text, definition text, definition_md5 text, saved_at timestamptz default now(), primary key (migration, signature));
-   create table public.businesses (id uuid primary key default gen_random_uuid(), name text, suspended_at timestamptz, cancelled_at timestamptz);
+   create table public.businesses (id uuid primary key default gen_random_uuid(), name text, suspended_at timestamptz, cancelled_at timestamptz,
+     address_line_1 text, address_line_2 text, city text, state text, postal_code text, country text);
    create table public.business_members (business_id uuid, user_id uuid, role text, status text);
    create table public.audit_logs (id bigserial, business_id uuid, user_id uuid, action text, entity_type text, entity_id uuid, old_data jsonb, new_data jsonb);
    create table public.billing_invoices (id uuid primary key default gen_random_uuid(), business_id uuid, stripe_invoice_id text, kind text default 'renewal', status text, number text,
@@ -98,6 +99,15 @@ r1=$(as "$u" aal2 "select public.zella_owner_invoice_pay_start('$open') ->> 'str
 [ "$(q "select count(*) from public.audit_logs where action = 'billing.invoice_pay_started'")" = "3" ] && ok "each start is audited; nothing else is written" || bad "audit"
 q "insert into public.billing_stripe_links values ('cus_P1', '$b', 'customer', false), ('cus_P1live', '$b', 'customer', true); insert into public.subscriptions values ('$b', 'stripe', 'sub_P1')" > /dev/null
 [ "$(q "set role service_role; select public.zella_billing_stripe_refs('$b', false)::text")" = '{"customer": "cus_P1", "subscription": "sub_P1"}' ] && ok "the server finds the customer in the key's mode and the subscription" || bad "refs"
+q "update public.businesses set address_line_1 = ' 1 Main St ', address_line_2 = '', city = 'Austin', state = 'TX', postal_code = '78701', country = 'United States' where id = '$b'" > /dev/null
+[ "$(q "set role service_role; select public.zella_billing_address_prefill('$b')::text")" = '{"city": "Austin", "line1": "1 Main St", "state": "TX", "country": "US", "postal_code": "78701"}' ] \
+  && ok "the billing address prefill is the business's own address, trimmed, empty parts left out" || bad "prefill: $(q "set role service_role; select public.zella_billing_address_prefill('$b')::text")"
+q "update public.businesses set city = 'Toronto', state = 'ON', postal_code = 'M5H 3T4', country = 'ca' where id = '$b'" > /dev/null
+[ "$(q "set role service_role; select public.zella_billing_address_prefill('$b') ->> 'country'")" = "CA" ] && ok "any country: a two letter code passes through" || bad "prefill CA"
+q "update public.businesses set country = 'Atlantis' where id = '$b'" > /dev/null
+[ "$(q "set role service_role; select coalesce(public.zella_billing_address_prefill('$b') ->> 'country', 'none')")" = "none" ] && ok "a country it can't read is left out, never guessed" || bad "prefill unknown"
+[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_address_prefill(uuid)', 'execute')::text || has_function_privilege('anon', 'public.zella_billing_address_prefill(uuid)', 'execute')::text")" = "falsefalse" ] \
+  && ok "the prefill is server only" || bad "prefill grant"
 [ "$(err "$u2" aal2 "select public.zella_owner_billing_access('$b', true)")" = "NOT_ALLOWED" ] && ok "card actions: another owner is refused" || bad "access other"
 [ "$(as "$u" aal2 "select public.zella_owner_billing_access('$b', true) ->> 'app_base_url'")" = "https://app.example.test" ] && ok "card actions: the owner, with the address Stripe returns to" || bad "access"
 
@@ -114,7 +124,7 @@ q "update public.pack_purchases set status = 'granted' where id = '$pk'" > /dev/
 [ "$(err "$u" aal2 "select public.zella_owner_pack_act_start('$b', '$pk')")" = "ALREADY_PAID" ] && ok "a granted pack can't be paid again" || bad "granted"
 
 "${P[@]}" -d "$DB" -f "$RB" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "60c0659f065c58b03dc279ffb007825c" ] \
-  && [ "$(q "select count(*) from pg_proc where proname in ('zella_owner_invoice_pay_status', 'zella_owner_invoice_pay_start', 'zella_owner_billing_access', 'zella_billing_stripe_refs', 'zella_owner_pack_status', 'zella_owner_pack_act_start')")" = "0" ] \
+  && [ "$(q "select count(*) from pg_proc where proname in ('zella_owner_invoice_pay_status', 'zella_owner_invoice_pay_start', 'zella_owner_billing_access', 'zella_billing_stripe_refs', 'zella_owner_pack_status', 'zella_owner_pack_act_start', 'zella_billing_address_prefill')")" = "0" ] \
   && [ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "cc75a8987f19e2ae96c066395b79af45" ] \
   && ok "rollback restores zella_owner_invoices and the email trigger exactly and drops the rest" || bad "rollback: $("${P[@]}" -d "$DB" -f "$RB" 2>&1 | grep -m1 ERROR)"
 "${P[@]}" -d "$DB" -f "$RB" > /dev/null 2>&1 && ok "rollback runs twice" || bad "second rollback"

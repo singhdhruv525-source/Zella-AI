@@ -2,7 +2,10 @@
 // wants, never how much: every amount is computed in the database from the accepted plan.
 //   POST { action: "checkout_start", business_id, idempotency_key }
 //        -> { status: "open", client_secret, publishable_key, mode, amount_minor, currency, expires_at } for Stripe
-//           Embedded Checkout (owner, 27 Nov 2026), or { status: "processing" } when Stripe already took the payment
+//           Stripe's card fields in our page (a Checkout Session, ui_mode custom; owner, 27 Nov 2026), or
+//           { status: "processing" } when Stripe already took the payment
+//        Every open reply also carries billing_prefill: the business's own address, to prefill Stripe's billing address
+//        fields (the owner can change it there; it goes to Stripe with the card and is not saved back here)
 //   POST { action: "checkout_return", business_id }                  -> the payment state, after applying any events;
 //        with { card: { brand, last4 } } once confirmed, only when Stripe returns both for the saved card
 // The client_secret is passed straight from Stripe to the owner's browser: never stored, never logged.
@@ -129,6 +132,14 @@ export async function handle(req: Request): Promise<Response> {
       }
       return publishable;
     };
+    // the business's own address for Stripe's billing address fields: plain strings only, never required
+    const prefill = async (biz: string) => {
+      const a = await rpc("zella_billing_address_prefill", { p_business_id: biz }).catch(() => null) as Record<string, unknown> | null;
+      const out: Record<string, string> = {};
+      for (const k of ["line1", "line2", "city", "state", "postal_code"]) if (typeof a?.[k] === "string" && a[k]) out[k] = String(a[k]).slice(0, 100);
+      if (typeof a?.country === "string" && /^[A-Z]{2}$/.test(a.country)) out.country = a.country;
+      return out;
+    };
     const refs = async (biz: string) => await rpc("zella_billing_stripe_refs", { p_business_id: biz, p_livemode: stripe.livemode }) as { customer: string | null; subscription: string | null } | null;
     // the card a confirmed payment used, from its PaymentIntent's payment method (our customer, our purchase); null on any doubt
     const paidWith = async (biz: string, intentOf: (customer: string) => Promise<string | null>, purchaseId?: string) => {
@@ -167,9 +178,10 @@ export async function handle(req: Request): Promise<Response> {
         await applyEvents(rpc, stripe, 20, 4).catch(() => null);   // records the expiry, so the next start opens a new one
         return refuse("CHECKOUT_EXPIRED", 409);
       }
-      if (row?.status !== "open" || session.ui_mode !== "embedded" || typeof session.client_secret !== "string") return refuse("CHECKOUT_NOT_READY", 502);
+      // ui_mode custom: Stripe's card fields in our page, with the Checkout Sessions API (owner, 27 Nov 2026)
+      if (row?.status !== "open" || session.ui_mode !== "custom" || typeof session.client_secret !== "string") return refuse("CHECKOUT_NOT_READY", 502);
       return reply({ status: "open", client_secret: session.client_secret, publishable_key: publishable, livemode: stripe.livemode,
-        mode: row.mode, amount_minor: row.amount_minor, currency: row.currency, expires_at: row.expires_at });
+        mode: row.mode, amount_minor: row.amount_minor, currency: row.currency, expires_at: row.expires_at, billing_prefill: await prefill(business) });
     }
     if (body.action === "checkout_return") {
       await asOwner(url, anon, jwt, "zella_owner_onboarding_payment_status", { p_business_id: business });   // the owner check first
@@ -227,7 +239,7 @@ export async function handle(req: Request): Promise<Response> {
       if (pi.status === "succeeded" || pi.status === "processing") return reply({ status: "processing" });
       if (!OPEN_INTENT.has(String(pi.status))) return refuse("NOT_PAYABLE");
       return reply({ status: "open", client_secret: secret, publishable_key: publishable, livemode: stripe.livemode, amount_minor: inv.amount_due_minor,
-        currency: inv.currency, number: inv.number, hosted_invoice_url: inv.hosted_invoice_url });
+        currency: inv.currency, number: inv.number, hosted_invoice_url: inv.hosted_invoice_url, billing_prefill: await prefill(business) });
     }
     if (action === "card_summary") {
       await asOwner(url, anon, jwt, "zella_owner_billing_access", { p_business_id: business, p_write: false });
@@ -274,7 +286,8 @@ export async function handle(req: Request): Promise<Response> {
           || Number(pi.amount) !== Number(act.price_cents)) throw Object.assign(new Error("pack payment binding failed"), { binding: true });
       if (pi.status === "succeeded" || pi.status === "processing") return reply({ status: "processing" });
       if (!OPEN_INTENT.has(String(pi.status)) || typeof pi.client_secret !== "string") return refuse("NOT_PAYABLE");
-      return reply({ status: "open", client_secret: pi.client_secret, publishable_key: publishable, livemode: stripe.livemode, amount_minor: act.price_cents, currency: "usd" });
+      return reply({ status: "open", client_secret: pi.client_secret, publishable_key: publishable, livemode: stripe.livemode, amount_minor: act.price_cents, currency: "usd",
+        billing_prefill: await prefill(business) });
     }
     if (body.action === "pack_buy") {
       const bought = await asOwner(url, anon, jwt, "zella_owner_pack_buy", { p_business_id: business, p_pack_code: String(body.pack_code ?? ""), p_idempotency_key: String(body.idempotency_key ?? "") }) as Record<string, unknown>;

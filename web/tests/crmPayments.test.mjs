@@ -75,8 +75,18 @@ test("stand in: owner only, Pay now confirms only on the server's later look, a 
   assert.equal(a.amount_minor, 24900);
   assert.equal((await api.invoiceReturn(OPEN)).invoice.status, "open", "nothing happened yet");
   let done = false;
-  const el = { ownerDocument: { createElement: () => ({ setAttribute() {}, append() {}, remove() {}, addEventListener() {} }) }, replaceChildren() {} };
-  const h = await api.mountPayment(el, { clientSecret: a.client_secret, invoiceId: OPEN, onComplete: () => { done = true; } });
+  const doc = { createElement: () => ({ setAttribute() {}, classList: { remove() {} }, textContent: "" }) };
+  const slot = () => ({ ownerDocument: doc, replaceChildren() {} });
+  const slots = { number: slot(), expiry: slot(), cvc: slot() };
+  const events = [];
+  const h = await api.mountPayment(slots, { clientSecret: a.client_secret, invoiceId: OPEN, onEvent: (e) => events.push(e), onComplete: () => { done = true; } });
+  await assert.rejects(h.submit(), (e) => e.code === "DECLINED", "nothing to pay with before the fields are complete");
+  await h.demo();
+  // the events Stripe's fields would send: the brand while typing, the card turned over for the security code, then the preview
+  assert.ok(events.some((e) => e.type === "change" && e.field === "number" && e.brand === "visa"));
+  assert.ok(events.some((e) => e.type === "focus" && e.field === "cvc"));
+  assert.deepEqual(events.at(-1), { type: "preview", card: { brand: "visa", last4: "4242", exp: "12/28" } });
+  assert.ok(!JSON.stringify(events).match(/\d{5,}|4242 4242/), "no event ever carries more than the last 4");
   await h.submit();
   assert.ok(done);
   assert.deepEqual(await api.invoiceStart(OPEN), { status: "processing" }, "Stripe has it: no second form");

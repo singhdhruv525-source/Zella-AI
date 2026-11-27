@@ -1,9 +1,10 @@
--- Zella Voice: Stripe Embedded Checkout for the first payment (owner, 27 Nov 2026: the onboarding Pay step becomes a
--- glass checkout with Stripe's own form mounted inside our page; docs/PAYMENTS_ARCHITECTURE.md G1, §6.1, §16).
+-- Zella Voice: the first payment with Stripe's card fields in our page (owner, 27 Nov 2026: the onboarding Pay step
+-- becomes a glass checkout with Stripe's own fields mounted inside our page; docs/PAYMENTS_ARCHITECTURE.md G1, §6.1, §16).
+-- (The file keeps its first name, embedded_checkout; the session is ui_mode "custom", Checkout Sessions with Elements.)
 --
---   1. zella_billing_checkout_continue: the Checkout Session it queues now asks Stripe for ui_mode "embedded" with a
---      return_url and redirect_on_completion "if_required", instead of success_url and cancel_url (Stripe refuses both
---      with an embedded session). The metadata also carries the plan version. Everything else is unchanged: the same
+--   1. zella_billing_checkout_continue: the Checkout Session it queues now asks Stripe for ui_mode "custom" with a
+--      return_url, instead of success_url and cancel_url (Stripe refuses both with an in page session). The metadata
+--      also carries the plan version. Everything else is unchanged: the same
 --      customer, prices, line items, trial, idempotency key (checkout:<id>) and stored body (§8.1). Card details are
 --      still typed only into Stripe's own form, in Stripe's frame (NN-9).
 --   2. zella_billing_checkout_session (new, server only): the business's latest checkout with its Stripe session id,
@@ -11,7 +12,7 @@
 --      secret is never stored (zella_billing_outbox_result already drops it from every stored response).
 -- Needs sql/zella_stripe_checkout.sql (this file refuses unless that file's version of the function is in place, and
 -- archives it first). Rollback: sql/rollback/zella_stripe_embedded_checkout_rollback.sql (refuses on drift, and while a
--- checkout is still open, so no embedded session is left without the page that can show it).
+-- checkout is still open, so no in page session is left without the page that can show it).
 -- Tests: tests/stripe_embedded_checkout/run.sh, tests/stripe_checkout/flow_test.ts.
 begin;
 
@@ -19,7 +20,7 @@ do $$
 declare d text;
   s constant text := 'public.zella_billing_checkout_continue(uuid,boolean)';
   v_from constant text := '7f998f18370021b4668ce06f057d0055';   -- sql/zella_stripe_checkout.sql's version
-  v_to constant text := '79461b5217457813a6747d7b2f6e8fb8';     -- this file's version
+  v_to constant text := 'bc675ce2a18d443bfd0d1bc0e64e4344';     -- this file's version
 begin
   if to_regclass('public.billing_checkouts') is null or to_regclass('public.zella_function_archive') is null or to_regprocedure(s) is null then
     raise exception 'VERSION_MISMATCH: needs zella_stripe_checkout.sql';
@@ -73,11 +74,11 @@ begin
         'line_items', case when c.mode = 'pay' and v_fee is not null
                            then jsonb_build_array(jsonb_build_object('price', v_price, 'quantity', 1), jsonb_build_object('price', v_fee, 'quantity', 1))
                            else jsonb_build_array(jsonb_build_object('price', v_price, 'quantity', 1)) end,
-        -- Embedded Checkout (owner, 27 Nov 2026): Stripe's own form inside our page; no success or cancel page. Stripe
-        -- returns to return_url only when a payment method needs a redirect; otherwise the page confirms in place.
-        'ui_mode', 'embedded',
+        -- Stripe's card fields inside our page (owner, 27 Nov 2026): a Checkout Session for Stripe Elements (ui_mode
+        -- custom); no success or cancel page. Stripe returns to return_url only when a payment method needs a redirect;
+        -- otherwise the page confirms in place.
+        'ui_mode', 'custom',
         'return_url', rtrim(v_app, '/') || '/welcome/setup?business=' || c.business_id || '&checkout=return&session_id={CHECKOUT_SESSION_ID}',
-        'redirect_on_completion', 'if_required',
         'payment_method_collection', 'always',
         'metadata', jsonb_build_object('business_id', c.business_id, 'checkout_id', c.id, 'plan_version_id', c.business_plan_id),
         'subscription_data', jsonb_strip_nulls(jsonb_build_object('metadata', jsonb_build_object('business_id', c.business_id, 'checkout_id', c.id),
@@ -93,7 +94,7 @@ begin
 end $$;
 
 -- The business's latest checkout (or the one named), for billing-api only: it fetches that session from Stripe with the
--- server key, checks it is ours, open and embedded, and passes on its client_secret. Never readable by a signed in user.
+-- server key, checks it is ours, open and ui_mode custom, and passes on its client_secret. Never readable by a signed in user.
 create or replace function public.zella_billing_checkout_session(p_business_id uuid, p_checkout_id uuid default null) returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object('checkout_id', c.id, 'status', c.status, 'stripe_session_id', c.stripe_session_id, 'expires_at', c.expires_at,
@@ -110,7 +111,7 @@ grant execute on function public.zella_billing_checkout_session(uuid, uuid) to s
 
 -- what this file made is exactly what it says it makes
 do $$ begin
-  if md5(pg_get_functiondef('public.zella_billing_checkout_continue(uuid,boolean)'::regprocedure)) <> '79461b5217457813a6747d7b2f6e8fb8'
+  if md5(pg_get_functiondef('public.zella_billing_checkout_continue(uuid,boolean)'::regprocedure)) <> 'bc675ce2a18d443bfd0d1bc0e64e4344'
      or md5(pg_get_functiondef('public.zella_billing_checkout_session(uuid,uuid)'::regprocedure)) <> '4338711a1aad11ba1b708695aaf122fb' then
     raise exception 'VERSION_MISMATCH: the functions made differ from this file''s versions';
   end if;

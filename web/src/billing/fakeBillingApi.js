@@ -10,7 +10,8 @@
 //   packauth   buying a pack: the bank wants to confirm; finishing it in Stripe's form grants it
 //   nocard     no card saved yet: Update card and buying a pack say there's no card to charge
 //   off        payments aren't switched on: no Pay now, no buying
-import { renderStandInForm } from "./standinForm.js";
+//   canada     as "", with a business address in Canada: Stripe's billing address fields in Canada's format
+import { mountStandInCard } from "./standinForm.js";
 
 export const FAKE_BUSINESS = "00000000-0000-4000-8000-0000000000b1";
 const OPEN = "00000000-0000-4000-8000-0000000000e2", PAID = "00000000-0000-4000-8000-0000000000e1";
@@ -35,7 +36,11 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
   const out = (i) => ({ ...i, payable: payable(i) });
   const owner = (id) => { if (id !== FAKE_BUSINESS) throw refuse("NOT_ALLOWED", "Only the business owner can do this."); };
   const find = (id) => { const i = st.invoices.find((x) => x.id === id); if (!i) throw refuse("NOT_FOUND", "We couldn't find that for your account. Check you're signed in as the business owner."); return i; };
-  const open = (amount) => ({ status: "open", client_secret: "pi_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, amount_minor: amount, currency: "usd" });
+  // the fake business's address, to prefill Stripe's billing address fields (any country; prices stay in US dollars)
+  const prefill = scenario === "canada" ? { line1: "100 King St W", city: "Toronto", state: "ON", postal_code: "M5H 3T4", country: "CA" }
+    : { line1: "214 Maple Street", city: "Springfield", state: "IL", postal_code: "62701", country: "US" };
+  const open = (amount) => ({ status: "open", client_secret: "pi_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, amount_minor: amount, currency: "usd",
+    billing_prefill: prefill });
   const CARD = { brand: "visa", last4: "4242", issuer: "Test Bank" };
   const PACKS = [{ code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900, rollover_if_unused: 20 },
     { code: "texts_500", resource: "texts", quantity: 500, price_cents: 1500, rollover_if_unused: 0 }];
@@ -45,7 +50,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
     onAuthChange: () => () => {},
     overview: async (id) => { await wait(delay); owner(id); return {
       plan: { tier: "pro", price_cents: 24900, billing_interval: "monthly", setup_fee_cents: 64900 },
-      subscription: { status: scenario === "" ? "past_due" : "active", current_period_end: day(30) }, packs: PACKS, payments_live: live }; },
+      subscription: { status: scenario === "" || scenario === "canada" ? "past_due" : "active", current_period_end: day(30) }, packs: PACKS, payments_live: live }; },
     invoices: async (id) => { await wait(delay); owner(id); return st.invoices.map(out); },
     cardSummary: async (id) => { await wait(delay); owner(id); return scenario === "nocard" ? null : CARD; },
     cardUpdateStart: async (id) => {
@@ -105,20 +110,15 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       if (p.status === "failed") { p.status = "pending"; p.failure_reason = null; p.can_act = false; p.outcome = "ok"; p.looks = 0; p.acted = true; }
       return open(p.price_cents);
     },
-    // a static picture of Stripe's Payment Element (no input elements); submit() is what our Pay button does
-    mountPayment: async (el, { clientSecret, onComplete, invoiceId, purchaseId }) => {
+    // the stand in for Stripe's card fields (no input elements; demo() plays the test card); submit() is our Pay button
+    mountPayment: async (slots, opts) => {
       await wait(delay * 2);
-      if (clientSecret !== "pi_standin_secret_standin") throw Object.assign(new Error("not the stand in's intent"), { code: "STRIPE_JS" });
-      const box = renderStandInForm(el, { withButton: false });
-      return {
-        destroy: () => box.remove(),
-        submit: async () => {
-          await wait(delay);
-          if (invoiceId) { st.completed = invoiceId; st.looks = 0; }
-          if (purchaseId) { const p = st.purchases.get(purchaseId); if (p) p.looks = 0; }
-          onComplete?.();
-        },
-      };
+      if (opts.clientSecret !== "pi_standin_secret_standin") throw Object.assign(new Error("not the stand in's intent"), { code: "STRIPE_JS" });
+      return mountStandInCard(slots, opts, { speed: delay ? 45 : 0, onPay: async () => {
+        await wait(delay);
+        if (opts.invoiceId) { st.completed = opts.invoiceId; st.looks = 0; }
+        if (opts.purchaseId) { const p = st.purchases.get(opts.purchaseId); if (p) p.looks = 0; }
+      } });
     },
   };
   if (typeof window !== "undefined") window.__zellaBillingFake = api;

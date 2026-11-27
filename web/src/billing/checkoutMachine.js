@@ -139,6 +139,10 @@ export function formatMoney(minor, currency = "USD") {
 // The card as Stripe reported it after a verified payment: brand and last 4 only, or nothing.
 const BRANDS = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover", diners: "Diners Club", jcb: "JCB",
   unionpay: "UnionPay", cartes_bancaires: "Cartes Bancaires", eftpos_au: "eftpos", link: "Link" };
+// A card brand code from Stripe (the card number field's change event, the PaymentMethod preview, the server) in words.
+// A clean text mark, never a network logo. Unknown codes show nothing.
+export const brandLabel = (code) => BRANDS[code] ?? null;
+
 // The issuing bank only as the server passed on Stripe's `card.issuer`: plain text (React escapes it), trimmed, at most
 // 40 characters; never guessed from the card number, never a logo.
 export function cardWords(card) {

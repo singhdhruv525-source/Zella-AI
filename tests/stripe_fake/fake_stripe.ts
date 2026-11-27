@@ -159,18 +159,20 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
         const items = (b.line_items ?? []) as Json[];
         for (const li of items) if (!need(li.price, "price")) return err(400, "invalid_request_error", "No such price", "resource_missing");
         const amount_total = items.reduce((s, li) => s + get(li.price)!.unit_amount * Number(li.quantity ?? 1), 0);
-        // Embedded Checkout (pinned version 2025-09-30.clover: ui_mode "embedded"): Stripe refuses success_url and
-        // cancel_url with it, answers a client_secret and no hosted url. A hosted session is the reverse.
-        const embedded = b.ui_mode === "embedded";
+        // In page sessions (pinned version 2025-09-30.clover): ui_mode "embedded" (Embedded Checkout) and "custom" (Stripe
+        // Elements with the Checkout Sessions API). Stripe refuses success_url and cancel_url with both, answers a
+        // client_secret and no hosted url; redirect_on_completion applies to embedded only. A hosted session is the reverse.
+        const inPage = b.ui_mode === "embedded" || b.ui_mode === "custom", embedded = inPage;
         if (b.ui_mode && !["embedded", "hosted", "custom"].includes(b.ui_mode)) return err(400, "invalid_request_error", "Invalid ui_mode", "parameter_invalid_string");
-        if (embedded && (b.success_url || b.cancel_url)) return err(400, "invalid_request_error", "success_url and cancel_url are not allowed when ui_mode is embedded", "parameter_unknown");
-        if (!embedded && (b.return_url || b.redirect_on_completion)) return err(400, "invalid_request_error", "return_url and redirect_on_completion apply only to an embedded session", "parameter_unknown");
+        if (inPage && (b.success_url || b.cancel_url)) return err(400, "invalid_request_error", `success_url and cancel_url are not allowed when ui_mode is ${b.ui_mode}`, "parameter_unknown");
+        if (!inPage && (b.return_url || b.redirect_on_completion)) return err(400, "invalid_request_error", "return_url and redirect_on_completion apply only to an in page session", "parameter_unknown");
+        if (b.ui_mode === "custom" && b.redirect_on_completion) return err(400, "invalid_request_error", "redirect_on_completion applies only to ui_mode embedded", "parameter_unknown");
         if (b.redirect_on_completion && !["always", "if_required", "never"].includes(b.redirect_on_completion)) return err(400, "invalid_request_error", "Invalid redirect_on_completion", "parameter_invalid_string");
         const sid = id("cs");
         return ok(put({ id: sid, object: "checkout.session", mode: b.mode, status: "open", payment_status: "unpaid", customer: b.customer ?? null,
-          subscription: null, payment_intent: null, ui_mode: embedded ? "embedded" : "hosted",
+          subscription: null, payment_intent: null, ui_mode: inPage ? b.ui_mode : "hosted",
           url: embedded ? null : `https://checkout.fake.local/${seq}`, success_url: b.success_url ?? null, cancel_url: b.cancel_url ?? null,
-          return_url: b.return_url ?? null, redirect_on_completion: embedded ? b.redirect_on_completion ?? "always" : null,
+          return_url: b.return_url ?? null, redirect_on_completion: b.ui_mode === "embedded" ? b.redirect_on_completion ?? "always" : null,
           client_secret: embedded ? `${sid}_secret_fake${seq}` : null, expires_at: clock + 86400,
           client_reference_id: b.client_reference_id ?? null, metadata, livemode, amount_total, currency: "usd", created: clock,
           _items: items, _trial_end: b.subscription_data?.trial_end ? Number(b.subscription_data.trial_end) : null, _sub_metadata: b.subscription_data?.metadata ?? {},

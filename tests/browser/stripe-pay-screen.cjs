@@ -29,7 +29,7 @@ fs.mkdirSync(SHOTS, { recursive: true });
 let fails = 0, passes = 0;
 const check = (name, ok, detail = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? " - " + detail : ""}`); if (ok) passes++; else fails++; };
 
-const { LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs } = require("./pay-helpers.cjs");
+const { LOOKS, WIDTHS, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
 
 async function seed(scenario) {
   const { createFakeApi } = await import(path.join(__dirname, "../../web/src/onboarding/fakeApi.js"));
@@ -100,33 +100,49 @@ async function shot(page, look, width, state, axeSource) {
       await shot(page, look, width, "ready", axeSource);
 
       await page.click("button:has-text('Pay securely')");
-      await page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-      check(`${tag}: Payment details holds the stand in's picture of Stripe's form, clearly badged`, await page.isVisible(".zgc-pay .zgc-standin") && await page.isVisible("text=Preview of Stripe's form")
-        && await page.locator(".zgc-mock-fields[aria-hidden='true']").count() === 1);
+      await page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
+      check(`${tag}: Payment details: the stand in's card fields and billing address (no inputs), clearly badged`, await page.isVisible(".zgc-pay .zgc-addr-mock") && await page.isVisible("text=Preview of Stripe's form")
+        && await page.locator(".zgc-slot").count() === 3 && await page.locator(".zgc input").count() === 0);
+      const addr = await addressMock(page);
+      check(`${tag}: billing address: prefilled from the business, United States format`, addr?.country === "US" && addr.labels.includes("ZIP code") && addr.labels.includes("State")
+        && addr.values.line1 === "214 Maple Street" && addr.values.name === "", JSON.stringify(addr));
+      check(`${tag}: the address never shows on the card`, !(await cardText(page)).includes("Maple"));
+      check(`${tag}: Pay waits until every card field is complete`, await page.isDisabled(".zgc-pay-foot button:has-text('Pay $898')"));
+      await fillCard(page);
+      await page.waitForSelector(".zgc-cardcol .zgc-card.is-back", { timeout: 10000 }).catch(() => {});
+      check(`${tag}: typing the security code turns the card over`, await page.locator(".zgc-cardcol .zgc-card.is-back").count() === 1);
+      await shot(page, look, width, "card-back", axeSource);
+      await waitFilled(page);
+      await page.waitForTimeout(900);
+      const filled = await page.evaluate(() => { const c = document.querySelector(".zgc-cardcol .zgc-card-front"); return { number: c.querySelector(".zgc-cf-number").textContent, exp: c.querySelector(".zgc-cf-valid > span").textContent, brand: c.querySelector(".zgc-cf-brand").textContent, name: c.querySelector(".zgc-cf-name").textContent }; });
+      check(`${tag}: filled from Stripe's preview: last 4, expiry, brand, and the name`, filled.number === "•••• •••• •••• 4242" && filled.exp === "12/28" && filled.brand === "Visa" && filled.name === "JORDAN LEE", JSON.stringify(filled));
+      check(`${tag}: the card never shows more than the last 4 and the expiry`, onlyLast4AndExpiry(await cardText(page)));
+      check(`${tag}: the name typed in the billing address mirrors on the card; the address doesn't`, (await addressMock(page))?.values.name === "Jordan Lee"
+        && !/Maple|Springfield|62701/.test(await cardText(page)));
       check(`${tag}: Stripe.js is never loaded by the stand in`, await page.evaluate(() => ![...document.scripts].some((s) => s.src.includes("stripe.com"))));
       await shot(page, look, width, "form", axeSource);
 
-      await page.click(".zgc-standin button:has-text('Pay $898')");
+      await page.click(".zgc-pay-foot button:has-text('Pay $898')");
       await page.waitForFunction(() => document.querySelector("h1")?.textContent.includes("Confirming your payment"), null, { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(150);
       check(`${tag}: processing: "Confirming your payment", the card in the centre, nothing says paid yet`,
         await page.isVisible(".zgc-stage") && (await h1(page)) === "Confirming your payment" && !(await page.isVisible("text=Payment received")));
       check(`${tag}: processing: focus on the status heading`, (await focused(page)) === "zgc-status");
       check(`${tag}: processing: the live region says so`, (await page.locator(".zgc [aria-live]").innerText()).includes("Confirming your payment"));
-      check(`${tag}: processing: the card still has no digits`, !/\d/.test(await cardText(page)));
+      check(`${tag}: processing: still only the last 4 and the expiry`, onlyLast4AndExpiry(await cardText(page)));
       await shot(page, look, width, "processing", axeSource);
 
       await page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await page.waitForTimeout(4200);   // the flip, the check drawing and the glow's two pulses have finished
       check(`${tag}: confirmed only by the server: Payment received, the title follows`, (await page.locator("#zgc-status").innerText()) === "Payment received" && (await h1(page)) === "Payment confirmed");
-      check(`${tag}: confirmed: the issuing bank as the server returned it, in the corner`, (await page.locator(".zgc-stage .zgc-card-done .zgc-card-issuer").innerText()) === "Test Bank");
-      check(`${tag}: confirmed: brand and last 4 as the server returned them, nothing else`, /\bVisa\b/.test(await cardText(page)) && (await cardText(page)).includes("ending 4242") && !/\d{5,}/.test(await cardText(page)));
+      check(`${tag}: confirmed: the issuing bank as the server returned it, in the corner`, (await page.locator(".zgc-stage .zgc-card-done .zgc-cf-issuer").innerText()) === "Test Bank");
+      check(`${tag}: confirmed: brand and last 4 as the server returned them, nothing else`, /\bVisa\b/.test(await cardText(page)) && (await cardText(page)).includes("•••• •••• •••• 4242") && !/\d{5,}/.test(await cardText(page)));
       check(`${tag}: confirmed: the card is the look's success colour`, await page.evaluate(() => {
         const face = document.querySelector(".zgc-stage .zgc-card-done"), probe = document.createElement("i");
         if (!face) return false;
         probe.style.color = "var(--zella-success)"; document.body.append(probe);
         const want = getComputedStyle(probe).color; probe.remove();
-        return getComputedStyle(face).backgroundColor === want && getComputedStyle(face).visibility === "visible" && getComputedStyle(document.querySelector(".zgc-stage .zgc-card-base")).visibility === "hidden";
+        return getComputedStyle(face).backgroundColor === want && getComputedStyle(face).visibility === "visible" && getComputedStyle(document.querySelector(".zgc-stage .zgc-card-front")).visibility === "hidden";
       }));
       check(`${tag}: confirmed: Continue is offered`, await page.isVisible("button:has-text('Continue')"));
       check(`${tag}: confirmed: the summary keeps the server's amount`, (await page.locator(".zgc-total strong").innerText()) === "$898");
@@ -150,8 +166,8 @@ async function shot(page, look, width, state, axeSource) {
     // reduced motion, in this look: no blur, no flight, the states simply change
     const rm = await open(browser, { look, viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay", reduced: true });
     await rm.page.click("button:has-text('Pay securely')");
-    await rm.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-    await rm.page.click(".zgc-standin button:has-text('Pay $898')");
+    await fillCard(rm.page); await waitFilled(rm.page);
+    await rm.page.click(".zgc-pay-foot button:has-text('Pay $898')");
     await rm.page.waitForSelector(".zgc-stage", { timeout: 8000 }).catch(() => {});
     const motion = await rm.page.evaluate(() => {
       const stage = getComputedStyle(document.querySelector(".zgc-stage")), card = document.querySelector(".zgc-stage .zgc-card");
@@ -176,7 +192,7 @@ async function shot(page, look, width, state, axeSource) {
     const n = await open(browser, { look, viewport: { width: 320, height: 640 }, seeded: seededPay, scenario: "pay" });
     check(`${look.name} 320: ready, no horizontal scroll`, !(await overflow(n.page)));
     await n.page.click("button:has-text('Pay securely')");
-    await n.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
+    await n.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
     check(`${look.name} 320: form, no horizontal scroll`, !(await overflow(n.page)));
     await n.ctx.close();
   }
@@ -186,10 +202,10 @@ async function shot(page, look, width, state, axeSource) {
     const seededHtml = await seed("payhtml");
     const x = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededHtml, scenario: "payhtml" });
     await x.page.click("button:has-text('Pay securely')");
-    await x.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-    await x.page.click(".zgc-standin button:has-text('Pay $898')");
+    await fillCard(x.page); await waitFilled(x.page);
+    await x.page.click(".zgc-pay-foot button:has-text('Pay $898')");
     await x.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
-    const issuer = await x.page.evaluate(() => { const n = document.querySelector(".zgc-stage .zgc-card-done .zgc-card-issuer"); return { text: n?.textContent, kids: n?.children.length }; });
+    const issuer = await x.page.evaluate(() => { const n = document.querySelector(".zgc-stage .zgc-card-done .zgc-cf-issuer"); return { text: n?.textContent, kids: n?.children.length }; });
     check("issuer: shown as plain text, escaped, never markup", issuer.text === "<b>Bold Bank</b>" && issuer.kids === 0, JSON.stringify(issuer));
     check("issuer: no script ran", x.errors.length === 0, x.errors.join("; "));
     await x.ctx.close();
@@ -199,8 +215,8 @@ async function shot(page, look, width, state, axeSource) {
   {
     const r = await open(browser, { look: LOOKS[0], viewport: { width: 1440, height: 900 }, seeded: seededPay, scenario: "pay" });
     await r.page.click("button:has-text('Pay securely')");
-    await r.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-    await r.page.click(".zgc-standin button:has-text('Pay $898')");
+    await fillCard(r.page); await waitFilled(r.page);
+    await r.page.click(".zgc-pay-foot button:has-text('Pay $898')");
     await r.page.goto(`${APP}/welcome/setup?scenario=pay&checkout=return&session_id=cs_test_return`);
     await r.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
     check("return: confirmed through the server after a redirect", await r.page.isVisible("#zgc-status:has-text('Payment received')"));
@@ -216,9 +232,10 @@ async function shot(page, look, width, state, axeSource) {
       await v.page.waitForTimeout(800);
       await v.page.hover(".zgc-cardcol .zgc-card"); await v.page.waitForTimeout(900);
       await v.page.click("button:has-text('Pay securely')");
-      await v.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
+      await fillCard(v.page);
+      await waitFilled(v.page);
       await v.page.waitForTimeout(1200);
-      await v.page.click(".zgc-standin button:has-text('Pay $898')");
+      await v.page.click(".zgc-pay-foot button:has-text('Pay $898')");
       await v.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await v.page.waitForTimeout(4500);
       const rec = v.page.video();

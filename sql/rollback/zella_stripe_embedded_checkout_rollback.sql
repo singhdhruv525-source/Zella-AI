@@ -1,7 +1,7 @@
 -- Rollback of sql/zella_stripe_embedded_checkout.sql. Restores zella_billing_checkout_continue exactly as archived
 -- (sql/zella_stripe_checkout.sql's version, which asks Stripe for its hosted page again) and drops
 -- zella_billing_checkout_session. Refuses with ROLLBACK_DRIFT if either function differs from what the file made, and
--- with ROLLBACK_HAS_OPEN_CHECKOUT while any checkout is preparing, open or expiring: an embedded session has no hosted
+-- with ROLLBACK_HAS_OPEN_CHECKOUT while any checkout is preparing, open or expiring: an in page (ui_mode custom) session has no hosted
 -- page link, so it must be paid or expire first (a person decides). Nothing is deleted. Safe to run twice.
 begin;
 
@@ -9,7 +9,7 @@ do $$
 declare d text; v_open boolean;
   s constant text := 'public.zella_billing_checkout_continue(uuid,boolean)';
   v_orig constant text := '7f998f18370021b4668ce06f057d0055';
-  v_made constant text := '79461b5217457813a6747d7b2f6e8fb8';
+  v_made constant text := 'bc675ce2a18d443bfd0d1bc0e64e4344';
 begin
   if to_regprocedure(s) is null then raise exception 'ROLLBACK_DRIFT: % is missing', s; end if;
   if md5(pg_get_functiondef(s::regprocedure)) not in (v_orig, v_made) then

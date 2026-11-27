@@ -53,7 +53,7 @@
 
 .zgc-cardcol { display: flex; flex-direction: column; align-items: center; gap: var(--zella-space-3); min-width: 0; padding-top: var(--zella-space-2); }
 @media (min-width: 1100px) { .zgc-cardcol { padding-top: var(--zella-space-8); } }
-.zgc-cardcol-note { display: inline-flex; align-items: center; gap: var(--zella-space-1); margin: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-xs); text-align: center; }
+.zgc-cardcol-note { display: inline-flex; align-items: center; gap: var(--zella-space-1); margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-xs); text-align: center; }
 
 /* ---------- panels: layered depth, a light rim on the top edge, a fine grain ---------- */
 .zgc-panel {
@@ -102,24 +102,50 @@
 .zgc-trust span { display: inline-flex; align-items: center; gap: var(--zella-space-1); }
 .zgc-trust .ba-icon { color: var(--zella-success); }
 
-/* Stripe's iframe sizes itself; while it loads, a skeleton holds roughly its first height so nothing jumps */
-.zgc-embed { position: relative; min-width: 0; }
-.zgc-embed.is-loading { min-height: 360px; }
-.zgc-embed-mount { min-width: 0; }
-.zgc-embed-mount iframe { max-width: 100%; }
-.zgc-skeleton { position: absolute; inset: 0; display: flex; flex-direction: column; gap: var(--zella-space-3); }
-.zgc-skeleton span { height: 44px; border-radius: var(--zella-radius-md); background: var(--zella-subtle); animation: zgc-pulse 1.4s ease-in-out infinite; }
-.zgc-skeleton span.wide { height: 48px; margin-top: var(--zella-space-2); }
+/* ---------- Payment details: our labelled layout around Stripe's three card fields (each Stripe's own frame) ----------
+   Only the cardholder name is our input; the card fields are slots Stripe mounts into (the local preview draws static
+   text there instead, never an input). */
+.zgc-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--zella-space-3); }
+.zgc-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.zgc-field.wide { grid-column: 1 / -1; }
+.zgc-label { color: var(--zella-text-2); font-size: var(--zella-text-sm); font-weight: 500; }
+.zgc-input {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 46px;
+  width: 100%;
+  padding: 0 var(--zella-space-3);
+  border: 1px solid var(--zella-border-strong);
+  border-radius: var(--zella-radius-md);
+  background: var(--zella-card);
+  box-shadow: inset 0 1px 1px var(--zella-emboss-low);
+  color: var(--zella-text);
+  font: inherit;
+  font-size: var(--zella-text-base);
+  transition: border-color 150ms var(--zgc-ease), box-shadow 150ms var(--zgc-ease);
+}
+.zgc-input::placeholder { color: var(--zella-text-secondary); }
+.zgc-slot > * { flex: 1; min-width: 0; }
+.zgc-field.is-focus .zgc-input { border-color: var(--zella-primary); box-shadow: 0 0 0 3px var(--zella-primary-ring); outline: none; }
+.zgc-fields.is-loading .zgc-slot { background: var(--zella-subtle); animation: zgc-pulse 1.4s ease-in-out infinite; }
 @keyframes zgc-pulse { 50% { opacity: 0.55; } }
-
-/* ---------- the local preview's stand in for Stripe's form (fake api mounts only; never in a live build's flow) ----------
-   A static picture of Stripe's fields: divs, aria-hidden, no input of any kind. */
-.zgc-mock { display: flex; flex-direction: column; gap: var(--zella-space-3); }
+.zgc-slot-text { color: var(--zella-text); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; }
+.zgc-slot-text.is-placeholder { color: var(--zella-text-secondary); }
+/* the billing address (Stripe's Address Element, which styles itself from the look through the Appearance API); the
+   stand in draws the same rows as text, in the country's own format */
+.zgc-addr-slot { min-height: 46px; }
+.zgc-fields.is-loading .zgc-addr-slot { border-radius: var(--zella-radius-md); background: var(--zella-subtle); animation: zgc-pulse 1.4s ease-in-out infinite; }
+.zgc-addr-mock { display: grid; gap: var(--zella-space-2); }
+.zgc-addr-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: var(--zella-space-2); }
+.zgc-addr-cell { display: grid; gap: 4px; min-width: 0; }
+.zgc-addr-label { color: var(--zella-text-2); font-size: var(--zella-text-xs); }
+.zgc-addr-value { display: flex; }
+.zgc-save-note { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--zella-space-2); margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); }
+.zgc-save-note .ba-icon { color: var(--zella-primary); }
 .zgc-mock-badge {
-  align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: var(--zella-space-1);
   padding: 2px var(--zella-space-2);
   border: 1px dashed var(--zella-border-strong);
   border-radius: var(--zella-radius-full);
@@ -127,31 +153,7 @@
   font-size: var(--zella-text-xs);
   font-weight: 700;
 }
-.zgc-mock-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--zella-space-3); }
-.zgc-mock-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.zgc-mock-field.wide { grid-column: 1 / -1; }
-.zgc-mock-label { color: var(--zella-text-2); font-size: var(--zella-text-sm); font-weight: 500; }
-.zgc-mock-box {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--zella-space-2);
-  min-height: 44px;
-  padding: 0 var(--zella-space-3);
-  border: 1px solid var(--zella-border-strong);
-  border-radius: var(--zella-radius-md);
-  background: var(--zella-card);
-  box-shadow: 0 1px 1px var(--zella-emboss-low);
-  color: var(--zella-text-secondary);
-  font-size: var(--zella-text-base);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.zgc-mock-brands { display: inline-flex; gap: 4px; }
-.zgc-mock-brands i { width: 26px; height: 17px; border-radius: 3px; background: var(--zella-subtle); border: 1px solid var(--zella-border); }
-.zgc-mock-save { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--zella-space-2); color: var(--zella-text-2); font-size: var(--zella-text-sm); }
-.zgc-mock-check { width: 16px; height: 16px; border: 1px solid var(--zella-border-strong); border-radius: 4px; background: var(--zella-card); }
+html[data-zella-theme="glass"]:has(.ba-root) .zgc-input { background: color-mix(in srgb, var(--glass-solid) 60%, transparent); }
 
 /* ---------- the receipt ---------- */
 .zgc-summary { font-variant-numeric: tabular-nums; }
@@ -184,20 +186,45 @@
 .zgc-total span { font-size: var(--zella-text-sm); font-weight: 600; }
 .zgc-total strong { font-size: var(--zella-text-page); font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; }
 
-/* ---------- the card picture: an ISO card (85.6 by 54 mm), the look's own colours, no digits, no Zella Voice name ---------- */
-.zgc-card { position: relative; container-type: inline-size; width: min(100%, 360px); aspect-ratio: 85.6 / 54; }
-.zgc-card.big { width: min(78vw, 380px); }
+/* ---------- the card picture: a photoreal ISO card (85.6 by 54 mm), the look's own colours, no Zella Voice name ----------
+   Front: chip left of middle with contactless beside it, the number centred, the name bottom left, VALID THRU and the
+   expiry, the brand bottom right (a clean text mark, never a network logo). Back: magnetic stripe, signature panel and
+   the security code box. Success: the look's success colours faded in over the front. The card rests at a slight 3D
+   angle with a perspective shadow under it; it turns over while the security code is typed. */
+.zgc-card {
+  --zgc-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.9 0'/></filter><rect width='160' height='160' filter='url(%23g)'/></svg>");
+  position: relative;
+  container-type: inline-size;
+  width: min(100%, 360px);
+  aspect-ratio: 85.6 / 54;
+  perspective: 1100px;
+}
+.zgc-card.big { width: min(80vw, 400px); }
+/* the shadow on the "table", stretched as the card's angle suggests */
+.zgc-card-shadow {
+  position: absolute;
+  left: 6%;
+  right: 2%;
+  bottom: -9%;
+  height: 22%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--zella-emboss-low), transparent);
+  filter: blur(6px);
+  transform: skewX(-12deg);
+  opacity: 0.9;
+}
 .zgc-card-tiltbox {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transform: perspective(900px) rotateX(var(--zgc-rx, 0deg)) rotateY(var(--zgc-ry, 0deg));
-  transition: transform 500ms var(--zgc-spring);
+  /* a slight angle at rest; the pointer or the phone's tilt moves it */
+  transform: rotateX(calc(6deg + var(--zgc-rx, 0deg))) rotateY(calc(-9deg + var(--zgc-ry, 0deg)));
+  transition: transform 520ms var(--zgc-spring);
 }
-.zgc-card-inner { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform 850ms var(--zgc-spring); }
-.zgc-card.ok .zgc-card-inner { transform: rotateY(180deg); }
-/* the card's thickness, seen only while it turns: just behind the front face, and hidden from behind, so once the card
-   has turned it never sits in front of the success face */
+.zgc-card.big .zgc-card-tiltbox { transform: rotateX(var(--zgc-rx, 0deg)) rotateY(var(--zgc-ry, 0deg)); }
+.zgc-card-inner { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform 760ms var(--zgc-spring); }
+.zgc-card.is-back .zgc-card-inner { transform: rotateY(180deg); }
+/* the card's thickness, seen only while it turns (hidden from behind, so it never covers a face) */
 .zgc-card-edge {
   position: absolute;
   inset: 0;
@@ -210,74 +237,150 @@
 .zgc-card-face {
   position: absolute;
   inset: 0;
-  display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  gap: 1.5cqw;
   overflow: hidden;
-  padding: 5.5cqw 6.5cqw;
   border-radius: 3.5cqw;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  /* a thin bevel on the edge, then a contact shadow and an ambient one */
-  box-shadow: inset 0 1px 0 var(--zella-sheen), inset 0 0 0 1px var(--zella-sheen), inset 0 -2px 3px var(--zella-emboss-low),
-    0 1px 2px var(--zella-emboss-low), var(--zella-shadow-pop);
-  /* the face that isn't showing is hidden half way through the flip, so it is never read or measured */
-  transition: visibility 0s linear 420ms;
+  /* a thin bevel, then a contact shadow and an ambient one */
+  box-shadow: inset 0 1px 0 var(--zella-sheen), inset 0 0 0 1px var(--zella-sheen), inset 0 -2px 4px var(--zella-emboss-low),
+    0 1px 2px var(--zella-emboss-low), 0 18px 36px -14px var(--zella-emboss-low), var(--zella-shadow-pop);
 }
-.zgc-card-base {
+.zgc-card-front, .zgc-card-done {
+  display: grid;
+  grid-template-rows: 15% 1fr auto auto;
+  gap: 2cqw;
+  padding: 5.5cqw 6.5cqw 5cqw;
+}
+/* the base: layered gradients from the look's primary, with a little colour variation */
+.zgc-card-front {
   background-color: var(--zella-primary);
   background-image:
-    repeating-linear-gradient(115deg, transparent 0 3px, color-mix(in srgb, var(--zella-sheen) 35%, transparent) 3px 4px),
-    linear-gradient(115deg, transparent 52%, var(--zella-sheen) 64%, transparent 76%),
-    linear-gradient(135deg, color-mix(in srgb, var(--zella-primary) 86%, var(--zella-on-primary)) 0%, var(--zella-primary) 48%, color-mix(in srgb, var(--zella-primary) 90%, var(--zella-text)) 100%);
+    radial-gradient(120% 90% at 12% 0%, color-mix(in srgb, var(--zella-primary) 70%, var(--zella-on-primary)) 0%, transparent 55%),
+    radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--zella-primary) 75%, var(--zella-text)) 0%, transparent 60%),
+    radial-gradient(60% 60% at 70% 30%, color-mix(in srgb, var(--zella-primary) 88%, var(--zella-info)) 0%, transparent 70%),
+    linear-gradient(135deg, color-mix(in srgb, var(--zella-primary) 90%, var(--zella-on-primary)) 0%, var(--zella-primary) 50%, color-mix(in srgb, var(--zella-primary) 88%, var(--zella-text)) 100%);
   color: var(--zella-on-primary);
 }
 .zgc-card-done {
   background-color: var(--zella-success);
-  /* shaded toward the look's text colour (darker under white text, lighter under Glass's dark text), no sheen: the
-     small type on it keeps AA in every look */
+  /* shaded only toward the look's text colour (darker under white text, lighter under Glass's dark text): the small type
+     on it keeps AA in every look */
   background-image:
-    repeating-linear-gradient(115deg, transparent 0 3px, color-mix(in srgb, var(--zella-text) 6%, transparent) 3px 4px),
-    linear-gradient(135deg, var(--zella-success) 0%, color-mix(in srgb, var(--zella-success) 82%, var(--zella-text)) 100%);
+    radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--zella-success) 78%, var(--zella-text)) 0%, transparent 60%),
+    linear-gradient(135deg, var(--zella-success) 0%, color-mix(in srgb, var(--zella-success) 84%, var(--zella-text)) 100%);
   color: var(--zella-on-success);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 700ms var(--zgc-ease), visibility 0s linear 700ms;
+}
+.zgc-card.ok .zgc-card-done { opacity: 1; visibility: visible; transition: opacity 700ms var(--zgc-ease), visibility 0s; }
+/* the face turned away is hidden half way through the turn, so it is never read, focused or measured */
+.zgc-card-front { transition: visibility 0s linear 380ms; }
+.zgc-card.is-back .zgc-card-front { visibility: hidden; }
+.zgc-card.ok .zgc-card-front { visibility: hidden; transition: visibility 0s linear 700ms; }
+.zgc-card-back {
+  display: flex;
+  flex-direction: column;
+  gap: 4cqw;
+  padding: 7cqw 0 5cqw;
+  background-color: var(--zella-primary);
+  background-image: linear-gradient(160deg, color-mix(in srgb, var(--zella-primary) 85%, var(--zella-on-primary)) 0%, var(--zella-primary) 60%, color-mix(in srgb, var(--zella-primary) 85%, var(--zella-text)) 100%);
+  color: var(--zella-on-primary);
   transform: rotateY(180deg);
   visibility: hidden;
+  transition: visibility 0s linear 380ms;
 }
-.zgc-card.ok .zgc-card-done { visibility: visible; }
-.zgc-card.ok .zgc-card-base { visibility: hidden; }
-.zgc-card-row { display: flex; align-items: center; justify-content: space-between; gap: 2cqw; min-width: 0; }
-.zgc-card-mid { align-self: center; justify-content: flex-start; gap: 4cqw; }
-.zgc-card-issuer { overflow: hidden; font-size: clamp(11px, 4.2cqw, 16px); font-weight: 700; letter-spacing: 0.02em; text-overflow: ellipsis; white-space: nowrap; }
-.zgc-card-brand { font-size: clamp(12px, 4.6cqw, 17px); font-weight: 800; font-style: italic; letter-spacing: 0.02em; }
-.zgc-card-number, .zgc-card-label {
-  /* embossed: a highlight above, a lowlight below */
-  text-shadow: 0 -1px 0 var(--zella-emboss-low), 0 1px 0 var(--zella-sheen);
+.zgc-card.is-back .zgc-card-back { visibility: visible; }
+.zgc-cb-stripe { display: block; height: 18%; background: linear-gradient(180deg, var(--zella-text) 0%, color-mix(in srgb, var(--zella-text) 80%, var(--zella-sheen)) 50%, var(--zella-text) 100%); }
+html[data-zella-theme="glass"]:has(.ba-root) .zgc-cb-stripe { background: linear-gradient(180deg, var(--zella-on-primary) 0%, color-mix(in srgb, var(--zella-on-primary) 80%, var(--zella-sheen)) 50%, var(--zella-on-primary) 100%); }
+.zgc-cb-sig { display: flex; align-items: stretch; gap: 0; margin: 0 6.5cqw; height: 13cqw; }
+.zgc-cb-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 3cqw;
+  /* the look's own pair, inverted: light in Zella Voice and Classic, dark in Glass; readable in every look */
+  background: repeating-linear-gradient(135deg, var(--zella-on-primary) 0 4px, color-mix(in srgb, var(--zella-on-primary) 88%, var(--zella-primary)) 4px 8px);
+  color: var(--zella-primary);
+  font-size: clamp(7px, 2.4cqw, 10px);
+  letter-spacing: 0.08em;
 }
-.zgc-card-number { font-family: var(--zella-font-mono); font-size: clamp(14px, 6.2cqw, 24px); font-weight: 600; letter-spacing: 0.1em; white-space: nowrap; overflow: hidden; }
-.zgc-card-label { font-size: clamp(11px, 3.9cqw, 15px); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-.zgc-chip { width: clamp(34px, 14cqw, 54px); height: auto; filter: drop-shadow(0 1px 0 var(--zella-emboss-low)); }
+.zgc-cb-cvc {
+  display: grid;
+  place-items: center;
+  width: 20cqw;
+  background: var(--zella-on-primary);
+  color: var(--zella-primary);
+  font-family: var(--zella-font-mono);
+  font-size: clamp(12px, 4.4cqw, 17px);
+  font-style: italic;
+  letter-spacing: 0.1em;
+}
+.zgc-cb-cvc.is-focus { box-shadow: inset 0 0 0 2px var(--zella-primary), 0 0 0 3px var(--zella-primary-ring); }
+.zgc-cb-note { margin: 0 6.5cqw; font-size: clamp(9px, 2.8cqw, 11px); opacity: 0.9; }
+
+.zgc-cf-top { display: flex; align-items: center; justify-content: space-between; gap: 2cqw; min-width: 0; }
+.zgc-cf-issuer { overflow: hidden; font-size: clamp(11px, 4.2cqw, 16px); font-weight: 700; letter-spacing: 0.02em; text-overflow: ellipsis; white-space: nowrap; }
+.zgc-cf-mid { display: flex; align-items: center; gap: 3.5cqw; align-self: center; }
+.zgc-cf-number {
+  justify-self: center;
+  padding: 0.6cqw 2cqw;
+  border-radius: 1.5cqw;
+  font-family: "OCR A Std", "OCR A Extended", "Courier New", var(--zella-font-mono);
+  font-size: clamp(14px, 6.6cqw, 26px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transition: background-color 200ms var(--zgc-ease), box-shadow 200ms var(--zgc-ease);
+}
+.zgc-cf-bottom { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: 4cqw; }
+.zgc-cf-name { overflow: hidden; padding: 0.4cqw 1cqw; margin-left: -1cqw; border-radius: 1.2cqw; font-size: clamp(11px, 3.9cqw, 15px); font-weight: 600; letter-spacing: 0.06em; text-overflow: ellipsis; white-space: nowrap; }
+.zgc-cf-valid { display: inline-flex; align-items: center; gap: 1.5cqw; padding: 0.4cqw 1cqw; border-radius: 1.2cqw; font-family: var(--zella-font-mono); font-size: clamp(12px, 4.2cqw, 16px); font-weight: 600; }
+.zgc-cf-valid small { font-family: var(--zella-font); font-size: clamp(6px, 1.9cqw, 8px); line-height: 1.05; letter-spacing: 0.04em; }
+.zgc-cf-brand { font-size: clamp(13px, 5.2cqw, 20px); font-weight: 800; font-style: italic; letter-spacing: 0.01em; white-space: nowrap; }
+/* embossed: a highlight above, a lowlight below */
+.zgc-emboss { text-shadow: 0 -1px 0 var(--zella-emboss-low), 0 1px 0 var(--zella-sheen); }
+/* the part being typed glows */
+.zgc-cf-number.is-focus, .zgc-cf-name.is-focus, .zgc-cf-valid.is-focus { background: color-mix(in srgb, var(--zella-sheen) 60%, transparent); box-shadow: 0 0 0 1px var(--zella-sheen), 0 0 14px var(--zella-sheen); }
+.zgc-cf-number.is-typing { animation: zgc-typing 900ms var(--zgc-ease) infinite; }
+@keyframes zgc-typing { 50% { opacity: 0.72; } }
+
+.zgc-chip { width: clamp(34px, 14cqw, 56px); height: auto; filter: drop-shadow(0 1px 1px var(--zella-emboss-low)); }
 .zgc-metal-1 { stop-color: var(--zella-metal-1); }
 .zgc-metal-2 { stop-color: var(--zella-metal-2); }
 .zgc-metal-3 { stop-color: var(--zella-metal-3); }
+.zgc-chip-shine { stop-color: var(--zella-sheen); stop-opacity: 1; }
 .zgc-chip-edge { stroke: var(--zella-metal-3); stroke-width: 1.2; }
-.zgc-chip-pads { fill: none; stroke: var(--zella-metal-3); stroke-width: 1.1; stroke-opacity: 0.9; }
+.zgc-chip-pads { fill: none; stroke: var(--zella-metal-3); stroke-width: 1.1; stroke-opacity: 0.95; }
 .zgc-contactless { width: clamp(18px, 6.5cqw, 26px); height: auto; }
 .zgc-contactless path { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; opacity: 0.9; }
-.zgc-check { width: clamp(26px, 10cqw, 38px); height: auto; }
+.zgc-check { width: clamp(22px, 8cqw, 32px); height: auto; }
 .zgc-check circle { fill: none; stroke: currentColor; stroke-width: 2; opacity: 0.35; }
 .zgc-check path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 26; stroke-dashoffset: 0; }
-/* a specular highlight that follows the pointer while the card tilts (fine pointers only) */
+
+/* film grain, a holographic brushed sheen that moves with the tilt, the pointer's highlight, the confirming shimmer */
+.zgc-card-grain { position: absolute; inset: 0; background-image: var(--zgc-grain); mix-blend-mode: overlay; opacity: 0.16; pointer-events: none; }
+.zgc-card-holo {
+  position: absolute;
+  inset: -40%;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 2px, color-mix(in srgb, var(--zella-sheen) 30%, transparent) 2px 3px),
+    linear-gradient(115deg, transparent 38%, color-mix(in srgb, var(--zella-info) 18%, transparent) 46%, var(--zella-sheen) 50%, color-mix(in srgb, var(--zella-success) 16%, transparent) 54%, transparent 62%);
+  opacity: 0.55;
+  transform: translate(calc(var(--zgc-sx, 0%) * 0.4), calc(var(--zgc-sy, 0%) * 0.25));
+  transition: transform 520ms var(--zgc-spring);
+  pointer-events: none;
+}
 .zgc-card-spec {
   position: absolute;
   inset: -50%;
-  background: radial-gradient(circle at center, var(--zella-sheen) 0%, transparent 32%);
+  background: radial-gradient(circle at center, var(--zella-sheen) 0%, transparent 30%);
   opacity: 0;
   transform: translate(var(--zgc-sx, 0%), var(--zgc-sy, 0%));
   transition: opacity 300ms var(--zgc-ease);
   pointer-events: none;
 }
 .is-tilting .zgc-card-spec { opacity: 1; }
-/* the shimmer that sweeps across the card while we confirm */
 .zgc-card-shimmer {
   position: absolute;
   inset: 0;
@@ -363,17 +466,19 @@ html[data-zella-theme="glass"]:has(.ba-root) .zgc-panel {
   box-shadow: inset 0 1px 0 var(--zella-sheen), inset 0 0 32px color-mix(in srgb, var(--zella-primary) 9%, transparent), var(--zella-shadow-md);
 }
 html[data-zella-theme="glass"]:has(.ba-root) .zgc-panel::before { opacity: 0.06; }
-html[data-zella-theme="glass"]:has(.ba-root) .zgc-mock-box { background: color-mix(in srgb, var(--glass-solid) 60%, transparent); }
 
-/* reduced motion: no blur, tilt, flight, flip, shimmer, spin, glow or drawing; the states simply change */
+/* reduced motion: no blur, tilt, highlight, typing pulse, flight, turning, fades, shimmer, spin, glow or drawing; the
+   states simply change (the card may still show its back while the security code is typed, without turning) */
 @media (prefers-reduced-motion: reduce) {
-  .zgc-stage, .zgc-fly, .zgc-fly .zgc-floor, .zgc-skeleton span, .zgc-ring, .zgc-glow, .zgc-card-shimmer, .zgc-check path { animation: none !important; }
-  .zgc-card-inner, .zgc-card-face, .zgc-card-tiltbox, .zgc-card-spec { transition: none; }
-  .zgc-card-tiltbox { transform: none; }
+  .zgc-stage, .zgc-fly, .zgc-fly .zgc-floor, .zgc-fields.is-loading .zgc-slot, .zgc-fields.is-loading .zgc-addr-slot, .zgc-ring, .zgc-glow, .zgc-card-shimmer, .zgc-check path, .zgc-cf-number.is-typing { animation: none !important; }
+  .zgc-card-inner, .zgc-card-face, .zgc-card-tiltbox, .zgc-card-spec, .zgc-card-holo, .zgc-card-done, .zgc-card.ok .zgc-card-done, .zgc-card.ok .zgc-card-front, .zgc-input, .zgc-cf-number { transition: none; }
+  .zgc-card-tiltbox, .zgc-card.big .zgc-card-tiltbox { transform: none; }
   .zgc-card-spec { display: none; }
-  /* the success face shows without turning */
-  .zgc-card.ok .zgc-card-inner { transform: none; }
-  .zgc-card-done { transform: none; }
+  .zgc-card-holo { transform: none; }
+  .zgc-card.is-back .zgc-card-inner { transform: none; }
+  .zgc-card-back { transform: none; visibility: hidden; }
+  .zgc-card.is-back .zgc-card-back { visibility: visible; }
+  .zgc-card.is-back .zgc-card-front { visibility: hidden; }
   .zgc-card-edge { display: none; }
   .zgc-stage { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--zella-card); }
   html[data-zella-theme="glass"]:has(.ba-root) .zgc-stage { background: var(--glass-solid); }

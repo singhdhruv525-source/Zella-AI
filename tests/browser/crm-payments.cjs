@@ -22,7 +22,7 @@ const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 const { loadAxe } = require("./axe.cjs");
-const { LOOKS, contrast, axeCard, overflow, cardText, zellaOnCard, mockHasInputs } = require("./pay-helpers.cjs");
+const { LOOKS, contrast, axeCard, overflow, cardText, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock } = require("./pay-helpers.cjs");
 const APP = process.env.APP_URL ?? "http://localhost:5150";
 const SHOTS = process.env.SHOTS ?? path.join(process.cwd(), "crm-pay-shots");
 if (!["localhost", "127.0.0.1"].includes(new URL(APP).hostname)) { console.error("APP_URL must be a local preview"); process.exit(2); }
@@ -81,21 +81,24 @@ async function shot(page, look, width, state, axeSource) {
       check(`${tag}: the glass checkout for the invoice, the amount from the server`, (await a.page.locator(".zgc-total strong").innerText()) === "$249");
       check(`${tag}: the hosted invoice page is the fallback`, await a.page.isVisible("a:has-text(\"Pay on Stripe's invoice page\")"));
       await a.page.click(".zgc-pay button:has-text('Pay now')");
-      await a.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
-      check(`${tag}: paying: the picture of Stripe's form in Payment details, our Pay button under it`, await a.page.isVisible(".zgc-pay .zgc-standin") && await a.page.isVisible(".zgc-pay-foot button:has-text('Pay $249')"));
+      await a.page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
+      check(`${tag}: paying: the stand in's card fields and billing address in Payment details, Pay waits for them`, await a.page.isVisible(".zgc-pay .zgc-addr-mock") && await a.page.locator(".zgc input").count() === 0
+        && await a.page.isDisabled(".zgc-pay-foot button:has-text('Pay $249')"));
+      await fillCard(a.page); await waitFilled(a.page); await a.page.waitForTimeout(900);
+      check(`${tag}: paying: the card filled from Stripe's preview, nothing more`, (await a.page.locator(".zgc-cardcol .zgc-card-front .zgc-cf-number").innerText()) === "•••• •••• •••• 4242" && onlyLast4AndExpiry(await cardText(a.page)));
       check(`${tag}: Stripe.js is never loaded by the stand in`, await a.page.evaluate(() => ![...document.scripts].some((s) => s.src.includes("stripe.com"))));
       await shot(a.page, look, width, "paying", axeSource);
       await a.page.click(".zgc-pay-foot button:has-text('Pay $249')");
       await a.page.waitForSelector(".zgc.is-confirming", { timeout: 8000 }).catch(() => {});
       await a.page.waitForTimeout(250);
       check(`${tag}: processing: confirming, nothing says paid`, await a.page.isVisible(".zgc-stage") && !(await a.page.isVisible("#zgc-status:has-text('Payment received')")));
-      check(`${tag}: processing: no digits on the card`, !/\d/.test(await cardText(a.page)));
+      check(`${tag}: processing: still only the last 4 and the expiry`, onlyLast4AndExpiry(await cardText(a.page)));
       await shot(a.page, look, width, "processing", axeSource);
       await a.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await a.page.waitForTimeout(4200);
       check(`${tag}: confirmed only after the server's later look`, (await a.page.locator("#zgc-status").innerText()) === "Payment received");
-      const done = await a.page.evaluate(() => { const f = document.querySelector(".zgc-stage .zgc-card-done"); return { issuer: f?.querySelector(".zgc-card-issuer")?.textContent, brand: f?.querySelector(".zgc-card-brand")?.textContent, number: f?.querySelector(".zgc-card-number")?.textContent }; });
-      check(`${tag}: confirmed: issuer, brand and last 4 as the server returned them`, done.issuer === "Test Bank" && done.brand === "Visa" && done.number === "ending 4242", JSON.stringify(done));
+      const done = await a.page.evaluate(() => { const f = document.querySelector(".zgc-stage .zgc-card-done"); return { issuer: f?.querySelector(".zgc-cf-issuer")?.textContent, brand: f?.querySelector(".zgc-cf-brand")?.textContent, number: f?.querySelector(".zgc-cf-number")?.textContent }; });
+      check(`${tag}: confirmed: issuer, brand and last 4 as the server returned them`, done.issuer === "Test Bank" && done.brand === "Visa" && done.number === "•••• •••• •••• 4242", JSON.stringify(done));
       await shot(a.page, look, width, "confirmed", axeSource);
       check(`${tag}: no page errors`, a.errors.length === 0, a.errors.join("; "));
       check(`${tag}: nothing left this machine`, a.hits.length === 0, a.hits.join(", "));
@@ -130,7 +133,7 @@ async function shot(page, look, width, state, axeSource) {
       check(`${tag}: pack: the bank wants to confirm, nothing added`, (await p.page.locator("#zgc-status").innerText()) === "Your bank wants to confirm this payment");
       await shot(p.page, look, width, "pack-action", axeSource);
       await p.page.click("button:has-text('Confirm with your bank')");
-      await p.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
+      await fillCard(p.page); await waitFilled(p.page);
       await p.page.click(".zgc-pay-foot button:has-text('Pay $29')");
       await p.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
       await p.page.waitForTimeout(4200);
@@ -151,6 +154,29 @@ async function shot(page, look, width, state, axeSource) {
     }
   }
 
+  // any country (owner, 27 Nov 2026): a business in Canada gets Stripe's billing address fields in Canada's format,
+  // prefilled, and pays in US dollars like everyone else
+  for (const width of [WIDTHS[0], WIDTHS[1]]) {
+    const c = await open(browser, LOOKS[0], width.viewport, `/pay?business=${BIZ}&scenario=canada`);
+    await c.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
+    await c.page.click(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')");
+    await c.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    await c.page.click(".zgc-pay button:has-text('Pay now')");
+    await c.page.waitForSelector(".zgc-addr-mock", { timeout: 10000 }).catch(() => {});
+    const addr = await addressMock(c.page);
+    check(`canada ${width.name}: the address format follows the country (Province, Postal code; no State or ZIP code)`, addr?.country === "CA" && addr.labels.includes("Province")
+      && addr.labels.includes("Postal code") && !addr.labels.includes("ZIP code") && !addr.labels.includes("State") && addr.values.country === "Canada"
+      && addr.values.postal_code === "M5H 3T4", JSON.stringify(addr));
+    check(`canada ${width.name}: the price stays in US dollars`, await c.page.isVisible(".zgc-pay-foot button:has-text('Pay $249')"));
+    await fillCard(c.page); await waitFilled(c.page); await c.page.waitForTimeout(900);
+    await shot(c.page, LOOKS[0], width, "canada-address", loadAxe());
+    await c.page.click(".zgc-pay-foot button:has-text('Pay $249')");
+    await c.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    check(`canada ${width.name}: paid like any other card, confirmed by the server`, (await c.page.locator("#zgc-status").innerText()) === "Payment received");
+    check(`canada ${width.name}: nothing left this machine`, c.hits.length === 0, c.hits.join(", "));
+    await c.ctx.close();
+  }
+
   // the emailed link: someone who isn't this invoice's owner gets nothing but "couldn't open"
   {
     const x = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/pay/invoice/00000000-0000-4000-8000-00000000ffff?scenario=`);
@@ -168,7 +194,8 @@ async function shot(page, look, width, state, axeSource) {
     await v.page.waitForTimeout(1000);
     await v.page.hover(".zgc-cardcol .zgc-card"); await v.page.mouse.move(400, 420, { steps: 12 }); await v.page.waitForTimeout(500);
     await v.page.click(".zgc-pay button:has-text('Pay now')");
-    await v.page.waitForSelector(".zgc-standin", { timeout: 10000 }).catch(() => {});
+    await fillCard(v.page);
+    await waitFilled(v.page);
     await v.page.waitForTimeout(1200);
     await v.page.click(".zgc-pay-foot button:has-text('Pay $249')");
     await v.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});

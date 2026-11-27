@@ -297,9 +297,12 @@ test("stand in, scenario pay: Checkout opens with a key, the return confirms onl
   assert.equal((await api.checkoutReturn(id)).payment.status, "waiting", "started but not completed proves nothing");
   // the stand in's form completes (Stripe's onComplete); the server confirms on a later look, never at once
   let completed = false;
-  const el = { ownerDocument: { createElement: () => ({ setAttribute() {}, append() {}, remove() {}, addEventListener: (_k, f) => { el.click = f; } }) }, replaceChildren() {} };
-  const handle = await api.mountCheckout(el, { clientSecret: r.client_secret, onComplete: () => { completed = true; } });
-  el.click();
+  const doc = { createElement: () => ({ setAttribute() {}, classList: { remove() {} }, textContent: "" }) };
+  const slot = () => ({ ownerDocument: doc, replaceChildren() {} });
+  const slots = { number: slot(), expiry: slot(), cvc: slot() };
+  const handle = await api.mountCheckout(slots, { clientSecret: r.client_secret, onComplete: () => { completed = true; } });
+  await handle.demo();
+  await handle.submit();
   assert.ok(completed);
   assert.equal(paymentState(await api.paymentStatus(id)).key, "processing");
   assert.deepEqual(await api.startCheckout(id, "a-good-key-1"), { status: "processing" }, "no second form once Stripe has it");
@@ -311,7 +314,7 @@ test("stand in, scenario pay: Checkout opens with a key, the return confirms onl
   assert.deepEqual(second.card, { brand: "visa", last4: "4242", issuer: "Test Bank" });
   handle.destroy();
   await assert.rejects(api.startCheckout(id, "a-good-key-2"), (e) => e.code === "ALREADY_PAID");
-  await assert.rejects(api.mountCheckout(el, { clientSecret: "something else" }), (e) => e.code === "STRIPE_JS");
+  await assert.rejects(api.mountCheckout(slots, { clientSecret: "something else" }), (e) => e.code === "STRIPE_JS");
   const off = createFakeApi({ storage: memory(), delay: 0 });
   await assert.rejects(off.startCheckout(id, "a-good-key-1"), (e) => errorCode(e) === "PAYMENTS_NOT_LIVE");
 });

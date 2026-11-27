@@ -1,6 +1,6 @@
 // End to end, locally (tests/stripe_pipeline/flow.sh tests/stripe_checkout/flow_test.ts zella_owner_onboarding zella_stripe_checkout
 // zella_stripe_embedded_checkout):
-// plan saved -> the owner starts Embedded Checkout through billing-api -> the fake Stripe completes it -> signed events ->
+// plan saved -> the owner starts the in page checkout (ui_mode custom) through billing-api -> the fake Stripe completes it -> signed events ->
 // billing-webhook stores them -> the worker fetches and binds -> payment confirmed -> the go live gate's payment check
 // passes. Nothing reaches Stripe; the owner's calls run with the owner's own token against the isolated database.
 import { assert, assertEquals } from "jsr:@std/assert@1";
@@ -39,13 +39,13 @@ Deno.test("plan saved -> Checkout -> signed webhook -> payment confirmed -> go l
 
   const start = await api(token, { action: "checkout_start", business_id: business, idempotency_key: "journey-key-1", amount_minor: 1 });
   assertEquals(start.status, 200, JSON.stringify(start.body));
-  assertEquals([start.body.status, start.body.publishable_key, "url" in start.body], ["open", "pk_test_flow0001", false]);   // Embedded Checkout: no hosted page
+  assertEquals([start.body.status, start.body.publishable_key, "url" in start.body], ["open", "pk_test_flow0001", false]);   // Stripe's card fields in our page: no hosted page
   assert(/^cs_[A-Za-z0-9_]+_secret_/.test(String(start.body.client_secret)));
   assertEquals(start.body.amount_minor, 89800);   // the amount the browser sent (1) is ignored: it comes from the plan
   const posts = fake.requests.filter((r) => r.method === "POST").map((r) => r.key!.split(":")[0]);
   assertEquals(posts, ["customer", "product", "price", "price", "checkout"]);
   const sent = fake.requests.find((r) => r.method === "POST" && r.path === "/v1/checkout/sessions")!.body;
-  assertEquals([sent.ui_mode, sent.redirect_on_completion, "success_url" in sent, "cancel_url" in sent], ["embedded", "if_required", false, false]);
+  assertEquals([sent.ui_mode, "redirect_on_completion" in sent, "success_url" in sent, "cancel_url" in sent], ["custom", false, false, false]);
   assertEquals(await sql(`select count(*) from public.billing_outbox where response::text like '%_secret_%'`), "0");   // never stored
   assertEquals((await api(token, { action: "checkout_start", business_id: business, idempotency_key: "journey-key-1" })).body.client_secret, start.body.client_secret);   // double click
   assertEquals((await api(token, { action: "checkout_start", business_id: business, idempotency_key: "journey-key-2" })).body.client_secret, start.body.client_secret);   // second tab

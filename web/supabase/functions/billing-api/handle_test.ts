@@ -1,4 +1,4 @@
-// billing-api, checkout_start and checkout_return for Stripe Embedded Checkout (owner, 27 Nov 2026), locally: the
+// billing-api, checkout_start and checkout_return for Stripe's card fields in our page (owner, 27 Nov 2026), locally: the
 // database answers come from a stand in (the owner function's own checks are proven in tests/stripe_checkout), and
 // Stripe is the in-memory fake (tests/stripe_fake). Nothing reaches Supabase or Stripe.
 // Run: deno test --no-lock --allow-net=127.0.0.1 --allow-env web/supabase/functions/billing-api/handle_test.ts
@@ -18,7 +18,7 @@ const { handle } = await import("./index.ts");
 // the database stand in: what the owner functions and the server functions answer
 type Answer = Record<string, unknown> | Error | null;
 type Db = { checkout: Record<string, unknown> | null; payment: Record<string, unknown>; start?: Record<string, unknown> | Error;
-  invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer };
+  invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer; prefill?: unknown };
 let db: Db;
 const calls: { fn: string; args: Record<string, unknown>; as: string }[] = [];
 const realFetch = globalThis.fetch;
@@ -36,6 +36,7 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
   if (fn === "zella_owner_invoice_pay_status") return answer(db.invoice);
   if (fn === "zella_owner_invoice_pay_start") return answer(db.invoiceStart);
   if (fn === "zella_billing_stripe_refs") return answer(db.refs);
+  if (fn === "zella_billing_address_prefill") return json(db.prefill ?? null);
   if (fn === "zella_owner_billing_access") return json({ business_id: BIZ, payments_live: true, app_base_url: "https://app.example.test" });
   if (fn === "zella_owner_pack_act_start") return answer(db.packAct);
   if (fn === "zella_owner_pack_status") return answer(db.pack);
@@ -49,8 +50,8 @@ async function newSession(extra: Record<string, unknown> = {}) {
   const cus = await stripe.post("/v1/customers", { metadata: { business_id: BIZ } }, `customer:${crypto.randomUUID()}`);
   const prod = await stripe.post("/v1/products", { name: "Zella Voice plan" }, `product:${crypto.randomUUID()}`);
   const price = await stripe.post("/v1/prices", { product: prod.id, currency: "usd", unit_amount: 29900, recurring: { interval: "month" } }, `price:${crypto.randomUUID()}`);
-  return await stripe.post("/v1/checkout/sessions", { mode: "subscription", customer: cus.id, client_reference_id: CHECKOUT, ui_mode: "embedded",
-    return_url: "https://app.example.test/welcome/setup?checkout=return&session_id={CHECKOUT_SESSION_ID}", redirect_on_completion: "if_required",
+  return await stripe.post("/v1/checkout/sessions", { mode: "subscription", customer: cus.id, client_reference_id: CHECKOUT, ui_mode: "custom",
+    return_url: "https://app.example.test/welcome/setup?checkout=return&session_id={CHECKOUT_SESSION_ID}",
     line_items: [{ price: price.id, quantity: 1 }], metadata: { business_id: BIZ, checkout_id: CHECKOUT }, ...extra }, `checkout:${crypto.randomUUID()}`);
 }
 const openRow = (sid: string, status = "open") => ({ checkout_id: CHECKOUT, status, stripe_session_id: sid, mode: "pay", amount_minor: 29900, currency: "usd", expires_at: "2026-11-28T10:00:00Z" });
@@ -64,12 +65,13 @@ const start = () => post({ action: "checkout_start", business_id: BIZ, idempoten
 const logged: string[] = [];
 for (const k of ["log", "error", "warn", "info"] as const) { const orig = console[k]; console[k] = (...a: unknown[]) => { logged.push(a.map(String).join(" ")); void orig; }; }
 
-Deno.test("checkout_start returns the embedded session's client secret, the publishable key and the database's amount", async () => {
+Deno.test("checkout_start returns the in page (custom) session's client secret, the publishable key and the database's amount", async () => {
   const s = await newSession();
   db = { checkout: openRow(s.id), payment: { status: "waiting" } };
   const r = await start();
   assertEquals(r.status, 200, JSON.stringify(r.body));
   assertEquals([r.body.status, r.body.client_secret, r.body.publishable_key, r.body.livemode], ["open", s.client_secret, "pk_test_handle0001", false]);
+  assertEquals(r.body.billing_prefill, {}, "no address on file: Stripe's fields start empty (United States)");
   assertEquals([r.body.amount_minor, r.body.currency, r.body.mode], [29900, "usd", "pay"]);   // never the 1 the browser sent
   assert(!("url" in r.body), "no hosted page link");
   assert(logged.every((l) => !l.includes(String(s.client_secret))), "the client secret is never logged");
@@ -116,7 +118,7 @@ Deno.test("paid at Stripe: processing, no form; expired at Stripe: start again; 
   assertEquals((await start()).body.code, "CHECKOUT_NOT_READY");
 });
 
-Deno.test("a hosted session (made before this change) is not passed off as an embedded one", async () => {
+Deno.test("a hosted session (made before this change) is not passed off as an in page one", async () => {
   const cus = await stripe.post("/v1/customers", {}, `customer:${crypto.randomUUID()}`);
   const prod = await stripe.post("/v1/products", { name: "x" }, `product:${crypto.randomUUID()}`);
   const price = await stripe.post("/v1/prices", { product: prod.id, currency: "usd", unit_amount: 100, recurring: { interval: "month" } }, `price:${crypto.randomUUID()}`);
@@ -165,9 +167,12 @@ const invRow = (inv: Record<string, any>, extra: Record<string, unknown> = {}) =
 Deno.test("Pay now: the open invoice's own PaymentIntent for Stripe's form; a double start gives the same intent and creates nothing", async () => {
   const { customer, sub, inv } = await pastDue();
   assertEquals(inv.status, "open");
-  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub } };
+  // the business's own address prefills Stripe's billing address fields; only plain strings pass, any country
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub },
+    prefill: { line1: "100 King St W", city: "Toronto", state: "ON", postal_code: "M5H 3T4", country: "CA", extra: "<b>x</b>", line2: 5 } };
   const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
   assertEquals(r.status, 200, JSON.stringify(r.body));
+  assertEquals(r.body.billing_prefill, { line1: "100 King St W", city: "Toronto", state: "ON", postal_code: "M5H 3T4", country: "CA" });
   assertEquals([r.body.status, r.body.amount_minor, r.body.publishable_key, r.body.livemode], ["open", inv.amount_due, "pk_test_handle0001", false]);
   const pi = fake.objects.get(String(r.body.client_secret).split("_secret_")[0])!;
   assertEquals(pi.metadata.invoice, inv.id, "the invoice's own intent");

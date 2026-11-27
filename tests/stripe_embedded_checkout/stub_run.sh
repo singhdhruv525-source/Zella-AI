@@ -47,7 +47,7 @@ q "insert into public.billing_stripe_links (stripe_id, business_id, kind, livemo
 cid=$(q "insert into public.billing_checkouts (business_id, business_plan_id, mode, status, first_amount_minor) values ('$b', '$plan', 'pay', 'preparing', 89800) returning id")
 q "select public.zella_billing_checkout_continue('$cid', false)" > /dev/null
 body() { q "select body $1 from public.billing_outbox where kind = 'checkout_session'"; }
-[ "$(body "->> 'ui_mode'")|$(body "->> 'redirect_on_completion'")" = "embedded|if_required" ] && ok "ui_mode embedded, redirect only if required" || bad "ui_mode"
+[ "$(body "->> 'ui_mode'")|$(body "? 'redirect_on_completion'")" = "custom|f" ] && ok "ui_mode custom (Stripe's card fields in our page), no redirect_on_completion (embedded only)" || bad "ui_mode"
 [ "$(body "->> 'return_url'")" = "https://app.example.test/welcome/setup?business=$b&checkout=return&session_id={CHECKOUT_SESSION_ID}" ] && ok "return_url to the Pay step" || bad "return_url"
 [ "$(body "?| array['success_url','cancel_url']")" = "f" ] && ok "no success_url or cancel_url" || bad "hosted urls"
 [ "$(q "select idempotency_key from public.billing_outbox where kind = 'checkout_session'")" = "checkout:$cid" ] && ok "key checkout:<id>, unchanged" || bad "key"

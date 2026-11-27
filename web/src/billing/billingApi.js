@@ -35,7 +35,7 @@ export const realBillingApi = {
   packBuy: (businessId, packCode, key) => billing("pack_buy", { business_id: businessId, pack_code: packCode, idempotency_key: key }),
   packStatus: (businessId, purchaseId) => billing("pack_status", { business_id: businessId, purchase_id: purchaseId }),
   packActStart: (businessId, purchaseId) => billing("pack_act_start", { business_id: businessId, purchase_id: purchaseId }),
-  // Stripe's real forms: mountCheckout (Embedded Checkout) and mountPayment (Payment Element) come from stripeEmbedded.js
+  // Stripe's real card fields and billing address come from stripeEmbedded.js (mountCardFields); the stand in brings its own
 };
 
 let chosen = null;

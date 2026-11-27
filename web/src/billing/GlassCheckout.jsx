@@ -1,32 +1,33 @@
 import { forwardRef, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { ErrorBoundary, Icon } from "../BusinessUI";
-import { cardWords, ERROR_WORDS, failureKind, formatMoney, fromServer, nextDelay, reduce, WORDS } from "./checkoutMachine";
-import { mountEmbeddedCheckout } from "./stripeEmbedded";
+import { brandLabel, cardWords, ERROR_WORDS, failureKind, formatMoney, fromServer, nextDelay, reduce, WORDS } from "./checkoutMachine";
+import { mountCardFields } from "./stripeEmbedded";
 import "./glassCheckout.css";
 
 // The glass checkout (owner, 27 Nov 2026): three panels like a real checkout: the customer's card on the left, a
-// "Payment details" panel in the middle that holds Stripe's own form, and the order summary as a receipt on the right
+// "Payment details" panel in the middle with Stripe's own card fields, and the order summary as a receipt on the right
 // (the card above the payment panel on a tablet; one column on a phone). Every payment the owner makes uses it: the
-// onboarding Pay step (Stripe Embedded Checkout), Pay now for an unpaid invoice and finishing a pack (Stripe's Payment
-// Element), and buying a pack on the saved card (no form, our Pay button). After Stripe finishes, the panels blur behind
-// a frosted layer, the card lifts to the centre while we confirm with OUR server, and flips to the look's success colour
-// only when the server confirms. Tokens only, so every Zella Voice look follows.
+// onboarding Pay step (a Checkout Session, ui_mode custom), Pay now for an unpaid invoice and finishing a pack (a
+// PaymentIntent), and buying a pack on the saved card (no form, our Pay button).
 //
-// Card data never touches this code (NN-9): the card is typed only into Stripe's frame, which this page can't read. The
-// card picture never mirrors anything typed: before payment it shows dots and "Your card"; after a confirmed payment
-// only the brand, last 4 and issuing bank the server returned from Stripe. It never shows the Zella Voice name: it is
-// the customer's card, not ours.
+// The card fills in as the owner types, from Stripe's events only (NN-9: the fields are Stripe's frames; this page can't
+// read them): the brand as soon as Stripe knows it, a highlight on the part being typed, the card turning over while the
+// security code is typed, then "•••• •••• •••• 4242" and "12/28" from Stripe's PaymentMethod preview once every field is
+// complete (brand, last 4 and expiry are not the card number). The cardholder name comes from Stripe's billing address
+// fields (Address Element) as it is typed, mirrored in capitals; it stays in memory and the address never shows on the card. The card never shows the Zella Voice name.
+// After Stripe finishes, the panels blur, the card lifts to the centre while OUR server confirms, and turns the look's
+// success colour only when the server confirms, with the issuing bank only as Stripe's card.issuer gives it.
 //
 // Props:
 //   summary      { kicker, title, lines: [[label, value, icon]], totalLabel, amountMinor, currency, footnote, intro }
 //   payment      the server's state in the onboarding payment shape ({ status, reason, checkout_available })
+//   kind         "checkout" (a Checkout Session's client secret) or "intent" (a PaymentIntent's)
 //   start()      asks our server: { status: "open", client_secret, publishable_key, livemode } or { status: "processing" }
 //   actStart()   the same, for "Confirm with your bank" or "Pay with another card" on a pack (its own PaymentIntent)
 //   confirm()    asks our server again: { payment, card?, stopped? }. The only way to "Payment received".
-//   mount        (el, opts) => Promise<{ destroy, submit? }>; submit() means our Pay button confirms the form
+//   mount        (slots, opts) => Promise<{ destroy, submit, demo? }>; default Stripe's card fields (stripeEmbedded.js)
 //   onUpdateCard opens Stripe's card update (for "There's no card to charge")
-//   words        per state overrides, e.g. { confirmed: { label, body } } for an invoice already paid
-//   payLabel     the first button's words; submitLabel the Pay button under Stripe's Payment Element
+//   words        per state overrides; payLabel the first button; saveNote a line under the fields
 export default function GlassCheckout(props) {
   return (
     <ErrorBoundary resetKey="glass-checkout" fallback={(retry) => (
@@ -42,21 +43,35 @@ export default function GlassCheckout(props) {
 
 const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const finePointer = () => typeof window !== "undefined" && window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+const NO_LIVE = { brand: null, focus: null, started: false, numberDone: false, preview: null, name: "", addressDone: false };
 
-function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount = mountEmbeddedCheckout, returned = false, payLabel = "Pay securely",
-  submitLabel, words: over = {}, onUpdateCard, detailsNote }) {
+function liveReduce(s, e) {
+  if (e.type === "reset") return NO_LIVE;
+  if (e.type === "focus") return { ...s, focus: e.field };
+  if (e.type === "blur") return s.focus === e.field ? { ...s, focus: null } : s;
+  if (e.type === "preview") return { ...s, preview: e.card ?? null };
+  // Stripe's billing address: only the name is kept (memory only, for the card); the address never reaches the card
+  if (e.type === "address") return { ...s, name: typeof e.name === "string" ? e.name.slice(0, 80) : "", addressDone: e.complete === true };
+  if (e.type === "change" && e.field === "number") return { ...s, brand: e.brand && e.brand !== "unknown" ? e.brand : null, started: !e.empty, numberDone: e.complete === true };
+  return s;
+}
+
+function Checkout({ summary, payment, kind = "checkout", start, actStart, confirm, onPayment, mount, returned = false, payLabel = "Pay securely",
+  words: over = {}, onUpdateCard, detailsNote, saveNote }) {
   const [m, dispatch] = useReducer(reduce, payment, (p) => (returned && fromServer(p).state !== "confirmed" ? { state: "confirming", attempt: 0 } : fromServer(p)));
-  const secret = useRef(null);      // { clientSecret, publishableKey, livemode }: memory only, dropped once mounted
-  const formEl = useRef(null);
+  const [live, onLive] = useReducer(liveReduce, NO_LIVE);
+  const secret = useRef(null);           // { clientSecret, publishableKey, livemode }: memory only, dropped once mounted
+  const slots = useRef({});             // the elements Stripe's fields mount into: number, expiry, cvc, address
+  const slotRef = (f) => (el) => { slots.current[f] = el; };
   const handle = useRef(null);
   const cardRef = useRef(null), stageCardRef = useRef(null), headingRef = useRef(null);
   const first = useRef(true);
-  const live = useRef(true);        // false only once this component leaves the page
+  const alive = useRef(true);            // false only once this component leaves the page
   const [card, setCard] = useState(null);
-  const [canSubmit, setCanSubmit] = useState(false);
+  const [demo, setDemo] = useState(false);
   const [sending, setSending] = useState(false);
-  const [inline, setInline] = useState("");   // Stripe's own words for a declined card, under its form
-  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const [inline, setInline] = useState("");   // Stripe's own words for a declined card, under its fields
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   // the server's word moves the machine (it is the only source of "confirmed")
   useEffect(() => { dispatch({ type: "SERVER", payment }); }, [payment]);
@@ -64,16 +79,18 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
   async function begin(which) {
     if (m.state !== "idle" && m.state !== "error") return;
     dispatch({ type: "PAY" });
-    setInline("");
+    setInline(""); onLive({ type: "reset" });
     try {
       const r = await (which === "act" ? actStart : start)();
       if (r?.status === "processing") return dispatch({ type: "PROCESSING" });
       if (r?.status !== "open" || typeof r.client_secret !== "string") throw Object.assign(new Error("no checkout"), { code: "CHECKOUT_NOT_READY" });
-      secret.current = { clientSecret: r.client_secret, publishableKey: r.publishable_key, livemode: r.livemode };
+      // with the business's own address to prefill Stripe's billing address fields (the owner can change it there)
+      secret.current = { clientSecret: r.client_secret, publishableKey: r.publishable_key, livemode: r.livemode,
+        prefill: r.billing_prefill && typeof r.billing_prefill === "object" ? r.billing_prefill : null };
       dispatch({ type: "SECRET" });
     } catch (err) {
-      const kind = failureKind(err);
-      dispatch(kind === "already_paid" ? { type: "ALREADY_PAID" } : { type: "FAIL", kind, words: kind === "refused" ? err?.words ?? err?.message : undefined });
+      const k = failureKind(err);
+      dispatch(k === "already_paid" ? { type: "ALREADY_PAID" } : { type: "FAIL", kind: k, words: k === "refused" ? err?.words ?? err?.message : undefined });
     }
   }
   function errorAction() {
@@ -85,25 +102,27 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
     if (!handle.current?.submit || sending) return;
     setSending(true); setInline("");
     try { await handle.current.submit(); }
-    catch (err) { if (live.current) setInline(err?.code === "DECLINED" ? err.message : "The payment didn't go through. Nothing was charged. Please try again."); }
-    finally { if (live.current) setSending(false); }
+    catch (err) { if (alive.current) setInline(err?.code === "DECLINED" ? err.message : "The payment didn't go through. Nothing was charged. Please try again."); }
+    finally { if (alive.current) setSending(false); }
   }
+  async function playDemo() { await handle.current?.demo?.(); }
 
-  // Stripe's form: mounted once per "loading", destroyed when the flow moves on or the page leaves
+  // Stripe's card fields: mounted once per "loading" into our slots, destroyed when the flow moves on or the page leaves
   useEffect(() => {
-    if (m.state !== "loading" || !secret.current || !formEl.current) return undefined;
-    // onComplete stays wired for as long as the form is on the page (the state moves to "ready" right after mounting)
-    const opts = { ...secret.current, amountLabel: formatMoney(summary?.amountMinor, summary?.currency), returnUrl: window.location.href,
-      onComplete: () => { if (live.current) dispatch({ type: "COMPLETE" }); } };
+    if (m.state !== "loading" || !secret.current || !slots.current.number) return undefined;
+    const opts = { ...secret.current, kind, returnUrl: window.location.href,
+      onEvent: (e) => { if (alive.current) onLive(e); },
+      onComplete: () => { if (alive.current) dispatch({ type: "COMPLETE" }); } };
     secret.current = null;
-    mount(formEl.current, opts).then(
-      (h) => { if (live.current) { handle.current = h; setCanSubmit(typeof h?.submit === "function"); dispatch({ type: "MOUNTED" }); } else h?.destroy?.(); },
-      (err) => { if (live.current) dispatch({ type: "FAIL", kind: failureKind(err) === "misconfigured" ? "misconfigured" : "stripe_load" }); },
+    const doMount = mount ?? ((s, o) => mountCardFields(s, o));
+    doMount({ ...slots.current }, opts).then(
+      (h) => { if (alive.current) { handle.current = h; setDemo(typeof h?.demo === "function"); dispatch({ type: "MOUNTED" }); } else h?.destroy?.(); },
+      (err) => { if (alive.current) dispatch({ type: "FAIL", kind: failureKind(err) === "misconfigured" ? "misconfigured" : "stripe_load" }); },
     );
     return undefined;
   }, [m.state]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (m.state !== "loading" && m.state !== "ready" && handle.current) { handle.current.destroy?.(); handle.current = null; setCanSubmit(false); }
+    if (m.state !== "loading" && m.state !== "ready" && handle.current) { handle.current.destroy?.(); handle.current = null; setDemo(false); }
   }, [m.state]);
   useEffect(() => () => { handle.current?.destroy?.(); handle.current = null; secret.current = null; }, []);
 
@@ -111,20 +130,20 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
   useEffect(() => {
     const wait = nextDelay(m);
     if (wait == null) return undefined;
-    let alive = true;
+    let on = true;
     const t = setTimeout(async () => {
       if (m.state === "pending" && document.visibilityState !== "visible") return dispatch({ type: "STILL_WAITING" });
       try {
         const r = await confirm();
-        if (!alive) return;
+        if (!on) return;
         if (r?.card) setCard(r.card);
         onPayment?.(r?.payment, r?.card ?? null);
         if (r?.stopped) dispatch({ type: "STOPPED", kind: r.stopped });
         else if (fromServer(r?.payment).state === "confirmed") dispatch({ type: "SERVER", payment: r.payment, card: r.card ?? null });
         else dispatch({ type: "STILL_WAITING" });
-      } catch (err) { if (alive) dispatch({ type: "FAIL", kind: failureKind(err) }); }
+      } catch (err) { if (on) dispatch({ type: "FAIL", kind: failureKind(err) }); }
     }, wait);
-    return () => { alive = false; clearTimeout(t); };
+    return () => { on = false; clearTimeout(t); };
   }, [m]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the card lifts from its place on the left to the centre (transform only), unless motion is reduced
@@ -145,18 +164,28 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
   // one heading takes focus when the state changes (not on first view), so keyboard and screen reader users follow
   useEffect(() => {
     if (first.current) { first.current = false; return; }
-    if (m.state === "ready") return;   // the next Tab goes into Stripe's form; don't pull focus away from it
+    if (m.state === "ready") return;   // the next Tab goes into the card fields; don't pull focus away from them
     headingRef.current?.focus({ preventScroll: false });
   }, [m.state, m.kind]);
 
   const base = m.state === "error" ? ERROR_WORDS[m.kind] ?? ERROR_WORDS.server : WORDS[m.state] ?? WORDS.off;
   const words = { ...base, ...(over[m.state === "error" ? m.kind : m.state] ?? {}), ...(m.state === "error" && m.kind === "refused" && m.words ? { body: `${m.words} Nothing was charged.` } : {}) };
-  const shownCard = m.state === "confirmed" ? cardWords(m.card ?? card) : null;
-  // the server's amount (it sends it in every state); without one, no total is shown rather than a guess
+  const server = m.state === "confirmed" ? cardWords(m.card ?? card) : null;
+  // what the card shows: only Stripe's events and preview, the server's answer, and the name from Stripe's billing address
+  const view = {
+    brand: server?.brand ?? brandLabel(live.preview?.brand ?? live.brand),
+    last4: server?.last4 ?? live.preview?.last4 ?? null,
+    exp: live.preview?.exp ?? null,
+    issuer: server?.issuer ?? null,
+    name: live.name.trim().toUpperCase(),
+    focus: m.state === "ready" ? live.focus : null,
+    typing: m.state === "ready" && live.focus === "number" && live.started && !live.numberDone,
+  };
   const amountKnown = summary?.amountMinor !== null && summary?.amountMinor !== undefined && summary?.amountMinor !== "" && Number.isFinite(Number(summary?.amountMinor));
   const amount = formatMoney(summary?.amountMinor, summary?.currency);
   const totalLabel = m.state === "off" || m.state === "locked" ? "Due when payment opens" : summary?.totalLabel ?? "Due today";
   const tone = m.state === "confirmed" ? "good" : m.state === "error" ? "urgent" : m.state === "pending" ? "heads" : "info";
+  const formOpen = m.state === "loading" || m.state === "ready";
 
   return (
     <section className={`zgc is-${m.state}`} aria-labelledby="zgc-status">
@@ -173,26 +202,39 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
       <div className="zgc-stage-wrap">
         <div className="zgc-grid" aria-hidden={staged ? "true" : undefined} inert={staged ? true : undefined}>
           <div className="zgc-cardcol">
-            <CardArt ref={cardRef} confirmed={false} card={null} tilt />
-            <p className="zgc-cardcol-note"><Icon name="visibility_off" size="sm" /> This picture never shows your card number.</p>
+            <CardArt ref={cardRef} view={view} confirmed={false} tilt />
+            <p className="zgc-cardcol-note"><Icon name="visibility_off" size="sm" /> The card shows only what Stripe returns, never your full number.</p>
           </div>
 
           <div className="zgc-panel zgc-pay" aria-labelledby="zgc-pay-title">
             <div className="zgc-pay-head">
               <h3 id="zgc-pay-title">Payment details</h3>
+              {demo && <span className="zgc-mock-badge">Preview of Stripe's form</span>}
             </div>
+            {demo && <p className="zob-sr">Preview only. On the live site the card fields are Stripe's own secure fields. This local preview never loads Stripe and takes no card.</p>}
             <div className="zgc-form">
               {(m.state === "idle" || m.state === "submitting") && (
-                <p className="zob-muted">{summary?.intro ?? <>You'll pay <strong>{amount}</strong> today. When you continue, Stripe's secure form opens right here.</>}</p>
+                <p className="zob-muted">{summary?.intro ?? <>You'll pay <strong>{amount}</strong> today. When you continue, Stripe's secure card fields open right here.</>}</p>
               )}
               {detailsNote && (m.state === "idle" || m.state === "submitting") && <p className="zgc-details-note">{detailsNote}</p>}
               {(m.state === "off" || m.state === "locked") && <p className="zob-muted">{m.state === "off" ? "Nothing is charged until payment opens here." : "Payment opens once your identity is verified."}</p>}
-              {/* Stripe's iframe goes in here and sizes itself; the skeleton holds the space while it loads */}
-              <div className={`zgc-embed${m.state === "loading" ? " is-loading" : ""}`} hidden={m.state !== "loading" && m.state !== "ready"}>
-                {m.state === "loading" && <div className="zgc-skeleton" aria-hidden="true"><span /><span /><span /><span className="wide" /></div>}
-                <div ref={formEl} className="zgc-embed-mount" />
-              </div>
-              {m.state === "ready" && canSubmit && inline && <p className="ba-error" role="alert">{inline}</p>}
+              {formOpen && (
+                <div className={`zgc-fields${m.state === "loading" ? " is-loading" : ""}`}>
+                  {[["number", "Card number", true], ["expiry", "Expiration", false], ["cvc", "Security code", false]].map(([f, label, wide]) => (
+                    <div key={f} className={`zgc-field${wide ? " wide" : ""}${live.focus === f ? " is-focus" : ""}`}>
+                      <span className="zgc-label" id={`zgc-l-${f}`}>{label}</span>
+                      <div ref={slotRef(f)} className="zgc-input zgc-slot" data-field={f} />
+                    </div>
+                  ))}
+                  {/* Stripe's Address Element (mode billing): full name and billing address, any country, the United States first */}
+                  <div className="zgc-field wide zgc-address" role="group" aria-labelledby="zgc-l-address">
+                    <span className="zgc-label" id="zgc-l-address">Billing address</span>
+                    <div ref={slotRef("address")} className="zgc-addr-slot" data-field="address" />
+                  </div>
+                  {saveNote && <p className="zgc-save-note"><Icon name="bookmark" size="sm" /> {saveNote}</p>}
+                </div>
+              )}
+              {m.state === "ready" && inline && <p className="ba-error" role="alert">{inline}</p>}
             </div>
             <div className="zgc-pay-foot">
               {(m.state === "idle" || m.state === "submitting") && (
@@ -200,9 +242,12 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
                   <Icon name="lock" size="sm" /> {m.state === "submitting" ? "Opening the secure form…" : payLabel}
                 </button>
               )}
-              {m.state === "ready" && canSubmit && (
-                <button type="button" className="ba-btn primary zgc-pay-btn" disabled={sending} onClick={submit}>
-                  <Icon name="lock" size="sm" /> {sending ? "Paying…" : submitLabel ?? `Pay ${amount}`}
+              {m.state === "ready" && demo && !live.preview && (
+                <button type="button" className="ba-btn zgc-pay-btn" onClick={playDemo}><Icon name="play_arrow" size="sm" /> Fill with Stripe's test card</button>
+              )}
+              {formOpen && (
+                <button type="button" className="ba-btn primary zgc-pay-btn" disabled={m.state !== "ready" || sending || !live.preview || !live.addressDone} onClick={submit}>
+                  <Icon name="lock" size="sm" /> {sending ? "Paying…" : `Pay ${amount}`}
                 </button>
               )}
               {m.state === "error" && words.action && (
@@ -239,7 +284,7 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
             <div className="zgc-stage-card">
               <span className="zgc-floor" />
               <span className="zgc-glow" />
-              <CardArt ref={stageCardRef} confirmed={m.state === "confirmed"} card={shownCard} big />
+              <CardArt ref={stageCardRef} view={{ ...view, focus: null, typing: false }} confirmed={m.state === "confirmed"} big />
             </div>
             {m.state !== "confirmed" && (
               <svg className="zgc-ring" viewBox="0 0 40 40" width="40" height="40"><circle className="zgc-ring-track" cx="20" cy="20" r="16" /><circle className="zgc-ring-arc" cx="20" cy="20" r="16" /></svg>
@@ -253,7 +298,7 @@ function Checkout({ summary, payment, start, actStart, confirm, onPayment, mount
 }
 
 // ---------- the card picture ----------
-// A metallic EMV chip: tokens --zella-metal-1..3 for the gradient, darker contact pads and an engraved outline.
+// A gold EMV chip: segmented contacts, a highlight and a shadow (tokens --zella-metal-1..3).
 let chipSeq = 0;
 function Chip() {
   const [gid] = useState(() => `zgc-chip-${++chipSeq}`);
@@ -261,11 +306,13 @@ function Chip() {
     <svg className="zgc-chip" viewBox="0 0 50 38" width="50" height="38">
       <defs>
         <linearGradient id={`${gid}-m`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" className="zgc-metal-1" /><stop offset="0.45" className="zgc-metal-2" /><stop offset="0.7" className="zgc-metal-1" /><stop offset="1" className="zgc-metal-3" />
+          <stop offset="0" className="zgc-metal-1" /><stop offset="0.35" className="zgc-metal-2" /><stop offset="0.55" className="zgc-metal-1" /><stop offset="1" className="zgc-metal-3" />
         </linearGradient>
+        <radialGradient id={`${gid}-h`} cx="0.3" cy="0.25" r="0.6"><stop offset="0" className="zgc-chip-shine" /><stop offset="1" stopOpacity="0" className="zgc-chip-shine" /></radialGradient>
       </defs>
       <rect x="0.75" y="0.75" width="48.5" height="36.5" rx="6.5" fill={`url(#${gid}-m)`} className="zgc-chip-edge" />
-      <path className="zgc-chip-pads" d="M0.75 12.5h15.5M0.75 25.5h15.5M33.75 12.5h15.5M33.75 25.5h15.5M16.25 0.75v36.5M33.75 0.75v36.5M16.25 19h17.5M21 12.5h8a4 4 0 0 1 4 4v5a4 4 0 0 1-4 4h-8a4 4 0 0 1-4-4v-5a4 4 0 0 1 4-4z" />
+      <path className="zgc-chip-pads" d="M0.75 12.5h14M0.75 25.5h14M35.25 12.5h14M35.25 25.5h14M14.75 0.75v11.75M35.25 0.75v11.75M14.75 25.5v11.75M35.25 25.5v11.75M14.75 12.5c4 3 4 10 0 13M35.25 12.5c-4 3 -4 10 0 13M20 0.75v8M30 0.75v8M20 37.25v-8M30 37.25v-8M20 8.75h10a3.5 3.5 0 0 1 3.5 3.5v13.5a3.5 3.5 0 0 1-3.5 3.5h-10a3.5 3.5 0 0 1-3.5-3.5v-13.5a3.5 3.5 0 0 1 3.5-3.5z" />
+      <rect x="0.75" y="0.75" width="48.5" height="36.5" rx="6.5" fill={`url(#${gid}-h)`} />
     </svg>
   );
 }
@@ -276,51 +323,70 @@ function Contactless() {
     </svg>
   );
 }
-// pointer tilt with a specular highlight that follows it (fine pointers only; never with reduced motion)
+// pointer (or device) tilt with a highlight that follows it; never with reduced motion
 function useTilt(enabled) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
-    if (!enabled || !el || reducedMotion() || !finePointer()) return undefined;
-    const move = (e) => {
-      if (e.pointerType && e.pointerType !== "mouse") return;
-      const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      el.style.setProperty("--zgc-rx", `${((0.5 - y) * 10).toFixed(2)}deg`);
-      el.style.setProperty("--zgc-ry", `${((x - 0.5) * 14).toFixed(2)}deg`);
+    if (!enabled || !el || reducedMotion()) return undefined;
+    const set = (x, y) => {   // x, y in 0..1
+      el.style.setProperty("--zgc-rx", `${((0.5 - y) * 12).toFixed(2)}deg`);
+      el.style.setProperty("--zgc-ry", `${((x - 0.5) * 18).toFixed(2)}deg`);
       el.style.setProperty("--zgc-sx", `${((x - 0.5) * 100).toFixed(1)}%`);
       el.style.setProperty("--zgc-sy", `${((y - 0.5) * 100).toFixed(1)}%`);
       el.classList.add("is-tilting");
     };
     const leave = () => { el.classList.remove("is-tilting"); ["--zgc-rx", "--zgc-ry", "--zgc-sx", "--zgc-sy"].forEach((k) => el.style.removeProperty(k)); };
-    el.addEventListener("pointermove", move); el.addEventListener("pointerleave", leave);
-    return () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerleave", leave); };
+    if (finePointer()) {
+      const move = (e) => { if (e.pointerType && e.pointerType !== "mouse") return; const r = el.getBoundingClientRect(); set((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); };
+      el.addEventListener("pointermove", move); el.addEventListener("pointerleave", leave);
+      return () => { el.removeEventListener("pointermove", move); el.removeEventListener("pointerleave", leave); };
+    }
+    // a phone held at an angle: the highlight follows the tilt (where the browser shares it without asking)
+    const orient = (e) => { if (e.beta == null || e.gamma == null) return; set(Math.min(1, Math.max(0, 0.5 + e.gamma / 60)), Math.min(1, Math.max(0, 0.5 + (e.beta - 45) / 60))); };
+    window.addEventListener("deviceorientation", orient);
+    return () => window.removeEventListener("deviceorientation", orient);
   }, [enabled]);
   return ref;
 }
-function CardArtInner({ confirmed, card, big, tilt }, ref) {
-  const tiltRef = useTilt(tilt);
+function Front({ view, done }) {
+  const number = view.last4 ? `•••• •••• •••• ${view.last4}` : "•••• •••• •••• ••••";
   return (
-    <div ref={ref} className={`zgc-card${big ? " big" : ""}${confirmed ? " ok" : ""}${tilt ? " tilt" : ""}`} aria-hidden="true">
+    <>
+      <div className="zgc-cf-top"><span className="zgc-cf-issuer">{done ? view.issuer ?? "" : ""}</span>{done && <svg className="zgc-check" viewBox="0 0 36 36" width="36" height="36"><circle cx="18" cy="18" r="16" /><path d="M11 18.5l5 5 9.5 -10.5" /></svg>}</div>
+      <div className="zgc-cf-mid"><Chip /><Contactless /></div>
+      <div className={`zgc-cf-number zgc-emboss${view.focus === "number" ? " is-focus" : ""}${view.typing ? " is-typing" : ""}`}>{number}</div>
+      <div className="zgc-cf-bottom">
+        <span className={`zgc-cf-name zgc-emboss${view.focus === "name" ? " is-focus" : ""}`}>{view.name || "CARDHOLDER NAME"}</span>
+        <span className={`zgc-cf-valid${view.focus === "expiry" ? " is-focus" : ""}`}><small>VALID<br />THRU</small><span className="zgc-emboss">{view.exp ?? "••/••"}</span></span>
+        <span className="zgc-cf-brand">{view.brand ?? ""}</span>
+      </div>
+    </>
+  );
+}
+function CardArtInner({ view, confirmed, big, tilt }, ref) {
+  const tiltRef = useTilt(tilt);
+  const back = !confirmed && view.focus === "cvc";
+  return (
+    <div ref={ref} className={`zgc-card${big ? " big" : ""}${confirmed ? " ok" : ""}${tilt ? " tilt" : ""}${back ? " is-back" : ""}`} aria-hidden="true">
+      <span className="zgc-card-shadow" />
       <div ref={tiltRef} className="zgc-card-tiltbox">
         <div className="zgc-card-inner">
           <span className="zgc-card-edge" />
-          <div className="zgc-card-face zgc-card-base">
-            <div className="zgc-card-row"><span className="zgc-card-issuer" /><Contactless /></div>
-            <div className="zgc-card-row zgc-card-mid"><Chip /></div>
-            <div className="zgc-card-number">•••• •••• •••• ••••</div>
-            <div className="zgc-card-row"><span className="zgc-card-label">Your card</span><span className="zgc-card-brand" /></div>
-            <span className="zgc-card-spec" />
-            <span className="zgc-card-shimmer" />
+          <div className="zgc-card-face zgc-card-front">
+            <Front view={view} done={false} />
+            <span className="zgc-card-holo" /><span className="zgc-card-grain" /><span className="zgc-card-spec" /><span className="zgc-card-shimmer" />
           </div>
+          {/* the success colours over the front, faded in when the server confirms */}
           <div className="zgc-card-face zgc-card-done">
-            {/* the issuing bank in the corner, only as the server passed on from Stripe (plain text, never a logo) */}
-            <div className="zgc-card-row"><span className="zgc-card-issuer">{card?.issuer ?? ""}</span><Contactless /></div>
-            <div className="zgc-card-row zgc-card-mid">
-              <Chip />
-              <svg className="zgc-check" viewBox="0 0 36 36" width="36" height="36"><circle cx="18" cy="18" r="16" /><path d="M11 18.5l5 5 9.5 -10.5" /></svg>
-            </div>
-            <div className="zgc-card-number">{card ? `ending ${card.last4}` : "Paid"}</div>
-            <div className="zgc-card-row"><span className="zgc-card-label">Payment received</span><span className="zgc-card-brand">{card?.brand ?? ""}</span></div>
+            <Front view={view} done />
+            <span className="zgc-card-grain" />
+          </div>
+          <div className="zgc-card-face zgc-card-back">
+            <span className="zgc-cb-stripe" />
+            <div className="zgc-cb-sig"><span className="zgc-cb-panel">AUTHORIZED SIGNATURE</span><span className={`zgc-cb-cvc${back ? " is-focus" : ""}`}>•••</span></div>
+            <span className="zgc-cb-note">Security code on the back, typed only into Stripe's field.</span>
+            <span className="zgc-card-grain" />
           </div>
         </div>
       </div>

@@ -66,7 +66,7 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
   );
 }
 
-// Pay (owner, 27 Nov 2026): the glass checkout (billing/GlassCheckout.jsx) with Stripe's Embedded Checkout inside the
+// Pay (owner, 27 Nov 2026): the glass checkout (billing/GlassCheckout.jsx) with Stripe's card fields and billing address inside the
 // page. While payments aren't switched on, the step says payment opens here soon and can be passed (owner decision,
 // 16 Nov 2026). Once they are, Pay securely asks billing-api for the checkout (one key per attempt; a double click,
 // a second tab or a reload gets the same open checkout from the server) and Stripe's own form opens in place. When
@@ -113,7 +113,7 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   return (
     <>
       <GlassCheckout summary={summary} payment={state.payment} start={start} confirm={confirm} onPayment={onPayment}
-        mount={api.mountCheckout} returned={returned === "return"} payLabel={trial ? "Add a card and start my trial" : "Pay securely"} />
+        kind="checkout" saveNote="Stripe saves this card for your plan's renewals." mount={api.mountCheckout} returned={returned === "return"} payLabel={trial ? "Add a card and start my trial" : "Pay securely"} />
       {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. We'll ask for payment here once it's switched on.</p>}
       {st.key !== "confirmed" && state.payment?.required !== false && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}
       <ErrorText>{action.error}</ErrorText>

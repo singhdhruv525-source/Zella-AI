@@ -46,7 +46,8 @@ async function contrast(page) {
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement, text = n.textContent.trim();
       // inert: the panels behind the frosted layer while confirming, deliberately out of reach and hidden from assistive tech
-      if (!text || !el || el.closest(".ba-icon, .zob-sr, [hidden], [inert]")) continue;
+      // disabled controls are exempt from contrast (WCAG 1.4.3, inactive user interface components)
+      if (!text || !el || el.closest(".ba-icon, .zob-sr, [hidden], [inert], button:disabled, [aria-disabled='true']")) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility !== "visible" || Number(cs.opacity) === 0) continue;
       let op = 1; for (let a = el; a; a = a.parentElement) op *= Number(getComputedStyle(a).opacity);
@@ -95,10 +96,27 @@ async function axeCard(page, source) {
 
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
 const cardText = (page) => page.evaluate(() => [...document.querySelectorAll(".zgc-card")].filter((c) => getComputedStyle(c).opacity !== "0").map((c) => c.innerText).join(" | "));
+// the card may show only the last 4 and the expiry from Stripe's preview, never a longer run of digits
+const onlyLast4AndExpiry = (t) => !/\d{5,}/.test(t) && (t.match(/\d+/g) ?? []).every((d) => ["4242", "12", "28"].includes(d));
 const h1 = (page) => page.evaluate(() => document.querySelector("h1")?.textContent.trim());
 const focused = (page) => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
 
 const zellaOnCard = (page) => page.evaluate(() => [...document.querySelectorAll(".zgc-card")].some((c) => /Zella\s*Voice/i.test(c.textContent)));
-const mockHasInputs = (page) => page.evaluate(() => document.querySelectorAll(".zgc-mock input, .zgc-mock textarea, .zgc-mock select, .zgc input, .zgc textarea, .zgc select").length);
+// no input of ours at all: Stripe's card fields and its billing address fields are slots (Stripe's frames live, static
+// text in the stand in), never inputs
+const mockHasInputs = (page) => page.evaluate(() => document.querySelectorAll(".zgc input, .zgc textarea, .zgc select").length);
+// the stand in's live fill: Stripe's test card played into the card slots, then the name into the billing address
+async function fillCard(page) {
+  await page.waitForSelector(".zgc-slot .zgc-slot-text", { timeout: 10000 }).catch(() => {});
+  await page.click("button:has-text(\"Fill with Stripe's test card\")");
+}
+// the stand in's billing address: its country, its labels and values as drawn
+const addressMock = (page) => page.evaluate(() => {
+  const m = document.querySelector(".zgc-pay .zgc-addr-mock");
+  if (!m) return null;
+  return { country: m.dataset.country, labels: [...m.querySelectorAll(".zgc-addr-label")].map((l) => l.textContent),
+    values: Object.fromEntries([...m.querySelectorAll(".zgc-addr-value")].map((v) => [v.dataset.part, v.classList.contains("is-placeholder") ? "" : v.textContent])) };
+});
+const waitFilled = (page) => page.waitForFunction(() => document.querySelector(".zgc-cardcol .zgc-card-front .zgc-cf-number")?.textContent.includes("4242"), null, { timeout: 15000 }).catch(() => {});
 
-module.exports = { LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs };
+module.exports = { LOOKS, WIDTHS, readPng, contrast, axeCard, overflow, cardText, h1, focused, zellaOnCard, mockHasInputs, fillCard, waitFilled, onlyLast4AndExpiry, addressMock };

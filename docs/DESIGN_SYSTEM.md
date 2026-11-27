@@ -110,22 +110,33 @@ are not changed by this.
   2026): every payment the owner makes (the onboarding Pay step, Pay now, finishing or buying a pack). Like a real
   checkout: a status panel (`.zob-status` tones; its `h2` takes focus when the state changes), then three panels on a
   faint tinted backdrop (`--zella-primary-soft` glows over `--zella-alt`): the customer's card on the left, **Payment
-  details** in the middle (Stripe's own form: Embedded Checkout, or the Payment Element with our Pay button at the
-  bottom; a skeleton of about 360px while it loads; the trust row "Secured by Stripe", "Card details never reach Zella
+  details** in the middle (Stripe's own card fields, number full width, expiry and security code side by side, then
+  Stripe's billing address fields under them, with our Pay button at the bottom; the field Stripe reports focused gets
+  the `--zella-primary` border and `--zella-primary-ring`; Stripe's fields take the look's tokens through their style
+  object and the Appearance API; a skeleton while they load; the trust row "Secured by Stripe", "Card details never reach Zella
   Voice"), and the order summary as a receipt on the right (an icon per line, tabular numbers, a dashed divider, then
   the total at page heading size). From 1100px three columns (the journey card widens to 1240px); from 760px the card
   above the payment panel with the summary beside them; below that one column: card, payment details, summary. Panels
   have a light rim on the top edge (`--zella-sheen`), a contact and an ambient shadow, and a faint grain; Glass gets a
   stronger frost (28px blur), a fine light border (`--zella-border-strong`) and an inner glow from the primary.
-- **The card picture**: a realistic ISO card (85.6 by 54 mm, corners 3.5% of the width) built from the look's
-  primary (midnight, mocha, copper or the picture's colour): a diagonal gradient, a fine guilloche line texture, a
-  `--zella-sheen` stripe, a thin bevel, a contact and an ambient shadow, a metallic EMV chip with contact pads and an
-  engraved outline (`--zella-metal-1` to `-3`), a contactless mark, and embossed dots and lettering (`--zella-sheen`
-  above, `--zella-emboss-low` below). It never shows digits before a verified payment and **never shows the Zella Voice
-  name**: it is the customer's card. After the server confirms, it shows the issuing bank (only Stripe's own
-  `card.issuer`, as text) in the corner, the brand and "ending 4242", on `--zella-success` with `--zella-on-success`
-  text. On a fine pointer it tilts slightly and a highlight follows the pointer. In the local preview only, Payment
-  details shows a static picture of Stripe's fields (divs, aria-hidden, no input, badged "Preview of Stripe's form").
+- **The card picture**: a photoreal ISO card (85.6 by 54 mm, corners 3.5% of the width) built from the look's
+  primary (midnight, mocha, copper or the picture's colour): layered radial and linear gradients, film grain (an SVG
+  `feTurbulence` texture), a holographic brushed sheen that moves with the pointer or the device's tilt, a thin bevel,
+  a perspective drop shadow, and a slight 3D angle at rest. Real card layout: a gold EMV chip with contact pads
+  (`--zella-metal-1` to `-3`) left of centre with the contactless mark beside it, the number across the middle in
+  embossed monospace ("OCR A" when the device has it, then Courier New, then the system monospace; `--zella-sheen`
+  above, `--zella-emboss-low` below), the cardholder name bottom left, "VALID THRU" and the expiry, and the brand
+  bottom right as plain text (no licensed network artwork was available, so no logos). The back: a magnetic stripe, a
+  signature panel (`--zella-on-primary` on `--zella-primary`, readable in every look) and the security code box
+  showing "•••". **Live fill (NN-9 safe):** the brand appears as Stripe's card number field reports it; the part
+  being typed is highlighted; focusing the security code turns the card over; once Stripe's preview returns, the
+  number reads "•••• •••• •••• 4242" and the expiry "12/28". The name is the one typed in Stripe's billing address,
+  in capitals; the address itself never shows. It **never shows the Zella Voice name**: it is the customer's card.
+  After the server confirms, it shows the issuing bank (only Stripe's own `card.issuer`, as text) in the corner, the
+  brand and "•••• •••• •••• 4242", on `--zella-success` with `--zella-on-success` text. On a fine pointer it tilts slightly and a highlight follows the pointer. In the local preview only, Payment
+  details shows a static picture of Stripe's fields and billing address (divs, aria-hidden, no input, badged "Preview
+  of Stripe's form"), laid out in the country's format (United States: State and ZIP code; Canada: Province and Postal
+  code), with a "Fill with Stripe's test card" button that plays the typing with fake data.
 - **Checkout motion (owner approved exception to the calm CRM motion, 27 Nov 2026):** the reference video's motion in
   Zella Voice's own colours, 600 to 900ms each, with a light spring (`cubic-bezier(0.34, 1.32, 0.64, 1)`). When Stripe
   finishes, a frosted layer fades in over the panels (they blur and dim), and the card lifts off the left column and

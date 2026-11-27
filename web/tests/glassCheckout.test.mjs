@@ -153,3 +153,90 @@ test("Stripe.js: loaded once, from js.stripe.com only (the clover release for ou
   assert.equal(added.length, 2);
   delete globalThis.Stripe;
 });
+
+test("Stripe's PaymentMethod preview: brand, last 4 and expiry only; anything odd is dropped, never guessed", async () => {
+  const { previewOf } = await import("../src/billing/stripeEmbedded.js");
+  const { brandLabel } = await import("../src/billing/checkoutMachine.js");
+  assert.deepEqual(previewOf({ card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2028, fingerprint: "x", funding: "credit" } }), { brand: "visa", last4: "4242", exp: "12/28" });
+  assert.deepEqual(previewOf({ card: { brand: "mastercard", last4: "4444", exp_month: 3, exp_year: 2031 } }), { brand: "mastercard", last4: "4444", exp: "03/31" });
+  assert.deepEqual(previewOf({ card: { brand: 7, last4: "42424", exp_month: 13, exp_year: 28 } }), { brand: null, last4: null, exp: null });
+  assert.deepEqual(previewOf(null), { brand: null, last4: null, exp: null });
+  assert.equal(brandLabel("visa"), "Visa");
+  assert.equal(brandLabel("unknown"), null, "no mark until Stripe knows the brand");
+  assert.equal(brandLabel("<b>"), null);
+});
+
+// A fake Stripe.js for mountCardFields: records what our code asks Stripe for. No network, no real card.
+function fakeStripeJs() {
+  const made = [], pms = [], confirms = [];
+  const element = (type, options) => {
+    const on = {};
+    const el = { type, options, mount: () => {}, destroy: () => {}, on: (ev, fn) => { on[ev] = fn; }, fire: (ev, e) => on[ev]?.(e) };
+    made.push(el);
+    return el;
+  };
+  globalThis.Stripe = () => ({
+    elements: (o) => ({ appearance: o?.appearance, create: element }),
+    initCheckout: async () => ({ loadActions: async () => ({ type: "success", actions: { confirm: async (c) => { confirms.push(c); return { type: "success" }; } } }) }),
+    createPaymentMethod: async (p) => { pms.push(p); return { paymentMethod: { id: `pm_${pms.length}`, card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2028 } } }; },
+    confirmCardPayment: async (secret, data) => { confirms.push({ secret, ...data }); return { paymentIntent: { status: "succeeded" } }; },
+  });
+  return { made, pms, confirms, el: (t) => made.find((m) => m.type === t) };
+}
+
+test("billing address: Stripe's Address Element in billing mode, any country, the United States first, prefilled from the business", async () => {
+  const { addressOptions } = await import("../src/billing/stripeEmbedded.js");
+  const o = addressOptions(null);
+  assert.equal(o.mode, "billing");
+  assert.equal(o.defaultValues.address.country, "US", "the United States by default");
+  assert.ok(!("allowedCountries" in o), "no country restriction: cards and addresses from any country");
+  assert.equal(o.autocomplete.mode, "automatic");
+  const ca = addressOptions({ line1: "100 King St W", city: "Toronto", state: "ON", postal_code: "M5H 3T4", country: "CA", extra: "x" });
+  assert.deepEqual(ca.defaultValues.address, { country: "CA", line1: "100 King St W", city: "Toronto", state: "ON", postal_code: "M5H 3T4" });
+  assert.equal(addressOptions({ country: "Canada" }).defaultValues.address.country, "US", "a country that isn't a two letter code isn't guessed");
+  const { addressFormat } = await import("../src/billing/standinForm.js");
+  assert.deepEqual(addressFormat("US"), { state: "State", postal: "ZIP code" });
+  assert.deepEqual(addressFormat("CA"), { state: "Province", postal: "Postal code" });
+});
+
+test("the card fields and the billing address: the name reaches the card, the address goes only to Stripe, Pay needs both", async () => {
+  const f = fakeStripeJs();
+  const { mountCardFields, destroyCurrent } = await import("../src/billing/stripeEmbedded.js");
+  const events = [];
+  let completed = 0;
+  const slots = { number: {}, expiry: {}, cvc: {}, address: {} };
+  const h = await mountCardFields(slots, { kind: "intent", clientSecret: "pi_1_secret_x", publishableKey: "pk_test_abc", livemode: false,
+    prefill: { country: "CA", city: "Toronto" }, onEvent: (e) => events.push(e), onComplete: () => { completed++; } });
+  assert.equal(f.el("address").options.defaultValues.address.country, "CA");
+  for (const t of ["cardNumber", "cardExpiry", "cardCvc"]) f.el(t).fire("change", { complete: true, empty: false, brand: "visa" });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(events.find((e) => e.type === "preview").card, { brand: "visa", last4: "4242", exp: "12/28" });
+  await assert.rejects(h.submit(), /billing address/, "Pay waits for a complete billing address");
+  const addr = { line1: "100 King St W", line2: "", city: "Toronto", state: "ON", postal_code: "M5H 3T4", country: "CA" };
+  f.el("address").fire("change", { complete: true, value: { name: "Jordan Lee", address: addr } });
+  assert.deepEqual(events.at(-1), { type: "address", name: "Jordan Lee", complete: true }, "only the name and whether it's complete reach the page's view");
+  await h.submit();
+  assert.equal(f.pms.length, 2, "a new PaymentMethod, since the address changed after the preview");
+  assert.deepEqual(f.pms[1].billing_details, { name: "Jordan Lee", address: { ...addr, line2: null } });
+  assert.equal(f.confirms.at(-1).payment_method, "pm_2");
+  assert.equal(completed, 1);
+  destroyCurrent();
+  delete globalThis.Stripe;
+});
+
+test("onboarding (a Checkout Session, ui_mode custom): confirmed with the same PaymentMethod and the billing address", async () => {
+  const f = fakeStripeJs();
+  const { mountCardFields, destroyCurrent } = await import("../src/billing/stripeEmbedded.js");
+  const h = await mountCardFields({ number: {}, expiry: {}, cvc: {}, address: {} }, { kind: "checkout", clientSecret: "cs_test_1_secret_x", publishableKey: "pk_test_abc",
+    livemode: false, onEvent: () => {}, onComplete: () => {} });
+  f.el("address").fire("change", { complete: true, value: { name: "Jordan Lee", address: { line1: "1 Main St", city: "Austin", state: "TX", postal_code: "78701", country: "US" } } });
+  for (const t of ["cardNumber", "cardExpiry", "cardCvc"]) f.el(t).fire("change", { complete: true, empty: false, brand: "visa" });
+  await new Promise((r) => setTimeout(r, 0));
+  await h.submit();
+  assert.equal(f.pms.length, 1, "the preview's PaymentMethod is the one that pays: the address didn't change");
+  const c = f.confirms.at(-1);
+  assert.equal(c.paymentMethod, "pm_1");
+  assert.deepEqual(c.billingAddress, { name: "Jordan Lee", address: { line1: "1 Main St", city: "Austin", state: "TX", postal_code: "78701", country: "US" } });
+  destroyCurrent();
+  delete globalThis.Stripe;
+});

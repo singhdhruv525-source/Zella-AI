@@ -1,5 +1,5 @@
 -- Rollback of sql/zella_stripe_owner_pay.sql. Restores zella_owner_invoices and zella_billing_email_invoice_trg exactly
--- as archived (the versions sql/zella_stripe_invoices.sql and sql/zella_stripe_emails.sql make) and drops the six
+-- as archived (the versions sql/zella_stripe_invoices.sql and sql/zella_stripe_emails.sql make) and drops the seven
 -- functions the file added. Refuses with ROLLBACK_DRIFT if any of
 -- them differs from what the file made. Data is untouched: a pack an owner reopened stays as it is (pending until
 -- Stripe's event settles it). Safe to run twice.
@@ -29,7 +29,8 @@ declare s text; d text;
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "a48b5589765fe94049fa3f6a2ca78a6d",
-    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7"
+    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7",
+    "public.zella_billing_address_prefill(uuid)": "55f277f7ce0649984442cb26898b47ad"
   }';
 begin
   if md5(pg_get_functiondef('public.zella_owner_invoices(uuid)'::regprocedure)) not in (v_orig, v_made) then

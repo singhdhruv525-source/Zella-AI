@@ -13,7 +13,9 @@
 --   5. zella_owner_pack_status / zella_owner_pack_act_start: a pack the bank wanted to confirm, or whose saved card was
 --      declined, can be finished by the owner in Stripe's form on the SAME PaymentIntent (back to pending; granted only
 --      by Stripe's payment_intent.succeeded and the binding check, unchanged).
---   6. zella_billing_email_invoice_trg (sql/zella_stripe_emails.sql's version, archived first, changed by one exact text
+--   6. zella_billing_address_prefill (server only): the business's own address, to prefill Stripe's billing address
+--      fields in the checkout; the owner can change it there and nothing is saved back.
+--   7. zella_billing_email_invoice_trg (sql/zella_stripe_emails.sql's version, archived first, changed by one exact text
 --      replacement): the invoice emails' data also carries our invoice id, so their Pay now link opens that invoice's own
 --      page (/pay/invoice/<id>, sign in first) instead of the general Payments page.
 -- Needs sql/zella_stripe_invoices.sql, sql/zella_stripe_packs.sql and sql/zella_stripe_emails.sql. Rollback:
@@ -31,7 +33,8 @@ declare s text; d text;
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "a48b5589765fe94049fa3f6a2ca78a6d",
-    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7"
+    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7",
+    "public.zella_billing_address_prefill(uuid)": "55f277f7ce0649984442cb26898b47ad"
   }';
 begin
   if to_regclass('public.billing_invoices') is null or to_regclass('public.pack_purchases') is null or to_regclass('public.zella_function_archive') is null
@@ -161,6 +164,19 @@ begin
   return jsonb_build_object('purchase_id', v.id, 'payment_intent', v.stripe_payment_intent, 'price_cents', v.price_cents, 'currency', 'usd');
 end $$;
 
+-- Server only: the business's own address, to prefill Stripe's billing address fields in the checkout (the owner can
+-- change it there; nothing is saved back here). Country as a two letter code when it is one, or "US" for the usual
+-- spellings of the United States; otherwise left out (Stripe's field then defaults to the United States). Any country.
+create or replace function public.zella_billing_address_prefill(p_business_id uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'line1', nullif(left(trim(b.address_line_1), 100), ''), 'line2', nullif(left(trim(b.address_line_2), 100), ''),
+    'city', nullif(left(trim(b.city), 100), ''), 'state', nullif(left(trim(b.state), 100), ''), 'postal_code', nullif(left(trim(b.postal_code), 20), ''),
+    'country', case when upper(trim(b.country)) ~ '^[A-Z]{2}$' then upper(trim(b.country))
+                    when lower(trim(b.country)) in ('united states', 'united states of america', 'usa') then 'US' end))
+    from public.businesses b where b.id = p_business_id;
+$$;
+
 -- 6. the invoice emails carry our invoice id (one exact text replacement on a known version, archived first)
 do $x$
 declare d text;
@@ -188,6 +204,8 @@ do $$ declare f text; begin
   end loop;
   revoke execute on function public.zella_billing_stripe_refs(uuid, boolean) from public, anon, authenticated;
   grant execute on function public.zella_billing_stripe_refs(uuid, boolean) to service_role;
+  revoke execute on function public.zella_billing_address_prefill(uuid) from public, anon, authenticated;
+  grant execute on function public.zella_billing_address_prefill(uuid) to service_role;
 end $$;
 
 -- what this file made is exactly what it says it makes
@@ -200,7 +218,8 @@ declare s text;
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "a48b5589765fe94049fa3f6a2ca78a6d",
-    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7"
+    "public.zella_owner_pack_act_start(uuid,uuid)": "078d951809d38ead0c747863259fe7b7",
+    "public.zella_billing_address_prefill(uuid)": "55f277f7ce0649984442cb26898b47ad"
   }';
 begin
   for s in select jsonb_object_keys(made) loop

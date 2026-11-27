@@ -15,7 +15,7 @@
 //   none        the signed in person owns no business waiting for setup
 // Test hooks (fake only): approveIdentity(), rejectIdentity(note), adminChangeDone(section, note), confirmPayment().
 
-import { renderStandInForm } from "../billing/standinForm.js";
+import { mountStandInCard } from "../billing/standinForm.js";
 
 const KEY = "zella.onboardingFake.v2";
 const BUSINESS = "00000000-0000-4000-8000-0000000000b1";
@@ -211,7 +211,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     }),
     identityStatus: (id) => db(() => { owner(id); return identityOut(); }),
     paymentStatus: (id) => db(() => { owner(id); return paymentOut(); }),
-    // billing-api checkout_start for Embedded Checkout: the same answer shape, made up values (no real key or secret)
+    // billing-api checkout_start for Stripe's card fields in the page (ui_mode custom): the same answer shape, made up values (no real key or secret)
     startCheckout: (id, key) => db(() => {
       owner(id);
       if (!paying()) throw dbError("PAYMENTS_NOT_LIVE");
@@ -219,15 +219,15 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       if (st.payment_confirmed) throw Object.assign(new Error("Your payment is already confirmed."), { code: "ALREADY_PAID", status: 400 });
       if (st.checkout_completed) return { status: "processing" };
       st.checkout_started = true;
-      return { status: "open", client_secret: "cs_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, mode: "pay", amount_minor: 89800, currency: "usd" };
+      return { status: "open", client_secret: "cs_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, mode: "pay", amount_minor: 89800, currency: "usd",
+        billing_prefill: { line1: "214 Maple Street", city: "Springfield", state: "IL", postal_code: "62701", country: "US" } };   // fake business address
     }),
     // the stand in for Stripe's embedded form (fake only): a box in the page with one button; Stripe.js is never loaded
-    mountCheckout: async (el, { clientSecret, onComplete, amountLabel }) => {
+    // the stand in for Stripe's card fields (billing/standinForm.js: no input elements; demo() plays the test card)
+    mountCheckout: async (slots, opts) => {
       await wait(delay * 2);
-      if (clientSecret !== "cs_standin_secret_standin") throw Object.assign(new Error("not the stand in's checkout"), { code: "STRIPE_JS" });
-      // a static picture of Stripe's Embedded Checkout (no input elements), with its Pay button (billing/standinForm.js)
-      const box = renderStandInForm(el, { amountLabel, withButton: true, onPay: () => { st.checkout_completed = true; st.return_looks = 0; save(); onComplete?.(); } });
-      return { destroy: () => box.remove() };
+      if (opts.clientSecret !== "cs_standin_secret_standin") throw Object.assign(new Error("not the stand in's checkout"), { code: "STRIPE_JS" });
+      return mountStandInCard(slots, opts, { onPay: () => { st.checkout_completed = true; st.return_looks = 0; save(); } });
     },
     checkoutReturn: (id) => db(() => {
       owner(id);

@@ -120,16 +120,22 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   `zella_stripe_emails.sql` (md5s from a function level stand in; confirm against production); the Customer Portal
   configured for card update only (§16.6) and its `payment_method_update` flow proven in the sandbox, with whether a
   past due invoice is retried at once after a card update; Pay now's `confirmation_secret` proven in the sandbox.
-- **Glass Pay step with Stripe Embedded Checkout (owner, 27 Nov 2026), branch `claude/glass-embedded-checkout`, not
-  merged, applied or deployed.** Before payments go live it needs: `sql/zella_stripe_embedded_checkout.sql` applied
+- **Glass Pay step with Stripe's card fields in the page (owner, 27 Nov 2026), branch `claude/glass-embedded-checkout`,
+  not merged, applied or deployed.** Before payments go live it needs: `sql/zella_stripe_embedded_checkout.sql` applied
   after `zella_stripe_checkout.sql` (owner approval; md5s computed on a stand in copy, confirm against production);
-  `STRIPE_PUBLISHABLE_KEY` set in the same mode as the secret key; the Embedded Checkout sandbox proofs in
-  `docs/PAYMENTS_ARCHITECTURE.md` §16.8 (notably that retrieving an embedded session returns its `client_secret`);
-  three owner decisions: the form's look (Dashboard branding or per session `branding_settings`; Stripe.js has no
-  appearance option for Embedded Checkout, so the form inside the iframe can't follow each person's look), whether
-  the CSP must be enforcing (not report only) for the SAQ A attestation, and whether to offer Stripe's hosted page as
-  a fallback when Stripe.js is blocked (not built: an embedded session has no hosted link, so it would need a second
-  session type).
+  `STRIPE_PUBLISHABLE_KEY` set in the same mode as the secret key; the sandbox proofs in
+  `docs/PAYMENTS_ARCHITECTURE.md` §16.8 (notably that a `ui_mode: custom` session returns its `client_secret` and that
+  its confirm accepts a PaymentMethod made by the split card fields; if not, the fallback is the first invoice's own
+  PaymentIntent, which needs the owner's go ahead); and owner decisions: whether the CSP must be enforcing (not report
+  only) for the SAQ A attestation; whether to offer Stripe's hosted page as a fallback when Stripe.js is blocked (not
+  built); whether a billing address changed in the checkout should update the business record (not built: we don't
+  store it); Stripe's international card and conversion fees to confirm on the pricing page or Dashboard; and a
+  review of Stripe Radar's rules against the any country decision (owner action).
+- **Privacy Policy draft (open, not edited):** the draft in `sql/zella_privacy_retention.sql` names "Stripe:
+  payments" as a processor but does not say that the billing name and address typed in the checkout go to Stripe
+  with the card. The owner (or counsel) should add it; the legal drafts were not changed. They say nothing like "US
+  cards only", so the any country decision needs no change there. Whether the Address Element's autocomplete calls
+  a host beyond Stripe's (for example a maps service) is to be checked in the sandbox and named there if so.
 
 - **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
   CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
@@ -195,14 +201,31 @@ most often needed:
   reference (card, Payment details, receipt). Built on `claude/glass-embedded-checkout`, switched off, not applied
   (`sql/zella_stripe_owner_pay.sql`). The Pay step's confirmed title "Payment confirmed" waits for the owner's
   confirmation (its own commit, easy to revert).
-- **Glass checkout with Stripe Embedded Checkout (owner, 27 Nov 2026):** the onboarding Pay step is a glass checkout
+- **Glass checkout with Stripe's card fields in the page (owner, 27 Nov 2026):** the onboarding Pay step is a glass checkout
   in Zella Voice's own looks (Zella Voice, Classic, Glass with or without the picture's colours); only the motion of the
   owner's reference video is borrowed (the panels soften, the card moves to the centre while confirming, it turns the
-  look's success colour, the title changes). Card entry moves from a redirect to Stripe Checkout to **Embedded
-  Checkout** (Stripe's form in Stripe's iframe inside our page; still Stripe hosted, NN-9 unchanged). "Payment
+  look's success colour, the title changes). Card entry moves from a redirect to Stripe Checkout to **Stripe's
+  card fields in our page** (Elements, each in Stripe's iframe; a Checkout Session with `ui_mode` custom; NN-9
+  unchanged). An earlier draft used Embedded Checkout (`ui_mode` embedded), which can't tell the page the card's
+  brand while typing, so the live fill moved it to `custom`.
+- **Live fill and the photoreal card (owner, 27 Nov 2026):** the card illustration fills in as the customer types,
+  from Stripe only: the brand from the card number field's change event, focus highlights, the card turning over for
+  the security code, then "•••• •••• •••• 4242" and the expiry from `stripe.createPaymentMethod` (no charge) once all
+  fields are complete; never "ending 4242" on the card. `createConfirmationToken` exists on our Stripe.js (8.11,
+  `clover`) but only with the Payment Element, which reports no brand while typing; so the split card fields and
+  `createPaymentMethod` are used, and that PaymentMethod pays. Brand marks are plain text (no licensed artwork).
+- **Billing address (owner, 27 Nov 2026):** Stripe's Address Element in `mode: billing` under the card fields, in
+  every payment (onboarding, Pay now, finishing a pack; the Customer Portal unchanged); prefilled from the business
+  address (`zella_billing_address_prefill`, server only); sent to Stripe as the card's billing details; never stored,
+  logged or written back by us; never on the card.
+- **International cards (owner decision, 27 Nov 2026):** cards from any country; no card country restriction
+  anywhere (no `allowedCountries`, no issuing country checks); the billing address can be in any country, the United
+  States first; prices stay in US dollars and the issuing country plays no part. Stripe's extra fees for
+  international cards and currency conversion apply (to confirm); Radar's rules to be reviewed by the owner
+  (`docs/PAYMENTS_ARCHITECTURE.md` §6.1, §16.6). "Payment
   received" still needs the server's verified, bound payment. **Brand and last 4** may be shown (the Pay step after a
-  confirmed payment, and billing emails), fetched from Stripe and never stored. The same component is planned for the
-  **Pay now** link of an unpaid invoice (design in `docs/PAYMENTS_ARCHITECTURE.md` §6.11, not built). Built on
+  confirmed payment, and billing emails), fetched from Stripe and never stored. The same component is used for
+  **Pay now** on an unpaid invoice and for packs (`docs/PAYMENTS_ARCHITECTURE.md` §6.11). Built on
   `claude/glass-embedded-checkout` (`web/src/billing/GlassCheckout.jsx`, `billing-api`,
   `sql/zella_stripe_embedded_checkout.sql`).
 
