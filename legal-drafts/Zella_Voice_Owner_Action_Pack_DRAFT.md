@@ -143,7 +143,7 @@ For each provider: accept or sign its data processing agreement; ask whether a b
 | Shopify | Accept the app and partner terms | Check with the vendor | Read only scopes | |
 | **[MONITORING PROVIDER NAME]** | Accept or sign the vendor DPA | Check with the vendor | No personal data in logs | |
 | **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** | Accept or sign the vendor DPA | Check with the vendor | Document retention | |
-| **[EMAIL INBOX PROVIDER]** | Accept the vendor terms | Check with the vendor | Not applicable | |
+| **[EMAIL INBOX PROVIDER]** | Accept the vendor terms | Check with the vendor | Retention and deletion of inbox content (support and data subject request emails); whether inbox content is used for training | |
 
 ## 5. Company basics checklist
 
