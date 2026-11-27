@@ -51,7 +51,7 @@ can turn it off in Settings › Billing › Emails).
 | # | Email | When | Main content | M/O |
 |---|---|---|---|---|
 | B1 | Your plan renews on <date> | scheduled by our worker from the subscription's period end: 3 days before each renewal; **yearly plans also 7 days before** | plan, period, estimated amount (plan + expected pay-as-you-go), and **one of three**: auto-debit on → "we will charge card ending 4242, nothing to do"; auto-debit off → "your invoice will be due on <date>, pay by the link or in the app"; payment needed (auto-debit on but no card or last charge failed) → "pay now / update card" | M |
-| B2 | Held pending owner decision | Pending | Pending | Pending |
+| B2 | Card expiring soon (held pending owner decision: rewrite without card expiry, rely on Stripe's own expiring card email, or remove) | Pending: the card's expiry is not stored (R59) | Pending | M |
 | B3 | No card on file | auto-debit is on and the saved card was removed or is unusable | "add a card before <next renewal>" | M |
 | B4 | Price change notice | 30 days before a plan's price changes for this business | old and new price, from which renewal, how to change plan or cancel | M |
 | B5 | Discount ending | 7 days before a discount or promo stops | renewal amount without the discount | M |
@@ -72,7 +72,7 @@ can turn it off in Settings › Billing › Emails).
 
 | # | Email | When | Main content | M/O |
 |---|---|---|---|---|
-| D1 | Payment failed / invoice overdue | first failed charge (auto-debit on) or due date passed unpaid (auto-debit off) | amount, reason in plain words (for example, declined or insufficient funds), "pay now / update card" link, next retry date | M |
+| D1 | Payment failed / invoice overdue | first failed charge (auto-debit on) or due date passed unpaid (auto-debit off) | amount, reason in plain words from Stripe's decline reason (for example declined, expired card or insufficient funds), "pay now / update card" link, next retry date | M |
 | D2 | Action needed — confirm payment | the bank asks for confirmation (3-D Secure) | "confirm on Stripe's page" link | M |
 | D3 | Retry failed | each failed retry (days 2, 3, 4) | attempt number, days left before pause, pay link | M |
 | D4 | Final notice | the day before the pause (day 4) | "service pauses tomorrow", pay link | M |

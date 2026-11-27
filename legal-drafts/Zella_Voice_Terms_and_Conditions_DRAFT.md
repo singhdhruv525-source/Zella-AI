@@ -194,7 +194,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 12.5 **Account Data and Usage Data.** Zella Voice processes Account Data as a controller under the Zella Voice Privacy Policy. Zella Voice may collect and use Usage Data to operate, secure and improve the Services.
 
-12.6 **Export.** Owners, admins and managers may export customers and call history as CSV files at any time (the call history file holds no transcripts, summaries or recordings), and the Owner may request a whole business export of Customer Data, which leaves out recording links and the transcripts of Customers in Regulated Industries.
+12.6 **Export.** Owners, admins and managers may export customers and call history as CSV files at any time (the call history file holds no transcripts, summaries or recordings), and the Owner may request a whole business export of Customer Data, which leaves out recording links and the transcripts of Customers in Regulated Industries. These export rights, the export window and deletion in section 12.7 and the limited use in section 14.1 apply after every end of the Agreement, including termination under section 17, with the same exclusions and deletion safeguards; references to cancellation in those sections include it. Where Zella Voice terminates under section 17.2, the export method and window are **[COUNSEL TO SET THE EXPORT METHOD AND WINDOW WHEN ZELLA VOICE TERMINATES UNDER SECTION 17.2]**.
 
 12.7 **Retention and deletion.** Customer Data is retained and deleted as described in the DPA, section 12. In summary: call recordings and transcripts are deleted 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion; after cancellation, Customer Data still held remains available for export, with the exclusions in section 12.6, for **[CANCELLATION RETENTION PERIOD]** and is then deleted, and backups are cleared within 90 days; and on an account deletion request confirmed by Zella Voice, the account is frozen immediately and Customer Data is deleted 30 days later unless the Owner withdraws the request. Each kind of data follows its own deletion schedule: the export window covers only data still held, and does not extend any shorter period, so a recording or transcript that reaches its 90 day deletion date during the export window is deleted on that date, except where deletion is suspended for a transcript or recording named in a pending return request under the Business Associate Agreement (DPA, Schedule 1, section S1.6.3). These deletions, including those at the end of the export window and on account deletion, are subject to the exceptions in DPA section 12.5, including consent and opt out history (kept so opt outs keep working), audit and security logs, data under a legal hold, and any transcript or recording named in a pending return request under the Business Associate Agreement, which is kept, including the voice provider's copy, until it is returned and for no longer than the period in DPA section 12.1.
 
@@ -210,7 +210,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 ## 14. Intellectual property and feedback
 
-14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during any Trial Period and the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. After cancellation, and only during the export window under sections 12.6 and 12.7, Customer's Authorized Users may use the Services solely to export Customer Data that is still retained, through the exports in section 12.6; this does not include answering calls, sending messages or any other use, except requesting a refund of a first Plan payment, a setup fee, an unused pack or a yearly renewal under sections 10.3 to 10.7. All rights not expressly granted are reserved.
+14.1 **Zella Voice property.** Zella Voice and its licensors own all rights in the Services, including software, models configured by Zella Voice, templates, documentation and the Zella Voice name and marks. Subject to the Agreement, Zella Voice grants Customer a non exclusive, non transferable, non sublicensable right during any Trial Period and the Subscription Term for its Authorized Users to use the Services for Customer's internal business purposes. After cancellation or any other end of the Agreement (section 12.6), and only during the export window under sections 12.6 and 12.7, Customer's Authorized Users may use the Services solely to export Customer Data that is still retained, through the exports in section 12.6; this does not include answering calls, sending messages or any other use, except requesting a refund of a first Plan payment, a setup fee, an unused pack or a yearly renewal under sections 10.3 to 10.7. All rights not expressly granted are reserved.
 
 14.2 **Restrictions.** Customer must not copy, modify, reverse engineer, resell or sublicense the Services, or use them to build a competing product, except to the extent applicable law expressly permits.
 
@@ -234,7 +234,7 @@ Customer may connect third party services, such as Microsoft calendars, an Outlo
 
 17.2 **By Zella Voice for convenience.** Zella Voice may terminate the Agreement on at least **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]** written notice, and will then refund prepaid Fees for the unused part of the paid period.
 
-17.3 **Effect.** On termination, Customer's right to use the Services ends, unpaid Fees become due (except where Customer terminates under section 17.1), and Customer Data is handled under section 12.7 and the DPA. Section 27 lists the provisions that survive.
+17.3 **Effect.** On termination, Customer's right to use the Services ends, except the limited use for export in section 14.1, unpaid Fees become due (except where Customer terminates under section 17.1), and Customer Data is handled under section 12.7 and the DPA. Section 27 lists the provisions that survive.
 
 ## 18. Warranties and disclaimers
 
@@ -621,6 +621,7 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM THE EFFECT OF A FIRST PAYMENT REFUND ON THE SUBSCRIPTION]**
 - **[OWNER TO CONFIRM THE ONBOARDING MILESTONE THAT ENDS SETUP FEE REFUND ELIGIBILITY]**
 - **[COUNSEL TO CONFIRM THE EFFECT OF A YEARLY RENEWAL REFUND ON THE RENEWED TERM]**
+- **[COUNSEL TO SET THE EXPORT METHOD AND WINDOW WHEN ZELLA VOICE TERMINATES UNDER SECTION 17.2]**
 - **[CANCELLATION RETENTION PERIOD]**
 - **[NOTICE PERIOD FOR TERMINATION FOR CONVENIENCE]**
 - **[COUNSEL TO CONFIRM THE LIMITED WARRANTY AND REMEDY]**
