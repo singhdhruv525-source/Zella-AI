@@ -3,8 +3,8 @@
 // reach a host other than 127.0.0.1.
 import { assert, assertEquals, assertRejects } from "jsr:@std/assert@1";
 import {
-  formEncode, invoicePaymentIntent, invoiceSubscription, keyIsLive, linePrice, signStripePayload, STRIPE_API_VERSION,
-  StripeError, stripeClient, subscriptionPeriod, verifyStripeSignature,
+  cardSummary, formEncode, invoicePaymentIntent, invoiceSubscription, keyIsLive, linePrice, signStripePayload, STRIPE_API_VERSION,
+  publishableKeyLive, StripeError, stripeClient, subscriptionPeriod, verifyStripeSignature,
 } from "./stripe.ts";
 import { startFakeStripe } from "../../../../tests/stripe_fake/fake_stripe.ts";
 
@@ -118,5 +118,36 @@ Deno.test("against the local fake: idempotent replay, conflict, checkout events,
     assert(fake.requests.every((r) => r.version === STRIPE_API_VERSION));
     const live = stripeClient({ secretKey: "sk_live_never_used_here", baseUrl: fake.url });
     assertEquals((await assertRejects(() => live.get(`/v1/customers/${cus.id}`), StripeError)).status, 401);   // the fake refuses live keys
+  } finally { await fake.stop(); }
+});
+
+Deno.test("publishable key mode: live, test, or not a publishable key at all", () => {
+  assertEquals(publishableKeyLive("pk_live_abc12345"), true);
+  assertEquals(publishableKeyLive("pk_test_abc12345"), false);
+  for (const k of ["", "sk_test_abc12345", "rk_live_abc12345", "pk_test_", "pk_test_abc 1234", "pk_other_abc12345"]) assertEquals(publishableKeyLive(k), null, k);
+});
+
+Deno.test("card summary: a known brand and exactly four digits, nothing else", () => {
+  assertEquals(cardSummary({ card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030, fingerprint: "x" } }), { brand: "visa", last4: "4242" });
+  for (const pm of [null, "pm_123", {}, { card: { brand: "visa", last4: "424" } }, { card: { brand: "visa", last4: "42424" } },
+    { card: { brand: "<b>", last4: "4242" } }, { card: { brand: "unknown", last4: "4242" } }, { card: { brand: "visa", last4: 4242 } }]) assertEquals(cardSummary(pm), null);
+});
+
+Deno.test("the fake models Embedded Checkout: client secret and no hosted url; success_url refused; expand the saved card", async () => {
+  const fake = startFakeStripe();
+  try {
+    const stripe = stripeClient({ secretKey: "sk_test_embed", baseUrl: fake.url });
+    const cus = await stripe.post("/v1/customers", {}, "customer:e1");
+    const prod = await stripe.post("/v1/products", { name: "p" }, "product:e1");
+    const price = await stripe.post("/v1/prices", { product: prod.id, currency: "usd", unit_amount: 1000, recurring: { interval: "month" } }, "price:e1");
+    const base = { mode: "subscription", customer: cus.id, line_items: [{ price: price.id, quantity: 1 }] };
+    const e = await stripe.post("/v1/checkout/sessions", { ...base, ui_mode: "embedded", return_url: "https://app.example.test/r", redirect_on_completion: "if_required" }, "checkout:e1");
+    assertEquals([e.ui_mode, e.url, typeof e.client_secret, e.redirect_on_completion], ["embedded", null, "string", "if_required"]);
+    assertEquals((await assertRejects(() => stripe.post("/v1/checkout/sessions", { ...base, ui_mode: "embedded", success_url: "https://x.test" }, "checkout:e2"), StripeError)).status, 400);
+    assertEquals((await assertRejects(() => stripe.post("/v1/checkout/sessions", { ...base, return_url: "https://x.test" }, "checkout:e3"), StripeError)).status, 400);
+    fake.completeCheckout(e.id);
+    const got = await stripe.get(`/v1/checkout/sessions/${e.id}`, { expand: ["subscription.default_payment_method"] }) as Record<string, any>;
+    assertEquals(cardSummary(got.subscription.default_payment_method), { brand: "visa", last4: "4242" });
+    assertEquals((await assertRejects(() => stripe.get(`/v1/checkout/sessions/${e.id}`, { expand: ["customer.invoice_settings"] }), StripeError)).status, 400);
   } finally { await fake.stop(); }
 });

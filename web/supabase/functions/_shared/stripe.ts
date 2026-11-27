@@ -68,6 +68,24 @@ export function keyIsLive(secretKey: string): boolean {
   return /^(sk|rk)_live_/.test(secretKey);
 }
 
+// The publishable key (STRIPE_PUBLISHABLE_KEY, not a secret: Stripe.js uses it in the owner's browser) must be in the
+// same mode as the secret key, so a test form can never open a live session or the reverse. true live, false test,
+// null when it isn't a publishable key at all.
+export function publishableKeyLive(key: string): boolean | null {
+  if (/^pk_live_[A-Za-z0-9]{8,255}$/.test(key)) return true;
+  if (/^pk_test_[A-Za-z0-9]{8,255}$/.test(key)) return false;
+  return null;
+}
+
+// What Stripe says about the saved card, for the owner's own screen only (owner decision, 27 Nov 2026: brand and last 4
+// may be shown). Only a known brand and exactly four digits pass; anything else is dropped, never guessed.
+const CARD_BRANDS = new Set(["amex", "cartes_bancaires", "diners", "discover", "eftpos_au", "jcb", "link", "mastercard", "unionpay", "visa"]);
+export function cardSummary(paymentMethod: unknown): { brand: string; last4: string } | null {
+  const card = paymentMethod && typeof paymentMethod === "object" ? (paymentMethod as Json).card as Json | undefined : undefined;
+  const brand = typeof card?.brand === "string" ? card.brand : "", last4 = typeof card?.last4 === "string" ? card.last4 : "";
+  return CARD_BRANDS.has(brand) && /^\d{4}$/.test(last4) ? { brand, last4 } : null;
+}
+
 export function stripeClient(opts: StripeClientOptions): StripeClient {
   if (!opts.secretKey) throw new Error("STRIPE_SECRET_KEY is not set");
   const base = (opts.baseUrl ?? STRIPE_DEFAULT_BASE).replace(/\/+$/, "");

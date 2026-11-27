@@ -156,8 +156,19 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
         const items = (b.line_items ?? []) as Json[];
         for (const li of items) if (!need(li.price, "price")) return err(400, "invalid_request_error", "No such price", "resource_missing");
         const amount_total = items.reduce((s, li) => s + get(li.price)!.unit_amount * Number(li.quantity ?? 1), 0);
-        return ok(put({ id: id("cs"), object: "checkout.session", mode: b.mode, status: "open", payment_status: "unpaid", customer: b.customer ?? null,
-          subscription: null, payment_intent: null, url: `https://checkout.fake.local/${seq}`, success_url: b.success_url, cancel_url: b.cancel_url,
+        // Embedded Checkout (pinned version 2025-09-30.clover: ui_mode "embedded"): Stripe refuses success_url and
+        // cancel_url with it, answers a client_secret and no hosted url. A hosted session is the reverse.
+        const embedded = b.ui_mode === "embedded";
+        if (b.ui_mode && !["embedded", "hosted", "custom"].includes(b.ui_mode)) return err(400, "invalid_request_error", "Invalid ui_mode", "parameter_invalid_string");
+        if (embedded && (b.success_url || b.cancel_url)) return err(400, "invalid_request_error", "success_url and cancel_url are not allowed when ui_mode is embedded", "parameter_unknown");
+        if (!embedded && (b.return_url || b.redirect_on_completion)) return err(400, "invalid_request_error", "return_url and redirect_on_completion apply only to an embedded session", "parameter_unknown");
+        if (b.redirect_on_completion && !["always", "if_required", "never"].includes(b.redirect_on_completion)) return err(400, "invalid_request_error", "Invalid redirect_on_completion", "parameter_invalid_string");
+        const sid = id("cs");
+        return ok(put({ id: sid, object: "checkout.session", mode: b.mode, status: "open", payment_status: "unpaid", customer: b.customer ?? null,
+          subscription: null, payment_intent: null, ui_mode: embedded ? "embedded" : "hosted",
+          url: embedded ? null : `https://checkout.fake.local/${seq}`, success_url: b.success_url ?? null, cancel_url: b.cancel_url ?? null,
+          return_url: b.return_url ?? null, redirect_on_completion: embedded ? b.redirect_on_completion ?? "always" : null,
+          client_secret: embedded ? `${sid}_secret_fake${seq}` : null, expires_at: clock + 86400,
           client_reference_id: b.client_reference_id ?? null, metadata, livemode, amount_total, currency: "usd", created: clock,
           _items: items, _trial_end: b.subscription_data?.trial_end ? Number(b.subscription_data.trial_end) : null, _sub_metadata: b.subscription_data?.metadata ?? {},
           _pi_metadata: b.payment_intent_data?.metadata ?? {} }));
@@ -165,7 +176,14 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       const s = need(r2, "checkout.session");
       if (!s) return err(404, "invalid_request_error", "No such checkout session", "resource_missing");
       if (method === "POST" && seg[3] === "expire") { if (s.status === "open") { s.status = "expired"; emit("checkout.session.expired", s); } return ok(s); }
-      return ok(s);
+      // retrieve, with Stripe's expand for the one path billing-api asks for (the saved card's brand and last 4)
+      const want = ([] as string[]).concat(b.expand ?? []);
+      for (const e of want) if (e !== "subscription" && e !== "subscription.default_payment_method") return err(400, "invalid_request_error", `This property cannot be expanded (${e})`, "parameter_invalid_string");
+      if (!want.length || !s.subscription) return ok(s);
+      const out = clone(s), sub = clone(get(s.subscription)!);
+      if (want.includes("subscription.default_payment_method") && sub.default_payment_method) sub.default_payment_method = clone(get(sub.default_payment_method) ?? { id: sub.default_payment_method });
+      out.subscription = sub;
+      return ok(out);
     }
     if (r0 === "subscriptions" && r1) {
       const sub = need(r1, "subscription");
@@ -326,8 +344,11 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       const len = recurring.price.recurring.interval === "year" ? YEAR : MONTH;
       const trial = s._trial_end as number | null;
       const start = trial ?? clock;
+      // the card the owner typed into Stripe's form: only what Stripe itself returns about it (brand, last 4 of Stripe's
+      // public test card), never a number, CVC or expiry
+      const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer, livemode, created: clock, card: { brand: "visa", last4: "4242" } });
       const sub = put({ id: id("sub"), object: "subscription", customer, status: trial ? "trialing" : "active", cancel_at_period_end: false, livemode, created: clock,
-        default_payment_method: id("pm"),
+        default_payment_method: pm.id,
         trial_start: trial ? clock : null, trial_end: trial, metadata: s._sub_metadata, collection_method: "charge_automatically", latest_invoice: null, pending_update: null,
         items: { object: "list", data: [{ id: id("si"), price: clone(recurring.price), quantity: recurring.qty, current_period_start: trial ? clock : start, current_period_end: trial ? trial : start + len }] } });
       const period = { start: trial ? clock : start, end: trial ? trial : start + len };

@@ -1,5 +1,5 @@
 // The whole Stripe journey end to end, locally, through the fake Stripe (never Stripe, never production):
-//   tests/stripe_pipeline/flow.sh tests/stripe_e2e/journey_test.ts zella_owner_onboarding zella_stripe_checkout \
+//   tests/stripe_pipeline/flow.sh tests/stripe_e2e/journey_test.ts zella_owner_onboarding zella_stripe_checkout zella_stripe_embedded_checkout \
 //     zella_stripe_renewals zella_stripe_packs zella_stripe_refunds zella_stripe_cancel zella_stripe_invoices \
 //     zella_stripe_disputes zella_stripe_emails zella_stripe_reconcile
 // plan saved -> Checkout (billing-api, the owner's own token) -> signed webhook -> payment confirmed -> go live gate
@@ -14,7 +14,7 @@ import { ANON_KEY, atPaymentStep, BACKEND, newBusiness, savePlan, SERVER_KEY, sq
 const SECRET = "whsec_journey_test_only";
 const fake = startFakeStripe();
 for (const [k, v] of Object.entries({ STRIPE_WEBHOOK_SECRET: SECRET, STRIPE_SECRET_KEY: "sk_test_journey", ZELLA_SERVER_SECRET_KEY: SERVER_KEY,
-  SUPABASE_URL: BACKEND, SUPABASE_ANON_KEY: ANON_KEY, STRIPE_API_BASE: fake.url })) Deno.env.set(k, v);
+  SUPABASE_URL: BACKEND, SUPABASE_ANON_KEY: ANON_KEY, STRIPE_API_BASE: fake.url, STRIPE_PUBLISHABLE_KEY: "pk_test_journey0001" })) Deno.env.set(k, v);
 const webhook = (await import("../../web/supabase/functions/billing-webhook/index.ts")).handle;
 const billingApi = (await import("../../web/supabase/functions/billing-api/index.ts")).handle;
 const stripe = stripeClient({ secretKey: "sk_test_journey", baseUrl: fake.url });
@@ -47,6 +47,7 @@ Deno.test("the whole journey through the fake Stripe", async () => {
   // 1. Checkout -> signed webhook -> payment confirmed -> the go live gate's payment check passes
   const start = await api(token, { action: "checkout_start", business_id: business, idempotency_key: "journey-key-0001" });
   assertEquals(start.status, 200, JSON.stringify(start.body));
+  assertEquals([start.body.status, typeof start.body.client_secret], ["open", "string"]);   // Embedded Checkout
   fake.completeCheckout(await sql(`select stripe_session_id from public.billing_checkouts where business_id = '${business}'`));
   await settle();
   assertEquals((await api(token, { action: "checkout_return", business_id: business })).body.payment.status, "confirmed");
