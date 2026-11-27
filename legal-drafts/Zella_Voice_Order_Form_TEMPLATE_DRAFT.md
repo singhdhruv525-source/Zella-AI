@@ -74,7 +74,7 @@ These are the add on prices shown in the Services (Terms, section 9.7). They cha
 
 **[SPECIAL TERMS OR NONE]**
 
-Special terms apply only to this Customer. A special term prevails over the Terms, the Zella Voice Data Processing Addendum or a Policy only where it expressly states that it overrides a named provision of that document (Terms, section 26). Otherwise the Terms prevail.
+Special terms apply only to this Customer. A special term prevails over the Terms, the Zella Voice Data Processing Addendum or a Policy only where it expressly states that it overrides a named provision of that document (Terms, section 26). Otherwise the order of precedence in section 26 of the Terms applies, including the precedence of a BAA for protected health information and of the Zella Voice Data Processing Addendum for Customer Personal Data (DPA, section 17.2).
 
 ## 8. Order of precedence
 
