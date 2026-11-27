@@ -242,7 +242,7 @@ These items stay on your device and are not used to track you across other websi
 
 15.4.1 You can clear the items above at any time in your browser settings. You will then be signed out, and your display and notification choices return to their defaults.
 
-15.4.2 If your browser blocks storage, for example in a private window, the application still works but will not remember your choices.
+15.4.2 If your browser blocks storage, for example in a private window, the application still works, but it will not remember your choices, and you stay signed in only until you reload or close the page.
 
 15.4.3 **[CONFIRM WHETHER A COOKIE BANNER OR CONSENT MECHANISM IS REQUIRED]**
 

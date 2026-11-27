@@ -491,6 +491,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[EXCEPTIONS OR "NONE"]**
 - **[PARTNER LEGAL NAME]**
 - **[PARTNER ADDRESS]**
+- **[PARTNER AGREEMENT EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]**
 - **[REFERRAL OR RESALE]**
 - **[COUNSEL TO CONFIRM THE RESALE STRUCTURE, INCLUDING WHO BILLS AND WHO SUPPORTS THE END CUSTOMER]**
 - **[REFERRAL WINDOW]**
@@ -549,6 +550,8 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[PRIVACY CONTACT EMAIL]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
+- **[CONFIRM WHICH PROVIDERS RECEIVE USAGE DATA]**
+- **[CONFIRM USAGE DATA RETENTION]**
 - **[COUNSEL ITEM: confirm the California CPRA notice at collection for employees and applicants (categories, purposes, whether information is sold or shared, retention for each category, and sensitive personal information), and any other state or country requirements, before use.]**
 - **[HR PROVIDERS]**
 - **[APPLICANT RECORD RETENTION PERIOD]**

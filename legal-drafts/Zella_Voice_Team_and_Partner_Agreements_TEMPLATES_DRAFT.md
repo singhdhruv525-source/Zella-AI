@@ -186,7 +186,7 @@ This assignment is governed by **[GOVERNING LAW AND COURTS]**. It is the entire 
 
 ### E1. Parties and model
 
-E1.1 This agreement is between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company ("Zella Voice"), and **[PARTNER LEGAL NAME]** of **[PARTNER ADDRESS]** ("Partner").
+E1.1 This agreement is between **[LEGAL ENTITY NAME]**, a Wyoming limited liability company ("Zella Voice"), and **[PARTNER LEGAL NAME]** of **[PARTNER ADDRESS]** ("Partner"). It takes effect on **[PARTNER AGREEMENT EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]** (the "Effective Date").
 
 E1.2 **Model.** The parties select one model: **[REFERRAL OR RESALE]**.
 
@@ -221,7 +221,7 @@ E4.2 Each party may use the other's name in a customer or partner list only with
 
 ### E5. Term and termination
 
-E5.1 This agreement lasts **[PARTNER AGREEMENT TERM]** and renews for successive periods of the same length unless either party gives **[NON RENEWAL NOTICE PERIOD]** notice.
+E5.1 This agreement lasts **[PARTNER AGREEMENT TERM]** from the Effective Date in section E1.1 (the initial term) and renews for successive periods of the same length unless either party gives **[NON RENEWAL NOTICE PERIOD]** notice.
 
 E5.2 Either party may terminate on **[TERMINATION NOTICE PERIOD]** written notice, or immediately for material breach that is not cured within 30 days, or for a breach of section E3.3. Commissions earned before termination remain payable; no commissions accrue after termination **[UNLESS COUNSEL AGREES A TAIL PERIOD]**.
 
@@ -293,6 +293,7 @@ Placeholders in this document:
 - **[EXCEPTIONS OR "NONE"]**
 - **[PARTNER LEGAL NAME]**
 - **[PARTNER ADDRESS]**
+- **[PARTNER AGREEMENT EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]**
 - **[REFERRAL OR RESALE]**
 - **[COUNSEL TO CONFIRM THE RESALE STRUCTURE, INCLUDING WHO BILLS AND WHO SUPPORTS THE END CUSTOMER]**
 - **[REFERRAL WINDOW]**

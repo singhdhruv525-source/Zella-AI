@@ -148,6 +148,19 @@ Use this procedure when a requester without legal process, for example law enfor
 | Retention | As in section 10 of the Zella Voice Privacy Policy |
 | Security | As in Annex 2 of the DPA |
 
+### D1A. As controller (Usage Data)
+
+| Item | Entry |
+|---|---|
+| Controller | As in section D1 |
+| Purposes | Operating and improving the Services using Usage Data (Privacy Policy section 4.2; legitimate interests) |
+| Data subjects | None identified: Usage Data does not identify Customer, any Authorized User or any End User (Terms, section 2); the DPA does not apply to it (DPA, section 1.2) |
+| Data categories | Volumes, timings and performance metrics about the operation and use of the Services |
+| Recipients | Providers in Annex 3 of the DPA that host or run the Services **[CONFIRM WHICH PROVIDERS RECEIVE USAGE DATA]** |
+| Transfers | As in section D1 |
+| Retention | **[CONFIRM USAGE DATA RETENTION]** |
+| Security | As in Annex 2 of the DPA |
+
 ### D2. As processor (Customer Personal Data)
 
 | Item | Entry |
@@ -247,6 +260,8 @@ Placeholders in this document:
 - **[PRIVACY CONTACT EMAIL]**
 - **[EU REPRESENTATIVE, IF REQUIRED]**
 - **[TRANSFER MECHANISM, FOR EXAMPLE THE EU STANDARD CONTRACTUAL CLAUSES AND THE UK INTERNATIONAL DATA TRANSFER AGREEMENT OR ADDENDUM]**
+- **[CONFIRM WHICH PROVIDERS RECEIVE USAGE DATA]**
+- **[CONFIRM USAGE DATA RETENTION]**
 - **[COUNSEL ITEM: confirm the California CPRA notice at collection for employees and applicants (categories, purposes, whether information is sold or shared, retention for each category, and sensitive personal information), and any other state or country requirements, before use.]**
 - **[HR PROVIDERS]**
 - **[APPLICANT RECORD RETENTION PERIOD]**
