@@ -30,7 +30,7 @@ const RES = { minutes: "AI minutes", texts: "texts", emails: "emails" };
 export default function BillingPayRoute({ workspace, kind, id, base = "/app" }) {
   const [api, setApi] = useState(null);
   const [returned] = useState(takeStripeReturn);
-  const [title, setTitle] = useState(kind === "pack" ? "Buy a pack" : "Pay invoice");
+  const [title, setTitle] = useState(kind === "pack" ? "Buy a pack" : "Pay for your plan");
   useEffect(() => { let alive = true; getBillingApi().then((a) => { if (alive) setApi(a); }); return () => { alive = false; }; }, []);
   const overview = `${base}/settings/billing/invoices`;
   const back = () => navigate(overview);
@@ -65,7 +65,7 @@ function PayInvoice({ api, workspace, id, onTitle, onDone, returned }) {
     <>
       {valid
         ? <InvoiceCheckout api={api} invoiceId={id.toLowerCase()} businessId={workspace.id} onUpdateCard={update.run}
-            onInvoice={(i) => onTitle(i?.number ? `Pay invoice ${i.number}` : "Pay invoice")} onSettled={() => setDone(true)} returned={returned} />
+            onInvoice={() => onTitle("Pay for your plan")} onSettled={() => setDone(true)} returned={returned} />
         : <NotFound />}
       {update.error && <p className="ba-error" role="alert">{update.error}</p>}
       {done && <DoneLink onDone={onDone} />}

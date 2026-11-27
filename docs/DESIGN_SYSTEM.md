@@ -148,7 +148,8 @@ are not changed by this.
   highlight, flight, flip, shimmer, spin, glow or drawing: the states simply change.
 - **A payment's own page** (`web/src/billing/BillingPayRoute.jsx`, `.zpay-route`; owner, 27 Nov 2026): inside the CRM
   shell, a back link "Billing and subscription" (`--zella-text-2`, underlined on hover and focus), the title at
-  `--zella-text-page`, then the glass checkout at full width (up to 1240px) and, once paid, a primary "Back to Billing
+  `--zella-text-page` ("Pay for your plan"; never an invoice number), then the glass checkout at full width (its summary
+  panel: "Summary", "Your Pro plan", one "Covers" line, "Due today") (up to 1240px) and, once paid, a primary "Back to Billing
   and subscription". The overview's "Next payment" line is `.zpay-next`: information only, never a button.
 - **Payments panel** (`web/src/billing/PaymentsPanel.jsx`, `.zpay` in `billing/payments.css`): the renewal line with
   the saved card and Update card, the invoices as rows (number and period, amount, a status chip with a word, Pay now

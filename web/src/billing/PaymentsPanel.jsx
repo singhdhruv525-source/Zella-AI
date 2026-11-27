@@ -13,6 +13,8 @@ import "./payments.css";
 // only when the server confirms it. The database decides who may see and pay (the business's active owner only).
 
 const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, "");
+const shortDay = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "");
+const planName = (t) => String(t).charAt(0).toUpperCase() + String(t).slice(1);
 const day = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 const RES = { minutes: "AI minutes", texts: "texts", emails: "emails" };
 const STATUS = { paid: ["good", "Paid"], open: ["heads", "Open"], payment_failed: ["urgent", "Payment failed"], void: ["info", "Cancelled"], uncollectible: ["urgent", "Unpaid"] };
@@ -147,10 +149,11 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
             {invoices.map((i) => {
               const [tone, label] = STATUS[i.status] ?? ["info", i.status];
               return (
-                <li key={i.id ?? i.number} className="zpay-row">
+                <li key={i.id ?? i.number} className="zpay-row" data-invoice={i.number ?? undefined}>
+                  {/* the invoice number stays in the PDF (owner, 27 Nov 2026): the row says what the payment covers */}
                   <div className="zpay-row-main">
-                    <strong>{i.number ?? "Invoice"}</strong>
-                    <span className="zob-hint">{i.period_start ? `${day(i.period_start)} to ${day(i.period_end)}` : day(i.created_at)}</span>
+                    <strong>{i.period_start ? `${day(i.period_start)} to ${day(i.period_end)}` : day(i.created_at)}</strong>
+                    <span className="zob-hint">Your plan</span>
                   </div>
                   <span className="zpay-amount">{formatMoney(i.status === "paid" ? i.total_minor : i.amount_due_minor ?? i.total_minor, i.currency)}</span>
                   <span className={`zob-chip zpay-chip tone-${tone}`}>{label}</span>
@@ -196,6 +199,13 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
   const [apOn, setApOn] = useState(true);
   const [apNote, setApNote] = useState("");
   const businessOf = inv.status === "ok" ? inv.invoice?.business_id : null;
+  const [plan, setPlan] = useState(null);
+  useEffect(() => {
+    if (!businessOf || !api.overview) return undefined;
+    let alive = true;
+    api.overview(businessOf).then((o) => { if (alive) setPlan(o?.plan ?? null); }, () => {});
+    return () => { alive = false; };
+  }, [api, businessOf]);
   useEffect(() => {
     if (!businessOf || !api.autopayStatus) return undefined;
     let alive = true;
@@ -230,18 +240,20 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
   if (inv.status === "error") return <>{back}<div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div><strong>We couldn't open this invoice</strong><p>{words(inv.error)}</p></div></div></>;
   const i = inv.invoice;
   const cannot = !i.payable && i.status !== "paid";
+  // a simple summary (owner, 27 Nov 2026): the plan and what the payment covers; the invoice number and details stay in the PDF
+  const span = i.period_start ? `${shortDay(i.period_start)} to ${shortDay(i.period_end)}` : day(i.created_at);
+  const interval = plan?.billing_interval === "yearly" ? "Yearly plan" : plan?.billing_interval === "monthly" ? "Monthly plan" : "Plan";
   const summary = {
-    kicker: "Invoice", title: i.number ? `Invoice ${i.number}` : "Your invoice",
-    lines: [["Period", i.period_start ? `${day(i.period_start)} to ${day(i.period_end)}` : day(i.created_at), "event"],
-      ["Invoice total", formatMoney(i.total_minor, i.currency), "receipt_long"],
+    kicker: "Summary", title: plan?.tier ? `Your ${planName(plan.tier)} plan` : "Your plan",
+    lines: [["Covers", `${interval}, ${span}`, "event"],
       ...(Number(i.amount_paid_minor) > 0 ? [["Already paid", formatMoney(i.amount_paid_minor, i.currency), "task_alt"]] : [])],
     totalLabel: i.status === "paid" ? "Due now" : "Due today", amountMinor: i.amount_due_minor, currency: i.currency,
-    intro: <>You'll pay <strong>{formatMoney(i.amount_due_minor, i.currency)}</strong> for this invoice. Stripe's secure form opens right here. It's this invoice's one payment, so it can never be paid twice.</>,
+    intro: <>You'll pay <strong>{formatMoney(i.amount_due_minor, i.currency)}</strong> for your plan. Stripe's secure form opens right here. It's this payment's one charge, so it can never be paid twice.</>,
     footnote: "Stripe processes this payment for Zella Voice.",
   };
   const over = {
-    ...(paidBefore ? { confirmed: { label: "This invoice is paid", body: `Paid on ${day(i.paid_at)}. Nothing more is due.` } } : {}),
-    off: cannot && i.payments_live !== false ? { label: "This invoice can't be paid online", body: "Nothing is due here online. If you think this is wrong, contact Zella Voice support." }
+    ...(paidBefore ? { confirmed: { label: "This is paid", body: `Paid on ${day(i.paid_at)}. Nothing more is due.` } } : {}),
+    off: cannot && i.payments_live !== false ? { label: "This can't be paid online", body: "Nothing is due here online. If you think this is wrong, contact Zella Voice support." }
       : { label: "Paying online isn't switched on yet", body: "Nothing is charged here. Your saved card is charged automatically on the renewal date." },
   };
   return (

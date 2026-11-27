@@ -10,7 +10,7 @@
 //   paying .......... Pay now: the glass checkout, Payment details with the picture of Stripe's form and our Pay button
 //   processing ...... after paying: "Confirming your payment"
 //   confirmed ....... only after the server's later look: "Payment received", the card with issuer, brand and last 4
-//   already-paid .... the emailed link for a paid invoice: "This invoice is paid", nothing to pay
+//   already-paid .... the emailed link for a paid invoice: "This is paid", nothing to pay
 //   update-card ..... back from Stripe's card page: the note, the card Stripe has
 //   pack-confirm .... buying a pack: the confirm panel with the price and the card it is charged to
 //   pack-action ..... the bank wants to confirm: "Confirm with your bank" (then the same intent in Stripe's form)
@@ -126,17 +126,23 @@ async function shot(page, look, width, state, axeSource) {
       await a.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
       check(`${tag}: auto charge: the renewal date and the saved card from Stripe`, (await a.page.locator(".zpay-lead").innerText()).includes("We'll charge your Visa •••• 4242"));
       check(`${tag}: Auto pay: a switch, on, for the owner`, (await a.page.getAttribute(".zpay-autopay [role=switch]", "aria-checked")) === "true");
-      check(`${tag}: the open invoice offers Pay now, the paid one doesn't`, (await a.page.locator(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')").count()) === 1
-        && (await a.page.locator(".zpay-row:has-text('ZV-0031') button:has-text('Pay now')").count()) === 0);
+      check(`${tag}: the open invoice offers Pay now, the paid one doesn't`, (await a.page.locator(".zpay-row[data-invoice='ZV-0042'] button:has-text('Pay now')").count()) === 1
+        && (await a.page.locator(".zpay-row[data-invoice='ZV-0031'] button:has-text('Pay now')").count()) === 0);
       check(`${tag}: no link to Stripe's hosted invoice page in the list (owner, 27 Nov 2026)`, (await a.page.locator(".zpay-row a").count()) === 0
         && (await a.page.locator("text=On Stripe").count()) === 0);
+      check(`${tag}: the list shows the period, amount and status, never an invoice number`, !/ZV-\d/.test(await a.page.locator(".ba-content").innerText())
+        && (await a.page.locator(".zpay-row[data-invoice='ZV-0042'] strong").innerText()) === "Nov 20, 2026 to Nov 30, 2026");
       await shot(a.page, look, width, "list", axeSource);
-      await a.page.click(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')");
+      await a.page.click(".zpay-row[data-invoice='ZV-0042'] button:has-text('Pay now')");
       await a.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
-      await a.page.waitForSelector("#zpay-route-title:has-text('Pay invoice ZV-0042')", { timeout: 5000 }).catch(() => {});
+      await a.page.waitForSelector("#zpay-route-title:has-text('Pay for your plan')", { timeout: 5000 }).catch(() => {});
       check(`${tag}: Pay now opens its own page in the CRM: the address, the shell kept, a way back, the title`,
         new URL(a.page.url()).pathname === `/app/settings/billing/pay/${OPEN}` && await a.page.isVisible(".ba-content") && (await a.page.locator(".ba-topbar, header, #ba-sidebar").count()) > 0
-        && await a.page.isVisible(".zpay-route-crumbs a:has-text('Billing and subscription')") && (await a.page.locator("#zpay-route-title").innerText()) === "Pay invoice ZV-0042");
+        && await a.page.isVisible(".zpay-route-crumbs a:has-text('Billing and subscription')") && (await a.page.locator("#zpay-route-title").innerText()) === "Pay for your plan");
+      await a.page.waitForSelector(".zgc-summary:has-text('Your Pro plan')", { timeout: 5000 }).catch(() => {});
+      check(`${tag}: no invoice number is shown on the pay page (it stays in the PDF); the summary says the plan and what it covers`,
+        !/ZV-\d/.test(await a.page.locator(".ba-content").innerText()) && (await a.page.locator(".zgc-receipt, .zgc-summary").first().innerText().catch(() => "")).includes("Your Pro plan")
+        && (await a.page.locator(".ba-content").innerText()).includes("Monthly plan, Nov 20 to Nov 30"));
       check(`${tag}: the glass checkout for the invoice, the amount from the server`, (await a.page.locator(".zgc-total strong").innerText()) === "$249");
       check(`${tag}: Stripe's hosted page isn't offered while the checkout works, and no PDF for an open invoice without one`,
         (await a.page.locator("a:has-text(\"Stripe's secure page\"), a:has-text(\"Stripe's invoice page\")").count()) === 0 && (await a.page.locator("a:has-text('Download PDF')").count()) === 0);
@@ -175,7 +181,7 @@ async function shot(page, look, width, state, axeSource) {
       const b = await open(browser, look, width.viewport, `/pay/invoice/${OPEN}?scenario=paid`);
       await b.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
       await b.page.waitForTimeout(300);
-      check(`${tag}: already paid: says so, nothing to pay`, (await b.page.locator("#zgc-status").innerText()) === "This invoice is paid" && (await b.page.locator(".zgc-pay-btn").count()) === 0);
+      check(`${tag}: already paid: says so, nothing to pay`, (await b.page.locator("#zgc-status").innerText()) === "This is paid" && (await b.page.locator(".zgc-pay-btn").count()) === 0);
       const pdf = b.page.locator("a:has-text('Download PDF')");
       check(`${tag}: already paid: Download PDF opens Stripe's PDF in a new tab`, (await pdf.count()) === 1 && (await pdf.getAttribute("href")) === "https://invoice.stripe.example/ZV-0042.pdf"
         && (await pdf.getAttribute("target")) === "_blank" && /noopener/.test(await pdf.getAttribute("rel")));
@@ -230,7 +236,7 @@ async function shot(page, look, width, state, axeSource) {
   for (const width of [WIDTHS[0], WIDTHS[1]]) {
     const c = await open(browser, LOOKS[0], width.viewport, `/app/settings/billing/invoices?scenario=canada`);
     await c.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
-    await c.page.click(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')");
+    await c.page.click(".zpay-row[data-invoice='ZV-0042'] button:has-text('Pay now')");
     await c.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
     await c.page.click(".zgc-pay button:has-text('Pay now')");
     await c.page.waitForSelector(".zgc-addr-mock", { timeout: 10000 }).catch(() => {});
@@ -298,7 +304,7 @@ async function shot(page, look, width, state, axeSource) {
   {
     const v = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/invoices?scenario=`);
     await v.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
-    await v.page.click(".zpay-row:has-text('ZV-0031') button:has-text('View')");
+    await v.page.click(".zpay-row[data-invoice='ZV-0031'] button:has-text('View')");
     await v.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
     await v.page.waitForTimeout(300);
     check("view: Download PDF for a paid invoice with a PDF", (await v.page.locator("a:has-text('Download PDF')").getAttribute("href").catch(() => null)) === "https://invoice.stripe.example/ZV-0031.pdf");
@@ -322,8 +328,8 @@ async function shot(page, look, width, state, axeSource) {
   {
     const n = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/invoices?scenario=`);
     await n.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
-    await n.page.click(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')");
-    await n.page.waitForSelector("#zpay-route-title:has-text('ZV-0042')", { timeout: 10000 }).catch(() => {});
+    await n.page.click(".zpay-row[data-invoice='ZV-0042'] button:has-text('Pay now')");
+    await n.page.waitForSelector("#zpay-route-title:has-text('Pay for your plan')", { timeout: 10000 }).catch(() => {});
     await n.page.goBack();
     await n.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
     check("navigation: Back in the browser returns to Invoices and payments", new URL(n.page.url()).pathname === "/app/settings/billing/invoices" && await n.page.isVisible("#zpay-how"));
@@ -332,14 +338,14 @@ async function shot(page, look, width, state, axeSource) {
     check("navigation: a pack opens its own page", new URL(n.page.url()).pathname === "/app/settings/billing/pack/minutes_100" && await n.page.isVisible(".zgc"));
     await n.ctx.close();
     const d = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/pay/${OPEN}?scenario=`);
-    await d.page.waitForSelector("#zpay-route-title:has-text('ZV-0042')", { timeout: 10000 }).catch(() => {});
+    await d.page.waitForSelector("#zpay-route-title:has-text('Pay for your plan')", { timeout: 10000 }).catch(() => {});
     const first = await d.page.isVisible(".zgc");
     await d.page.reload();
-    await d.page.waitForSelector("#zpay-route-title:has-text('ZV-0042')", { timeout: 10000 }).catch(() => {});
-    check("navigation: a deep link opens the page, and so does a reload", first && await d.page.isVisible(".zgc") && (await d.page.locator("#zpay-route-title").innerText()) === "Pay invoice ZV-0042");
+    await d.page.waitForSelector("#zpay-route-title:has-text('Pay for your plan')", { timeout: 10000 }).catch(() => {});
+    check("navigation: a deep link opens the page, and so does a reload", first && await d.page.isVisible(".zgc") && (await d.page.locator("#zpay-route-title").innerText()) === "Pay for your plan");
     await d.ctx.close();
     const e = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/pay/invoice/${OPEN}?scenario=`);
-    await e.page.waitForSelector("#zpay-route-title:has-text('ZV-0042')", { timeout: 15000 }).catch(() => {});
+    await e.page.waitForSelector("#zpay-route-title:has-text('Pay for your plan')", { timeout: 15000 }).catch(() => {});
     check("emailed link: /pay/invoice/<id> lands on the invoice's page in the CRM", new URL(e.page.url()).pathname === `/app/settings/billing/pay/${OPEN}` && await e.page.isVisible(".zgc"));
     await e.ctx.close();
     const s = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/pay/${OPEN}?scenario=`, { role: "staff" });
@@ -401,7 +407,7 @@ async function shot(page, look, width, state, axeSource) {
     const v = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/invoices?scenario=`, { video: process.env.VIDEO });
     await v.page.waitForSelector(".zpay-row", { timeout: 10000 }).catch(() => {});
     await v.page.waitForTimeout(800);
-    await v.page.click(".zpay-row:has-text('ZV-0042') button:has-text('Pay now')");
+    await v.page.click(".zpay-row[data-invoice='ZV-0042'] button:has-text('Pay now')");
     await v.page.waitForTimeout(1000);
     await v.page.hover(".zgc-cardcol .zgc-card"); await v.page.mouse.move(400, 420, { steps: 12 }); await v.page.waitForTimeout(500);
     await v.page.click(".zgc-pay button:has-text('Pay now')");

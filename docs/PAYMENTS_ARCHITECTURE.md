@@ -889,7 +889,7 @@ same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when
 - **Each payment has its own page in the CRM (owner, 27 Nov 2026).** Settings › Billing and subscription › Invoices
   and payments stays the overview (how you pay, Auto pay, invoices, packs). Pay now opens
   `/app/settings/billing/pay/<invoice id>` and Buy opens `/app/settings/billing/pack/<code>`: pages inside the CRM shell
-  with a back link "Billing and subscription", the title ("Pay invoice ZV-0042", "Buy 100 AI minutes"), the glass
+  with a back link "Billing and subscription", the title ("Pay for your plan", "Buy 100 AI minutes"; owner, 27 Nov 2026: no invoice number or invoice details on these pages or in the invoice list, which shows the period, amount and status; the number stays in the PDF), a simple summary (the plan, "Monthly plan, Nov 20 to Dec 20", "Due today"), the glass
   checkout filling the page, and "Back to Billing and subscription" once the server confirms. Deep links and reloads
   open the same page; Back in the browser returns to the overview. The emailed link `/pay/invoice/<id>` and `/pay`
   now only redirect there (`location.replace`); Stripe's card update page returns to
