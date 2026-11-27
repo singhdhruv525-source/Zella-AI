@@ -126,6 +126,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   with no build status wording; every gap is a launch blocker, and no public document is published until its
   blockers are cleared. Recording stays off until legal review, and card masking must work before any live call,
   whatever the public text says. `.coderabbit.yaml` tells the reviewer this for `legal-drafts/` (owner approved).
+  **Owner's decision (27 Nov 2026), Google publication:** publish first. The approved documents are published (saying
+  Google connections are available once Google approves the app), then Google verification is submitted. Connect Gmail
+  and Connect Google Calendar stay hidden until Google approves; Outlook and the business's own domain stay available.
+  Launch blocker 42 is kept for the Google connect options; blocker 41 (Microsoft) is unchanged. Details: counsel memo,
+  owner decision 49 and section 4.
 - **Security headers (security audit M14):** `web/public/_headers` sets nosniff, framing off (X-Frame-Options DENY and
   CSP frame-ancestors 'none'), Referrer-Policy, Permissions-Policy and HSTS for Cloudflare Pages; the CSP is
   **report only** until a release runs without reports, then rename the header to `Content-Security-Policy`. Live

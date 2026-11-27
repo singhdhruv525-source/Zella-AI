@@ -44,7 +44,7 @@ The Services keep this evidence for each source:
 | Website forms and chat widget | The unticked checkbox in section 2.1 for service calls and texts; for marketing, the separate checkbox for each channel in section 2.2 | Form version, exact text shown, time, network address and the state of each checkbox, with a separate consent record for each channel and purpose |
 | Google Ads lead forms and Meta lead ads (where enabled) | The same consent text configured as the lead form's custom disclosure; leads without it are not called automatically. **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]** | The form identifier, the disclosure version and the consent checkbox state from the source **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]** |
 | Inbound callers (verbal) | The caller asks to be called or texted back, or agrees when the AI Receptionist asks before any confirmation text is sent | The call identifier, the time and the caller's answer. No form, text version or checkbox applies |
-| Missed calls | **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** If counsel approves: the caller called the business, and one missed call text and the callback respond to that call. If counsel rejects: the call itself is not consent, and a missed caller receives a text only if they consented through another route in this section 2 | If approved: the call identifier. If rejected: the evidence for the other route |
+| Missed calls | **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** If counsel approves: the caller called the business, and one missed call text and the callback respond to that call. If counsel rejects: the call itself is not consent, and a missed caller receives a text only if they consented through another route in this section 2. Callbacks: **[COUNSEL CHOICE ON CALLBACKS IF THE MISSED CALL BASIS IS REJECTED: (A) AN AUTOMATED CALLBACK, AND ANY CALLBACK TEXT, IS MADE ONLY WHEN ANOTHER ROUTE IN SECTION 2 GIVES A RECORDED CONSENT BASIS FOR IT, AND OTHERWISE IS NOT MADE (SUGGESTED); OR (B) ANOTHER RULE, WHICH MUST NEVER ALLOW AN AUTOMATED CALLBACK WITHOUT A RECORDED BASIS]** | If approved: the call identifier. If rejected: the evidence for the other route |
 | Leads added by hand or imported | Staff choose the consent basis and source for each channel; with none chosen, the person is stored but never called or texted automatically | The staff member, the time and the basis chosen |
 | Marketing (any source) | A separate, explicit opt in for each channel (calls, texts or email); an opt in for one channel never covers another | As for the source through which it was given |
 
@@ -98,7 +98,7 @@ Voicemail prompt: "Please leave your message after the tone. It will be recorded
 
 ### 5.2A Missed call texts (counsel decision)
 
-**[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** The missed call text is included in this campaign only if counsel approves the missed call basis in section 2.4. If counsel rejects it: remove the missed call text from the campaign description, the use case and the opt in flow in section 5.2, and remove sample message 3 in section 5.3; the Customer's campaign must not send missed call texts; and missed callers receive a text only if they have consented by another route in section 2.
+**[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]** The missed call text is included in this campaign only if counsel approves the missed call basis in section 2.4. If counsel rejects it: remove the missed call text from the campaign description, the use case and the opt in flow in section 5.2, and remove sample message 3 in section 5.3; the Customer's campaign must not send missed call texts; and missed callers receive a text only if they have consented by another route in section 2. Callbacks follow the counsel choice in section 2.4: **[COUNSEL CHOICE ON CALLBACKS IF THE MISSED CALL BASIS IS REJECTED: (A) AN AUTOMATED CALLBACK, AND ANY CALLBACK TEXT, IS MADE ONLY WHEN ANOTHER ROUTE IN SECTION 2 GIVES A RECORDED CONSENT BASIS FOR IT, AND OTHERWISE IS NOT MADE (SUGGESTED); OR (B) ANOTHER RULE, WHICH MUST NEVER ALLOW AN AUTOMATED CALLBACK WITHOUT A RECORDED BASIS]**
 
 ### 5.3 Sample messages (from the Services' templates)
 
@@ -147,6 +147,7 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM WHETHER PLATFORM LEAD FORMS CAN CARRY TCPA CONSENT FOR AI VOICE CALLS]**
 - **[COUNSEL TO CONFIRM WHETHER EACH PLATFORM'S LEAD FORM MUST SHOW AN UNTICKED CONSENT CHECKBOX]**
 - **[COUNSEL DECISION ON THE MISSED CALL BASIS: APPROVED OR REJECTED]**
+- **[COUNSEL CHOICE ON CALLBACKS IF THE MISSED CALL BASIS IS REJECTED: (A) AN AUTOMATED CALLBACK, AND ANY CALLBACK TEXT, IS MADE ONLY WHEN ANOTHER ROUTE IN SECTION 2 GIVES A RECORDED CONSENT BASIS FOR IT, AND OTHERWISE IS NOT MADE (SUGGESTED); OR (B) ANOTHER RULE, WHICH MUST NEVER ALLOW AN AUTOMATED CALLBACK WITHOUT A RECORDED BASIS]**
 - **[COUNSEL TO SELECT THE RECORDING DISCLOSURE OPTION]**
 - **[CUSTOMER LEGAL NAME]**
 - **[CUSTOMER EIN]**
