@@ -87,6 +87,7 @@ By signing below, or by accepting this Order Form electronically in the Services
 | Customer | Zella Voice |
 |---|---|
 | **[CUSTOMER LEGAL NAME]** | **[LEGAL ENTITY NAME]** |
+| Signature: **[SIGNATURE]** | Signature: **[SIGNATURE]** |
 | Name: **[SIGNATORY NAME]** | Name: **[SIGNATORY NAME]** |
 | Title: **[SIGNATORY TITLE]** | Title: **[SIGNATORY TITLE]** |
 | Date: **[SIGNATURE DATE]** | Date: **[SIGNATURE DATE]** |
@@ -125,6 +126,7 @@ Placeholders in this document:
 - **[YES OR NO]**
 - **[SPECIAL TERMS OR NONE]**
 - **[ORDER OF PRECEDENCE: AS COUNSEL PREFERS]**
+- **[SIGNATURE]**
 - **[SIGNATORY NAME]**
 - **[SIGNATORY TITLE]**
 - **[SIGNATURE DATE]**

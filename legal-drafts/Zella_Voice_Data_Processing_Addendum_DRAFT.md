@@ -215,7 +215,7 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 
 | Provider | Purpose | Data it receives |
 |---|---|---|
-| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Stripe holds the card; Zella Voice never receives or stores the full card number or security code entered on Stripe's hosted pages, and keeps only the card brand, last 4 digits and expiry, provided by Stripe, for billing notices |
+| Stripe (where enabled) | Payments, subscriptions and invoices for Customer's Plan | Customer billing details, payment details entered on Stripe's hosted pages, payment status. Stripe holds the card; Zella Voice never receives or stores the full card number or security code entered on Stripe's hosted pages, and keeps only the card brand and last 4 digits, provided by Stripe, for billing notices; the card's expiry date may be shown on screen during payment, from Stripe's own preview, and is never stored by or sent to Zella Voice |
 | Google Fonts (Google) | Serves the typeface used by the web application | The visitor's network address and browser details when a page loads |
 | Identity verification provider **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]** (where enabled) | Verifying an Owner's identity | The Owner's identity documents and the check result |
 
@@ -328,6 +328,7 @@ S1.7.6 **Limitation of liability.** **[COUNSEL TO DECIDE WHETHER THE LIMITATION 
 | Covered Entity | Business Associate |
 |---|---|
 | **[CUSTOMER LEGAL NAME]** | **[LEGAL ENTITY NAME]** |
+| Signature: **[SIGNATURE]** | Signature: **[SIGNATURE]** |
 | Name: **[SIGNATORY NAME]** | Name: **[SIGNATORY NAME]** |
 | Title: **[SIGNATORY TITLE]** | Title: **[SIGNATORY TITLE]** |
 | Date: **[SIGNATURE DATE]** | Date: **[SIGNATURE DATE]** |
@@ -375,6 +376,7 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM THE HIPAA RETENTION BASIS FOR CONSENT AND OPT OUT RECORDS CONTAINING PHI]**
 - **[COUNSEL CHOICE: CONFIRM THAT THE LEGAL HOLD PREVAILS FOR THE HELD ITEMS ONLY, OR SET ANOTHER PRECEDENCE]**
 - **[COUNSEL TO DECIDE WHETHER THE LIMITATION OF LIABILITY IN SECTION 20 OF THE ZELLA VOICE TERMS OF SERVICE APPLIES TO THIS BAA, OR A SEPARATE CAP]**
+- **[SIGNATURE]**
 - **[SIGNATORY NAME]**
 - **[SIGNATORY TITLE]**
 - **[SIGNATURE DATE]**

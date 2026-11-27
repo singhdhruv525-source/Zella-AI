@@ -157,7 +157,7 @@ our own row, e.g. the data-deletion schedule for E8), only to an owner who has g
   **Billing settings**.
 - Dates in the business's own time zone; amounts as `$1,234.56`.
 - Footer: support contact, why they get this email, link to the email settings (for optional emails).
-- No card numbers beyond the last 4: only the card brand, last 4 digits and expiry month and year from Stripe (owner decision R59, 27 Nov 2026); no full addresses, no customer (caller) data.
+- No card numbers beyond the last 4: only the card brand and last 4 digits from Stripe (owner decision R59, 27 Nov 2026; the expiry is never stored, so B2 waits for an owner decision); no full addresses, no customer (caller) data.
 
 ## 5. Settings the owner sees (Settings › Billing)
 
