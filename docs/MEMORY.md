@@ -104,7 +104,49 @@ Not deployed yet from `main`: `billing-webhook`, `continue-plan`, `reschedule-ap
 
 <!-- /coderabbit-ai-generated:v1 -->
 
-n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
+**n8n sync (26 Nov 2026, owner's approval; all 30 workflows still unpublished, nothing run):** 18 live workflows now
+match `n8n/workflows/` on `main` (Knowledge, Spam Response, Review Replies, Call Intelligence, Appointment Booking,
+Assistant Tools, Calendar Sync, Call Results, Email Events, Event Router, Failure Alert, Inbound Email, Meta Sender, Meta
+Webhook, Outbound Calls, Receptionist Brain Tools, Voice Rules, Website Crawler). That brings the security fixes (H2,
+the Resend signature check, M9) and the newer tools to n8n. The other 12 differ only in brand text in code comments and
+their settings. The "Anthropic" credential (added by the owner) is on "Ask AI" in the four AI workflows; the AI switches
+stay off. Not done: the error workflow link to Failure Alert (n8n needs Failure Alert published first) and the
+credentials still to add by hand: Resend, Telnyx, Vapi, Google (reviews), and the Google and Microsoft calendar clients.
+Publishing any workflow needs the owner's approval.
+**Resend (26 Nov 2026, owner's approval):** the owner added a sending access Resend key as the n8n credential "Resend"
+(Header Auth, `Authorization: Bearer ...`) and as the Supabase function secret `RESEND_API_KEY` (every function's
+version went up by one, which confirms a secret was saved). The "Resend" credential is on "Send via Resend" in Email
+Sender, Follow up Emails and Admin Alerts, and on "Check Resend" in Connection Tests (all still unpublished).
+`email_from_address` is now `no-reply@zellavoice.com` (decision R14: Reply-To support@). `email_live` stays off. Then,
+with the owner's approval: `platform_emails_url` set to the `platform-emails` function, both `zella_kick_platform_emails`
+triggers and the `zella_platform_emails` job switched on (first runs succeeded; the 6 waiting notifications became
+skipped because `email_live` is off; nothing was sent). The owner saved `zella_resend_webhook_key` and
+`zella_resend_signing_secret` in Vault and added the Resend webhook (delivered, bounced, complained) to n8n's
+`/webhook/zella/resend`. Published in n8n: Email Events, Email Sender, Follow up Emails. Still to do for email:
+`zella_n8n_secret` in Vault and the `zella_dispatch` job (nothing wakes the n8n senders yet), inbound replies (receiving
+domain, a full access key on "Fetch email", the `email.received` webhook and `zella_resend_inbound_signing_secret`), and
+an end to end test with a test business before `email_live` goes on (owner: the demo businesses are not used for this).
+
+**Google, Microsoft and Telnyx (26 and 27 Nov 2026, owner's approval; nothing switched on, nothing tested yet):**
+Google: a Google Cloud project with one OAuth client (redirect URIs for `calendar-connect` and `business-email`; scopes
+`openid`, `email`, `gmail.send`, `calendar.events`), app in Testing with test users; its client ID and secret saved by the
+owner as the Supabase secrets `GOOGLE_CALENDAR_CLIENT_ID/SECRET` and `GOOGLE_MAIL_CLIENT_ID/SECRET` and the n8n Custom Auth
+credentials "Zella Google calendar client" and "Zella Google mail client". Microsoft: a free Azure tenant (Default
+Directory) owned by support@; the app registration "Zella Voice" (any Entra tenant plus personal Microsoft accounts),
+the same two redirect URIs, delegated `offline_access`, `openid`, `email`, `Calendars.ReadWrite`, `Mail.Send`, `User.Read`
+(no admin consent), a 24 month client secret; saved as `MICROSOFT_CALENDAR_CLIENT_ID/SECRET` and
+`MICROSOFT_MAIL_CLIENT_ID/SECRET` and the n8n credentials "Zella Microsoft calendar client" (now on "Get Microsoft token"
+and "Get Microsoft pull token" in Calendar Sync, which stays unpublished) and "Zella Microsoft mail client". Domain:
+zellavoice.com verified in Entra (publisher domain set) and in Google Search Console (authorized domain added), with
+two TXT records at GoDaddy that must stay. Still to do (launch blockers 41 and 42): the Microsoft AI Cloud Partner
+Program for the verified publisher tick, and Google OAuth app verification once the privacy policy and terms are public.
+Telnyx: the owner made an API key, saved as the Supabase secret `TELNYX_API_KEY` and the n8n Header Auth credential
+"Zella Telnyx" (now on "Check Telnyx" in Connection Tests, unpublished; "Send via Telnyx" still has no credential on
+purpose), and a messaging profile "Zella Voice" (API V2, United States only, no inbound webhook yet, no Telnyx keyword
+auto replies because Zella Voice sends its own STOP and HELP replies with the business name), saved as
+`TELNYX_MESSAGING_PROFILE_ID`. No number bought; `sms_live` and `number_orders_enabled` stay off. Still to do: the
+Telnyx receiver and the profile's webhook, 10DLC registration (needs the public pages), Telnyx with Vapi, and the first
+test number (a billing action, needs the owner's approval).
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
 
