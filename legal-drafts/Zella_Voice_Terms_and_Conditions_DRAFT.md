@@ -139,7 +139,7 @@ Capitalized terms have the meanings below. The same meanings apply in every docu
 
 9.4 **Automatic renewal.** **AT THE END OF EACH BILLING PERIOD, THE SUBSCRIPTION RENEWS AUTOMATICALLY FOR A FURTHER BILLING PERIOD OF THE SAME LENGTH (MONTHLY OR YEARLY, AS STATED IN THE ORDER FORM) UNTIL CUSTOMER CANCELS UNDER SECTION 10.2.** A yearly renewal refunded under section 10.6 ends when the refund is issued, and a subscription whose first Plan payment is refunded under section 10.3 ends when that refund is issued. Zella Voice sends a renewal notice 3 days before every renewal and, for yearly Plans, also 7 days before.
 
-9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Stripe holds the payment card. The full card number and security code of the saved payment card are entered only on Stripe's hosted pages and are never received or stored by Zella Voice. Zella Voice keeps only the card brand and last 4 digits, provided by Stripe, to identify the card in billing notices. The AI Receptionist never asks for, reads back or records card or bank details, and stops a caller who starts to give them. Card details that a caller speaks on a call anyway, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. Customer must not configure the AI Receptionist to ask callers for card details.
+9.5 **Payment processing.** Payments are processed by Stripe under Stripe's own terms. Stripe holds the payment card. The full card number and security code of the saved payment card are entered only on Stripe's hosted pages and are never received or stored by Zella Voice. Zella Voice keeps only the card brand and last 4 digits, provided by Stripe, to identify the card in billing notices. The AI Receptionist never asks for or reads back card or bank details, asks callers not to share them, and stops a caller who starts to give them. Card details and bank account numbers that a caller speaks on a call anyway, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. **[COUNSEL TO CONFIRM THE WORDING ON CARD AND BANK DETAILS SPOKEN ON CALLS]** Customer must not configure the AI Receptionist to ask callers for card details.
 
 9.6 **Usage and allowances.**
 
@@ -616,6 +616,7 @@ Placeholders in this document:
 - **[LEGAL DOCUMENTS LOCATION]**
 - **[SUPPORT CONTACT EMAIL]**
 - **[NOTE FOR COUNSEL: whether a platform liability shield, such as Section 230 of the Communications Decency Act in the United States, applies to AI generated drafts that a Customer approves is uncertain. This Agreement does not rely on it. Counsel to advise.]**
+- **[COUNSEL TO CONFIRM THE WORDING ON CARD AND BANK DETAILS SPOKEN ON CALLS]**
 - **[CONFIRM ANY FOUNDING CUSTOMER PRICE TERMS]**
 - **[CONFIRM TAX TREATMENT WITH AN ACCOUNTANT]**
 - **[COUNSEL TO CONFIRM THE EFFECT OF A FIRST PAYMENT REFUND ON THE SUBSCRIPTION]**

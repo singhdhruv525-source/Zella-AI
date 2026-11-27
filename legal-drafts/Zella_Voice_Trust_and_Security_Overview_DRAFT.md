@@ -42,7 +42,7 @@ Last updated: **[LAST UPDATED DATE]**
 - Logs hold no full telephone numbers, email addresses, message contents or transcripts.
 - Customer Data is never used to train AI models.
 - Payment cards are held by Stripe. Zella Voice never receives or stores the full card number or security code entered on Stripe's pages; for billing notices it keeps only the card brand and last 4 digits, provided by Stripe.
-- The AI Receptionist never asks for, reads back or records card or bank details, and stops a caller who starts to give them. Card details that a caller speaks on a call anyway, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings.
+- The AI Receptionist never asks for or reads back card or bank details, asks callers not to share them, and stops a caller who starts to give them. Card details and bank account numbers that a caller speaks on a call anyway, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. **[COUNSEL TO CONFIRM THE WORDING ON CARD AND BANK DETAILS SPOKEN ON CALLS]**
 - Each business can export its customers and call history and erase a customer's records; a whole business export is available on request.
 - Subject to legal holds and to retention the law requires, recordings and transcripts are deleted automatically 90 days after the call, or earlier when they are erased, at the end of the export window after cancellation, or on account deletion, and the copies held by the voice provider are deleted where technically possible. Data under a legal hold is kept until the hold is released and then deleted on schedule. Recordings and transcripts the law requires to be kept are kept for the required period, even past 90 days and without a legal hold, and are then deleted. Where a healthcare business has asked, under its business associate agreement, for a transcript or recording to be returned, that item, including the voice provider's copy, is kept until it is returned, even past the 90 day date or the end of the export window, and for no longer than the limited period in section 12.1 of the Data Processing Addendum, and is then deleted. Where an item is both under a legal hold and named in a return request, section S1.6.3(e) of Schedule 1 to the Data Processing Addendum decides which rule applies.
 - After cancellation, data is deleted after **[CANCELLATION RETENTION PERIOD]**, and an account deletion request takes effect after a 30 day grace period, in each case except consent and opt out history, audit and security logs, data under a legal hold, a transcript or recording named in a pending return request under a business associate agreement (kept only for the limited period in sections 12.1 to 12.3 of the Data Processing Addendum), and data the law requires to be kept.
@@ -149,6 +149,7 @@ Placeholders in this document:
 
 - **[EFFECTIVE DATE]**
 - **[LAST UPDATED DATE]**
+- **[COUNSEL TO CONFIRM THE WORDING ON CARD AND BANK DETAILS SPOKEN ON CALLS]**
 - **[CANCELLATION RETENTION PERIOD]**
 - **[SUBPROCESSOR LIST LOCATION]**
 - **[SECURITY CONTACT]**

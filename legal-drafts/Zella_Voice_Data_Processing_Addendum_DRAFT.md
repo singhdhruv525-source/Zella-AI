@@ -173,7 +173,7 @@ Data protection contact: **[DPO OR PRIVACY CONTACT]**
 | Encryption | Encryption in transit (HTTPS for the web application, the database service and voice provider webhooks) and encryption at rest |
 | Secrets | Held only in the database vault and function secrets; never in code, logs or tables |
 | Logging | No full telephone numbers, email addresses, message contents or transcripts in logs; masking where needed |
-| Payment card details | The AI Receptionist never asks for, reads back or records card or bank details, and stops a caller who starts to give them. Card details that a caller speaks on a call anyway, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. |
+| Payment card details | The AI Receptionist never asks for or reads back card or bank details, asks callers not to share them, and stops a caller who starts to give them. Card details and bank account numbers that a caller speaks on a call anyway, such as a card number, security code or expiry date, are masked in call transcripts and summaries before they are stored and are not kept in call recordings. **[COUNSEL TO CONFIRM THE WORDING ON CARD AND BANK DETAILS SPOKEN ON CALLS]** |
 | Entry points | Size limits, rate limits and authentication first at every public entry point; provider messages verified by signature, timestamp window and replay protection |
 | Storage and links | Private storage under each Customer's own path; files checked after upload; downloads by short lived signed links; customer links random, single purpose, expiring and stored only as hashes |
 | AI safeguards | Caller input treated as untrusted; the AI acts only through server checked tools that recheck the Customer and caller; no secrets or other Customers' data in prompts |
@@ -360,6 +360,7 @@ Placeholders in this document:
 - **[COUNSEL TO CONFIRM THE LEGAL BASIS UNDER THE DPDP ACT FOR KEEPING CONSENT AND OPT OUT HISTORY AFTER ERASURE]**
 - **[PRIVACY CONTACT EMAIL]**
 - **[DPO OR PRIVACY CONTACT]**
+- **[COUNSEL TO CONFIRM THE WORDING ON CARD AND BANK DETAILS SPOKEN ON CALLS]**
 - **[MONITORING PROVIDER NAME]**
 - **[EMAIL INBOX PROVIDER]**
 - **[IDENTITY PROVIDER NAME, IF ONE IS CONNECTED]**
