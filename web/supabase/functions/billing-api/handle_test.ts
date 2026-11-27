@@ -16,7 +16,9 @@ for (const [k, v] of Object.entries(env)) Deno.env.set(k, v);
 const { handle } = await import("./index.ts");
 
 // the database stand in: what the owner functions and the server functions answer
-type Db = { checkout: Record<string, unknown> | null; payment: Record<string, unknown>; start?: Record<string, unknown> | Error };
+type Answer = Record<string, unknown> | Error | null;
+type Db = { checkout: Record<string, unknown> | null; payment: Record<string, unknown>; start?: Record<string, unknown> | Error;
+  invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer };
 let db: Db;
 const calls: { fn: string; args: Record<string, unknown>; as: string }[] = [];
 const realFetch = globalThis.fetch;
@@ -30,6 +32,13 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
   const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { "Content-Type": "application/json" } });
   if (fn === "zella_owner_billing_checkout_start") return db.start instanceof Error ? json({ message: db.start.message }, 400) : json(db.start ?? { checkout_id: CHECKOUT, status: db.checkout?.status });
   if (fn === "zella_billing_checkout_session") return json(db.checkout);
+  const answer = (a: Answer | undefined) => a instanceof Error ? json({ message: a.message }, 400) : json(a ?? null);
+  if (fn === "zella_owner_invoice_pay_status") return answer(db.invoice);
+  if (fn === "zella_owner_invoice_pay_start") return answer(db.invoiceStart);
+  if (fn === "zella_billing_stripe_refs") return answer(db.refs);
+  if (fn === "zella_owner_billing_access") return json({ business_id: BIZ, payments_live: true, app_base_url: "https://app.example.test" });
+  if (fn === "zella_owner_pack_act_start") return answer(db.packAct);
+  if (fn === "zella_owner_pack_status") return answer(db.pack);
   if (fn === "zella_owner_onboarding_payment_status") return json(db.payment);
   if (fn === "zella_billing_events_claim" || fn.startsWith("zella_billing_")) return json(null);
   if (fn === "zella_platform_alert") return json(null);
@@ -135,6 +144,130 @@ Deno.test("checkout_return: card brand and last 4 only once the server confirmed
   const req = fake.requests.findLast((x) => x.method === "GET" && x.path.endsWith(s.id));
   assertEquals(req?.body.expand, ["subscription.default_payment_method"]);
   assert(!JSON.stringify(done.body).match(/exp_|cvc|number/i), "nothing but brand and last 4");
+});
+
+// ---- paying from inside the CRM: Pay now, the saved card, Update card, finishing a pack ----
+const INVOICE = "55555555-5555-4555-8555-555555555555", PURCHASE = "66666666-6666-4666-8666-666666666666";
+const act = (body: Record<string, unknown>) => post(body);
+// a business that paid its first invoice through Checkout, then a renewal its saved card couldn't pay: open, past due
+async function pastDue() {
+  const s = await newSession();
+  fake.completeCheckout(s.id);
+  const sess = fake.objects.get(s.id)!, sub = fake.objects.get(sess.subscription)!;
+  fake.setCard(sub.customer, "decline");
+  const draft = fake.renew(sub.id);
+  const inv = fake.finalizeAndPay(draft.id);
+  return { customer: sub.customer as string, sub: sub.id as string, inv };
+}
+const invRow = (inv: Record<string, any>, extra: Record<string, unknown> = {}) => ({ invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, number: inv.number,
+  amount_due_minor: inv.amount_due, currency: "usd", hosted_invoice_url: inv.hosted_invoice_url, livemode: false, ...extra });
+
+Deno.test("Pay now: the open invoice's own PaymentIntent for Stripe's form; a double start gives the same intent and creates nothing", async () => {
+  const { customer, sub, inv } = await pastDue();
+  assertEquals(inv.status, "open");
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub } };
+  const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  assertEquals(r.status, 200, JSON.stringify(r.body));
+  assertEquals([r.body.status, r.body.amount_minor, r.body.publishable_key, r.body.livemode], ["open", inv.amount_due, "pk_test_handle0001", false]);
+  const pi = fake.objects.get(String(r.body.client_secret).split("_secret_")[0])!;
+  assertEquals(pi.metadata.invoice, inv.id, "the invoice's own intent");
+  const posts = fake.requests.filter((x) => x.method === "POST").length;
+  const again = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  assertEquals(again.body.client_secret, r.body.client_secret, "a double start: the same intent");
+  assertEquals(fake.requests.filter((x) => x.method === "POST").length, posts, "nothing was created at Stripe");
+  assert(logged.every((l) => !l.includes(String(r.body.client_secret))), "never logged");
+  // the customer pays in Stripe's form: Stripe has it, so a later start says processing (our record follows invoice.paid)
+  fake.confirmIntent(pi.id);
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE })).body, { status: "processing" });
+});
+
+Deno.test("Pay now refusals: another business's invoice, a paid one, a void one, payments off, keys in other modes", async () => {
+  for (const code of ["NOT_FOUND", "ALREADY_PAID", "NOT_PAYABLE", "PAYMENTS_NOT_LIVE", "MFA_REQUIRED"]) {
+    db = { checkout: null, payment: {}, invoiceStart: new Error(code) };
+    const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+    assertEquals([r.status, r.body.code], [400, code], code);
+    assert(!("client_secret" in r.body));
+  }
+  db = { checkout: null, payment: {}, invoice: new Error("NOT_FOUND") };
+  assertEquals((await act({ action: "invoice_pay_status", invoice_id: INVOICE })).body.code, "NOT_FOUND");
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: "not-a-uuid" })).body.code, "INVALID_INPUT");
+  Deno.env.set("STRIPE_PUBLISHABLE_KEY", "pk_live_handle0001");
+  db = { checkout: null, payment: {}, invoiceStart: { invoice_id: INVOICE } };
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE })).body.code, "PAYMENTS_MISCONFIGURED");
+  Deno.env.set("STRIPE_PUBLISHABLE_KEY", env.STRIPE_PUBLISHABLE_KEY);
+});
+
+Deno.test("Pay now binding: another customer's invoice, a mode change, or a different amount never hands out a secret", async () => {
+  const a = await pastDue(), other = await pastDue();
+  db = { checkout: null, payment: {}, invoiceStart: invRow(other.inv), refs: { customer: a.customer, subscription: a.sub } };
+  const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
+  assertEquals(r.status, 500);
+  assert(!JSON.stringify(r.body).includes("secret"));
+  db = { checkout: null, payment: {}, invoiceStart: invRow(a.inv, { livemode: true }), refs: { customer: a.customer, subscription: a.sub } };
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE })).body.code, "NOT_PAYABLE");
+  calls.length = 0;
+  db = { checkout: null, payment: {}, invoiceStart: invRow(a.inv, { amount_due_minor: 1 }), refs: { customer: a.customer, subscription: a.sub } };
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE })).body.code, "CHECKOUT_NOT_READY");
+  assert(calls.some((c) => c.fn === "zella_platform_alert" && c.args.p_kind === "billing_invoice_amount"));
+});
+
+Deno.test("Pay now return: paid only from our records after the events are applied", async () => {
+  db = { checkout: null, payment: {}, invoice: { invoice_id: INVOICE, status: "open", payable: true } };
+  assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body, { invoice: { invoice_id: INVOICE, status: "open", payable: true } });
+  db = { checkout: null, payment: {}, invoice: { invoice_id: INVOICE, status: "paid", payable: false } };
+  assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.invoice.status, "paid");
+});
+
+Deno.test("the saved card: brand and last 4 from Stripe, or nothing", async () => {
+  const s = await newSession();
+  fake.completeCheckout(s.id);
+  const sub = fake.objects.get(fake.objects.get(s.id)!.subscription)!;
+  db = { checkout: null, payment: {}, refs: { customer: sub.customer, subscription: sub.id } };
+  assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: { brand: "visa", last4: "4242" } });
+  db = { checkout: null, payment: {}, refs: { customer: "cus_someone_else", subscription: sub.id } };
+  assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: null }, "another customer's subscription shows nothing");
+  db = { checkout: null, payment: {}, refs: { customer: null, subscription: null } };
+  assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: null });
+});
+
+Deno.test("Update card: Stripe's Customer Portal, card update only, back to the Payments page; none before a first payment", async () => {
+  const s = await newSession();
+  fake.completeCheckout(s.id);
+  const sub = fake.objects.get(fake.objects.get(s.id)!.subscription)!;
+  db = { checkout: null, payment: {}, refs: { customer: sub.customer, subscription: sub.id } };
+  const r = await act({ action: "card_update_start", business_id: BIZ, idempotency_key: "card-key-0001" });
+  assertEquals(r.status, 200, JSON.stringify(r.body));
+  assert(String(r.body.url).startsWith("https://"));
+  const req = fake.requests.findLast((x) => x.path === "/v1/billing_portal/sessions")!;
+  assertEquals([req.key, req.body.customer, req.body.flow_data.type, req.body.return_url], ["portal:" + BIZ + ":card-key-0001", sub.customer, "payment_method_update",
+    `https://app.example.test/pay?business=${BIZ}&card=updated`]);
+  assertEquals((await act({ action: "card_update_start", business_id: BIZ, idempotency_key: "bad key" })).body.code, "INVALID_INPUT");
+  db = { checkout: null, payment: {}, refs: { customer: null, subscription: null } };
+  assertEquals((await act({ action: "card_update_start", business_id: BIZ, idempotency_key: "card-key-0002" })).body.code, "NO_CUSTOMER");
+});
+
+Deno.test("a pack the bank wants confirmed: the same PaymentIntent for Stripe's form; another purchase's intent is refused", async () => {
+  const s = await newSession();
+  fake.completeCheckout(s.id);
+  const sub = fake.objects.get(fake.objects.get(s.id)!.subscription)!;
+  fake.setCard(sub.customer, "auth");
+  const failed = await stripe.post("/v1/payment_intents", { customer: sub.customer, amount: 2900, currency: "usd", off_session: true, confirm: true, metadata: { purchase_id: PURCHASE } }, `pack:${PURCHASE}`).catch((e) => e);
+  const piId = failed.paymentIntent as string;
+  assertEquals(fake.objects.get(piId)!.status, "requires_action");
+  db = { checkout: null, payment: {}, refs: { customer: sub.customer, subscription: sub.id }, packAct: { purchase_id: PURCHASE, payment_intent: piId, price_cents: 2900 } };
+  const r = await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE });
+  assertEquals([r.status, r.body.status, r.body.amount_minor, r.body.client_secret], [200, "open", 2900, fake.objects.get(piId)!.client_secret]);
+  const again = await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE });
+  assertEquals(again.body.client_secret, r.body.client_secret, "the same intent: never a second charge");
+  db = { ...db, packAct: { purchase_id: "77777777-7777-4777-8777-777777777777", payment_intent: piId, price_cents: 2900 } };
+  assertEquals((await act({ action: "pack_act_start", business_id: BIZ, purchase_id: "77777777-7777-4777-8777-777777777777" })).status, 500, "another purchase's intent");
+  db = { ...db, packAct: { purchase_id: PURCHASE, payment_intent: piId, price_cents: 9900 } };
+  assertEquals((await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE })).status, 500, "a different amount");
+  fake.confirmIntent(piId);
+  db = { ...db, packAct: { purchase_id: PURCHASE, payment_intent: piId, price_cents: 2900 } };
+  assertEquals((await act({ action: "pack_act_start", business_id: BIZ, purchase_id: PURCHASE })).body, { status: "processing" });
+  db = { ...db, pack: { purchase_id: PURCHASE, status: "granted" } };
+  assertEquals((await act({ action: "pack_status", business_id: BIZ, purchase_id: PURCHASE })).body.purchase.status, "granted");
 });
 
 // the fake was started at module load, before any test: stopping it is not a leak of this step

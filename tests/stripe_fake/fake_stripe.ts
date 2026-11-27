@@ -21,6 +21,7 @@ export interface FakeStripe {
   advance(seconds: number): void;
   setCard(customer: string, card: Card): void;
   completeCheckout(sessionId: string): Json;
+  confirmIntent(paymentIntent: string, card?: Card): Json;   // the customer confirms in Stripe's form (Payment Element)
   renew(subscriptionId: string): Json;              // the next period's draft renewal invoice (invoice.created)
   finalizeAndPay(invoiceId: string): Json;          // finalise, then charge the saved card
   dispute(paymentIntent: string): Json;
@@ -73,7 +74,8 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
   // ---- money helpers ----
   function charge(customer: string, amount: number, metadata: Json, invoice: string | null): Json {
     const card = cards.get(customer) ?? "ok";
-    const pi = put({ id: id("pi"), object: "payment_intent", amount, currency: "usd", customer, metadata, livemode, created: clock,
+    const pid = id("pi");
+    const pi = put({ id: pid, object: "payment_intent", client_secret: `${pid}_secret_fake`, amount, currency: "usd", customer, metadata, livemode, created: clock,
       status: card === "ok" ? "succeeded" : card === "auth" ? "requires_action" : "requires_payment_method", latest_charge: null,
       last_payment_error: card === "ok" ? null : { code: card === "auth" ? "authentication_required" : "card_declined" } });
     if (card === "ok") {
@@ -210,6 +212,9 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
         emit("customer.subscription.updated", sub);
         return ok(sub);
       }
+      const wantSub = ([] as string[]).concat(b.expand ?? []);
+      for (const e of wantSub) if (e !== "default_payment_method") return err(400, "invalid_request_error", `This property cannot be expanded (${e})`, "parameter_invalid_string");
+      if (wantSub.includes("default_payment_method") && sub.default_payment_method) return ok({ ...clone(sub), default_payment_method: clone(get(sub.default_payment_method) ?? { id: sub.default_payment_method }) });
       return ok(sub);
     }
     if (r0 === "subscription_schedules" && method === "POST" && !r1) {
@@ -224,6 +229,22 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       sch.phases = b.phases ?? sch.phases; sch.end_behavior = b.end_behavior ?? sch.end_behavior; return ok(sch);
     }
     if (r0 === "invoices") {
+      // retrieve one invoice with expand[]=confirmation_secret: the client secret of the PaymentIntent Stripe made for it
+      // (made here on first ask for an open invoice that has none yet, as Stripe does at finalisation)
+      if (method === "GET" && r1 && !r2 && ([] as string[]).concat(b.expand ?? []).includes("confirmation_secret")) {
+        const inv = need(r1, "invoice");
+        if (!inv) return err(404, "invalid_request_error", "No such invoice", "resource_missing");
+        let piId = inv.payments.data[0]?.payment?.payment_intent as string | undefined;
+        if (!piId && inv.status === "open") {
+          const pid = id("pi");
+          put({ id: pid, object: "payment_intent", client_secret: `${pid}_secret_fake`, amount: inv.amount_due, currency: "usd", customer: inv.customer, metadata: { invoice: inv.id },
+            livemode, created: clock, status: "requires_payment_method", latest_charge: null, last_payment_error: null });
+          inv.payments.data.push({ object: "invoice_payment", status: "open", payment: { type: "payment_intent", payment_intent: pid } });
+          piId = pid;
+        }
+        const pi = piId ? get(piId) : null;
+        return ok({ ...clone(inv), confirmation_secret: pi ? { client_secret: pi.client_secret, type: "payment_intent" } : null });
+      }
       if (method === "POST" && r1 === "create_preview") {
         const sub = need(b.subscription, "subscription");
         if (!sub) return err(400, "invalid_request_error", "No such subscription", "resource_missing");
@@ -374,6 +395,26 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       return inv;
     },
     finalizeAndPay(invoiceId) { return clone(pay(get(invoiceId)!)); },
+    // the customer confirms a PaymentIntent in Stripe's form: 3D Secure passed, or a new card entered. An invoice's
+    // intent pays that invoice; a pack's intent succeeds on its own. "decline" leaves it unpaid.
+    confirmIntent(piId, card = "ok") {
+      const pi = get(piId)!;
+      if (pi.status === "succeeded") return clone(pi);
+      if (card !== "ok") { pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" }; emit("payment_intent.payment_failed", pi); return clone(pi); }
+      const ch = put({ id: id("ch"), object: "charge", amount: pi.amount, amount_refunded: 0, refunded: false, payment_intent: pi.id, customer: pi.customer, livemode, created: clock });
+      pi.status = "succeeded"; pi.latest_charge = ch.id; pi.last_payment_error = null;
+      const inv = pi.metadata?.invoice ? get(pi.metadata.invoice) : null;
+      if (inv) {
+        const pay0 = inv.payments.data.find((x: Json) => x.payment?.payment_intent === pi.id);
+        if (pay0) pay0.status = "paid";
+        inv.status = "paid"; inv.amount_paid = inv.amount_due;
+        const sub = inv.parent?.subscription_details?.subscription ? get(inv.parent.subscription_details.subscription) : null;
+        if (sub && ["past_due", "incomplete"].includes(sub.status)) { sub.status = "active"; emit("customer.subscription.updated", sub); }
+        emit("invoice.paid", inv);
+      }
+      emit("payment_intent.succeeded", pi);
+      return clone(pi);
+    },
     dispute(paymentIntent) {
       const pi = get(paymentIntent)!;
       const d = put({ id: id("dp"), object: "dispute", amount: pi.amount, currency: "usd", charge: pi.latest_charge, payment_intent: pi.id, status: "needs_response",
