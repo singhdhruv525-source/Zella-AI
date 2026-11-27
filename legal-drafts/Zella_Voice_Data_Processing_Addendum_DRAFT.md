@@ -201,8 +201,8 @@ A3.1.3 Each provider receives only what it needs for its part and is bound by a 
 | Resend (where enabled) | Email delivery | Email addresses and email content |
 | n8n (n8n Cloud) | Scheduled and automatic tasks | Task details and message content while a task runs |
 | Cloudflare | Hosting of the web application | Web traffic, including network addresses |
-| Google and Microsoft (where a Customer connects a calendar) | Calendar sync | Appointment times and titles |
-| Google (Gmail) and Microsoft (Outlook) (where enabled and a Customer connects a mailbox) | Sending the Customer's emails to End Users from the Customer's own mailbox | Email addresses and email content |
+| Google and Microsoft (where a Customer connects a calendar; Google connections are available once Google has approved Zella Voice's application for them) | Calendar sync | Appointment times and titles |
+| Google (Gmail) and Microsoft (Outlook) (where enabled and a Customer connects a mailbox; Google connections are available once Google has approved Zella Voice's application for them) | Sending the Customer's emails to End Users from the Customer's own mailbox | Email addresses and email content |
 | Google (where a Customer connects Ads lead forms or, where enabled, its Business Profile) | Lead intake; review replies | Lead details; review text and replies the Customer approved |
 | Meta (where enabled and connected) | Facebook and Instagram lead ads | Lead details |
 | Shopify (where a store connects it) | Order lookup | The order number and customer contact used for the lookup |
@@ -223,7 +223,7 @@ The main database is hosted in **[DATA HOSTING REGION]**. Providers may process 
 
 ### A3.5 Changes to this list
 
-A3.5.1 Zella Voice will update this list, which is also kept at **[SUBPROCESSOR LIST LOCATION]**,, and notify Owners by email or in the Services, at least **[SUBPROCESSOR CHANGE NOTICE PERIOD]** before a new or replacement Subprocessor begins processing Customer Personal Data.
+A3.5.1 Zella Voice will update this list, which is also kept at **[SUBPROCESSOR LIST LOCATION]**, and notify Owners by email or in the Services, at least **[SUBPROCESSOR CHANGE NOTICE PERIOD]** before a new or replacement Subprocessor begins processing Customer Personal Data, except for an urgent replacement under section A3.5.3.
 
 A3.5.2 A Customer may object on reasonable data protection grounds within that period, as described in section 8.
 

@@ -123,8 +123,8 @@ Schedule 2 (AI and Call Disclosure Policy) of the Zella Voice Terms of Service g
 | Resend (where enabled) | Email delivery |
 | n8n (n8n Cloud) | Scheduled and automatic tasks |
 | Cloudflare | Web hosting |
-| Google and Microsoft (where a Customer connects a calendar) | Calendar sync |
-| Google (Gmail) and Microsoft (Outlook) (where enabled and a Customer connects a mailbox) | Sending the Customer's emails from its own mailbox |
+| Google and Microsoft (where a Customer connects a calendar; Google connections are available once Google has approved Zella Voice's application for them) | Calendar sync |
+| Google (Gmail) and Microsoft (Outlook) (where enabled and a Customer connects a mailbox; Google connections are available once Google has approved Zella Voice's application for them) | Sending the Customer's emails from its own mailbox |
 | Google (where connected or enabled) | Ads lead forms; Business Profile review replies |
 | Meta (where enabled and connected) | Facebook and Instagram lead ads |
 | Shopify (where a store connects it) | Order lookup |

@@ -12,7 +12,7 @@ Last updated: **[LAST UPDATED DATE]**
 
 1.2 Part A applies to people who receive messages. Part B applies to Customers that send messages through the Services, and forms part of the Agreement under section 1.5 of the Zella Voice Terms of Service ("Terms"). Capitalized terms not defined here have the meanings given in section 2 of the Terms.
 
-1.3 **Who emails come from.** An email from a Business comes from the Business's own email address, either on an email domain the Business has verified or through a Gmail or Outlook mailbox the Business has connected. Otherwise it is sent in the Business's name from a Zella Voice no reply address, with replies directed to the Business's email address. Replies go to the Business, not to Zella Voice.
+1.3 **Who emails come from.** An email from a Business comes from the Business's own email address, either on an email domain the Business has verified or through an Outlook mailbox or, once Google has approved Zella Voice's application for Google connections, a Gmail mailbox the Business has connected. Otherwise it is sent in the Business's name from a Zella Voice no reply address, with replies directed to the Business's email address. Replies go to the Business, not to Zella Voice.
 
 ## Part A. Terms for message recipients
 
@@ -100,7 +100,7 @@ Zella Voice may update these Messaging Terms under section 22 of the Terms.
 
 ## 13. Before publishing
 
-This section is for the owner and counsel. Remove it before publishing. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared. For the Gmail wording in section 1.3, blocker 42 follows the recorded publish first path (counsel memo, owner decision 49): this document may be published before Google verification, with the Google connect options hidden until Google approves.
+This section is for the owner and counsel. Remove it before publishing. Do not publish this document until every launch blocker in section 4 of the counsel memo that concerns it has been cleared. Section 1.3 says Gmail is available once Google approves Zella Voice's application, so it makes no promise that depends on Google verification (counsel memo, owner decision 49 and blocker 42).
 
 Placeholders in this document:
 

@@ -220,7 +220,7 @@ Support, service credits and status information are provided under Schedule 4. S
 
 ## 15. Third party services
 
-Customer may connect third party services, such as Google or Microsoft calendars, a Gmail or Outlook mailbox for sending its emails, Shopify, Google Ads lead forms, Google Business Profile and Meta. Customer's use of those services is governed by their terms, and Customer authorizes Zella Voice to exchange Customer Data with them as needed for the connection. Zella Voice is not responsible for third party services, and a change by a third party may require Zella Voice to change or end a connection.
+Customer may connect third party services, such as Microsoft calendars, an Outlook mailbox for sending its emails, Shopify, Google Ads lead forms, Google Business Profile and Meta, and Google calendars and a Gmail mailbox for sending its emails (Google connections are available once Google has approved Zella Voice's application for them). Customer's use of those services is governed by their terms, and Customer authorizes Zella Voice to exchange Customer Data with them as needed for the connection. Zella Voice is not responsible for third party services, and a change by a third party may require Zella Voice to change or end a connection.
 
 ## 16. Suspension
 
