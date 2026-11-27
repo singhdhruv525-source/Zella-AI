@@ -102,7 +102,7 @@ Voicemail prompt: "Please leave your message after the tone. It will be recorded
 
 ### 5.3 Sample messages (from the Services' templates)
 
-1. Booking confirmation: "Hi {first_name}, your {appointment} with {business} is booked for {date} at {time}. Reply STOP to opt out."
+1. Booking confirmation: "Hi {first_name}, your {appointment} with {business} is booked for {date} at {time}. Your confirmation code is {confirmation_code}. Reply STOP to opt out."
 2. Reminder: "Hi {first_name}, a reminder of your {appointment} with {business} on {date} at {time}.{reschedule_line} Reply STOP to opt out."
 3. Missed call: "Hi, this is {business}. We missed your call. Reply here and we will get back to you. Reply STOP to opt out."
 4. Lead acknowledgment: "Hi {first_name}, thanks for getting in touch with {business}. We will be in contact shortly. Reply STOP to opt out."
