@@ -460,6 +460,7 @@ The details for each action are in the separate Owner Action Pack, in the second
 - **[NDA EFFECTIVE DATE, OR IF LEFT BLANK, THE DATE OF THE LAST SIGNATURE BELOW]**
 - **[NDA TERM]**
 - **[CONFIDENTIALITY PERIOD]**
+- **[COUNSEL TO REVIEW THIS NOTICE]**
 - **[GOVERNING LAW AND COURTS]**
 - **[SIGNATORY NAME]**
 - **[SIGNATORY TITLE]**

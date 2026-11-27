@@ -20,8 +20,8 @@ Prepared: **[PACK DATE]**
 
 | Basis | When it fits | What it needs |
 |---|---|---|
-| Use in commerce, Section 1(a) | Services are already offered to customers under the mark in US commerce | Dates of first use anywhere and in commerce, and a specimen for each class showing the mark used for the services |
-| Intent to use, Section 1(b) | Services are not yet offered to the public under the mark | A sworn statement of a bona fide intention to use the mark. After allowance, a statement of use with a specimen, or extensions of time, with fees |
+| Use in commerce, Section 1(a) | Services are actually rendered to customers under the mark in US commerce by the filing date; advertising or offering them is not enough | Dates of first use anywhere and in commerce, and a specimen for each class showing the mark used for the services |
+| Intent to use, Section 1(b) | Services are not yet rendered under the mark, including services that are advertised or offered but not yet rendered | A sworn statement of a bona fide intention to use the mark. After allowance, a statement of use with a specimen, or extensions of time, with fees |
 
 The product source documents say Zella Voice has not launched to real customers yet. **[COUNSEL TO CHOOSE THE FILING BASIS FOR EACH CLASS]**
 
