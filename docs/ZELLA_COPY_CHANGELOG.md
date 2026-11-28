@@ -3,9 +3,9 @@
 ## 28 November 2026: every screen and pop up checked in a browser (Writing Skills plugin, Microsoft style)
 
 A crawl signed in as every test role (Zella Voice owner, read only admin, business owner, staff, viewer, public) on an
-isolated copy of today's schema, opened 342 pages (every admin and CRM page, all 74 admin and 94 CRM settings pages, the
-public pages, and the main pages at phone width) and 30 pop ups, and ran the plugin's Verify checklist over 7,000 lines
-of text. The house voice wins where the two differ (no serial comma, "Zella Voice" in full).
+isolated copy of today's schema, opened 241 pages (every admin and CRM page, all 74 admin and 94 CRM settings pages and the
+public pages), 70 page views at phone width and 19 pop ups, and ran the plugin's Verify checklist over 4,374 distinct
+lines of text. Pop ups that only open after a choice inside another dialog weren't reached. The house voice wins where the two differ (no serial comma, "Zella Voice" in full).
 
 | Found | Fixed |
 |---|---|
