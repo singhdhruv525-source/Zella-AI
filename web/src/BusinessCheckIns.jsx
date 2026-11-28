@@ -65,9 +65,8 @@ const Card = ({ a, column, data, working, nowMs, onOpenPerson, tz, staffName, st
         <span className="ba-item-time">{formatTime(a.start_time, tz)}</span>
       </div>
       <div className="ba-item-meta">
-        <span>{a.title}</span>
-        {a.party_size && <span>· party of {a.party_size}</span>}
-        {column === "waiting" && <Pill tone="success">{sub} · waiting {Math.max(0, Math.round((nowMs - new Date(a.checked_in_at ?? a.arrived_at).getTime()) / 60000))} min</Pill>}
+        <span>{a.title}{a.party_size ? `, party of ${a.party_size}` : ""}</span>
+        {column === "waiting" && <Pill tone="success">{sub}, waiting {Math.max(0, Math.round((nowMs - new Date(a.checked_in_at ?? a.arrived_at).getTime()) / 60000))} min</Pill>}
         {column === "service" && <Pill tone="info">With {staffName[a.staff_id] ?? "the team"} since {formatTime(a.in_service_at, tz)}</Pill>}
         {lateNow && <Pill tone="danger">{late} min late</Pill>}
         {arrivedLate && <Pill tone="warning">Arrived {late} min late</Pill>}
@@ -87,7 +86,7 @@ const Card = ({ a, column, data, working, nowMs, onOpenPerson, tz, staffName, st
 
       {reasonFor?.id === a.id ? (
         <ReasonForm kind={reasonFor.kind} busy={busy} onCancel={() => setReasonFor(null)}
-          onSubmit={(reason) => act(a, reasonFor.kind, `${a.title} ${reasonFor.kind === "cancelled" ? "cancelled" : "marked no show"}.`, { reason })} />
+          onSubmit={(reason) => act(a, reasonFor.kind, `${a.title} ${reasonFor.kind === "cancelled" ? "canceled" : "marked no show"}.`, { reason })} />
       ) : (
         <div className="ba-item-actions">
           {column === "expected" && (
@@ -113,7 +112,7 @@ const Card = ({ a, column, data, working, nowMs, onOpenPerson, tz, staffName, st
           {column !== "done" && person?.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />Call</a>}
           {column !== "done" && person?.phone && !person.do_not_sms && !person.do_not_contact && <a className="ba-btn sm" href={`sms:${person.phone}`}><Icon name="sms" size="sm" />Text</a>}
           {column === "expected" && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => setMoving(a)}><Icon name="event_repeat" size="sm" />Reschedule</button>}
-          {column === "expected" && started && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "no_show" })}>no show</button>}
+          {column === "expected" && started && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "no_show" })}>No show</button>}
           {(column === "expected" || column === "waiting") && <button type="button" className="ba-btn sm danger-outline" disabled={busy} onClick={() => setReasonFor({ id: a.id, kind: "cancelled" })}>Cancel</button>}
         </div>
       )}

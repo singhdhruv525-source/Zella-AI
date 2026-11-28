@@ -77,7 +77,7 @@ export function ApprovalsPage({ workspace, refreshKey, onNotice }) {
                 <span className="ba-thread-icon"><Icon name="verified_user" size="sm" /></span>
                 <div>
                   <strong>{words(a.action)}</strong>
-                  <small>Asked {timeAgo(a.created_at)}{a.mine ? " by you" : ""} · expires {timeAgo(a.expires_at)}</small>
+                  <small>Asked {timeAgo(a.created_at)}{a.mine ? " by you" : ""}, expires {timeAgo(a.expires_at)}</small>
                 </div>
                 <div className="ba-thread-meta">
                   {a.mine ? <Pill tone="warning">Needs another person</Pill> : (
@@ -276,7 +276,7 @@ export function AccessPage({ workspace, refreshKey, onNotice, userId }) {
               {data.invites.map((i) => (
                 <li key={i.id}>
                   <span className="ba-thread-icon"><Icon name="mail" size="sm" /></span>
-                  <div><strong>{i.email}</strong><small>{words(i.role)} · invited {timeAgo(i.invited_at)}{i.status === "expired" ? " · expired" : ""}{i.last_error ? ` · ${i.last_error}` : ""}</small></div>
+                  <div><strong>{i.email}</strong><small>{words(i.role)}, invited {timeAgo(i.invited_at)}{i.status === "expired" ? ", expired" : ""}{i.last_error ? `, ${i.last_error}` : ""}</small></div>
                   <div className="ba-thread-meta">
                     <button type="button" className="ba-btn sm" disabled={resending === i.id} onClick={() => resend(i)}>Send again</button>
                     <button type="button" className="ba-btn sm" disabled={resending === i.id} onClick={() => act("zella_cancel_invitation", { p_invitation_id: i.id }, "Invitation canceled.")}>Cancel</button>
@@ -316,7 +316,7 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
 
   return (
     <>
-      <PageHead crumb="Calls and messages / Sending failed" title="Sending failed" sub="Follow ups, appointment reminders and social messages that Zella Voice tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then retry." />
+      <PageHead crumb="Calls and messages / Sending failed" title="Sending failed" sub="Follow ups, appointment reminders and social messages that Zella Voice tried to send in the last 7 days but couldn't. Fix the cause first (for example, reconnect the account), then send again." />
       <Notice error={error} onRetry={reload} />
       <section className="ba-panel">
         {loading || error || !data ? <p className="ba-muted">{loading ? "Loading…" : "Failed messages unavailable"}</p> : !rows.length ? (
@@ -326,8 +326,8 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
             {rows.map((r) => (
               <li key={`${r.kind}-${r.id}`}>
                 <span className="ba-thread-icon"><Icon name="error" size="sm" /></span>
-                <div><strong>{r.label}{r.channel ? ` by ${humanize(r.channel).toLowerCase()}` : ""}</strong><small>{words(r.outcome || r.error || r.kind)} · {timeAgo(r.at || r.due_at)}</small></div>
-                <div className="ba-thread-meta"><button type="button" className="ba-btn sm" onClick={() => retry(r)}>Retry sending</button></div>
+                <div><strong>{r.label}{r.channel ? ` by ${humanize(r.channel).toLowerCase()}` : ""}</strong><small>{words(r.outcome || r.error || r.kind)}, {timeAgo(r.at || r.due_at)}</small></div>
+                <div className="ba-thread-meta"><button type="button" className="ba-btn sm" onClick={() => retry(r)}>Send again</button></div>
               </li>
             ))}
           </ul>
@@ -357,7 +357,7 @@ export function SecurityLogPage({ workspace, refreshKey }) {
             {data.map((a) => (
               <li key={a.id}>
                 <span className="ba-thread-icon"><Icon name="history" size="sm" /></span>
-                <div><strong>{words(a.action)}</strong><small>{a.who} · {timeAgo(a.at)}</small></div>
+                <div><strong>{words(a.action)}</strong><small>{a.who}, {timeAgo(a.at)}</small></div>
                 <div className="ba-thread-meta">{a.entity_type && <Pill>{words(a.entity_type)}</Pill>}</div>
               </li>
             ))}

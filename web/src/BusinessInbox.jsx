@@ -27,7 +27,7 @@ function Bubble({ m, tz }) {
     <div className={`ba-msg ${mine ? "mine" : ""} ${m.sender_type}`}>
       <b>{m.sender_type === "customer" ? "Customer" : m.sender_type === "ai" ? "AI receptionist" : "Team"}</b>
       <p>{m.content}</p>
-      <small>{formatDay(m.created_at, tz)} · {formatTime(m.created_at, tz)}{m.metadata?.delivery === "queued" ? " · queued to send" : ""}</small>
+      <small>{formatDay(m.created_at, tz)}, {formatTime(m.created_at, tz)}{m.metadata?.delivery === "queued" ? ", queued to send" : ""}</small>
     </div>
   );
 }
@@ -102,13 +102,13 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
         <button type="button" className="ba-btn sm ba-inbox-back" onClick={onBack}><Icon name="arrow_back" size="sm" />Back</button>
         <div>
           <strong>{person ? <button type="button" className="ba-namebtn strong" onClick={() => onOpenPerson(person.id)}>{name}</button> : name}</strong>
-          <small><Icon name={icon} size="sm" />{channelName}{c.subject ? ` · ${c.subject}` : ""}</small>
+          <small><Icon name={icon} size="sm" />{channelName}{c.subject ? `, ${c.subject}` : ""}</small>
         </div>
         <div className="ba-kn-head">
-          {c.ai_handled ? <Pill tone="indigo">AI is handling this</Pill> : <Pill tone="warning">A person is handling this</Pill>}
+          {c.ai_handled ? <Pill tone="indigo">Your AI receptionist is handling this</Pill> : <Pill tone="warning">A person is handling this</Pill>}
           <button type="button" className="ba-btn sm" disabled={Boolean(busy) || !conversationReady}
             onClick={() => run("handover", () => supabase.rpc("zella_inbox_handover", { p_conversation_id: c.id, p_to_ai: !c.ai_handled }), c.ai_handled ? "You took over from the AI receptionist." : "Handed back to the AI receptionist.")}>
-            {c.ai_handled ? "Take over from AI" : "Hand back to AI"}
+            {c.ai_handled ? "Take over" : "Hand back to AI receptionist"}
           </button>
         </div>
       </header>
@@ -145,7 +145,7 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
 
       {data?.notes.length > 0 && (
         <ul className="ba-internal">
-          {data.notes.map((n) => <li key={n.id}><b>{n.author_name ?? "Team"}</b> <small>{formatDay(n.created_at, tz)} · {formatTime(n.created_at, tz)}</small><p>{n.body}</p></li>)}
+          {data.notes.map((n) => <li key={n.id}><b>{n.author_name ?? "Team"}</b> <small>{formatDay(n.created_at, tz)}, {formatTime(n.created_at, tz)}</small><p>{n.body}</p></li>)}
         </ul>
       )}
 
@@ -158,7 +158,7 @@ function ConversationPane({ item, person, personStatus, workspace, roster, integ
             <textarea rows={3} value={body} onChange={(e) => setBody(e.target.value)} placeholder={`Reply by ${channelName.toLowerCase()} to ${name}`} aria-label="Reply" />
             <div className="ba-form-actions">
               <button type="submit" className="ba-btn primary sm" disabled={!body.trim() || Boolean(busy)}><Icon name="send" size="sm" />{busy === "send" ? "Sending…" : "Send reply"}</button>
-              <span className="ba-muted">{c.ai_handled ? "Replying also takes over from the AI." : ""}</span>
+              <span className="ba-muted">{c.ai_handled ? "Replying also takes over from your AI receptionist." : ""}</span>
             </div>
           </>
         )}
@@ -213,7 +213,7 @@ function CallPane({ item, person, workspace, onChanged, onNotice, onOpenPerson, 
         <button type="button" className="ba-btn sm ba-inbox-back" onClick={onBack}><Icon name="arrow_back" size="sm" />Back</button>
         <div>
           <strong>{person ? <button type="button" className="ba-namebtn strong" onClick={() => onOpenPerson(person.id)}>{personName(person)}</button> : call.from_number ?? "Unknown caller"}</strong>
-          <small><Icon name={missed ? "phone_missed" : "call"} size="sm" />{missed ? "Missed call" : `${call.ai_handled ? "AI answered" : "Team answered"} · ${clock(call.duration_seconds)}`} · {formatDay(item.at, tz)} · {formatTime(item.at, tz)}</small>
+          <small><Icon name={missed ? "phone_missed" : "call"} size="sm" />{missed ? "Missed call" : `${call.ai_handled ? "AI receptionist answered" : "Team answered"}, ${clock(call.duration_seconds)}`}, {formatDay(item.at, tz)}, {formatTime(item.at, tz)}</small>
         </div>
         <div className="ba-kn-head">
           {isOpenEscalation(call) && <Pill tone="danger">Needs a person</Pill>}
@@ -340,13 +340,13 @@ export function InboxPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
                 <span className={`ba-thread-icon ${missed ? "bad" : ""}`}><Icon name={missed ? "phone_missed" : (CHANNEL[ch] ?? CHANNEL.other)[0]} size="sm" /></span>
                 <span className="ba-inbox-text">
                   <span className="ba-inbox-line"><strong>{label}</strong><time title={`${formatDay(i.at, tz)} ${formatTime(i.at, tz)}`}>{timeAgoLabel(i.at)}</time></span>
-                  <small>{isCall ? (missed ? "Missed call" : i.call.summary || (isAnswered(i.call.status) ? `${i.call.ai_handled ? "AI answered" : "Team answered"} · ${clock(i.call.duration_seconds)}` : `Call ${callResult(i.call.status).label.toLowerCase()}`))
+                  <small>{isCall ? (missed ? "Missed call" : i.call.summary || (isAnswered(i.call.status) ? `${i.call.ai_handled ? "AI receptionist answered" : "Team answered"}, ${clock(i.call.duration_seconds)}` : `Call ${callResult(i.call.status).label.toLowerCase()}`))
                     : snippet || (previews.error ? "Preview unavailable" : i.convo.subject || `${(CHANNEL[ch] ?? CHANNEL.other)[1]} conversation`)}</small>
                   <span className="ba-inbox-tags">
                     {unread && <i className="ba-dot" aria-label="Unread" />}
                     {needsHuman(i) && <Pill tone="danger">Needs a person</Pill>}
                     {priority && priority !== "normal" && <Pill tone={PRIORITY_TONE[priority]}>{priority === "urgent" ? "Urgent" : "High"}</Pill>}
-                    {!isCall && i.convo.ai_handled && <Pill tone="indigo">AI</Pill>}
+                    {!isCall && i.convo.ai_handled && <Pill tone="indigo">AI receptionist</Pill>}
                     {!isCall && i.convo.assigned_to && <Assignee id={i.convo.assigned_to} nameOf={roster.nameOf} />}
                   </span>
                 </span>

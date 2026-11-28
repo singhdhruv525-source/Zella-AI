@@ -36,7 +36,7 @@ test("credits, checklists and dates read plainly", () => {
   assert.equal(creditBalance([{ kind: "grant", units: 5 }, { kind: "use", units: 2 }, { kind: "refund", units: 1 }, { kind: "expire", units: 1 }]), 3);
   assert.equal(creditBalance(null), 0);
   assert.deepEqual(inspectionProgress([{ label: "a", result: "pass" }, { label: "b", result: "fail" }, { label: "c" }]),
-    { answered: 2, failed: 1, total: 3, complete: false, text: "2 of 3 checked · 1 failed" });
+    { answered: 2, failed: 1, total: 3, complete: false, text: "2 of 3 checked, 1 failed" });
   assert.equal(inspectionProgress([{ label: "a", result: "na" }]).complete, true);
   assert.equal(inspectionProgress([]).complete, false);
   assert.equal(dueText("2026-11-07", "2026-11-07"), "Due today");

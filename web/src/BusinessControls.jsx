@@ -116,7 +116,7 @@ function AutomationCard({ row, role, live, canManage, recommended, runs, audits,
         <div><dt>When</dt><dd>{info.trigger}</dd></div>
         <div><dt>Only if</dt><dd>{info.conditions}</dd></div>
         <div><dt>Then</dt><dd>{info.actions}</dd></div>
-        <div><dt>Next run</dt><dd>{historyFailed ? "Run history unavailable" : row.status !== "active" ? "Not scheduled" : nextRun ? `${formatDay(nextRun, tz)} · ${formatTime(nextRun, tz)}` : "Runs when something triggers it"}</dd></div>
+        <div><dt>Next run</dt><dd>{historyFailed ? "Run history unavailable" : row.status !== "active" ? "Not scheduled" : nextRun ? `${formatDay(nextRun, tz)}, ${formatTime(nextRun, tz)}` : "Runs when something triggers it"}</dd></div>
         <div><dt>Last run</dt><dd>{historyFailed ? "Run history unavailable" : lastRun ? <><Pill tone={RUN_TONE[lastRun.status]}>{RUN_LABEL[lastRun.status] ?? lastRun.status}</Pill> {timeAgo(lastRun.started_at ?? lastRun.created_at)}</> : "Hasn't run yet"}</dd></div>
       </dl>
       <div className="ba-auto-links">
@@ -238,8 +238,8 @@ export function AutomationsPage({ workspace, refreshKey, onNotice }) {
           </div>
           <p className="ba-muted ba-auto-summary">
             {data?.runsFailed ? "Run history unavailable" : `Last 7 days: ${doneRuns} ${doneRuns === 1 ? "run" : "runs"} finished, ${failedRuns} failed`}
-            {follows.length > 0 ? ` · follow up calls: ${waiting} waiting, ${rebooked} rebooked, ${unanswered} unanswered` : ""}
-            {workspace.industry ? " · Marked “Preferred for this business”: the ones that suit your industry." : ""}
+            {follows.length > 0 ? `, follow up calls: ${waiting} waiting, ${rebooked} rebooked, ${unanswered} unanswered` : ""}
+            {workspace.industry ? ", Marked “Preferred for this business”: the ones that suit your industry." : ""}
           </p>
         </>
       )}

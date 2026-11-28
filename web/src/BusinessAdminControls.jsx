@@ -170,7 +170,7 @@ export function BusinessRecordsCard({ businessId, canEdit = false }) {
             <span className="ir-icon"><Icon name={t.icon || "folder"} /></span>
             <div>
               <strong>{t.plural}</strong>
-              <small>{t.records} record{t.records === 1 ? "" : "s"}{!draft[t.key] && t.records ? " · kept while hidden" : ""}</small>
+              <small>{t.records} record{t.records === 1 ? "" : "s"}{!draft[t.key] && t.records ? ", kept while hidden" : ""}</small>
             </div>
             {t.preset_key && <Pill>{humanize(t.preset_key)}</Pill>}
             <Switch on={Boolean(draft[t.key])} label={t.plural} disabled={!canEdit || saving} onChange={(on) => setDraft({ ...draft, [t.key]: on })} />

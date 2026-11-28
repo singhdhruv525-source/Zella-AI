@@ -115,7 +115,7 @@ function SpamKpi({ workspace, day, tz, refresh, onOpen }) {
               {change.arrow && <Icon name={change.arrow} size="sm" />}{change.text}
             </span>
           )}
-          {!state.loading && !d && <span className="td-trend">{state.missing ? "Not set up yet" : "Couldn't load"}</span>}
+          {!state.loading && !d && <span className="td-trend">{state.missing ? "Not set up yet" : "Didn't load"}</span>}
         </div>
       </div>
     </button>
@@ -177,13 +177,13 @@ function WeekChart({ week, loading, selected, onOpen }) {
               <li key={d.date} className={d.date === selected ? "on" : ""}>
                 <span className="td-week-n">{d.total}</span>
                 <span className="td-week-bar" style={{ "--h": `${Math.round((d.total / max) * 100)}%` }}
-                  role="img" aria-label={`${weekday(d.date)}: ${d.total} calls, ${d.ai} answered by AI, ${d.missed} missed`}
-                  title={`${d.total} calls · ${d.ai} by AI · ${d.missed} missed`} />
+                  role="img" aria-label={`${weekday(d.date)}: ${d.total} calls, ${d.ai} answered by your AI receptionist, ${d.missed} missed`}
+                  title={`${d.total} calls, ${d.ai} by your AI receptionist, ${d.missed} missed`} />
                 <span className="td-week-day">{weekday(d.date)}</span>
               </li>
             ))}
           </ul>
-          <p className="td-week-sum">{total} {total === 1 ? "call" : "calls"} · {week.reduce((n, d) => n + d.ai, 0)} answered by AI · {week.reduce((n, d) => n + d.missed, 0)} missed</p>
+          <p className="td-week-sum">{total} {total === 1 ? "call" : "calls"}, {week.reduce((n, d) => n + d.ai, 0)} answered by your AI receptionist, {week.reduce((n, d) => n + d.missed, 0)} missed</p>
         </>
       ) : (
         <Empty title={loading ? "Loading…" : "No calls in the last 7 days"}>{!loading && "Each day's calls appear here as a bar."}</Empty>
@@ -204,7 +204,7 @@ function WorkCard({ work, operations, loading, wide, onGo }) {
               <span className="ba-kpi-icon"><Icon name={w.icon || "folder"} size="sm" /></span>
               <div>
                 <button type="button" className="ba-namebtn" onClick={() => onGo(`rec:${w.key}`)}>{w.plural}</button>
-                <small>{w.open} open{w.due_today ? ` · ${w.due_today} due today` : ""}{w.unassigned ? ` · ${w.unassigned} unassigned` : ""}</small>
+                <small>{w.open} open{w.due_today ? `, ${w.due_today} due today` : ""}{w.unassigned ? `, ${w.unassigned} unassigned` : ""}</small>
               </div>
               {w.overdue > 0 && <Pill tone="danger">{w.overdue} overdue</Pill>}
             </li>
@@ -241,8 +241,8 @@ function NeedsRecordCard({ workspace, tz, canEdit, onGo, onNotice }) {
       <ul className="td-list">
         {rows.slice(0, 6).map((r) => (
           <li key={r.appointment_id}>
-            <div><strong>{r.title}</strong><small>{formatLongDate(r.start_time, tz)} · {formatTime(r.start_time, tz)}
-              {r.suggested ? ` · ${r.suggested.title}?` : ` · ${r.choices.length} on file`}</small></div>
+            <div><strong>{r.title}</strong><small>{formatLongDate(r.start_time, tz)}, {formatTime(r.start_time, tz)}
+              {r.suggested ? `, ${r.suggested.title}?` : `, ${r.choices.length} on file`}</small></div>
             {canEdit && r.suggested && <button type="button" className="ba-btn sm" onClick={() => confirm(r.appointment_id)}>Confirm</button>}
           </li>
         ))}
@@ -470,7 +470,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
       <div className="ba-page-head td-head">
         <div>
           {/* The page or the day as the title, then the date, then the business on a quieter line
-              (approved 25 Nov 2026, changes 1 and 2; no "A · B" meta line, owner 25 Nov 2026) */}
+              (approved 25 Nov 2026, changes 1 and 2; no "A, B" meta line, owner 25 Nov 2026) */}
           <h1>{isToday ? "Today" : dayLabel}</h1>
           {isToday && <p>{formatLongDate(dayBounds(day, tz).start, tz)}</p>}
           <p className="td-head-biz">{workspace.name}</p>
@@ -536,12 +536,12 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
                     const staffName = showStaff ? data.staff[a.staff_id] ?? "Not set" : "";
                     // on a phone the folded columns read under the name instead
                     const folded = [showGuests ? (a.party_size ? `${a.party_size} ${term("customers").toLowerCase()}` : `${term("customers")}: None`) : "",
-                      tablesOn && (a.table_ids ?? []).length ? `Table ${tableName}` : "", showStaff && a.staff_id ? staffName : ""].filter(Boolean).join(" · ");
+                      tablesOn && (a.table_ids ?? []).length ? `Table ${tableName}` : "", showStaff && a.staff_id ? staffName : ""].filter(Boolean).join(", ");
                     return (
                       <tr key={a.id}>
                         <td className="td-time">{formatTime(a.start_time, tz)}{mins ? <small>{mins} min</small> : null}</td>
                         <td>{person(a.customer?.id, personName(a.customer) ?? a.title)}
-                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? " · " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? ` · for ${a.forTitle}` : ""}</small>
+                          <small className="td-sub">{srcIcon && <Icon name={srcIcon} size="sm" />} {src !== "None" ? src : ""}{src !== "None" && personName(a.customer) && a.title ? ", " : ""}{personName(a.customer) ? a.title : ""}{a.forTitle ? `, for ${a.forTitle}` : ""}</small>
                           {folded && <small className="td-sub td-folded">{folded}</small>}
                           {note && <small className="td-sub td-folded td-folded-note">{note}</small>}
                           <span className="td-folded td-folded-status"><Pill tone={tone}>{stageLabel}</Pill>
@@ -559,7 +559,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
                             {canEdit && a.stage === "upcoming" && a.status === "scheduled" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "confirmed", `${oneBooking} confirmed.`)} title="Confirm" aria-label="Confirm"><Icon name="check" size="sm" /></button>}
                             {canEdit && checkinsOn && ["upcoming", "late"].includes(a.stage) && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title={cfg.arrived} aria-label={`Mark ${cfg.arrived.toLowerCase()}`}><Icon name="how_to_reg" size="sm" /></button>}
                             {canEdit && a.stage === "upcoming" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setMoving(a)} title="Reschedule" aria-label="Reschedule"><Icon name="event_repeat" size="sm" /></button>}
-                            {canEdit && a.stage === "late" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => markNoShow(a)} title="no show" aria-label="Mark no show"><Icon name="person_off" size="sm" /></button>}
+                            {canEdit && a.stage === "late" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => markNoShow(a)} title="Mark no show" aria-label="Mark no show"><Icon name="person_off" size="sm" /></button>}
                             {canEdit && a.stage === "arrived" && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => setStatus(a, "completed", `${oneBooking} completed.`)} title="Mark completed" aria-label="Mark completed"><Icon name="task_alt" size="sm" /></button>}
                             {canEdit && checkinsOn && a.stage === "arrived" && a.checked_in_at && <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkIn(a)} title="Undo" aria-label={`Undo ${cfg.arrived.toLowerCase()}`}><Icon name="undo" size="sm" /></button>}
                           </div>
@@ -666,7 +666,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
               {data.upcoming.map((a) => (
                 <li key={a.id}>
                   <span className="ba-kpi-icon"><Icon name="event" size="sm" /></span>
-                  <div><strong>{personName(a.customer) ?? a.title}</strong><small>{formatLongDate(a.start_time, tz)} · {formatTime(a.start_time, tz)}{a.party_size ? ` · ${a.party_size} ${term("customers").toLowerCase()}` : ""}</small></div>
+                  <div><strong>{personName(a.customer) ?? a.title}</strong><small>{formatLongDate(a.start_time, tz)}, {formatTime(a.start_time, tz)}{a.party_size ? `, ${a.party_size} ${term("customers").toLowerCase()}` : ""}</small></div>
                 </li>
               ))}
             </ul>

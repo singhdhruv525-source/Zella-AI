@@ -107,12 +107,12 @@ function RequestRow({ request, person, workspace, onDone, onNotice, onOpenPerson
   return (
     <li className="ba-list-row">
       <div>
-        <strong>{label}{onOpenPerson && request.customer_id ? <> · <button type="button" className="ba-link" onClick={() => onOpenPerson(request.customer_id)}>{who}</button></> : ""}</strong>
+        <strong>{label}{onOpenPerson && request.customer_id ? <>, <button type="button" className="ba-link" onClick={() => onOpenPerson(request.customer_id)}>{who}</button></> : ""}</strong>
         <small>
           Logged {formatDay(request.created_at, workspace.timezone)}
-          {request.status === "open" ? ` · due ${formatDay(request.due_at, workspace.timezone)}` : ` · ${request.status === "done" ? "done" : "turned down"} ${formatDay(request.handled_at, workspace.timezone)}`}
-          {request.requester_contact ? ` · ${request.requester_contact}` : ""}
-          {request.note ? ` · ${request.note}` : ""}
+          {request.status === "open" ? `, due ${formatDay(request.due_at, workspace.timezone)}` : `, ${request.status === "done" ? "done" : "turned down"} ${formatDay(request.handled_at, workspace.timezone)}`}
+          {request.requester_contact ? `, ${request.requester_contact}` : ""}
+          {request.note ? `, ${request.note}` : ""}
         </small>
         {problem && <small className="ba-error" role="alert">{problem}</small>}
       </div>

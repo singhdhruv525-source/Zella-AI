@@ -84,11 +84,11 @@ export function RecordWorkflow({ workspace, type, record, onNotice }) {
                 const expired = a.status === "requested" && a.expires_on && a.expires_on < today;
                 return (
                   <li key={a.id} data-approval={a.title}>
-                    <strong>{a.title}</strong> · {APPROVAL_LABEL[a.kind] ?? a.kind}{a.amount_minor ? ` · ${showMoney(a.amount_minor, a.currency)}` : ""}
+                    <strong>{a.title}</strong>, {APPROVAL_LABEL[a.kind] ?? a.kind}{a.amount_minor ? `, ${showMoney(a.amount_minor, a.currency)}` : ""}
                     {" "}<Pill tone={expired ? "danger" : tone}>{expired ? "Expired" : label}</Pill>
                     <small>
-                      {a.status === "requested" ? `Asked ${timeAgo(a.requested_at)}${a.expires_on ? ` · Answer by ${day(a.expires_on)}` : ""}` : a.decided_at
-                        ? `${METHOD_LABEL[a.method] ?? a.method} · ${timeAgo(a.decided_at)}` : `Updated ${timeAgo(a.updated_at)}`}
+                      {a.status === "requested" ? `Asked ${timeAgo(a.requested_at)}${a.expires_on ? `, Answer by ${day(a.expires_on)}` : ""}` : a.decided_at
+                        ? `${METHOD_LABEL[a.method] ?? a.method}, ${timeAgo(a.decided_at)}` : `Updated ${timeAgo(a.updated_at)}`}
                     </small>
                     {a.status === "requested" && (
                       <span className="ba-row-actions">
@@ -113,7 +113,7 @@ export function RecordWorkflow({ workspace, type, record, onNotice }) {
           <ul className="ba-history" data-list="milestones">
             {open.map((m) => (
               <li key={m.id} data-milestone={m.title}>
-                <strong>{m.title}</strong> · {MILESTONE_LABEL[m.kind] ?? m.kind} · {day(m.due_on)}
+                <strong>{m.title}</strong>, {MILESTONE_LABEL[m.kind] ?? m.kind}, {day(m.due_on)}
                 {" "}<Pill tone={m.due_on < today ? "danger" : m.due_on === today ? "warning" : ""}>{dueText(m.due_on, today)}</Pill>
                 {canWork && (
                   <span className="ba-row-actions">
@@ -137,7 +137,7 @@ export function RecordWorkflow({ workspace, type, record, onNotice }) {
             <ul className="ba-history" data-list="inspections">
               {d.inspections.map((x) => (
                 <li key={x.id} data-inspection={x.outcome}>
-                  <strong>{x.title}</strong> · {inspectionProgress(x.items).text}
+                  <strong>{x.title}</strong>, {inspectionProgress(x.items).text}
                   {" "}<Pill tone={x.outcome === "passed" ? "success" : x.outcome === "failed" ? "danger" : "warning"}>{{ passed: "Passed", failed: "Failed", in_progress: "In progress" }[x.outcome]}</Pill>
                   <small>{x.finished_at ? `Finished ${timeAgo(x.finished_at)}` : `Started ${timeAgo(x.started_at)}`}</small>
                   {canWork && x.outcome === "in_progress" && <span className="ba-row-actions"><button type="button" className="ba-btn sm" onClick={() => setModal({ inspect: x })}>Continue</button></span>}
@@ -155,7 +155,7 @@ export function RecordWorkflow({ workspace, type, record, onNotice }) {
           <ul className="ba-history" data-list="exceptions">
             {openExceptions.map((e) => (
               <li key={e.id} data-exception={e.kind}>
-                <strong>{EXCEPTION_LABEL[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}
+                <strong>{EXCEPTION_LABEL[e.kind] ?? e.kind}</strong>{e.detail ? `, ${e.detail}` : ""}
                 {e.expected_by && <> {" "}<Pill tone={e.expected_by < today ? "danger" : "warning"}>{e.expected_by < today ? `expected ${day(e.expected_by)}: late` : `expected ${day(e.expected_by)}`}</Pill></>}
                 <small>Opened {timeAgo(e.opened_at)}</small>
                 {canWork && <span className="ba-row-actions"><button type="button" className="ba-btn sm" disabled={act.busy} onClick={() => setModal({ resolve: e })}>Resolved</button></span>}
@@ -169,7 +169,7 @@ export function RecordWorkflow({ workspace, type, record, onNotice }) {
       {parts.credits && (
         <section aria-label="Credits">
           <h3 className="ba-h3">Credits</h3>
-          <p data-balance={balance}><strong>{balance} {unit} left</strong>{d.credits.length > 0 && <span className="ba-muted"> · {d.credits.length} entries</span>}</p>
+          <p data-balance={balance}><strong>{balance} {unit} left</strong>{d.credits.length > 0 && <span className="ba-muted">, {d.credits.length} entries</span>}</p>
           {canWork && (
             <div className="ba-row-actions">
               <button type="button" className="ba-btn sm" disabled={act.busy || balance < 1} onClick={() => setModal({ credit: "use" })}>Use</button>
@@ -413,7 +413,7 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
               <h2 className="ba-h3">Waiting for approval ({d.approvals.length})</h2>
               {d.approvals.length === 0 ? <Empty icon="task_alt" title="Nothing waiting" /> : (
                 <ul className="ba-history">{d.approvals.map((a) => (
-                  <li key={a.id}><strong>{a.title}</strong> · {typeName(a.type_key)}: {a.record}{a.amount_minor ? ` · ${showMoney(a.amount_minor, a.currency)}` : ""}
+                  <li key={a.id}><strong>{a.title}</strong>, {typeName(a.type_key)}: {a.record}{a.amount_minor ? `, ${showMoney(a.amount_minor, a.currency)}` : ""}
                     {a.expired ? <> <Pill tone="danger">Expired</Pill></> : a.expires_on ? <> <Pill tone="warning">Answer by {day(a.expires_on)}</Pill></> : null}
                     <small>{APPROVAL_LABEL[a.kind] ?? humanize(a.kind)}, asked {timeAgo(a.requested_at)}</small></li>))}
                 </ul>
@@ -424,8 +424,8 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
             <h2 className="ba-h3">Dates coming up ({d.milestones.length})</h2>
             {d.milestones.length === 0 ? <Empty icon="event_available" title={`Nothing due in the next ${d.days} days`} /> : (
               <ul className="ba-history">{d.milestones.map((m) => (
-                <li key={m.id}><strong>{m.title}</strong> · {typeName(m.type_key)}: {m.record} <Pill tone={m.overdue ? "danger" : m.due_on === today ? "warning" : ""}>{dueText(m.due_on, today)}</Pill>
-                  <small>{MILESTONE_LABEL[m.kind] ?? m.kind}{m.staff ? ` · ${m.staff}` : ""}</small></li>))}
+                <li key={m.id}><strong>{m.title}</strong>, {typeName(m.type_key)}: {m.record} <Pill tone={m.overdue ? "danger" : m.due_on === today ? "warning" : ""}>{dueText(m.due_on, today)}</Pill>
+                  <small>{MILESTONE_LABEL[m.kind] ?? m.kind}{m.staff ? `, ${m.staff}` : ""}</small></li>))}
               </ul>
             )}
           </section>
@@ -433,7 +433,7 @@ export function FollowThroughPage({ workspace, types, refreshKey }) {
             <h2 className="ba-h3">Problems holding work up ({d.exceptions.length})</h2>
             {d.exceptions.length === 0 ? <Empty icon="check_circle" title="Nothing flagged" /> : (
               <ul className="ba-history">{d.exceptions.map((e) => (
-                <li key={e.id}><strong>{EXCEPTION_LABEL[e.kind] ?? e.kind}</strong> · {typeName(e.type_key)}: {e.record}{e.detail ? ` · ${e.detail}` : ""}
+                <li key={e.id}><strong>{EXCEPTION_LABEL[e.kind] ?? e.kind}</strong>, {typeName(e.type_key)}: {e.record}{e.detail ? `, ${e.detail}` : ""}
                   {e.expected_by && <> <Pill tone={e.late ? "danger" : "warning"}>{e.late ? "late" : `expected ${day(e.expected_by)}`}</Pill></>}
                   <small>Opened {timeAgo(e.opened_at)}</small></li>))}
               </ul>

@@ -126,7 +126,7 @@ export function SwitcherSheet({ workspace, workspaces, canManage, onSwitch, onGo
             {others.map((w) => (
               <button key={w.id} type="button" className="pn-row-link" onClick={() => { onClose(); onSwitch(w.id); }}>
                 <span className="ba-switcher-logo sm" aria-hidden="true">{initialsOf(w.name)}</span>
-                <span>{w.name}<small className="ba-muted"> · {w.industry ?? "Industry not set"}</small></span>
+                <span>{w.name}<small className="ba-muted">, {w.industry ?? "Industry not set"}</small></span>
               </button>
             ))}
           </div>

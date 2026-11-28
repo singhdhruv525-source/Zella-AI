@@ -38,7 +38,7 @@ function DraftRow({ draft, onDone, onNotice }) {
     <li className="ba-draft">
       <div className="ba-draft-head">
         <strong>{draft.customer ?? "Customer"}</strong>
-        <small>{draft.reason ? `${draft.reason} · ` : ""}{timeAgoLabel(draft.created_at)}</small>
+        <small>{draft.reason ? `${draft.reason}, ` : ""}{timeAgoLabel(draft.created_at)}</small>
       </div>
       <textarea rows={3} maxLength={300} value={text} onChange={(e) => setText(e.target.value)} aria-label={`Message to ${draft.customer ?? "customer"}`} />
       <div className="ba-draft-foot">

@@ -81,10 +81,10 @@ export function DispatchPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
         <p className="ba-job-title">{j.title}</p>
         <p className="ba-muted ba-small">
           {j.customer && <button type="button" className="ba-link" onClick={() => onOpenPerson?.(j.customer.id)}>{j.customer.name ?? j.customer.phone ?? "Customer"}</button>}
-          {j.record && <> · {j.record.title}</>}
-          {j.location && <> · {j.location}</>}
+          {j.record && <>, {j.record.title}</>}
+          {j.location && <>, {j.location}</>}
         </p>
-        {(j.crew ?? []).length > 0 && <p className="ba-muted ba-small">Crew: {j.crew.map((c) => techName[c] ?? "Someone").join(", ")}{j.staff_id ? ` · lead ${techName[j.staff_id] ?? ""}` : ""}</p>}
+        {(j.crew ?? []).length > 0 && <p className="ba-muted ba-small">Crew: {j.crew.map((c) => techName[c] ?? "Someone").join(", ")}{j.staff_id ? `, lead ${techName[j.staff_id] ?? ""}` : ""}</p>}
         {progress.total > 0 && <p className="ba-muted ba-small">Checklist: {progress.text}</p>}
         {j.return_of && <p className="ba-muted ba-small">Return visit for an earlier job.</p>}
         {j.note && <p className="ba-small">{j.note}</p>}
@@ -286,7 +286,7 @@ export function ResourcesPage({ workspace, refreshKey, onNotice }) {
           </ul>
         ) : <Empty title="No resources yet" icon="meeting_room">Add the rooms, chairs, bays or equipment that bookings need.{canManage && <div className="ba-empty-actions"><button type="button" className="ba-btn sm" onClick={() => setEditing("new")}><Icon name="add" size="sm" />Add a resource</button></div>}</Empty>)}
         {list.data && list.data.needs.length > 0 && (
-          <p className="ba-muted ba-small">Services that need a resource: {list.data.needs.map((n) => `${n.service} → ${n.quantity} ${KIND_LABEL[n.kind]?.toLowerCase() ?? n.kind}`).join(" · ")}. A booking for one of these gets a free one picked.</p>
+          <p className="ba-muted ba-small">Services that need a resource: {list.data.needs.map((n) => `${n.service} → ${n.quantity} ${KIND_LABEL[n.kind]?.toLowerCase() ?? n.kind}`).join(", ")}. A booking for one of these gets a free one picked.</p>
         )}
       </LoadState>
       <section className="ba-panel" aria-label="Resources by day">
@@ -300,7 +300,7 @@ export function ResourcesPage({ workspace, refreshKey, onNotice }) {
                 {r.bookings.length || r.blocks.length ? (
                   <ul className="ba-small">
                     {r.blocks.map((x) => <li key={x.id}><Pill tone="warning">Blocked</Pill> {formatTime(x.start, tz)} to {formatTime(x.end, tz)} {x.title}</li>)}
-                    {r.bookings.map((x) => <li key={x.id}>{formatTime(x.start, tz)} to {formatTime(x.end, tz)} {x.customer ?? x.title}{x.party_size > 1 ? ` (${x.party_size})` : ""}{x.state === "tentative" ? " · planned" : ""}</li>)}
+                    {r.bookings.map((x) => <li key={x.id}>{formatTime(x.start, tz)} to {formatTime(x.end, tz)} {x.customer ?? x.title}{x.party_size > 1 ? ` (${x.party_size})` : ""}{x.state === "tentative" ? ", planned" : ""}</li>)}
                   </ul>
                 ) : <span className="ba-muted ba-small"> Free all day.</span>}
               </div>
@@ -350,7 +350,7 @@ function NeedsModal({ needs, busy, onClose, onSave }) {
       <div className="ba-modal-body">
         {rows.map((r, i) => (
           <div key={i} className="ba-form-grid">
-            <Field label="Service"><input value={r.service} maxLength={80} onChange={(e) => set(i, { service: e.target.value })} placeholder="e.g. colour" /></Field>
+            <Field label="Service"><input value={r.service} maxLength={80} onChange={(e) => set(i, { service: e.target.value })} placeholder="e.g. color" /></Field>
             <Field label="Needs"><select value={r.kind} onChange={(e) => set(i, { kind: e.target.value })}>{RESOURCE_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
             <Field label="How many"><input type="number" min={1} max={10} value={r.quantity} onChange={(e) => set(i, { quantity: e.target.value })} /></Field>
             <button type="button" className="ba-link" onClick={() => setRows((x) => x.filter((_, n) => n !== i))}>Remove</button>
@@ -410,9 +410,9 @@ export function RecurringPage({ workspace, refreshKey, onNotice }) {
                     {canManage && <button type="button" className="ba-btn sm" onClick={() => setEditing(p)}>Edit</button>}
                     {canManage && p.is_active && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => generate(p.id)}>Book the next 4 weeks</button>}
                   </div>
-                  <p className="ba-muted">{describePlan(p)} · {p.duration_minutes} min{p.customer_id && d.people[p.customer_id] ? ` · ${personName(d.people[p.customer_id]) ?? d.people[p.customer_id].phone}` : ""}
-                    {p.staff_id ? ` · ${d.staff.find((s) => s.id === p.staff_id)?.name ?? "someone no longer on the team"}` : ""}
-                    {` · from ${formatDay(`${p.starts_on}T12:00:00Z`, "UTC")}`}{p.ends_on ? ` to ${formatDay(`${p.ends_on}T12:00:00Z`, "UTC")}` : ""}</p>
+                  <p className="ba-muted">{describePlan(p)}, {p.duration_minutes} min{p.customer_id && d.people[p.customer_id] ? `, ${personName(d.people[p.customer_id]) ?? d.people[p.customer_id].phone}` : ""}
+                    {p.staff_id ? `, ${d.staff.find((s) => s.id === p.staff_id)?.name ?? "someone no longer on the team"}` : ""}
+                    {`, from ${formatDay(`${p.starts_on}T12:00:00Z`, "UTC")}`}{p.ends_on ? ` to ${formatDay(`${p.ends_on}T12:00:00Z`, "UTC")}` : ""}</p>
                   <p className="ba-small">{upcoming.length ? `${upcoming.length - skipped.length} upcoming visit${upcoming.length - skipped.length === 1 ? "" : "s"} booked` : "No upcoming visits booked yet."}
                     {p.generated_through ? ` (up to ${formatDay(`${p.generated_through}T12:00:00Z`, "UTC")})` : ""}</p>
                   {skipped.length > 0 && (
@@ -456,7 +456,7 @@ function PlanModal({ workspace, plan, staff, resources, person: initialPerson, b
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="submit" form="ba-plan" className="ba-btn primary" disabled={busy || !f.title.trim()}>{busy ? "Saving…" : "Save plan"}</button></>}>
       <form id="ba-plan" className="ba-modal-body ba-form-grid" onSubmit={submit}>
-        <Field label="Title"><input value={f.title} maxLength={120} onChange={set("title")} placeholder="e.g. Fortnightly clean" required /></Field>
+        <Field label="Title"><input value={f.title} maxLength={120} onChange={set("title")} placeholder="e.g. Every other week clean" required /></Field>
         <Field label="Service (optional)" hint="Used to pick resources the service needs."><input value={f.service} maxLength={80} onChange={set("service")} /></Field>
         <PersonPicker businessId={workspace.id} label="Customer (optional)" value={person} onChange={setPerson} />
         <Field label="Repeats">

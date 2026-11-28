@@ -156,14 +156,14 @@ export function RunsPanel({ runs, audits, nameOf, people, canManage, tz, onNotic
               <div>
                 <strong>{people[r.customer_id] ? [people[r.customer_id].first_name, people[r.customer_id].last_name].filter(Boolean).join(" ") || "Customer" : "Run"} <Pill tone={RUN_TONE[r.status]}>{RUN_LABEL[r.status] ?? r.status}</Pill></strong>
                 <small>
-                  {formatDay(r.started_at ?? r.created_at, tz)} · {formatTime(r.started_at ?? r.created_at, tz)}
-                  {r.attempt_count > 1 ? ` · ${r.attempt_count} attempts` : ""}
-                  {r.status === "queued" || r.status === "waiting" ? (r.next_run_at ? ` · next ${formatDay(r.next_run_at, tz)} ${formatTime(r.next_run_at, tz)}` : "") : ""}
+                  {formatDay(r.started_at ?? r.created_at, tz)}, {formatTime(r.started_at ?? r.created_at, tz)}
+                  {r.attempt_count > 1 ? `, ${r.attempt_count} attempts` : ""}
+                  {r.status === "queued" || r.status === "waiting" ? (r.next_run_at ? `, next ${formatDay(r.next_run_at, tz)} ${formatTime(r.next_run_at, tz)}` : "") : ""}
                 </small>
                 {r.status === "failed" && <small className="ba-fail">Why: {failureReason(r)}</small>}
               </div>
               {r.status === "failed" && canManage && (
-                <button type="button" className="ba-btn sm" disabled={busy === r.id} onClick={() => retry(r)}><Icon name="replay" size="sm" />{busy === r.id ? "Retrying…" : "Retry"}</button>
+                <button type="button" className="ba-btn sm" disabled={busy === r.id} onClick={() => retry(r)}><Icon name="replay" size="sm" />{busy === r.id ? "Trying again…" : "Try again"}</button>
               )}
             </li>
           ))}
@@ -175,7 +175,7 @@ export function RunsPanel({ runs, audits, nameOf, people, canManage, tz, onNotic
               <span className="ba-thread-icon"><Icon name="history" size="sm" /></span>
               <div>
                 <strong>{AUDIT_LABEL[a.action] ?? a.action}</strong>
-                <small>{nameOf[a.user_id] ?? "A team member"} · {timeAgo(a.created_at)}{a.new_data?.status && a.old_data?.status !== a.new_data.status ? ` · ${a.old_data?.status ?? "None"} to ${a.new_data.status}` : ""}</small>
+                <small>{nameOf[a.user_id] ?? "A team member"}, {timeAgo(a.created_at)}{a.new_data?.status && a.old_data?.status !== a.new_data.status ? `, ${a.old_data?.status ?? "None"} to ${a.new_data.status}` : ""}</small>
               </div>
             </li>
           ))}

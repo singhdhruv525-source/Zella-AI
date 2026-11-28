@@ -99,7 +99,7 @@ function Editor({ agent, base, onSaved }) {
   }
 
   async function publish() {
-    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once the assistant is updated, which Zella Voice support does for now.")) return;
+    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once your AI receptionist is updated, which Zella Voice support does for now.")) return;
     setBusy(true);
     setProblem("");
     const { data, error } = await supabase.rpc("zella_publish_agent_config", { p_version_id: result.versionId });
@@ -203,8 +203,8 @@ function Versions({ workspace, versions, onRestored }) {
               return (
                 <li key={v.id} className="ba-list-row">
                   <div>
-                    <strong>Version {v.version} · {STATUS[v.status] ?? v.status}</strong>
-                    <small>{formatDay(v.created_at, workspace.timezone)} · {formatTime(v.created_at, workspace.timezone)}{v.sync_error ? ` · ${v.sync_error}` : ""}</small>
+                    <strong>Version {v.version}, {STATUS[v.status] ?? v.status}</strong>
+                    <small>{formatDay(v.created_at, workspace.timezone)}, {formatTime(v.created_at, workspace.timezone)}{v.sync_error ? `, ${v.sync_error}` : ""}</small>
                   </div>
                   <div className="ba-form-actions">
                     {v.status === "published" && <Pill tone={syncTone}>{syncText}</Pill>}
@@ -246,10 +246,10 @@ export function ReceptionistEditor({ workspace, agent, onNotice, stacked }) {
       {data && (
         <div className={stacked ? "ba-stack-1" : "ba-grid-2"} style={{ marginTop: 16 }}>
           <Editor key={data.versions.find((v) => v.status === "published")?.id ?? "none"} agent={agent} base={data.base} onSaved={(published, version) => {
-            if (published) onNotice?.(`Version ${version} published. Rules apply from the next call; wording changes wait for the assistant update.`);
+            if (published) onNotice?.(`Version ${version} published. Rules apply from the next call; wording changes wait for the AI receptionist update.`);
             reload();
           }} />
-          <Versions workspace={workspace} versions={data.versions} onRestored={(version) => { onNotice?.(`Brought back as version ${version}. Rules apply from the next call; wording changes wait for the assistant update.`); reload(); }} />
+          <Versions workspace={workspace} versions={data.versions} onRestored={(version) => { onNotice?.(`Brought back as version ${version}. Rules apply from the next call; wording changes wait for the AI receptionist update.`); reload(); }} />
         </div>
       )}
     </>

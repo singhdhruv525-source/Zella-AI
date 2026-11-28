@@ -56,7 +56,7 @@ export function showValue(field, value, tz, titles) {
   if (field.type === "record") return linkTitle(titles, value);
   if (field.type === "bool") return value ? "Yes" : "No";
   if (field.type === "date") return formatDay(value, tz);
-  if (field.type === "datetime") return `${formatDay(value, tz)} · ${formatTime(value, tz)}`;
+  if (field.type === "datetime") return `${formatDay(value, tz)}, ${formatTime(value, tz)}`;
   return String(value);
 }
 
@@ -212,7 +212,7 @@ function RecordFiles({ workspace, record }) {
               <button type="button" className="ba-file" onClick={() => open(f)} title={`Open ${f.file_name}`}>
                 {f.thumb ? <img src={f.thumb} alt={f.caption || f.file_name} loading="lazy" /> : <Icon name={f.kind === "photo" ? "image" : "description"} />}
               </button>
-              <div><strong>{f.caption || f.file_name}</strong><small>{timeAgoLabel(f.created_at)}{f.private ? " · private" : ""}</small></div>
+              <div><strong>{f.caption || f.file_name}</strong><small>{timeAgoLabel(f.created_at)}{f.private ? ", private" : ""}</small></div>
               {(canRemoveAny || (f.uploaded_by === me.data && Date.now() - new Date(f.created_at).getTime() < 864e5)) && (
                 <button type="button" className="ba-btn ghost sm" onClick={() => remove(f)} aria-label={`Remove ${f.file_name}`}><Icon name="delete" size="sm" /></button>
               )}
@@ -225,7 +225,7 @@ function RecordFiles({ workspace, record }) {
           {waiting.map((f) => (
             <li key={f.id}>
               <span className="ba-file" aria-hidden="true"><Icon name="hourglass_empty" /></span>
-              <div><strong>{f.caption || f.file_name}</strong><small>Waiting for the file check · only you can see it</small></div>
+              <div><strong>{f.caption || f.file_name}</strong><small>Waiting for the file check, only you can see it</small></div>
               <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => checkAgain(f)}>Check again</button>
               <button type="button" className="ba-btn ghost sm" disabled={busy} onClick={() => discard(f)} aria-label={`Discard ${f.file_name}`}>Discard</button>
             </li>
@@ -316,7 +316,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
 
   const closed = type.closed_statuses.includes(record?.status);
   return (
-    <Modal wide title={isNew ? `Add ${type.singular.toLowerCase()}` : record.title} description={isNew ? type.notice ?? undefined : `${type.singular} · updated ${timeAgo(record.updated_at)}`} onClose={onClose} busy={busy}
+    <Modal wide title={isNew ? `Add ${type.singular.toLowerCase()}` : record.title} description={isNew ? type.notice ?? undefined : `${type.singular}, updated ${timeAgo(record.updated_at)}`} onClose={onClose} busy={busy}
       footer={<>
         {!isNew && canManage && <button type="button" className="ba-btn ghost danger" disabled={busy}
           onClick={() => window.confirm(`Archive this ${type.singular.toLowerCase()}? It will be hidden from the list.`) && run(() => supabase.rpc("zella_archive_record", { p_id: record.id }), `${type.singular} archived.`)}>Archive</button>}
@@ -379,7 +379,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
               <h3 className="ba-h3">Appointments</h3>
               {(visits.data ?? []).length === 0 ? <p className="ba-muted">None booked for this {type.singular.toLowerCase()} yet.</p> : (
                 <ul className="ba-history">
-                  {visits.data.map((v) => <li key={v.id}><strong>{v.title}</strong> · {formatDay(v.start_time, tz)} {formatTime(v.start_time, tz)}<small>{v.status}</small></li>)}
+                  {visits.data.map((v) => <li key={v.id}><strong>{v.title}</strong>, {formatDay(v.start_time, tz)} {formatTime(v.start_time, tz)}<small>{v.status}</small></li>)}
                 </ul>
               )}
               {onBook && <button type="button" className="ba-btn sm" onClick={() => { onClose(); onBook({ id: record.id, title: record.title, singular: type.singular }, record.customers ?? null); }}>
@@ -390,7 +390,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
             <>
               <h3 className="ba-h3">Linked</h3>
               <ul className="ba-history">
-                {related.data.map((r) => <li key={`${r.direction}-${r.id}`}><strong>{r.title}</strong> · {r.direction === "to" ? r.field : `links here as ${r.field.toLowerCase()}`}<small>{r.status}</small></li>)}
+                {related.data.map((r) => <li key={`${r.direction}-${r.id}`}><strong>{r.title}</strong>, {r.direction === "to" ? r.field : `links here as ${r.field.toLowerCase()}`}<small>{r.status}</small></li>)}
               </ul>
             </>
           )}
@@ -398,7 +398,7 @@ function RecordModal({ workspace, type, record, canManage, onBook, onClose, onSa
           {(events.data ?? []).length === 0 ? <p className="ba-muted">Nothing yet.</p> : (
             <ul className="ba-history">
               {events.data.map((e) => (
-                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked", file_added: "File added", file_removed: "File removed", ...WORKFLOW_EVENT_LABELS }[e.kind] ?? e.kind}</strong>{e.detail ? ` · ${e.detail}` : ""}<small>{timeAgoLabel(e.created_at)}</small></li>
+                <li key={e.id}><strong>{{ created: "Added", edited: "Edited", status: "Status changed", note: "Note", archived: "Archived", secret_viewed: "Private details viewed", secret_changed: "Private details changed", appointment: "Booked", file_added: "File added", file_removed: "File removed", ...WORKFLOW_EVENT_LABELS }[e.kind] ?? e.kind}</strong>{e.detail ? `, ${e.detail}` : ""}<small>{timeAgoLabel(e.created_at)}</small></li>
               ))}
             </ul>
           )}

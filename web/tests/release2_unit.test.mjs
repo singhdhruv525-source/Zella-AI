@@ -28,7 +28,7 @@ test("arrival windows and checklist progress read plainly", () => {
   assert.equal(arrivalText(start, 120, "America/Chicago"), "Arrive 9:00 AM - 11:00 AM");
   assert.equal(arrivalText(start, null, "America/Chicago"), "9:00 AM");
   assert.equal(arrivalText(null, 60, "UTC"), "");
-  assert.deepEqual(checklistProgress([{ label: "a", done: true }, { label: "b", required: true }]), { done: 1, total: 2, missing: 1, text: "1 of 2 done · 1 required left" });
+  assert.deepEqual(checklistProgress([{ label: "a", done: true }, { label: "b", required: true }]), { done: 1, total: 2, missing: 1, text: "1 of 2 done, 1 required left" });
   assert.equal(checklistProgress(null).text, "");
 });
 

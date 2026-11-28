@@ -24,7 +24,7 @@ const STATUS = {
   false_positive: ["success", "Not spam"], resolved: ["neutral", "Resolved"], escalated: ["danger", "Escalated"],
 };
 const RISK = { high: ["danger", "High"], medium: ["warning", "Medium"], low: ["neutral", "Low"] };
-const ACTION = { allowed: "Allowed", flagged: "Flagged for review", held: "Held for the team to confirm", screened: "Screened by the AI", restricted: "Temporarily restricted", blocked: "Blocked" };
+const ACTION = { allowed: "Allowed", flagged: "Flagged for review", held: "Held for the team to confirm", screened: "Screened by your AI receptionist", restricted: "Temporarily restricted", blocked: "Blocked" };
 const EVENT = { detected: "Detected", occurrence: "Happened again", status: "Status changed", note: "Note", listed: "Added to a list", unlisted: "Removed from a list", assigned: "Assigned", notified: "Team notified", workflow: "Automatic follow up" };
 const AI_LABEL = { spam: "likely spam", not_spam: "may be genuine", unsure: "not sure" };
 const ref = (id) => `#${String(id).slice(0, 8).toUpperCase()}`;
@@ -235,7 +235,7 @@ function Inbox({ workspace, from, onChanged, onNotice, onOpenPerson }) {
                     </td>
                     <td><span className="sp-chan"><Icon name={CHANNELS[r.channel]?.[0] ?? "help"} size="sm" />{CHANNELS[r.channel]?.[1] ?? r.channel}</span><small className="ba-muted sp-ref">{ref(r.id)}</small></td>
                     <td><strong>{person ? personName(person) : r.sender_display || r.sender}</strong>{person && <small className="ba-muted sp-ref">{r.sender_display || r.sender}</small>}</td>
-                    <td><Pill tone={RISK[r.risk_level][0]}>{RISK[r.risk_level][1]} · {r.risk_score}</Pill></td>
+                    <td><Pill tone={RISK[r.risk_level][0]}>{RISK[r.risk_level][1]}, {r.risk_score}</Pill></td>
                     <td className="sp-why">{(r.reasons ?? []).slice(0, 2).map((x) => x.label).join("; ") || "None"}{r.occurrences > 1 && <small className="ba-muted"> ×{r.occurrences}</small>}</td>
                     <td><Pill tone={STATUS[r.status][0]}>{STATUS[r.status][1]}</Pill></td>
                     <td>{timeAgoLabel(r.last_seen_at)}</td>
@@ -338,7 +338,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
           <div>
             <small><Icon name={CHANNELS[inc.channel]?.[0] ?? "help"} size="sm" /> {CHANNELS[inc.channel]?.[1]} incident {ref(inc.id)}</small>
             <h2>{person ? personName(person) : inc.sender_display || inc.sender}</h2>
-            <p>First {formatDay(inc.first_seen_at, workspace.timezone)} {formatTime(inc.first_seen_at, workspace.timezone)} · last {timeAgo(inc.last_seen_at)}{inc.occurrences > 1 ? ` · ${inc.occurrences} times` : ""}</p>
+            <p>First {formatDay(inc.first_seen_at, workspace.timezone)} {formatTime(inc.first_seen_at, workspace.timezone)}, last {timeAgo(inc.last_seen_at)}{inc.occurrences > 1 ? `, ${inc.occurrences} times` : ""}</p>
           </div>
           <button type="button" className="ba-btn ghost sm" onClick={onClose} aria-label="Close"><Icon name="close" size="sm" /></button>
         </header>
@@ -347,7 +347,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
           <section className="bp-section">
             <h3>Why it was flagged</h3>
             <div className="sp-badges">
-              <Pill tone={RISK[inc.risk_level][0]}>{RISK[inc.risk_level][1]} risk · {inc.risk_score}</Pill>
+              <Pill tone={RISK[inc.risk_level][0]}>{RISK[inc.risk_level][1]} risk, {inc.risk_score}</Pill>
               <Pill tone={STATUS[inc.status][0]}>{STATUS[inc.status][1]}</Pill>
               <Pill>{ACTION[inc.action]}</Pill>
               {listed && <Pill tone={listed.list === "block" ? "danger" : "success"}>{listed.list === "block" ? `Blocked for ${listed.channel === "all" ? "all channels" : CHANNELS[listed.channel]?.[1].toLowerCase()}` : "Allowed"}{listed.expires_at ? ` until ${formatDay(listed.expires_at, workspace.timezone)}` : ""}</Pill>}
@@ -393,7 +393,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
                     {(e.kind === "listed" || e.kind === "unlisted") && e.detail?.list && `: ${e.detail.list} (${e.detail.channel}${e.detail.temporary_hours ? `, ${e.detail.temporary_hours} h` : ""})`}
                     {e.kind === "workflow" && e.detail?.severity && `: ${e.detail.severity} severity${e.detail.notified ? ", team told" : ""}${e.detail.restricted ? ", restricted" : ""}`}
                     {e.kind === "notified" && e.detail?.by === "fallback" && " (sent directly; the automation hadn't run)"}
-                    {e.actor && ` · ${roster.nameOf[e.actor] ?? "Team member"}`}
+                    {e.actor && `, ${roster.nameOf[e.actor] ?? "Team member"}`}
                     {e.note && <em className="sp-note">{e.note}</em>}
                   </span>
                   <time>{timeAgoLabel(e.created_at)}</time>
@@ -435,7 +435,7 @@ function IncidentPanel({ workspace, incident, person, roster, onClose, onChanged
       )}
       {confirming === "block" && (
         <ConfirmBox title={`Block ${inc.sender_display || inc.sender}?`} icon="block" tone="danger" busy={busy} onClose={() => setConfirming(null)}
-          text={`Blocked for ${listChannel === "all" ? "every channel" : CHANNELS[listChannel][1].toLowerCase() + "s only"}. Their ${listChannel === "call" ? "calls are ended politely by the AI" : listChannel === "booking" ? "bookings wait for the team to confirm" : "messages are flagged and get no automatic replies"}. You can unblock at any time.`}
+          text={`Blocked for ${listChannel === "all" ? "every channel" : CHANNELS[listChannel][1].toLowerCase() + "s only"}. Their ${listChannel === "call" ? "calls are ended politely by your AI receptionist" : listChannel === "booking" ? "bookings wait for the team to confirm" : "messages are flagged and get no automatic replies"}. You can unblock at any time.`}
           actions={[["Block", "danger", () => act(() => supabase.rpc("zella_spam_list_add", { p_business_id: workspace.id, p_list: "block", p_channel: listChannel, p_value: inc.sender, p_reason: `From incident ${ref(inc.id)}`, p_hours: null, p_incident_id: inc.id }), "Sender blocked.").then(() => setConfirming(null))]]} />
       )}
       {confirming === "unblock" && (
@@ -553,7 +553,7 @@ function Lists({ workspace, onNotice }) {
                   <td><Pill tone={r.list === "block" ? "danger" : "success"}>{r.list === "block" ? "Blocked" : "Allowed"}</Pill></td>
                   <td>{r.value}</td>
                   <td>{LIST_CHANNELS.find(([k]) => k === r.channel)?.[1] ?? r.channel}</td>
-                  <td>{timeAgoLabel(r.created_at)}{r.source !== "manual" && <small className="ba-muted"> · {r.source === "auto" ? "automatic" : "from an incident"}</small>}</td>
+                  <td>{timeAgoLabel(r.created_at)}{r.source !== "manual" && <small className="ba-muted">, {r.source === "auto" ? "automatic" : "from an incident"}</small>}</td>
                   <td>{r.expires_at ? formatDay(r.expires_at, workspace.timezone) : "Until removed"}</td>
                   <td>{r.reason || "None"}</td>
                   <td><button type="button" className="ba-btn sm" onClick={() => setRemoving(r)}>Remove</button></td>
@@ -590,10 +590,10 @@ function FollowUp({ inc }) {
     <section className="bp-section">
       <h3>Automatic follow up</h3>
       {(st === "pending" || st === "processing") && <p className="ba-muted sp-small">Queued for follow up (alerts and a repeat sender check). Blocking and screening already happened when it came in.</p>}
-      {st === "failed" && <p className="ba-muted sp-small">The follow-up couldn't run{r.fallback_notified ? ", so the team was told about it directly" : ""}. Nothing about how this sender is handled depends on it.</p>}
+      {st === "failed" && <p className="ba-muted sp-small">The follow up couldn't run{r.fallback_notified ? ", so the team was told about it directly" : ""}. Nothing about how this sender is handled depends on it.</p>}
       {st === "done" && (
         <ul className="sp-followup">
-          <li><Icon name={r.notified ? "notifications_active" : "notifications_off"} size="sm" />{r.notified ? "Team notified" : r.fallback_notified ? "Team notified directly" : "No alert needed"}{r.severity ? ` · ${r.severity} severity` : ""}</li>
+          <li><Icon name={r.notified ? "notifications_active" : "notifications_off"} size="sm" />{r.notified ? "Team notified" : r.fallback_notified ? "Team notified directly" : "No alert needed"}{r.severity ? `, ${r.severity} severity` : ""}</li>
           {Number(f.here_confirmed) > 0 && <li><Icon name="history" size="sm" />Your team confirmed this sender as spam {f.here_confirmed} time{Number(f.here_confirmed) === 1 ? "" : "s"} before</li>}
           {Number(f.other_businesses) > 0 && <li><Icon name="hub" size="sm" />Also seen at {f.other_businesses} other business{Number(f.other_businesses) === 1 ? "" : "es"} on Zella Voice this month</li>}
           {r.restricted && <li><Icon name="block" size="sm" />Temporarily restricted by your auto restrict setting (confirmed twice before)</li>}
@@ -666,8 +666,8 @@ function Settings({ workspace, setup, loadError, onRetry, onSaved }) {
         <legend>Calls</legend>
         {ch.call === false ? <p className="ba-muted sp-small">Calls aren't connected for this business.</p> : (
           <div className="sp-grid">
-            <Field label="high risk callers"><select value={form.call_screening} disabled={!can} onChange={(e) => set("call_screening", e.target.value)}><option value="flag">Answer and flag for review</option><option value="screen">Screen: the AI doesn't help them</option></select></Field>
-            <Field label="When screened, the AI"><select value={form.ai_spam_handling} disabled={!can} onChange={(e) => set("ai_spam_handling", e.target.value)}><option value="end_politely">Ends the call politely</option><option value="take_message">Takes a short message only</option></select></Field>
+            <Field label="High risk callers"><select value={form.call_screening} disabled={!can} onChange={(e) => set("call_screening", e.target.value)}><option value="flag">Answer and flag for review</option><option value="screen">Screen: your AI receptionist doesn't help them</option></select></Field>
+            <Field label="When screened, your AI receptionist"><select value={form.ai_spam_handling} disabled={!can} onChange={(e) => set("ai_spam_handling", e.target.value)}><option value="end_politely">Ends the call politely</option><option value="take_message">Takes a short message only</option></select></Field>
             <Field label="Flag after this many calls"><input type="number" min={2} max={50} value={form.repeat_call_limit} disabled={!can} {...num("repeat_call_limit", 2, 50)} /></Field>
             <Field label="Within (minutes)"><input type="number" min={5} max={1440} value={form.repeat_window_minutes} disabled={!can} {...num("repeat_window_minutes", 5, 1440)} /></Field>
           </div>

@@ -107,7 +107,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
   const [label, tone] = CB_STATUS[cb.status] ?? [cb.status, ""];
   return (
     <Modal wide title={personName(person) ?? cb.contact_number ?? "Callback"} onClose={onClose} busy={busy}
-      description={`${CB_REASON[cb.reason] ?? "Call back"} · ${closed ? `closed ${timeAgo(cb.completed_at ?? cb.updated_at)}` : `due ${when(cb.due_at, tz)}`}`}>
+      description={`${CB_REASON[cb.reason] ?? "Call back"}, ${closed ? `closed ${timeAgo(cb.completed_at ?? cb.updated_at)}` : `due ${when(cb.due_at, tz)}`}`}>
       <div className="ba-modal-body">
         {(error || loadError) && <p className="ba-error" role="alert">{error || loadError}</p>}
         {blocked && <div className="ba-banner error">This person asked not to be contacted. Don't call or text them.</div>}
@@ -116,7 +116,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
           {cb.priority !== "normal" && <Pill tone={PRIORITY_TONE[cb.priority]}>{cb.priority === "urgent" ? "Urgent" : "High priority"}</Pill>}
           <Pill>{cb.attempts} of {cb.max_attempts} tries</Pill>
           {cb.status === "retry_scheduled" && <Pill tone="info">Zella Voice retries {when(cb.due_at, tz)}</Pill>}
-          {cb.auto_call && !closed && <Pill tone="info">Zella Voice will call</Pill>}
+          {cb.auto_call && !closed && <Pill tone="info">Your AI receptionist will call</Pill>}
           {cb.contact_number && !blocked && <a className="ba-btn sm" href={`tel:${cb.contact_number}`}><Icon name="call" size="sm" />{cb.contact_number}</a>}
           {person && <button type="button" className="ba-btn sm" onClick={() => { onClose(); onOpenPerson(person.id); }}>Open profile</button>}
         </div>
@@ -130,7 +130,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
             {data.map((a) => (
               <li key={a.id}>
                 <span className="ba-thread-icon"><Icon name={a.outcome === "connected" ? "call" : "phone_missed"} size="sm" /></span>
-                <div><strong>{ATTEMPT_LABEL[a.outcome] ?? a.outcome}</strong><small>Try {a.attempt_no} · {when(a.attempted_at, tz)}{a.initiated_by === "system" ? " · Zella Voice" : ""}{a.notes ? ` · ${a.notes}` : ""}</small></div>
+                <div><strong>{ATTEMPT_LABEL[a.outcome] ?? a.outcome}</strong><small>Try {a.attempt_no}, {when(a.attempted_at, tz)}{a.initiated_by === "system" ? ", AI receptionist" : ""}{a.notes ? `, ${a.notes}` : ""}</small></div>
               </li>
             ))}
           </ul>
@@ -162,7 +162,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
             {finishing && (
               <form className="ba-form-grid ba-finish" onSubmit={finish}>
                 <Field label="What happened?"><select value={fin.outcome} onChange={(e) => setFin({ ...fin, outcome: e.target.value })}>{OUTCOMES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
-                <Field label="What's next?" hint={!cb.customer_id && fin.next !== "none" ? "follow up tasks need a known person." : undefined}>
+                <Field label="What's next?" hint={!cb.customer_id && fin.next !== "none" ? "Follow up tasks need a known person. Link the call to a customer first." : undefined}>
                   <select value={fin.next} onChange={(e) => setFin({ ...fin, next: e.target.value })}>{NEXT.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
                 </Field>
                 <div className="full ba-form-actions">

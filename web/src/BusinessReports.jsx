@@ -25,7 +25,7 @@ export function ReconnectBanner({ workspace, onGo, tick }) {
     <div className="ba-banner alert" role="alert">
       <span>
         <strong>{data.length === 1 ? `${data[0].label} needs to be connected again.` : `${data.length} connections need to be connected again.`}</strong>{" "}
-        {data.map((c) => c.reason).filter(Boolean).slice(0, 2).join(" · ")}
+        {data.map((c) => c.reason).filter(Boolean).slice(0, 2).join(", ")}
       </span>
       {canFix
         ? <button type="button" className="ba-btn primary sm" onClick={() => onGo("integrations")}>Reconnect</button>
@@ -94,7 +94,7 @@ function MessageResults({ workspace, days, refreshKey }) {
       ) : (
         <div className="ba-table-wrap" tabIndex={0}>
           <table className="ba-table">
-            <thead><tr><th>follow up</th><th>By</th><th>Sent</th><th>Failed</th><th>Skipped</th><th>Booked within 7 days</th></tr></thead>
+            <thead><tr><th>Follow up</th><th>By</th><th>Sent</th><th>Failed</th><th>Skipped</th><th>Booked within 7 days</th></tr></thead>
             <tbody>
               {data.map((r) => (
                 <tr key={`${r.kind}-${r.channel}`}>

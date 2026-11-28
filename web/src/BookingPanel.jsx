@@ -198,9 +198,9 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
         <SheetGrip />
         <header className="bp-head">
           <div>
-            <small>{oneWord} #{ref(appt.id)}{code && <> · Confirmation code <strong className="bp-code">{code}</strong></>}{code === false && <> · Confirmation code couldn't be loaded</>}{code === null && <> · No confirmation code</>}</small>
+            <small>{oneWord} #{ref(appt.id)}{code && <>, Confirmation code <strong className="bp-code">{code}</strong></>}{code === false && <>, Confirmation code couldn't be loaded</>}{code === null && <>, No confirmation code</>}</small>
             <h2>{name ?? appt.title}</h2>
-            <p>{formatLongDate(appt.start_time, tz)} · {formatTime(appt.start_time, tz)}{appt.end_time ? ` to ${formatTime(appt.end_time, tz)}` : ""}</p>
+            <p>{formatLongDate(appt.start_time, tz)}, {formatTime(appt.start_time, tz)}{appt.end_time ? ` to ${formatTime(appt.end_time, tz)}` : ""}</p>
           </div>
           <button type="button" className="ba-btn ghost sm" onClick={onClose} aria-label="Close"><Icon name="close" size="sm" /></button>
         </header>
@@ -289,11 +289,11 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
             <ul className="bp-feed">
               {(activity?.calls ?? []).map((c) => (
                 <li key={`c${c.id}`}><Icon name={c.status === "missed" ? "phone_missed" : "call"} size="sm" />
-                  <span>{c.status === "missed" ? "Missed call" : !isAnswered(c.status) ? `Call: ${callResult(c.status).label.toLowerCase()}` : c.ai_handled ? "Call answered by AI" : "Call"}{c.summary ? `: ${c.summary.slice(0, 80)}` : ""}</span><time>{timeAgoLabel(c.created_at)}</time></li>
+                  <span>{c.status === "missed" ? "Missed call" : !isAnswered(c.status) ? `Call: ${callResult(c.status).label.toLowerCase()}` : c.ai_handled ? "Call answered by your AI receptionist" : "Call"}{c.summary ? `: ${c.summary.slice(0, 80)}` : ""}</span><time>{timeAgoLabel(c.created_at)}</time></li>
               ))}
               {(activity?.convos ?? []).map((c) => (
                 <li key={`m${c.id}`}><Icon name={c.channel === "email" ? "mail" : "sms"} size="sm" />
-                  <span>{c.subject || `${c.channel ?? "Message"} conversation`}{c.ai_handled ? " · AI" : ""}</span><time>{c.last_message_at ? timeAgoLabel(c.last_message_at) : ""}</time></li>
+                  <span>{c.subject || `${c.channel ?? "Message"} conversation`}{c.ai_handled ? ", AI receptionist" : ""}</span><time>{c.last_message_at ? timeAgoLabel(c.last_message_at) : ""}</time></li>
               ))}
               {history.map(([at, text]) => (
                 <li key={`h${text}`}><Icon name="history" size="sm" /><span>{text}</span><time>{timeAgoLabel(at)}</time></li>
@@ -318,7 +318,7 @@ export function BookingPanel({ workspace, industry, appt, person, staff, blocks,
             {open && <button type="button" className="ba-btn" disabled={busy} onClick={() => run(() => setCheckIn(appt.id, !appt.checked_in_at), appt.checked_in_at ? "Undone." : `${name ?? "Guest"}: ${cfg.arrived.toLowerCase()}.`)}>
               <Icon name={appt.checked_in_at ? "undo" : "how_to_reg"} size="sm" />{appt.checked_in_at ? `Undo ${cfg.arrived.toLowerCase()}` : cfg.arrived}</button>}
             {open && <button type="button" className="ba-btn primary" disabled={busy} onClick={() => setStatus("completed")}><Icon name="task_alt" size="sm" />Mark completed</button>}
-            {open && new Date(appt.start_time) < new Date() && !arrived && <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setStatus("no_show")}>no show</button>}
+            {open && new Date(appt.start_time) < new Date() && !arrived && <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setStatus("no_show")}>No show</button>}
             {(open || requested) && <button type="button" className="ba-btn danger-outline" disabled={busy} onClick={() => setStatus("cancelled")}>Cancel</button>}
           </footer>
         ) : <footer className="bp-foot"><span className="ba-muted">Your role can view {term("appointments").toLowerCase()} but not change them.</span></footer>}

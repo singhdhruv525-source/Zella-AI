@@ -175,7 +175,7 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
     const search = page.getByPlaceholder(/Search/i).first();
     if (await search.isVisible().catch(() => false)) { await search.fill("Grace"); await page.waitForTimeout(800); }
     await page.click("text=Grace Gran");
-    await page.click("role=tab[name='People & consent']");
+    await page.click("role=tab[name='People and consent']");
     await page.waitForSelector("[data-people=ready]");
     check(`person profile (${width}px): 'Grace Gran is linked to' the child`, await page.isVisible("text=Grace Gran is linked to") && await page.isVisible(`text=${CHILD_TITLE}`));
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

@@ -128,7 +128,7 @@ function ReviewCard({ review, workspace, onChanged, onNotice }) {
       <div className="rv-head">
         <Stars value={review.rating} />
         <strong>{review.author_name || "A customer"}</strong>
-        <small>{review.site || (review.provider === "google" ? "Google" : "Other site")} · {formatDay(review.reviewed_at, tz)}</small>
+        <small>{review.site || (review.provider === "google" ? "Google" : "Other site")}, {formatDay(review.reviewed_at, tz)}</small>
         <Pill tone={tone}>{label}</Pill>
       </div>
       {review.body ? <p className="rv-body">{review.body}</p> : <p className="rv-body muted">No written review, just stars.</p>}
@@ -141,7 +141,7 @@ function ReviewCard({ review, workspace, onChanged, onNotice }) {
             <span>
               {editable ? "Your reply" : "Reply"}
               {editable && review.draft_source === "ai" && <Pill tone="indigo">AI draft</Pill>}
-              {editable && review.ai_status === "pending" && <small> · AI is improving this draft…</small>}
+              {editable && review.ai_status === "pending" && <small>, improving the draft…</small>}
             </span>
             <textarea rows={3} maxLength={4000} value={text} readOnly={!editable} onChange={(e) => setText(e.target.value)} />
           </label>
@@ -189,9 +189,9 @@ export default function ReviewsPage({ workspace, onNotice }) {
       {head}
       {error && <div className="ba-banner error"><span>{error}</span><button type="button" className="ba-btn sm" onClick={reload}>Try again</button></div>}
       <div className="rv-summary">
-        <div><strong>{data ? counts.to_reply ?? 0 : loading ? "…" : didntLoad}</strong><span>to reply</span></div>
-        <div><strong>{data ? counts.average ?? (counts.total ? <small className="ba-kpi-missing">Not available</small> : "No ratings yet") : loading ? "…" : didntLoad}</strong><span>average stars</span></div>
-        <div><strong>{data ? counts.total ?? 0 : loading ? "…" : didntLoad}</strong><span>reviews</span></div>
+        <div><strong>{data ? counts.to_reply ?? 0 : loading ? "…" : didntLoad}</strong><span>To reply</span></div>
+        <div><strong>{data ? counts.average ?? (counts.total ? <small className="ba-kpi-missing">Not available</small> : "No ratings yet") : loading ? "…" : didntLoad}</strong><span>Average stars</span></div>
+        <div><strong>{data ? counts.total ?? 0 : loading ? "…" : didntLoad}</strong><span>Reviews</span></div>
         <div className="rv-source">
           <Icon name="storefront" size="sm" />
           <span>
