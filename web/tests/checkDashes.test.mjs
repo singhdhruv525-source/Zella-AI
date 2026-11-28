@@ -303,3 +303,11 @@ test("an element nested in an open expression holds text again", () => {
   const maths = check("export const B = ({ a, b, ok }) => (\n  <div>{\n    ok && (\n      <p>{a}</p>\n    )\n  }{\n    a-b\n  }</div>\n);\n");
   assert.equal(maths.code, 0, maths.out);
 });
+
+test("a brace inside a quoted string doesn't open or close an expression", () => {
+  const quoted = check("export const A = ({ f, a, b }) => (\n  <p>{\n    f(\"}\") && a-b\n  }</p>\n);\n");
+  assert.equal(quoted.code, 0, quoted.out);
+  const after = check("export const B = ({ f }) => (\n  <p>{f(\"{\")}\n    Send a follow-up.\n  </p>\n);\n");
+  assert.equal(after.code, 1);
+  assert.match(after.out, /Send a follow-up/);
+});
