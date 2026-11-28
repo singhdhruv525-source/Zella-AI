@@ -79,9 +79,11 @@ const UNCLOSED_TAG = /<[A-Za-z][\w.]*(?:\s[^<>]*)?$/;
 function jsxTextLines(lines) {
   const out = [], ctx = new Set();
   let inText = false, depth = 0, tagOpen = false;
+  let expr = 0;   // braces of a JSX expression left open on an earlier line: its lines are code, not text
   lines.forEach((line, i) => {
     const t = line.trim().replace(ENTITY, " ");
     if (!t) return;
+    if (expr > 0) { expr = Math.max(0, expr + count(t, "{") - count(t, "}")); return; }
     if (inText) ctx.add(i);
     const closeOnly = /^<\/[\w.]*>$/.test(t);
     const child = inText && /^[<{]/.test(t) && childLine(t);
@@ -108,6 +110,8 @@ function jsxTextLines(lines) {
     else if (inText && (child || textual || closeOnly)) depth += closeOnly ? -1 : netTags(t);
     else depth = 0;
     inText = depth > 0;
+    // a "{" this line leaves open starts an expression ("<p>{" then "follow-up" is a subtraction)
+    if (inText || opensWithText || child || textual) expr = Math.max(0, count(t, "{") - count(t, "}"));
   });
   return { out, ctx };
 }

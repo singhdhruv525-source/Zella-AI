@@ -282,3 +282,16 @@ test("a fragment holds text, and an entity is part of the text", () => {
   const clean = check("export const D = () => (\n  <>\n    <p>Save&nbsp;changes</p>\n  </>\n);\n");
   assert.equal(clean.code, 0, clean.out);
 });
+
+test("an expression left open after a tag is code, and a tag with a callback still holds text", () => {
+  const expr = check("export const B = ({ follow, up }) => (\n  <p>{\n    follow-up\n  }</p>\n);\n");
+  assert.equal(expr.code, 0, expr.out);
+  const nested = check("export const C = ({ a, b }) => (\n  <p>\n    Total:{\n      a-b\n    }\n  </p>\n);\n");
+  assert.equal(nested.code, 0, nested.out);
+  const callback = check("export const A = ({ save }) => (\n  <button onClick={() => save()}>\n    Send a follow-up.\n  </button>\n);\n");
+  assert.equal(callback.code, 1);
+  assert.match(callback.out, /Sample\.jsx:3 {2}hyphen in text: Send a follow-up\./);
+  const after = check("export const D = ({ n }) => (\n  <p>{\n    n\n  }\n    A follow-up line.\n  </p>\n);\n");
+  assert.equal(after.code, 1);
+  assert.match(after.out, /A follow-up line/);
+});
