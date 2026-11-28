@@ -132,6 +132,13 @@ test("warm() keeps its playful toasts, and never rewrites money, service, error 
     "Transcripts is saved.", "Consent is saved."]) {
     for (let i = 0; i < 5; i++) assert.equal(warm(m), m, m);
   }
+  // plurals of money words are serious too
+  for (const m of ["Added. Refunds are enabled.", "Added. Payments are switched on.", "Invoices is saved.", "Charges is off.", "Added. Cards on file are kept."]) {
+    for (let i = 0; i < 5; i++) assert.equal(warm(m), m, m);
+  }
+  // ordinary successes keep their playful rewrite, including words that only start like a serious one ("notes")
+  assert.equal(warm("Added. Two notes."), "Added. Nice one. Two notes.");
+  assert.equal(warm("Booking confirmed."), "Confirmed! It's in the calendar.");
   // an unrelated toast keeps its playful rewrite
   assert.equal(warm("Reminders is on."), "Reminders is on. It's got it from here.");
   // the business's own words still apply

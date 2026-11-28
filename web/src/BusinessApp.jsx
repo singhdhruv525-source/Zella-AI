@@ -757,8 +757,13 @@ function BusinessHome() {
 
   useEffect(() => {
     if (session && mfa.state === "ok") loadWorkspaces();
-    else if (!session) setWorkspaces(null);
-  }, [session, mfa.state, loadWorkspaces]);
+    else if (!session) {
+      // signed out: a read still in flight for the old session must not write its list or error afterwards
+      reads.invalidate();
+      setError("");
+      setWorkspaces(null);
+    }
+  }, [session, mfa.state, loadWorkspaces, reads]);
 
   // Signs out. If the server can't be reached, the session is still cleared on this device; if even that fails, the
   // person is told, and the screen does not claim they are signed out.
@@ -773,6 +778,8 @@ function BusinessHome() {
         return false;
       }
     }
+    reads.invalidate();
+    setError("");
     setWorkspaces(null);
   }
 

@@ -68,12 +68,16 @@ function childLine(t) {
 const netTags = (t) => (t.match(/<[A-Za-z][\w.]*(?:\s[^<>]*?)?(?<!\/)>/g) ?? []).length - (t.match(/<\/[\w.]*>/g) ?? []).length;
 // The text lasts while an element opened since it began is still open: a closing </strong> inside an open <section>
 // keeps the section's text going, and the closing </section> ends it.
+// A line ending in ">" opens an element only when it holds an opening tag, or ends one begun on an earlier line
+// ("<p" then props then ">"); a comparison such as "a >" opens nothing.
+const UNCLOSED_TAG = /<[A-Za-z][\w.]*(?:\s[^<>]*)?$/;
 function jsxTextLines(lines) {
-  const out = [];
-  let inText = false, depth = 0;
+  const out = [], ctx = new Set();
+  let inText = false, depth = 0, tagOpen = false;
   lines.forEach((line, i) => {
     const t = line.trim();
     if (!t) return;
+    if (inText) ctx.add(i);
     const closeOnly = /^<\/[\w.]*>$/.test(t);
     const child = inText && /^[<{]/.test(t) && childLine(t);
     const textual = inText && !child && !closeOnly && !JS_LINE.test(t);
@@ -84,13 +88,15 @@ function jsxTextLines(lines) {
       if (rest && !CODE_BITS.test(rest)) out.push([i, rest]);
     }
     // the next line is text when this one opens an element, or is text (or a child) inside an element still open
-    const opens = /(^|[^=/-])>$/.test(t) && !/^[)}]/.test(t) && !closeOnly;
+    const endsTag = /(^|[^=/-])>$/.test(t) && !/^[)}]/.test(t) && !closeOnly;
+    const opens = endsTag && (netTags(t) > 0 || (tagOpen && !/<[A-Za-z]/.test(t)));
+    tagOpen = UNCLOSED_TAG.test(t) || (tagOpen && !/\/?>$/.test(t));
     if (opens) depth = (inText ? depth : 0) + Math.max(1, netTags(t));   // a ">" alone ends a tag begun above
     else if (inText && (child || textual || closeOnly)) depth += closeOnly ? -1 : netTags(t);
     else depth = 0;
     inText = depth > 0;
   });
-  return out;
+  return { out, ctx };
 }
 
 const found = [];
@@ -98,12 +104,16 @@ const found = [];
 const EXTRA = rootArg > 0 ? [] : [new URL("../supabase/functions/_shared/businessEmails.js", import.meta.url).pathname];
 for (const f of [...files(ROOT), ...EXTRA]) {
   const lines = stripComments(readFileSync(f, "utf8")).split("\n");
+  const jsx = /\.[jt]sx$/.test(f) ? jsxTextLines(lines) : { out: [], ctx: new Set() };
   lines.forEach((line, i) => {
     const where = `${f.startsWith(ROOT) ? relative(ROOT, f) : f.slice(f.indexOf("supabase/"))}:${i + 1}`;
     if (LONG.test(line)) { found.push([where, "long dash", line.trim()]); return; }
     // JSX text between tags, and between an expression and the next tag or expression ("{n} follow-ups sent"); the
     // second kind holds no code punctuation, so props and calls after a "}" are left alone
-    const between = [...line.matchAll(/(?<!=)>([^<>{}]*[A-Za-z][^<>{}]*)[<{]/g), ...line.matchAll(/\}([^<>{}=[\]"`\\:;]*[A-Za-z][^<>{}=[\]"`\\:;]*)[<{]/g)];
+    // the second kind only where the line is JSX: it holds a tag, or sits inside an element's text
+    const inJsx = /<\/?[A-Za-z][\w.]*[\s>/]/.test(line) || jsx.ctx.has(i);
+    const between = [...line.matchAll(/(?<!=)>([^<>{}]*[A-Za-z][^<>{}]*)[<{]/g),
+      ...(inJsx ? line.matchAll(/\}([^<>{}=[\]"`\\:;]*[A-Za-z][^<>{}=[\]"`\\:;]*)[<{]/g) : [])];
     for (const m of between) {
       if (m[0].startsWith("}") && JS_FLOW.test(m[1])) continue;   // "} else if (a-b) {" is code, not text
       if (WORD_HYPHEN.test(wordsOnly(m[1])) && !/=>/.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);
@@ -127,7 +137,7 @@ for (const f of [...files(ROOT), ...EXTRA]) {
     }
   });
   if (/\.[jt]sx$/.test(f)) {
-    for (const [i, words] of jsxTextLines(lines)) {
+    for (const [i, words] of jsx.out) {
       if (LONG.test(lines[i]) || !WORD_HYPHEN.test(wordsOnly(words))) continue;   // a long dash is reported above
       found.push([`${f.startsWith(ROOT) ? relative(ROOT, f) : f}:${i + 1}`, "hyphen in text", words]);
     }

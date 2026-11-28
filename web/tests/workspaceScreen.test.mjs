@@ -23,6 +23,22 @@ test("only the latest read may write: an older answer that arrives late is dropp
   assert.equal(reads.isCurrent(n), false);
 });
 
+test("signing out drops every read still in flight", async () => {
+  const reads = latestOnly();
+  const writes = [];
+  const pending = (async () => {
+    const n = reads.start();
+    await new Promise((r) => setTimeout(r, 10));
+    if (reads.isCurrent(n)) writes.push("old session's list");
+  })();
+  reads.invalidate();   // the session ended while the read was in flight
+  await pending;
+  assert.deepEqual(writes, []);
+  // a read started after that writes again
+  const n = reads.start();
+  assert.equal(reads.isCurrent(n), true);
+});
+
 test("pending reads and retries show Loading, never the empty state", () => {
   assert.equal(workspaceScreen({ workspaces: null, failed: false }), "loading");
   assert.equal(workspaceScreen({ workspaces: undefined, failed: false }), "loading");

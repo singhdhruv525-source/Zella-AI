@@ -104,6 +104,33 @@ test("a > on its own line, after props spread over lines, opens the text", () =>
   assert.match(r.out, /Sample\.jsx:6 {2}hyphen in text: Showing them needs a server-side token\./);
 });
 
+test("a comparison ending in > opens no text; a > that closes props spread over lines still does", () => {
+  const cmp = check([
+    "export function big(first, pass, limit) {",
+    "  const more = limit >",
+    "    first-pass",
+    "  return more;",
+    "}", "",
+  ].join("\n"));
+  assert.equal(cmp.code, 0, cmp.out);
+  const props = check(["export const A = () => (", "  <Card", "    title=\"x\"", "  >", "    Uses a server-side token.", "  </Card>", ");", ""].join("\n"));
+  assert.equal(props.code, 1);
+  assert.match(props.out, /Sample\.jsx:5/);
+});
+
+test("text after an expression is only read on JSX lines, not in plain code", () => {
+  // object and call suffixes after a "}" in plain JS are code
+  const code = check([
+    "const opts = { a: 1 } as-is { b: 2 };",
+    "function f() { return 1 } fall-back { x(); }", "",
+  ].join("\n"));
+  assert.equal(code.code, 0, code.out);
+  // inside JSX it is wording
+  const jsx = check("export const A = ({ n }) => <p>{n} follow-ups sent</p>;\n");
+  assert.equal(jsx.code, 1);
+  assert.match(jsx.out, /follow-ups sent/);
+});
+
 test("a line that starts with an expression or a child element is checked after it", () => {
   const lines = (body) => check(["export const A = ({ name }) => (", "  <p>", ...body.map((l) => `    ${l}`), "  </p>", ");", ""].join("\n"));
   const expr = lines(["{name} has a follow-up due."]);

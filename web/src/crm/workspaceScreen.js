@@ -13,7 +13,8 @@ export const workspaceList = (data) => (Array.isArray(data) ? data : null);
 
 // Only the latest of overlapping reads may write: start() gives each read a number, and isCurrent(n) is false once a
 // newer read has started, so an older answer that arrives late is dropped.
+// invalidate() drops every read still in flight (for example when the session ends) without starting a new one.
 export function latestOnly() {
   let latest = 0;
-  return { start: () => ++latest, isCurrent: (n) => n === latest };
+  return { start: () => ++latest, isCurrent: (n) => n === latest, invalidate: () => { latest += 1; } };
 }

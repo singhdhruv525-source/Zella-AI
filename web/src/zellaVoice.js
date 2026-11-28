@@ -348,7 +348,7 @@ const RULES = [
 
 // Messages about money, service, errors, security and privacy (call recording, transcripts, consent) are shown as
 // written, whatever a rule above would match.
-export const SERIOUS_MESSAGE = /\b(pay|paid|payment|billing|bill|invoice|refund|dispute|charge|charged|card|plan|subscription|trial|price|minutes? pack|auto reload|usage|limit|error|errors|failed|failure|couldn't|can't|didn't|wasn't|isn't|not|denied|problem|outage|incident|paused|suspended|urgent|emergency|security|password|sign in|sign out|two step|authenticator|code|session|permission|role|access|spam|blocked|privacy|erase|erased|delete|deleted|record|recording|recordings|recorded|transcript|transcripts|consent)\b/i;
+export const SERIOUS_MESSAGE = /\b(?:(?:pay|payment|bill|invoice|refund|dispute|charge|card|plan|subscription|trial|price|minutes? pack|auto reload|limit|error|failure|problem|outage|incident|password|session|permission|role|code|record|recording|transcript|consent)(?:s|es)?|paid|billing|usage|failed|couldn't|can't|didn't|wasn't|isn't|not|denied|paused|suspended|urgent|emergency|security|sign in|sign out|two step|authenticator|access|spam|blocked|privacy|erase|erased|delete|deleted|recorded)\b/i;
 
 export function warm(message, workspace) {
   if (typeof message !== "string" || !message) return message;
