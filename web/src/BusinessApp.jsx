@@ -34,7 +34,7 @@ import { BusinessSignIn, MfaCodeCard, Welcome, acceptInvitations, emailMeSignInL
 import { useMfaGate } from "./mfa";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
-import { warm } from "./zellaVoice";
+import { plainNotice } from "./zellaVoice";
 import BusinessToday from "./BusinessToday";
 import { MoneyPage } from "./BusinessMoney";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
@@ -100,7 +100,7 @@ function Blocked({ workspace, onSignOut, signOutError }) {
         <h1>{canceled ? "This plan has ended" : "This workspace is paused"}</h1>
         <p className="ba-auth-description">
           {canceled
-            ? "Your Zella Voice membership has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella Voice team to start again."
+            ? "Your Zella Voice plan has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella Voice team to start again."
             : "Your workspace and AI receptionist are paused for now. Please contact the Zella Voice team to get it running again."}
         </p>
         <button type="button" className="ba-btn block" onClick={onSignOut}>Sign out</button>
@@ -145,7 +145,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const [notice, setNoticeRaw] = useState("");
   // P21: on a phone, messages after an action appear above the bar (a toast) instead of the banner at the top.
   // `phone` and `toaster` are set further down; this only runs later, from an event.
-  const setNotice = (message) => (phone && message ? toaster.show(warm(message, workspace)) : setNoticeRaw(warm(message, workspace)));
+  const setNotice = (message) => (phone && message ? toaster.show(plainNotice(message, workspace)) : setNoticeRaw(plainNotice(message, workspace)));
   const [search, setSearch] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [attentionState, setAttentionState] = useState(() => ({ ...ATTENTION_START, businessId: workspace.id }));
@@ -707,7 +707,9 @@ function BusinessHome() {
 
     const { data, error: loadError } = await supabase.rpc("zella_my_workspaces");
     if (loadError) {
-      setError(loadError.message);
+      // the technical detail stays in the console; the screen says what happened and offers Try again
+      console.error("Loading workspaces failed:", loadError);
+      setError(loadError.message || "failed");
       setWorkspaces([]);
       return;
     }
@@ -785,15 +787,16 @@ function BusinessHome() {
             <div className="ba-logo">Z</div>
             <div className="ba-brand-name">Zella Voice</div>
           </div>
-          <h1>{isAdmin ? "You're a Zella Voice admin" : "No workspace yet"}</h1>
+          <h1>{error ? "Your workspace didn't load" : isAdmin ? "You're a Zella Voice admin" : "No workspace yet"}</h1>
           <p className="ba-auth-description">
             {error
-              ? `Your workspace couldn't be loaded: ${error}`
+              ? "We couldn't load your workspace. Nothing was changed. Check your connection and try again."
               : isAdmin
                 ? `${session.user.email} manages Zella Voice from the admin dashboard and isn't linked to a business here.`
                 : `${session.user.email} isn't linked to a Zella Voice business yet. If you were invited, open the link in your invitation email first, or ask the Zella Voice team to resend it.`}
           </p>
           <InviteBanner status={invites} email={session.user.email} onRetry={loadWorkspaces} />
+          {error && <button type="button" className="ba-btn primary block" onClick={loadWorkspaces}>Try again</button>}
           {isAdmin && <a className="ba-btn primary block" href="/">Open the admin dashboard</a>}
           <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
           {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}

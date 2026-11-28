@@ -1,44 +1,30 @@
-// Zella Voice's voice for notifications and confirmations inside the CRM: creative but professional, warm, short,
-// never robotic, no emoji, and in the business's own words (docs/DESIGN_SYSTEM.md, Notifications).
-// The facts (names, times, reasons) still come from the original message; only the wrapping changes.
-// Urgent and safety-related messages stay plain and direct, with warmth but no jokes.
-
-const hash = (text) => { let h = 0; for (const ch of String(text)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
-const choose = (list, seed) => list[hash(seed) % list.length];
-const roll = (list) => list[Math.floor(Math.random() * list.length)];
+// Zella Voice's wording for notifications and confirmations inside the CRM (docs/DESIGN_SYSTEM.md, Notifications and
+// Writing guide; owner, 27 Nov 2026): plain and calm, one line per kind, no jokes, no exclamation marks, no emoji, and
+// in the business's own words. A notification says what happened; names, times and numbers come from the server's
+// title and body, which are kept. Urgent notifications show the server's own title.
 
 const key = (name) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+const sentence = (text) => `${String(text ?? "").trim().replace(/\.$/, "")}.`;
 
-// Industry flavour: a restaurant talks about tables and guests, not appointments and customers.
+// A restaurant talks about tables and guests, not appointments and customers.
 const BY_INDUSTRY = {
   restaurant: {
-    industry_alert: (n) => [`Kitchen side heads up: ${n.title}`, `Front of house, take a look: ${n.title}`, `Zella Voice spotted something: ${n.title}`],
-    appointment_cancelled: ["A reservation was canceled. A table just opened up.", "One cancellation. That table is free again."],
-    appointment_rescheduled: ["A guest picked a different time. Reservations are updated."],
-    customer_arrived: (n) => [`${n.title}. Time to show them to their table!`, `${n.title}. A warm welcome awaits.`],
-    new_lead: () => ["A new guest is asking about a table!", "Someone new wants to dine with you. Say hello!"],
-    callback: ["A guest is waiting for your call.", "A guest would love a call back."],
-    customer_reply: ["A guest wrote back!"],
-    customer_request: ["A guest has a special request. Let's make it happen."],
+    appointment_cancelled: "A reservation was canceled. The table is free again.",
+    appointment_rescheduled: "A guest moved their reservation to a new time.",
+    new_lead: "A new guest is asking about a table.",
+    callback: "A guest is waiting for a callback.",
+    customer_reply: "A guest replied.",
+    customer_request: "A guest has a special request.",
   },
   hospitality: {
-    appointment_cancelled: ["A reservation was canceled. That space is free again."],
-    customer_arrived: (n) => [`${n.title}. Welcome them in!`],
-    new_lead: () => ["A new guest is asking about a stay!"],
-  },
-  childcare: {
-    new_lead: () => ["A new family is getting in touch. Say hello!"],
-    appointment_cancelled: ["A tour was canceled. That time is free again."],
-  },
-  dental: {
-    new_lead: () => ["A new patient is getting in touch. Say hello!"],
-    customer_arrived: (n) => [`${n.title}. Time to welcome them in!`],
+    appointment_cancelled: "A reservation was canceled. That space is free again.",
+    new_lead: "A new guest is asking about a stay.",
   },
 };
 
 
 // Every industry talks about its own people and bookings: patients and appointments, guests and tables, tenants and viewings.
-const NOUNS = {"automotive": {"p": "customer", "ps": "customers", "b": "service slot"}, "beautysalon": {"p": "client", "ps": "clients", "b": "chair"}, "childcare": {"p": "family", "ps": "families", "b": "tour"}, "cleaningservices": {"p": "client", "ps": "clients", "b": "clean"}, "dental": {"p": "patient", "ps": "patients", "b": "appointment"}, "ecommerce": {"p": "customer", "ps": "customers", "b": "order"}, "education": {"p": "student", "ps": "students", "b": "session"}, "electrical": {"p": "customer", "ps": "customers", "b": "job"}, "financialservices": {"p": "client", "ps": "clients", "b": "consultation"}, "fitness": {"p": "member", "ps": "members", "b": "class"}, "healthcare": {"p": "patient", "ps": "patients", "b": "appointment"}, "homeservices": {"p": "customer", "ps": "customers", "b": "visit"}, "hospitality": {"p": "guest", "ps": "guests", "b": "stay"}, "hvac": {"p": "customer", "ps": "customers", "b": "service call"}, "insurance": {"p": "client", "ps": "clients", "b": "review"}, "landscapinglawncare": {"p": "customer", "ps": "customers", "b": "visit"}, "legal": {"p": "client", "ps": "clients", "b": "consultation"}, "other": {"p": "customer", "ps": "customers", "b": "booking"}, "pestcontrol": {"p": "customer", "ps": "customers", "b": "visit"}, "petcareveterinary": {"p": "pet owner", "ps": "pet owners", "b": "visit"}, "photographyevents": {"p": "client", "ps": "clients", "b": "shoot"}, "plumbing": {"p": "customer", "ps": "customers", "b": "job"}, "professionalservices": {"p": "client", "ps": "clients", "b": "meeting"}, "propertymanagement": {"p": "tenant", "ps": "tenants", "b": "viewing"}, "realestate": {"p": "buyer", "ps": "buyers", "b": "viewing"}, "restaurant": {"p": "guest", "ps": "guests", "b": "table"}, "spawellness": {"p": "guest", "ps": "guests", "b": "treatment"}, "travel": {"p": "traveller", "ps": "travellers", "b": "trip"}};
+const NOUNS = {"automotive": {"p": "customer", "ps": "customers", "b": "service slot"}, "beautysalon": {"p": "client", "ps": "clients", "b": "chair"}, "childcare": {"p": "family", "ps": "families", "b": "tour"}, "cleaningservices": {"p": "client", "ps": "clients", "b": "clean"}, "dental": {"p": "patient", "ps": "patients", "b": "appointment"}, "ecommerce": {"p": "customer", "ps": "customers", "b": "order"}, "education": {"p": "student", "ps": "students", "b": "session"}, "electrical": {"p": "customer", "ps": "customers", "b": "job"}, "financialservices": {"p": "client", "ps": "clients", "b": "consultation"}, "fitness": {"p": "member", "ps": "members", "b": "class"}, "healthcare": {"p": "patient", "ps": "patients", "b": "appointment"}, "homeservices": {"p": "customer", "ps": "customers", "b": "visit"}, "hospitality": {"p": "guest", "ps": "guests", "b": "stay"}, "hvac": {"p": "customer", "ps": "customers", "b": "service call"}, "insurance": {"p": "client", "ps": "clients", "b": "review"}, "landscapinglawncare": {"p": "customer", "ps": "customers", "b": "visit"}, "legal": {"p": "client", "ps": "clients", "b": "consultation"}, "other": {"p": "customer", "ps": "customers", "b": "booking"}, "pestcontrol": {"p": "customer", "ps": "customers", "b": "visit"}, "petcareveterinary": {"p": "pet owner", "ps": "pet owners", "b": "visit"}, "photographyevents": {"p": "client", "ps": "clients", "b": "shoot"}, "plumbing": {"p": "customer", "ps": "customers", "b": "job"}, "professionalservices": {"p": "client", "ps": "clients", "b": "meeting"}, "propertymanagement": {"p": "tenant", "ps": "tenants", "b": "viewing"}, "realestate": {"p": "buyer", "ps": "buyers", "b": "viewing"}, "restaurant": {"p": "guest", "ps": "guests", "b": "table"}, "spawellness": {"p": "guest", "ps": "guests", "b": "treatment"}, "travel": {"p": "traveler", "ps": "travelers", "b": "trip"}};
 // The business's own words win: terminology set for this workspace ("session", "client") replaces the industry's.
 function industryVoice(k, own = {}) {
   const n = NOUNS[k];
@@ -49,14 +35,13 @@ function industryVoice(k, own = {}) {
   const ps = own.customers || (own.customer && own.customer !== n.p ? plural(own.customer) : n.ps);
   const Ps = ps.charAt(0).toUpperCase() + ps.slice(1);
   return {
-    best_day: [`A record day for your ${plural(B)}`, `Your busiest day for ${plural(B)} in three months`],
-    call_surge: [`${Ps} are calling in numbers today`, `A busy day on the phones with your ${ps}`],
-    new_lead: () => [`${a} new ${P} is getting in touch. Say hello!`, `Someone new wants to become ${a.toLowerCase()} ${P}. Say hello!`, `A new ${P} enquiry just arrived.`],
-    callback: [`${a} ${P} is waiting for your call.`, `${a} ${P} would love a call back.`],
-    appointment_cancelled: [`A ${B} was canceled. That time is free again.`, `One ${B} canceled. Your calendar has room.`],
-    customer_arrived: (x) => [`${x.title}. Time to welcome them in!`, `${x.title}. Your ${P} is here!`],
-    customer_reply: [`${a} ${P} wrote back!`, `New reply from ${a.toLowerCase()} ${P}. The conversation is moving.`],
-    customer_request: [`${a} ${P} has a request. Let's make it happen.`],
+    best_day: `A record day for your ${plural(B)}`,
+    call_surge: `${Ps} are calling more than usual today`,
+    new_lead: (x) => (/priority/i.test(x.title) ? `A new ${P} got in touch. It's a priority lead.` : `A new ${P} got in touch.`),
+    callback: `${a} ${P} is waiting for a callback.`,
+    appointment_cancelled: `A ${B} was canceled. That time is free again.`,
+    customer_reply: `${a} ${P} replied.`,
+    customer_request: `${a} ${P} has a request.`,
   };
 }
 
@@ -78,172 +63,141 @@ export function localize(text, term) {
     .replace(/\bcustomer\b/gi, (m) => (m[0] === m[0].toUpperCase() ? term("customer") : lower(term("customer"))));
 }
 
-// Bell titles by kind. A function gets the original title (for kinds that carry a name).
+// Bell titles by kind: one plain line each. A function gets the original notification, for kinds whose title carries
+// the facts (a name, a number). Kinds not listed here (usage_threshold, industry_alert, on_call_gap, ...) show the
+// server's title as it is. The body under the title always comes from the server.
 const TITLES = {
-  new_lead: (n) => /priority/i.test(n.title)
-    ? ["A hot lead just arrived. Worth a quick hello.", "Priority lead! Someone's keen to hear from you.", "This one's a strong lead. Say hello while it's warm."]
-    : ["A new lead just walked in!", "Fresh lead! Someone's interested in you.", "Someone new wants to talk. Say hello!"],
-  website_lead: ["Your website just made a new friend.", "Someone filled in your form. Say hello!"],
-  social_lead: ["A new lead found you on social media!", "Someone reached out from social. Say hello!"],
-  callback: ["Someone's waiting for your call.", "A callback is waiting. They'd love to hear from you.", "A friendly callback is on your list."],
-  callback_assigned: ["A callback was handed to you. Over to you!", "You've got a callback. A warm voice will go a long way."],
-  callback_soon: ["A callback is coming up soon. Almost time!", "Heads up: a callback is due shortly."],
-  callback_overdue: ["Someone is still waiting on that callback.", "A callback is running late. A quick call will make their day."],
-  appointment_cancelled: ["Plans changed. A slot just opened up.", "One cancellation. That time is yours again.", "A booking was canceled. Your calendar has room."],
-  appointment_rescheduled: ["Someone found a better time. Calendar updated!", "A booking moved. We've already updated your calendar."],
-  appointment_cancelled_mine: ["One of your bookings was canceled. Time for a breather?", "A booking of yours was canceled. Your calendar has room."],
-  appointment_moved_mine: ["One of your bookings moved. We've updated everything."],
-  customer_arrived: (n) => [`${n.title}. Time to say hello!`, `${n.title}. Someone's here to see you!`, `Doorbell! ${n.title}.`],
-  customer_reply: ["A customer wrote back!", "You've got a reply. Someone's talking to you.", "New reply. The conversation is moving."],
-  customer_email: ["A customer sent an email.", "A new email just landed from a customer."],
-  customer_request: ["A customer has a request for you.", "Someone asked for something. Let's take a look."],
-  social_message: ["A new message from social media!", "Someone messaged you on social. Say hello!"],
-  social_booking: ["Someone booked through social media. Lovely!"],
-  emergency_call: ["Emergency call. Please look at this one first.", "This one can't wait. An emergency call came in."],
-  lead_escalated: ["Someone needs a person, and soon. Can you step in?", "A conversation needs your touch. Over to you."],
-  escalation_unacknowledged: ["Someone is still waiting for a person. Please take a look."],
-  task_overdue: ["A gentle nudge: a task is running late.", "One task is overdue. A small step gets it moving."],
-  lead_overdue: ["A lead is waiting for a first hello.", "Someone's been waiting. A quick reply will help."],
-  unassigned_work: ["Some work needs an owner. Who's up for it?"],
-  work_reassigned: ["Some work was handed to someone new."],
-  slow_reply: ["A customer's been waiting a little while for a reply."],
-  call_insight: ["Zella Voice noticed something worth a look on a recent call.", "A recent call has something worth your attention."],
-  approval_requested: ["Someone is asking for your thumbs up."],
-  approval_waiting: ["A thumbs up is still waiting on you."],
-  time_off_request: ["A teammate is hoping for some time off.", "Someone on your team has asked for time off."],
-  time_off_decision: ["There's an answer on your time off request."],
-  staff_joined: ["A new teammate just joined. Welcome them in!", "Say hello! Someone new has joined the team."],
-  staff_unavailable: ["Someone on your team is away. We've kept things covered."],
-  went_live: ["You're live! Zella Voice is picking up the phone.", "It's official: Zella Voice is on the line for you."],
-  business_welcome: ["Welcome aboard! We're glad you're here.", "Welcome to Zella Voice. We're right here with you."],
-  setup_incomplete: ["A few small steps left before you go live."],
-  setup_reminder: ["Almost there. A few steps are left to finish setup."],
-  trial_ending: ["Your trial is wrapping up. We'd love to keep you."],
-  payment_failed: ["Your payment didn't go through. Easy to fix, let's sort it."],
-  payment_overdue: ["A payment is overdue. A quick look will sort it."],
-  payment_received: ["Payment received. Thank you!", "Thanks! Your payment landed safely."],
-  renewal_upcoming: ["Your plan renews soon. Nothing you need to do unless you'd like to change something."],
-  integration_down: ["One of your connections needs attention. We'll walk you through it."],
-  integration_reconnect: ["A connection needs a quick reconnect. It only takes a moment."],
-  calendar_disconnected: ["Your calendar got disconnected. Let's reconnect it."],
-  email_bounced: ["An email didn't land. Worth a quick look."],
-  sms_not_delivered: ["A text message didn't get through. Let's try again."],
-  messages_failed: ["Some messages didn't get through. Let's try again."],
-  reminder_failed: ["A reminder didn't go out. Let's try that again."],
-  daily_summary: ["Your day at a glance is ready."],
-  weekly_review: ["Your week in review is ready. Look how far you've come!"],
-  team_summary: ["Your team recap is ready."],
-  incident_open: ["We hit a bump, and we're on it."],
-  incident_resolved: ["All clear. Everything's back to normal."],
-  data_rights_request: ["A customer made a privacy request. Please take a look."],
-  agent_config_published: ["Your AI receptionist has a fresh update. She's ready!"],
-  knowledge_report: ["Your knowledge report is ready."],
-  duplicate: ["Two records look like the same person. Want to tidy up?"],
-  industry_alert: (n) => [`Zella Voice spotted something: ${n.title}`, `Heads up! ${n.title}`, `Worth a look: ${n.title}`, `A little nudge from Zella Voice: ${n.title}`],
-  draft_ready: ["Zella Voice wrote a message for you. Give it a look and send it!", "A message is warmed up and waiting for your OK.", "Fresh draft on your desk. Edit it, send it, or skip it.", "We've done the writing. You make the call."],
-  shift_handover: ["Work was handed to you. Your team is counting on you!", "A handover just landed on your desk. Welcome to the next leg.", "Baton passed! Some work is yours now."],
-};
-
-// The rest of the kinds the database sends (2026-10-28), so nothing in the bell reads like a log line.
-// Kinds whose title carries the facts (a name, a number) keep it: the function gets the original notification.
-Object.assign(TITLES, {
-  // account and plan
-  account_cancelled: ["Your Zella Voice plan has been canceled. We're sorry to see you go."],
-  account_reactivated: ["Welcome back! Your workspace is active again.", "You're back! Everything is switched on again."],
-  account_suspended: ["Your workspace is paused. Let's get it sorted together."],
-  subscription_cancelled: ["Your subscription was canceled. Your records are safe for now."],
-  cancellation_coming: ["Your plan is ending soon. Want to keep Zella Voice answering?"],
-  trial_ended: ["Your trial has ended. We'd love to keep helping you."],
-  usage_threshold: (n) => [`Minutes check in: ${n.title}`, `Heads up on your minutes: ${n.title}`],
-  // calls, callbacks and the AI receptionist
-  agent_failures: ["Your AI receptionist hit a few bumps. Worth a look."],
-  agent_sync_failed: ["An update didn't reach your AI receptionist yet. We'll try again."],
-  callback_digest: ["Your callback roundup is ready."],
-  callback_escalated: ["A callback needs someone senior. Can you step in?"],
-  callback_review: ["A callback needs a quick check before anyone calls."],
-  transfer_failures: ["Calls couldn't be passed to a person a few times. Let's check the number."],
-  transfer_fallback_applied: ["Calls are now going to your backup number. Nobody gets left hanging."],
-  wrong_answer_reported: ["Someone flagged an answer from your AI receptionist. Let's fix it together."],
-  spot_check: ["A few AI conversations are ready for a quick spot check."],
-  on_call_starting: (n) => /^You're on call/.test(n.title)
-    ? [`${n.title}. Phone charged? You've got this.`, `${n.title}. after hours calls will come to you.`]
-    : [`${n.title}. after hours calls are covered.`, `Tonight's cover: ${n.title.replace(/^(.+) is on call/, "$1, on call")}.`],
-  // leads, work and the team
-  lead_assigned: ["A new lead has your name on it. Say hello!", "You've got a lead! A quick hello goes a long way."],
-  task_escalated: ["A task needs a hand. Can you help it over the line?"],
-  appointment_request: ["Someone asked for an appointment. Pick a time that suits.", "A booking request is waiting for your yes."],
-  appointments_need_outcome: ["A few visits need marking as done or no show.", "Quick tidy up: a few bookings need an outcome."],
-  customer_request_overdue: ["A customer's request is still waiting. Let's close the loop."],
-  team_scorecard: ["A few things are waiting from last week.", "Monday check in: a little catching up to do."],
-  duplicate_scan: ["We found some records that may be the same person."],
-  calendar_sync_owner: ["Your calendar sync needs a look."],
-  // messages and email
-  email_complaint: ["Someone marked an email as spam. We've stopped emailing them."],
-  email_unsubscribed: ["A customer unsubscribed from emails. We'll respect that."],
-  kpi_message_failures: ["More messages than usual didn't get through. Let's check why."],
-  kpi_missed_calls: ["More calls than usual went unanswered. Let's look together."],
-  kpi_no_shows: ["no shows are a little higher than usual. Reminders may help."],
+  // leads
+  new_lead: (n) => (/priority/i.test(n.title) ? "A new priority lead came in." : "A new lead came in."),
+  website_lead: "A new lead came in from your website.",
+  social_lead: "A new lead came in from social media.",
+  lead_assigned: "A new lead was assigned to you.",
+  lead_escalated: "A conversation needs a person.",
+  lead_overdue: "A lead is still waiting for a first reply.",
+  // callbacks
+  callback: "Someone is waiting for a callback.",
+  callback_assigned: "A callback was assigned to you.",
+  callback_soon: "A callback is due soon.",
+  callback_overdue: "A callback is overdue.",
+  callback_digest: "Your callback roundup is ready.",
+  callback_escalated: "A callback needs a senior team member.",
+  callback_review: "A callback needs a check before anyone calls.",
+  // calendar
+  appointment_cancelled: "A booking was canceled. That time is free again.",
+  appointment_rescheduled: "A booking moved to a new time. Your calendar is updated.",
+  appointment_cancelled_mine: "One of your bookings was canceled.",
+  appointment_moved_mine: "One of your bookings moved to a new time.",
+  appointment_request: "Someone asked for an appointment. Pick a time.",
+  appointments_need_outcome: "Some appointments need an outcome: done or no show.",
+  customer_arrived: (n) => sentence(n.title),
+  social_booking: "Someone booked through social media.",
+  // messages
+  customer_reply: "A customer replied.",
+  customer_email: "A customer sent an email.",
+  customer_request: "A customer sent a request.",
+  customer_request_overdue: "A customer's request is still open.",
+  slow_reply: "A customer is waiting for a reply.",
+  social_message: "New message on social media.",
+  social_comment: "New comment on your social media post.",
+  social_handoff: "A social media conversation needs a person.",
+  draft_ready: "A draft message is ready to review.",
+  // calls and the AI receptionist
+  emergency_call: "Emergency call. Please look at this one first.",
+  escalation_unacknowledged: "Someone is still waiting for a person.",
+  call_insight: "A recent call has a suggestion for you.",
+  agent_config_published: "Your AI receptionist's update is live.",
+  agent_failures: "Your AI receptionist ran into errors on some calls.",
+  agent_sync_failed: "An update didn't reach your AI receptionist yet. We'll try again.",
+  transfer_failures: "Some calls couldn't be transferred to a person. Check the transfer number.",
+  transfer_fallback_applied: "Calls are now going to your backup number.",
+  wrong_answer_reported: "Someone reported a wrong answer from your AI receptionist.",
+  spot_check: "Some AI receptionist conversations are ready for a spot check.",
+  on_call_starting: (n) => (/^You're on call/.test(n.title) ? `${sentence(n.title)} After hours calls come to you.` : sentence(n.title)),
+  went_live: "You're live. Your AI receptionist is answering calls.",
+  // the team
+  task_overdue: "A task is overdue.",
+  task_escalated: "A task was escalated.",
+  unassigned_work: "Some work has no one assigned.",
+  work_reassigned: "Some work was reassigned.",
+  shift_handover: "Work was handed over to you.",
+  approval_requested: "Someone asked for your approval.",
+  approval_waiting: "An approval is still waiting for you.",
+  time_off_request: "A team member asked for time off.",
+  time_off_decision: "Your time off request has an answer.",
+  staff_joined: "A new team member joined.",
+  staff_unavailable: "Someone on your team is away.",
+  team_scorecard: "Some work from last week is still open.",
+  // summaries
+  daily_summary: "Your daily summary is ready.",
+  weekly_review: "Your weekly review is ready.",
+  team_summary: "Your team summary is ready.",
+  knowledge_report: "Your knowledge report is ready.",
+  spam_weekly_report: "Your weekly spam protection report is ready.",
+  // plan and money: always plain
+  business_welcome: "Welcome to Zella Voice.",
+  setup_incomplete: "A few setup steps are left before you go live.",
+  setup_reminder: "Setup isn't finished yet. A few steps are left.",
+  trial_ending: "Your trial ends soon.",
+  trial_ended: "Your trial has ended.",
+  payment_failed: "Your payment didn't go through.",
+  payment_overdue: "A payment is overdue.",
+  payment_received: "Payment received.",
+  renewal_upcoming: "Your plan renews soon. You don't need to do anything unless you want to change it.",
+  account_cancelled: "Your Zella Voice plan was canceled.",
+  account_reactivated: "Your workspace is active again.",
+  account_suspended: "Your workspace is paused.",
+  subscription_cancelled: "Your plan was canceled.",
+  cancellation_coming: "Your plan ends soon.",
+  // service
+  incident_open: "We're working on a problem with Zella Voice.",
+  incident_resolved: "A problem with Zella Voice was fixed.",
+  // connections and delivery
+  integration_down: "One of your connections stopped working.",
+  integration_reconnect: "A connection needs to be reconnected.",
+  integration_reminder: "One of your connections isn't set up yet.",
+  reconnect_reminder: "A connection still needs to be reconnected.",
+  calendar_disconnected: "Your calendar was disconnected.",
+  calendar_sync_owner: "Your calendar sync needs attention.",
+  email_bounced: "An email couldn't be delivered.",
+  email_complaint: "Someone marked an email as spam. We've stopped emailing them.",
+  email_unsubscribed: "A customer unsubscribed from emails.",
+  sms_not_delivered: "A text message wasn't delivered.",
+  messages_failed: "Some messages weren't delivered.",
+  reminder_failed: "A reminder wasn't sent.",
+  meta_disconnected: "Facebook or Instagram was disconnected.",
+  meta_lead_failed: "A lead from Facebook didn't come through.",
+  meta_lead_incomplete: "A Facebook lead arrived with missing details.",
+  meta_permissions_missing: "Facebook needs more permissions.",
+  // trends
+  kpi_message_failures: "More messages than usual weren't delivered.",
+  kpi_missed_calls: "More calls than usual were missed.",
+  kpi_no_shows: "No shows are higher than usual. Reminders may help.",
   // knowledge and the website
-  knowledge_gap: ["Callers asked something your AI couldn't answer. Teach it once, it remembers.", "A new question came up. A quick answer helps every caller after."],
-  knowledge_repeat: ["The same question keeps coming up. Worth adding to Knowledge?"],
-  knowledge_conflict: ["Two answers in Knowledge disagree. Which one is right?"],
-  knowledge_failed: ["A knowledge update didn't go through. Let's try again."],
-  integration_reminder: ["One small connection would make Zella Voice even more helpful."],
-  reconnect_reminder: ["A connection is still waiting to be reconnected."],
-  data_rights_due: ["A privacy request is due soon. Please take a look."],
-  website_review: ["New pages from your website are ready for a look."],
-  website_new_pages: ["We spotted new pages on your website."],
-  website_page_broken: ["A page on your website isn't loading. Worth a check."],
-  website_page_removed: ["A page disappeared from your website. We've kept your AI up to date."],
-  // social, spam and reviews
-  social_comment: ["Someone commented on your social post!", "A new comment is waiting on social."],
-  social_handoff: ["A social conversation needs a person. Over to you!"],
-  meta_disconnected: ["Facebook or Instagram got disconnected. Let's reconnect it."],
-  meta_lead_failed: ["A lead from Facebook didn't come through. Let's take a look."],
-  meta_lead_incomplete: ["A Facebook lead arrived with missing details."],
-  meta_permissions_missing: ["Facebook needs a little more permission to keep things running."],
-  spam_high_risk: ["Zella Voice blocked something suspicious. Have a quick look."],
-  spam_unreviewed: ["A few suspicious contacts are waiting for your call on them."],
-  spam_weekly_report: ["Your spam protection week in review is ready."],
-  low_review: (n) => [`${n.title}. A kind reply can turn it around.`, `${n.title}. Your reply draft is ready.`],
-  review_reply_failed: ["A review reply couldn't be posted. Let's try again."],
-  reviews_disconnected: ["Google reviews stopped syncing. Let's reconnect."],
+  knowledge_gap: "Callers asked something your AI receptionist couldn't answer.",
+  knowledge_repeat: "The same question keeps coming up. You can add the answer to Knowledge.",
+  knowledge_conflict: "Two answers in Knowledge disagree.",
+  knowledge_failed: "A knowledge update didn't go through.",
+  website_review: "New pages from your website are ready to review.",
+  website_new_pages: "New pages were found on your website.",
+  website_page_broken: "A page on your website isn't loading.",
+  website_page_removed: "A page was removed from your website.",
+  // privacy, records, spam and reviews
+  data_rights_request: "A customer made a privacy request.",
+  data_rights_due: "A privacy request is due soon.",
+  duplicate: "Two records may be the same person.",
+  duplicate_scan: "Some records may be the same person.",
+  spam_high_risk: "Zella Voice blocked something suspicious.",
+  spam_unreviewed: "Some suspicious contacts are waiting for review.",
+  low_review: (n) => sentence(n.title),
+  review_reply_failed: "A review reply couldn't be posted.",
+  reviews_disconnected: "Google reviews stopped syncing.",
   // celebrations: the facts are in the title
-  milestone: (n) => [`${n.title}.`, `Milestone reached: ${n.title.charAt(0).toLowerCase()}${n.title.slice(1)}.`, `${n.title}. Here's to the next one.`],
-  five_star_review: (n) => [`${n.title}.`, `Five stars, ${n.title.replace(/^5 star review from /i, "from ")}.`, `${n.title}. Your team earned this one.`],
-  best_week: ["Your best week in three months", "A record week: your busiest in three months"],
-  best_day: ["A record day for bookings", "Your busiest booking day in three months"],
-  call_surge: ["Calls are pouring in today", "A busy day on the phones"],
-});
-
-// More ways to say the same thing, so the bell never feels like a template. Only the wording changes, never the facts.
-const EXTRA = {
-  website_lead: ["A visitor liked your website enough to say hi!", "Your website just did its job. A new enquiry is in."],
-  social_lead: ["A new enquiry came in from social media.", "Someone new reached out on social media."],
-  callback: ["A caller is waiting to hear from you.", "Someone is hoping for a call back today."],
-  callback_assigned: ["A callback has your name on it.", "This callback was made for you."],
-  callback_soon: ["A callback is due in a few minutes.", "Get ready: a callback is due shortly."],
-  callback_overdue: ["A callback is sitting patiently. A quick ring would make their day.", "Someone's still hoping to hear from you."],
-  appointment_cancelled: ["A slot just came free. Breathing room!", "Cancellation! That gap is yours to fill or enjoy."],
-  appointment_rescheduled: ["Someone shuffled their plans. We kept your calendar tidy.", "A booking hopped to a new time, all updated."],
-  customer_reply: ["A customer replied.", "They answered! The conversation lives on."],
-  customer_email: ["A customer's email just arrived.", "A new email from a customer."],
-  customer_request: ["A customer has a little ask for you.", "A request came in. Let's make someone's day."],
-  emergency_call: ["This is an emergency. Please look first.", "An emergency call is in. Everything else can wait."],
-  lead_escalated: ["A conversation needs your human touch.", "Zella Voice's passing this one to you. It's a good one."],
-  task_overdue: ["A task is past its due date.", "One task is running behind."],
-  lead_overdue: ["A lead is still waiting for hello number one.", "Don't let this lead go cold. A quick hello will do it."],
-  call_insight: ["Zella Voice was listening and noticed something worth a look.", "A recent call taught us something. Take a peek."],
-  staff_joined: ["Team news: someone new has joined. Wave hello!"],
-  went_live: ["You're live. Zella Voice is answering your calls.", "Your AI receptionist is now answering calls."],
-  payment_received: ["Payment received. Thank you.", "Thank you! That payment arrived safely."],
-  daily_summary: ["Your day, wrapped up neatly.", "Today's recap is ready, with everything that mattered."],
-  weekly_review: ["Your week at a glance is ready.", "Weekly review is ready. It was a good one."],
-  incident_resolved: ["Resolved. Everything is running normally.", "All fixed. Thanks for your patience."],
-  agent_config_published: ["Your AI receptionist just learned something new.", "Your receptionist's update is live."],
-  duplicate: ["These two look like the same person. Shall we tidy up?", "Two records may be the same person."],
+  milestone: (n) => sentence(n.title),
+  five_star_review: (n) => sentence(n.title),
+  best_week: "Your best week in three months",
+  best_day: "A record day for bookings",
+  call_surge: "More calls than usual today",
 };
-for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind])) TITLES[kind] = [...TITLES[kind], ...extra];
 
 const ownWords = (workspace) => {
   const t = workspace?.terminology ?? {};
@@ -251,58 +205,28 @@ const ownWords = (workspace) => {
   return { customer: w("customer"), customers: w("customers"), appointment: w("appointment") };
 };
 
-// Notification shown in the bell: same facts, friendlier words.
+// Notification shown in the bell, pop ups and desktop alerts: one plain line per kind, in the business's own words.
 export function voiceTitle(n, workspace) {
   // titles written by the server may say "5-star" or "24-hour"; the bell says "5 star" (names keep their hyphens)
   if (typeof n?.title === "string") n = { ...n, title: n.title.replace(/(\d)-(?=[A-Za-z])/g, "$1 ") };
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
-  if (n.kind === "industry_alert" && n.severity === "urgent") return localize(n.title, term); // urgent stays plain and direct
+  if (n.severity === "urgent") return localize(n.title, term);   // urgent stays the server's own words
   const ind = key(workspace?.industry);
   const entry = BY_INDUSTRY[ind]?.[n.kind] ?? industryVoice(ind, ownWords(workspace))?.[n.kind] ?? TITLES[n.kind];
   if (!entry) return localize(n.title, term);
-  const list = typeof entry === "function" ? entry(n) : entry;
-  return localize(choose(list, n.id ?? n.title), term);
+  return localize(typeof entry === "function" ? entry(n) : entry, term);
 }
 
-// Short confirmations ("Saved.") in Zella Voice's voice. Unknown messages are left alone.
-const RULES = [
-  [/^Details saved\.?$/, () => roll(["Saved. Looking good.", "All saved. Nicely done."])],
-  [/^Callback scheduled\.?$/, () => roll(["Callback scheduled. They'll be glad to hear from you.", "Callback set. A friendly call is on its way."])],
-  [/^Callback finished\.?$/, () => roll(["Callback done. One less thing on your plate.", "Callback complete. Nicely handled."])],
-  [/^Marked as contacted\.?$/, () => roll(["Marked as contacted. Nice and quick.", "Contacted! They'll appreciate the hello."])],
-  [/^Booking confirmed\. Reminders are set\.?$/, () => roll(["Booked! Reminders are set so nobody forgets.", "It's in the calendar, and reminders are set."])],
-  [/^Booking confirmed\.?$/, () => "Confirmed! It's in the calendar."],
-  [/^Lead created\.?$/, () => roll(["Lead added. A promising start.", "New lead saved. Welcome them in!"])],
-  [/^Removed\. The time is open again\.?$/, () => "Done. That time is open again."],
-  [/^Block removed\. The time is open again\.?$/, () => "Done. That time is open again."],
-  [/^You're live\./, () => "You're live! Zella Voice is picking up the phone."],
-  [/^Run queued to try again\.?$/, () => "Trying again now."],
-  [/^Submitted\. /, (m) => m.replace(/^Submitted\./, "Thanks, submitted.")],
-  [/^Added\. /, (m) => m.replace(/^Added\./, "Added. Nice one.")],
-  [/^(.+) moved to (.+)$/, (m, a, b) => `${a} moved to ${b}. The calendar is all updated.`],
-  [/^(.+) is (on|off)\.$/, (m, a, s) => (s === "on" ? `${a} is on. It's got it from here.` : `${a} is off. We'll hold back.`)],
-  [/^(.+) options saved\.$/, (m, a) => `${a} options saved. Fresh settings, ready to go.`],
-  [/^(.+) is saved\.$/, (m, a) => `${a} is saved and ready to go.`],
-  [/^Suggestion dismissed\.?$/, () => "Dismissed. Moving on."],
-  [/^Saved to the customer\.?$/, () => "Saved to the customer. Thanks for checking!"],
-];
-
-export function warm(message, workspace) {
+// Confirmations ("Details saved.") are shown as the code wrote them, in the business's own words. There are no
+// variants: one state, one wording (BRD-4).
+export function plainNotice(message, workspace) {
   if (typeof message !== "string" || !message) return message;
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
-  for (const [pattern, make] of RULES) {
-    const hit = message.match(pattern);
-    if (hit) return localize(make(message, ...hit.slice(1)), term);
-  }
   return localize(message, term);
 }
 
-export const ALL_QUIET = [
-  "All quiet. Nothing needs you right now.",
-  "You're all caught up. Enjoy the calm.",
-  "Nothing new. We'll tap you on the shoulder if that changes.",
-];
-export const pickQuiet = () => roll(ALL_QUIET);
+// The bell when nothing needs a person.
+export const ALL_QUIET = "Nothing needs you right now.";
 
 // Icon and tone for each kind in the bell and pop-ups. Unknown kinds get a plain bell.
 const ICONS = {

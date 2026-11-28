@@ -3,7 +3,7 @@
 //   cd web && node --test tests/notificationStyle.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
-import { noteIcon, noteStyle, plural, voiceTitle } from "../src/zellaVoice.js";
+import { ALL_QUIET, noteIcon, noteStyle, plainNotice, plural, voiceTitle } from "../src/zellaVoice.js";
 
 test("tones and kickers", () => {
   assert.deepEqual(noteStyle({ kind: "best_day", severity: "info" }), { icon: "emoji_events", tone: "good", kicker: "Record" });
@@ -63,4 +63,37 @@ test("no emoji and no dashes in any wording", () => {
     assert.doesNotMatch(t, /\p{Extended_Pictographic}/u, `${kind} ${industry}: ${t}`);
     assert.doesNotMatch(t, /[–—]|[A-Za-z0-9]-[A-Za-z]/, `${kind} ${industry}: ${t}`);
   }
+});
+
+test("plain and calm: one wording per kind, no exclamation marks, urgent keeps the server's words (owner, 27 Nov 2026)", () => {
+  const kinds = ["new_lead", "website_lead", "callback", "callback_overdue", "appointment_cancelled", "customer_arrived", "customer_reply",
+    "lead_escalated", "call_insight", "draft_ready", "shift_handover", "payment_failed", "payment_overdue", "payment_received",
+    "incident_open", "account_suspended", "agent_config_published", "went_live", "kpi_no_shows", "on_call_starting", "weekly_review"];
+  const industries = ["Other", "Restaurant", "Dental", "Travel", "Childcare"];
+  for (const kind of kinds) for (const industry of industries) {
+    const seen = new Set();
+    for (let i = 0; i < 6; i++) seen.add(voiceTitle(note(kind, { id: `${kind}-${i}`, title: "Sam Lee has arrived" }), { industry }));
+    assert.equal(seen.size, 1, `${kind} ${industry}: ${[...seen].join(" | ")}`);
+    const [t] = seen;
+    assert.doesNotMatch(t, /!/, `${kind} ${industry}: ${t}`);
+    assert.doesNotMatch(t, /listening|taught us|\bShe\b|enquiry|traveller/i, `${kind} ${industry}: ${t}`);
+    assert.match(t, /^[A-Z0-9]/, `${kind} ${industry}: ${t}`);
+  }
+  // a name in the server's title is kept
+  assert.equal(voiceTitle(note("customer_arrived", { title: "Sam Lee has arrived" }), { industry: "Other" }), "Sam Lee has arrived.");
+  // money messages say what happened
+  assert.equal(voiceTitle(note("payment_failed"), { industry: "Other" }), "Your payment didn't go through.");
+  // an urgent notification shows the server's own title
+  assert.equal(voiceTitle(note("call_insight", { title: "A call sounded like an emergency", severity: "urgent" }), { industry: "Other" }), "A call sounded like an emergency");
+  // US spelling for the travel industry's people
+  assert.match(voiceTitle(note("callback"), { industry: "Travel" }), /^A traveler is waiting/);
+});
+
+test("confirmations are shown as written, in the business's own words", () => {
+  const ws = { terminology: { customer: "Guest", appointment: "Reservation" } };
+  assert.equal(plainNotice("Details saved.", ws), "Details saved.");
+  assert.equal(plainNotice("Marked as contacted.", {}), "Marked as contacted.");
+  assert.equal(plainNotice("Saved to the customer.", ws), "Saved to the guest.");
+  assert.equal(plainNotice("Appointment moved to Friday.", ws), "Reservation moved to Friday.");
+  assert.equal(ALL_QUIET, "Nothing needs you right now.");
 });
