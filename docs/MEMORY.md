@@ -115,6 +115,98 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 
 ## 4. Open problems
 
+- **Paying from inside the CRM (owner, 27 Nov 2026), same branch, not merged, applied or deployed.** Needs
+  `sql/zella_stripe_owner_pay.sql` applied after `zella_stripe_invoices.sql`, `zella_stripe_packs.sql` and
+  `zella_stripe_emails.sql` (md5s from a function level stand in; confirm against production); the Customer Portal
+  configured for card update only (§16.6) and its `payment_method_update` flow proven in the sandbox, with whether a
+  past due invoice is retried at once after a card update; Pay now's `confirmation_secret` proven in the sandbox.
+- **Glass Pay step with Stripe's card fields in the page (owner, 27 Nov 2026), branch `claude/glass-embedded-checkout`,
+  not merged, applied or deployed.** Before payments go live it needs: `sql/zella_stripe_embedded_checkout.sql` applied
+  after `zella_stripe_checkout.sql` (owner approval; md5s computed on a stand in copy, confirm against production);
+  `STRIPE_PUBLISHABLE_KEY` set in the same mode as the secret key; the sandbox proofs in
+  `docs/PAYMENTS_ARCHITECTURE.md` §16.8 (notably that a `ui_mode: custom` session returns its `client_secret` and that
+  its confirm accepts a PaymentMethod made by the split card fields; if not, the fallback is the first invoice's own
+  PaymentIntent, which needs the owner's go ahead); and owner decisions: whether the CSP must be enforcing (not report
+  only) for the SAQ A attestation; Stripe's hosted page as the fallback when Stripe.js is blocked is now
+  built for Pay now (owner, 27 Nov 2026); for the onboarding session it is still not built (no hosted link); whether a billing address changed in the checkout should update the business record (not built: we don't
+  store it); Stripe's international card and conversion fees to confirm on the pricing page or Dashboard; and a
+  review of Stripe Radar's rules against the any country decision (owner action).
+- **Add ons and the required "I agree" box (owner decisions, 27 Nov 2026), same branch, not merged, applied or
+  deployed.** Add ons on the pay page: the receipt panel lists the packs on offer as tick box rows grouped by type; the
+  page sends pack codes only. **A single payment at onboarding**: the packs are lines of the same Checkout Session,
+  granted only from the verified, bound first invoice, quarantined on any mismatch; a changed selection expires the
+  open session first. **Separate charges on Pay now**: the plan payment first, then each pack through the pack path
+  with its own key ("Add ons are charged right after your plan."; "Plan paid. 100 minutes not
+  added" with Try again for that pack). **The required agree checkbox** before every Pay, with the server's amounts,
+  rebuilt and hashed by the server, recorded in `billing_payment_consents`. **TODO (real terms versioning):** the terms
+  version recorded with each agreement is a constant (`terms-draft-2026-11-27`, `zella_billing_terms_version()`) until
+  the legal documents are published at `/terms` and `/privacy`; then version them and record the real version (a go
+  live gate, `docs/PAYMENTS_ARCHITECTURE.md` §14). **Open owner decisions:** (1) resolved by the copy pass (27 Nov 2026): the Pay now
+  agreement says "$A to this card and $B for add ons to my saved card"; (2) add
+  ons are not offered with a trial (nothing is charged today then); (3) a refund of an add on bought at onboarding is
+  not offered separately; (4) **`docs/BACKEND_SCHEMA.md` must be regenerated before PR #148 merges**: it can't be
+  done in the build session (it needs an isolated copy of the production schema); the generator already has the
+  purposes of the three new tables (`billing_owner_requests`, `billing_payment_consents`, `billing_checkout_addons`).
+  **CodeRabbit round 3 (28 Nov 2026):** agreements bound to their exact add ons, keys and prices; the attempts clear
+  bound to the failed attempt's intent and time; one catalogue read per onboarding start; cancelled pack purchases
+  final with Try again (owner decision: "This add on wasn't bought. You weren't charged."); the pack page's card
+  lookup failure is its own state; Checkout's `paymentFailed` mapped to the decline words. `tests/stripe_e2e/journey_test.ts`
+  now sends the agreement but was not run here (it needs the `zprod3` production schema copy, not on the build server):
+  run it before merge.
+  **CodeRabbit round 4 (28 Nov 2026):** enforced attribution (owner instruction via the coordinator): the Pay press
+  records the PaymentIntent, and a paid invoice's add ons come only from the agreement submitted with the intent that
+  paid it; the invoice is rechecked under its lock; expired or repriced checkouts are never reused; Pay now waits for
+  the saved Auto pay choice; the reviewer config states the card fields rule above. The `_shared/stripe.ts`
+  cardSummary issuer finding was not applied: the owner decided the issuer is shown when Stripe provides it.
+- **Card problems (owner question, 27 Nov 2026):** no screen of ours for the bank's code: live, Stripe.js opens the
+  bank's own check in Stripe's overlay; the page waits ("Waiting for your bank to confirm") and shows the outcome. Wrong
+  details inline, declines by Stripe's `decline_code` (lost and stolen read as generic), Try another card on the same
+  payment, and "nothing was charged" only on a definite answer. To prove in the sandbox (§16.8): the decline codes and
+  `payment_intent_authentication_failure` arrive on confirm as modelled, and a held authorization reads as processing.
+- **Review round 1 of PR #148 (27 Nov 2026):** fixed in the same branch: Auto pay pending while a command is in flight,
+  Auto pay on needs billing-api's fresh card check (`zella_billing_card_checked`), an off choice saved after linking is
+  applied, the rollback's write barrier and trigger drift check, `customer.updated` makes a card set on Stripe's card
+  page the subscription's default (whether the portal does it itself is a sandbox proof), Pay now's return expands
+  `payments`, the fake Stripe's 3D Secure challenge and `return_url` rule, and the page side findings. Lesson: a check
+  that billing-api runs must also be required by the database (here the card check), or a direct call skips it.
+- **Payments open their own CRM page (owner, 27 Nov 2026):** `/app/settings/billing/pay/<invoice id>` and
+  `/app/settings/billing/pack/<code>` inside the CRM shell; Invoices and payments stays the overview; `/pay` and
+  `/pay/invoice/<id>` only redirect there. The duplicate "Invoices" placeholder in the Billing settings menu was removed.
+- **Card fields in our pages approved (owner decision, 27 Nov 2026, review M4):** on the condition that an ENFORCING CSP
+  on the onboarding Pay step and the CRM's payment pages is a go live gate. Built: `web/public/_headers` enforces the
+  policy on `/welcome/setup`, `/app/settings/billing/pay/*` and `/app/settings/billing/pack/*` (the CRM opens those with
+  a full page load); the rest of the site stays report only.
+- **Card display (owner decision, 27 Nov 2026):** the expiry may show on the card while paying (screen only, never
+  stored or sent to our server), and the issuing bank's name when Stripe gives it.
+- **Onboarding fallback (owner decision, 27 Nov 2026, review M3):** if the sandbox proof of `custom` fails, Stripe's
+  hosted Checkout page: billing setting `onboarding_checkout_mode` (`custom` by default, or `hosted`); also used at once
+  when Stripe.js can't load on the Pay step. One open session at a time (an open in page one is expired first).
+- **Payment architecture review of 9c12f3f3 (27 Nov 2026):** fixed: B1 (a pack finished with the bank was charged and
+  never granted: the reopened intent is now linked, and an unlinked pack payment is quarantined), M1 (a pack key kept
+  across lost replies; one pending owner purchase per pack), M2 (the Auto pay choice stored at the start), M5 (the
+  rollback refuses while Auto pay is off anywhere), and minor 1 to 9. M3 and M4 went to the owner (decisions above).
+  Lesson: a payment the owner finishes on an EXISTING intent must get the same link a fresh one gets, or the grant path
+  silently ignores it.
+- **No paying early (owner decision, 27 Nov 2026):** owners can't pay next month before Stripe makes the renewal
+  invoice. Pay now appears only for an open invoice; "Next payment: $249 on <date>" is information only.
+- **Auto pay switch, on by default (owner decision, 27 Nov 2026):** built on this branch, switched off. A switch in the
+  checkout ("Pay automatically each renewal") and in Payments › How you pay (owner only, confirmed both ways). Off sets
+  the Stripe subscription to `send_invoice`, due in 3 days; on needs a working saved card. Our record of the mode
+  changes only from `customer.subscription.updated`. The SQL extends the unapplied `sql/zella_stripe_owner_pay.sql`
+  (now also needs `zella_stripe_cancel.sql` and `zella_stripe_plan_change.sql`, whose customer.subscription.updated
+  handler it changes by two exact text replacements, archived first). The H1 email is queued and held while
+  `email_live` is off; its "card ending" wording waits on the card at render decision. The choice goes to the server
+  with the payment's start (kept on the checkout, applied once the subscription is linked), so a closed tab can't lose it.
+- **Stripe's hosted invoice page in the CRM (owner decision, 27 Nov 2026):** removed from the Payments UI: no "On
+  Stripe" link on invoice rows and no "Pay on Stripe's invoice page" line under the checkout. It is offered only as an
+  error fallback ("Pay on Stripe's secure page") when Stripe.js fails to load or our checkout can't be shown. View on
+  an invoice offers Download PDF from Stripe's `invoice_pdf` URL when we have one. Our emails keep their links.
+- **Privacy Policy draft (open, not edited):** the draft in `sql/zella_privacy_retention.sql` names "Stripe:
+  payments" as a processor but does not say that the billing name and address typed in the checkout go to Stripe
+  with the card. The owner (or counsel) should add it; the legal drafts were not changed. They say nothing like "US
+  cards only", so the any country decision needs no change there. Whether the Address Element's autocomplete calls
+  a host beyond Stripe's (for example a maps service) is to be checked in the sandbox and named there if so.
+
 - **Legal document set, drafts only (25 Nov 2026):** `legal-drafts/` holds version 0.2 drafts written from these docs: the
   Terms of Service (with the Acceptable Use, AI and Call Disclosure, Content Complaints and Service Level schedules),
   Privacy Policy, Data Processing Addendum, Messaging Terms, Order Form, Trust and Security Overview, team and partner
@@ -185,6 +277,44 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
 The owner's decisions of 9 Nov 2026 are in `docs/ARCHITECTURE.md` §23.1, and the open ones are in §23.2. The ones
 most often needed:
 
+- **Paying from inside the CRM: "auto charge plus Pay now" (owner, 27 Nov 2026):** auto charge stays the default
+  (Stripe charges the saved card on the renewal date); Settings > Billing and subscription > Invoices and payments
+  shows the renewal date and the card, Update card opens Stripe's Customer Portal (card update only), an open invoice
+  can be paid now in Stripe's Payment Element on its own payment, the emailed Pay now link opens `/pay/invoice/<id>`
+  (owner only; the id alone grants nothing), and buying a pack uses the same glass checkout. Every payment from the CRM
+  uses the glass checkout. Same day: the card picture never shows the Zella Voice name (it is the customer's card);
+  it may show the issuing bank only as Stripe's `card.issuer` gives it, as text; the layout is three panels like the
+  reference (card, Payment details, receipt). Built on `claude/glass-embedded-checkout`, switched off, not applied
+  (`sql/zella_stripe_owner_pay.sql`). The Pay step's confirmed title "Payment confirmed" waits for the owner's
+  confirmation (its own commit, easy to revert).
+- **Glass checkout with Stripe's card fields in the page (owner, 27 Nov 2026):** the onboarding Pay step is a glass checkout
+  in Zella Voice's own looks (Zella Voice, Classic, Glass with or without the picture's colours); only the motion of the
+  owner's reference video is borrowed (the panels soften, the card moves to the centre while confirming, it turns the
+  look's success colour, the title changes). Card entry moves from a redirect to Stripe Checkout to **Stripe's
+  card fields in our page** (Elements, each in Stripe's iframe; a Checkout Session with `ui_mode` custom; NN-9
+  unchanged). An earlier draft used Embedded Checkout (`ui_mode` embedded), which can't tell the page the card's
+  brand while typing, so the live fill moved it to `custom`.
+- **Live fill and the photoreal card (owner, 27 Nov 2026):** the card illustration fills in as the customer types,
+  from Stripe only: the brand from the card number field's change event, focus highlights, the card turning over for
+  the security code, then "•••• •••• •••• 4242" and the expiry from `stripe.createPaymentMethod` (no charge) once all
+  fields are complete; never "ending 4242" on the card. `createConfirmationToken` exists on our Stripe.js (8.11,
+  `clover`) but only with the Payment Element, which reports no brand while typing; so the split card fields and
+  `createPaymentMethod` are used, and that PaymentMethod pays. Brand marks are plain text (no licensed artwork).
+- **Billing address (owner, 27 Nov 2026):** Stripe's Address Element in `mode: billing` under the card fields, in
+  every payment (onboarding, Pay now, finishing a pack; the Customer Portal unchanged); prefilled from the business
+  address (`zella_billing_address_prefill`, server only); sent to Stripe as the card's billing details; never stored,
+  logged or written back by us; never on the card.
+- **International cards (owner decision, 27 Nov 2026):** cards from any country; no card country restriction
+  anywhere (no `allowedCountries`, no issuing country checks); the billing address can be in any country, the United
+  States first; prices stay in US dollars and the issuing country plays no part. Stripe's extra fees for
+  international cards and currency conversion apply (to confirm); Radar's rules to be reviewed by the owner
+  (`docs/PAYMENTS_ARCHITECTURE.md` §6.1, §16.6). "Payment
+  received" still needs the server's verified, bound payment. **Brand and last 4** may be shown (the Pay step after a
+  confirmed payment, and billing emails), fetched from Stripe and never stored. The same component is used for
+  **Pay now** on an unpaid invoice and for packs (`docs/PAYMENTS_ARCHITECTURE.md` §6.11). Built on
+  `claude/glass-embedded-checkout` (`web/src/billing/GlassCheckout.jsx`, `billing-api`,
+  `sql/zella_stripe_embedded_checkout.sql`).
+
 - **Phone navigation (owner, 25 Nov 2026, "Yes to all"; `docs/ARCHITECTURE.md` §23.1d, REQ-MOB-02 to REQ-MOB-11):**
   all of P1 to P29 approved for both apps. Built in the phone navigation pull request (not merged when written):
   - Under 768 wide both apps get a bottom bar (five tabs), a side panel from More, bottom sheets, a sticky main
@@ -221,6 +351,7 @@ most often needed:
   change). The admin phone items (A27 to A30, A32, A53) wait for the phone navigation pull request (#122). Details in
   `docs/DESIGN_SYSTEM.md` "Admin pages polish"; architecture §23.1d.
 
+- **Card fields (owner decision, 27 Nov 2026):** the only card fields Zella Voice may store are the brand and last 4 digits that Stripe returns. On screen during a payment it may also show the expiry from Stripe's preview, the cardholder name the owner typed (in the browser's memory only), and the issuing bank's name when Stripe provides it; it never stores those. Never a full card number, a security code, or card details spoken on a call (`NN-9`).
 - **Card details in billing notices (owner, 27 Nov 2026, R59):** "brand and last 4". Billing emails may show the card
   brand and last 4 digits, read from Stripe ("your Visa ending 4242"), so Zella Voice keeps those
   limited details in its billing records and email log; never a full card number or security code (`NN-9`), and Stripe
@@ -656,6 +787,25 @@ Waiting on the owner:
   and keep the "Zella Voice" wording, never to bypass the guard.
 - **Order matters.** `zella_seating_handoff.sql` must run after `zella_review_sql_fixes.sql`. A combined file can be
   run only once: on the second run the guard rightly rejects the newer function.
+- **A pixel contrast probe can't see what covers the text (27 Nov 2026):** the glass checkout's card thickness layer
+  sat in front of the success face after the flip and washed it out, yet the contrast test passed, because it compares
+  the text's own colour with what is behind it. Look at the screenshots too; a layer in front needs its own check.
+- **The emails and the catalog are checked by `npm run lint` (27 Nov 2026):** a new audit action or platform alert kind
+  must be added to `web/supabase/functions/_shared/catalog.json` with a label (`tests/catalog/drift_test.mjs`), and the
+  email catalogue has one copy (`_shared/businessEmails.js`, re-exported by the web app).
+- **Stripe's docs site can be out of reach from a cloud session (27 Nov 2026).** `docs.stripe.com` was outside the
+  session's network allowlist. Stripe's own SDK packages from npm carry the API reference text: `stripe@<the release
+  pinned to our API version>` (`types/**/*.d.ts`, `CHANGELOG.md`) and `@stripe/stripe-js` (types and README). Read
+  those, record what was read and from where (`docs/PAYMENTS_ARCHITECTURE.md` §16.10), and list what still has to be
+  confirmed on the live pages. **Stripe renames things between API versions:** Checkout's `ui_mode: embedded` is
+  `embedded_page` from `2026-03-25.dahlia`, so read the SDK release that matches the pinned version, not the latest.
+- **axe can't judge text over glass or a picture (27 Nov 2026):** it reports translucent or image backgrounds as
+  "incomplete", not as checked. `tests/browser/stripe-pay-screen.cjs` measures contrast from the rendered pixels behind
+  each text (a screenshot with all text made transparent, transitions off first, or fading text is measured as its
+  own background).
+- **The lane F SQL suites need the `zprod3` template (27 Nov 2026):** on a server that only has `zfull` and `zbase`,
+  `zella_writing_cleanup.sql` refuses (VERSION_MISMATCH) and no lane F suite can build. A function level stand in
+  (`tests/stripe_embedded_checkout/stub_run.sh`) proves a migration's guards and body; say which one ran.
 - **Vault secrets are made with `vault.create_secret`, never `insert into vault.secrets`.** On production the migration
   role can read and delete Vault rows but not insert them (permission denied for Vault's encryption function); the
   isolated test database's stub allows the insert, so only production shows it (`zella_stripe_pipeline.sql`, 24 Nov 2026).

@@ -38,6 +38,7 @@ html[data-zella-theme="zella"]:has(.ba-root, .owner-app) {
   /* Status, always with a word or icon (danger is crimson, never the brand coral) */
   --zella-success-bg: #E3F5EF;
   --zella-success: #0B7A5E;
+  --zella-on-success: #FFFFFF;   /* text on a solid success surface: 5.3:1 on #0B7A5E */
   --zella-success-border: #A9DDCB;
   --zella-info-bg: #E6EAFF;
   --zella-info: #3150E0;

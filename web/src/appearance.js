@@ -23,7 +23,7 @@ export const BACKGROUNDS = [
 
 export const DEFAULT_APPEARANCE = { theme: "zella", background: "lounge", customUrl: null, dim: 35, sidebar: null, matchPicture: true, palette: null };
 // Which app this page is: the CRM lives under /app (and /welcome); everything else is the admin dashboard.
-export const APP_SCOPE = typeof window !== "undefined" && /^\/(app|welcome)(\/|$)/.test(window.location.pathname) ? "crm" : "admin";
+export const APP_SCOPE = typeof window !== "undefined" && /^\/(app|welcome|pay)(\/|$)/.test(window.location.pathname) ? "crm" : "admin";
 const STORE_KEY = `zella.appearance.${APP_SCOPE}`;
 // The colour tokens a picture's palette may set (everything else stays as glass.css has it).
 const PALETTE_VARS = ["--zella-primary", "--zella-primary-hover", "--zella-primary-soft", "--zella-primary-border", "--zella-primary-ring",

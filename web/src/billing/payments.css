@@ -1,0 +1,85 @@
+/* Payments from inside the CRM (PaymentsPanel.jsx, PayPage.jsx; owner, 27 Nov 2026). Tokens only, so every look follows. */
+.zpay { display: flex; flex-direction: column; gap: var(--zella-space-4); min-width: 0; }
+.zpay-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zella-space-3);
+  min-width: 0;
+  padding: var(--zella-space-4);
+  border: 1px solid var(--zella-border);
+  border-radius: var(--zella-radius-lg);
+  background: var(--zella-card);
+  box-shadow: inset 0 1px 0 var(--zella-sheen), var(--zella-shadow-sm);
+}
+@media (min-width: 520px) { .zpay-card { padding: var(--zella-space-5); } }
+.zpay-card h3 { margin: 0; color: var(--zella-text); font-size: var(--zella-text-lg); font-weight: 600; }
+.zpay-lead { margin: 0; color: var(--zella-text); font-size: var(--zella-text-base); line-height: var(--zella-leading); }
+.zpay-alert, .zpay-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--zella-space-2);
+  margin: 0;
+  padding: var(--zella-space-3);
+  border-radius: var(--zella-radius-md);
+  font-size: var(--zella-text-sm);
+}
+.zpay-alert { border: 1px solid var(--zella-warning-border); background: var(--zella-warning-bg); color: var(--zella-text); }
+.zpay-alert .ba-icon { color: var(--zella-warning); }
+.zpay-note { border: 1px solid var(--zella-success-border); background: var(--zella-success-bg); color: var(--zella-text); }
+.zpay-note .ba-icon { color: var(--zella-success); }
+.zpay-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--zella-space-2) var(--zella-space-3); }
+.zpay-actions .ba-btn { gap: var(--zella-space-2); }
+.zpay-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.zpay-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main amount" "chip actions";
+  align-items: center;
+  gap: var(--zella-space-2) var(--zella-space-3);
+  padding: var(--zella-space-3) 0;
+  border-bottom: 1px solid var(--zella-border);
+  font-variant-numeric: tabular-nums;
+}
+.zpay-row:last-child { border-bottom: 0; }
+.zpay-row-main { grid-area: main; display: flex; flex-direction: column; gap: 2px; min-width: 0; color: var(--zella-text); }
+.zpay-amount { grid-area: amount; color: var(--zella-text); font-weight: 600; text-align: right; }
+.zpay-chip { grid-area: chip; justify-self: start; }
+.zpay-row-actions { grid-area: actions; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--zella-space-2); }
+.zpay-row:not(:has(.zpay-chip)) .zpay-row-actions { grid-column: 1 / -1; }
+@media (min-width: 720px) {
+  .zpay-row { grid-template-columns: minmax(0, 1fr) 110px 120px auto; grid-template-areas: "main amount chip actions"; }
+  .zpay-row:not(:has(.zpay-chip)) { grid-template-columns: minmax(0, 1fr) 110px auto; grid-template-areas: "main amount actions"; }
+  .zpay-row:not(:has(.zpay-chip)) .zpay-row-actions { grid-column: auto; }
+}
+.zob-chip.zpay-chip.tone-urgent { border-color: var(--zella-danger-border); background: var(--zella-danger-bg); color: var(--zella-danger); }
+.zpay-ext { display: inline-flex; align-items: center; gap: 2px; font-size: var(--zella-text-sm); }
+.zpay-loading { margin: 0; color: var(--zella-text-secondary); font-size: var(--zella-text-sm); }
+.zpay-checkout { display: flex; flex-direction: column; gap: var(--zella-space-3); min-width: 0; }
+.zpay-pdf { justify-content: center; margin-top: var(--zella-space-3); }
+html[data-zella-theme="glass"]:has(.ba-root) .zpay-card {
+  border-color: var(--zella-border-strong);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+/* Auto pay (owner, 27 Nov 2026): the switch beside its words; the confirm dialog's text */
+.zpay-autopay { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--zella-space-3); padding: var(--zella-space-3) 0; border-top: 1px solid var(--zella-border); }
+.zpay-autopay-text { display: grid; gap: var(--zella-space-1); min-width: 0; }
+.zpay-dialog { display: grid; gap: var(--zella-space-2); padding: 0 var(--zella-space-4) var(--zella-space-3); }
+.zpay-dialog p { margin: 0; }
+.zpay-apnote { text-align: center; }
+/* a payment's own page in the CRM shell (owner, 27 Nov 2026): a back link, the title, the glass checkout filling the page */
+.zpay-route { display: grid; gap: var(--zella-space-3); max-width: 1240px; margin: 0 auto; padding: var(--zella-space-4) var(--zella-space-4) var(--zella-space-6); }
+.zpay-route-crumbs a { display: inline-flex; align-items: center; gap: var(--zella-space-1); color: var(--zella-text-2); font-size: var(--zella-text-sm); text-decoration: none; }
+.zpay-route-crumbs a:hover, .zpay-route-crumbs a:focus-visible { color: var(--zella-text); text-decoration: underline; }
+.zpay-route-title { margin: 0; color: var(--zella-text); font-size: var(--zella-text-page); line-height: 1.2; }
+.zpay-route-title:focus { outline: none; }
+.zpay-route-done { justify-content: center; }
+.zpay-next { display: flex; align-items: flex-start; gap: var(--zella-space-2); margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); }
+@media (max-width: 760px) { .zpay-route { padding: var(--zella-space-3) var(--zella-space-2) var(--zella-space-5); } }
+
+/* ---- Type on Billing and subscription (owner, 27 Nov 2026): reading 15px, helpers 13px, headings 18px ---- */
+.zpay { font-size: var(--zella-text-md); line-height: var(--zella-leading-loose); }
+.zpay-card h3 { font-size: var(--zella-text-xl); }
+.zpay-lead, .zpay-next, .zpay-note, .zpay-alert, .zpay .zob-muted { font-size: var(--zella-text-md); line-height: var(--zella-leading-loose); }
+.zpay .zob-hint { font-size: var(--zella-text-sm); line-height: var(--zella-leading); }
+.zpay-route-crumbs, .zpay-row-main strong { font-size: var(--zella-text-base); }

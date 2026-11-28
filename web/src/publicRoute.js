@@ -25,7 +25,7 @@ export function publicRoute(pathname, hostname = "") {
   if (/^\/terms\/?$/.test(path)) return "terms";
   if (/^\/u\/[0-9a-fA-F]{32}\/?$/.test(path)) return "unsubscribe";
   if (/^\/w\/[0-9a-fA-F]{64}\/?$/.test(path)) return "waitlist";
-  if (/^\/(app|welcome)(\/|$)/.test(path)) return "business";
+  if (/^\/(app|welcome|pay)(\/|$)/.test(path)) return "business";   // /pay: older Pay now links, redirected into the CRM
   const first = path.split("/")[1] ?? "";
   if (ADMIN_PAGES.includes(first)) return "admin";
   return "unknown";

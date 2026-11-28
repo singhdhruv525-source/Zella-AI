@@ -4,7 +4,8 @@
 // finishes a section, uploads only while allowed, payment never confirmed by itself), so the screens are tested against
 // the same answers the database gives. The business, people and numbers are invented (example.test, 555 numbers).
 //
-// Scenarios (?scenario=... in the local preview; "pay": payments connected, Checkout opens and comes back;
+// Scenarios (?scenario=... in the local preview; "pay": payments connected, the glass checkout opens a stand in for
+// Stripe's embedded form (never Stripe.js), and the server confirms on its second look after the form completes;
 // "payrequired": payments off but a payment still required, the server's rule before the owner's 16 Nov decision):
 //   ""          a fresh invitation: nothing done yet
 //   notready    none of the owner calls is deployed yet
@@ -13,6 +14,16 @@
 //   returning   password and authenticator done, left on Check your details (Finish later)
 //   none        the signed in person owns no business waiting for setup
 // Test hooks (fake only): approveIdentity(), rejectIdentity(note), adminChangeDone(section, note), confirmPayment().
+
+import { mountStandInCard } from "../billing/standinForm.js";
+import { consentHash, consentText } from "../../supabase/functions/_shared/paymentConsent.js";
+
+// the packs on offer at the Pay step (as zella_owner_addon_catalog answers; made up for the stand in)
+const ADDONS = [{ code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900, currency: "usd" },
+  { code: "minutes_250", resource: "minutes", quantity: 250, price_cents: 8900, currency: "usd" },
+  { code: "texts_500", resource: "texts", quantity: 500, price_cents: 1800, currency: "usd" },
+  { code: "emails_10000", resource: "emails", quantity: 10000, price_cents: 2500, currency: "usd" }];
+const DUE = 89800, RENEWAL = 24900;
 
 const KEY = "zella.onboardingFake.v2";
 const BUSINESS = "00000000-0000-4000-8000-0000000000b1";
@@ -85,12 +96,18 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       upload_kinds: can ? REQUIRED.filter((k) => !have.has(k)) : [], documents: st.identity.documents.map((d) => ({ ...d })),
     };
   };
-  // scenario "pay": payments connected, Checkout opens and comes back (the fake confirms on the return, as the webhook would)
-  const paying = () => st.scenario === "pay";
-  const paymentOut = () => (st.payment_confirmed ? { status: "confirmed", reason: null, checkout_available: false, confirmed_at: now() }
-    : st.identity.status !== "verified" ? { status: "locked", reason: "identity_first", checkout_available: false, confirmed_at: null }
-    : paying() ? { status: "waiting", reason: st.checkout_started ? "checkout_open" : "checkout_not_started", checkout_available: true, due_now_minor: 89800, confirmed_at: null }
-    : { status: "waiting", reason: "payments_not_connected", checkout_available: false, required: st.scenario === "payrequired", confirmed_at: null });
+  // scenario "pay": payments connected; the embedded form's stand in completes, then the server confirms on its second
+  // look (as the webhook would, a few seconds later), so "Confirming your payment" is seen first
+  // paydeclined, paybank, payunknown: Pay's first card is declined (another card then pays), the bank's own check (a
+  // labelled preview), or Stripe doesn't answer (the server is asked)
+  const paying = () => ["pay", "payhtml", "payjsfail", "paydeclined", "paybank", "payunknown"].includes(st.scenario);
+  // due_now_minor in every state, as zella_onboarding_payment computes it from the plan whatever the state
+  const paymentOut = () => (st.payment_confirmed ? { status: "confirmed", reason: null, checkout_available: false, due_now_minor: 89800, confirmed_at: now() }
+    : st.identity.status !== "verified" ? { status: "locked", reason: "identity_first", checkout_available: false, due_now_minor: 89800, confirmed_at: null }
+    : paying() ? { status: "waiting", reason: st.checkout_completed ? "processing" : st.checkout_started ? "checkout_open" : "checkout_not_started",
+                   checkout_available: !st.checkout_completed, due_now_minor: 89800, confirmed_at: null,
+                   checkout: st.checkout_started ? { mode: "pay", amount_minor: 89800, currency: "usd", url: null } : null }
+    : { status: "waiting", reason: "payments_not_connected", checkout_available: false, required: st.scenario === "payrequired", due_now_minor: 89800, confirmed_at: null });
   const security = () => ({ password_set: st.password, authenticator: st.factors.length > 0, session_verified: st.factors.length > 0, ready: st.password && st.factors.length > 0 });
   const stateOut = () => {
     const cur = currentStep();
@@ -105,7 +122,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       details: { sections, all_looks_right: sections.every((s) => s.status === "looks_right") },
       identity: identityOut(),
       plan: { available: true, accepted: st.plan.accepted_version === planVersion(), accepted_version: st.plan.accepted_version, accepted_at: st.plan.accepted_at,
-        current: { version: planVersion(), tier: "pro", billing_interval: "monthly", price_cents: 24900, setup_fee_cents: 0, currency: "USD", minutes: 1000, texts: 1500,
+        current: { version: planVersion(), tier: "pro", billing_interval: "monthly", price_cents: 24900, setup_fee_cents: 64900, currency: "USD", minutes: 1000, texts: 1500,
           emails: 5000, team_seats: 5, phone_numbers: 1, locations: 1, languages: ["en", "es"], trial_enabled: false, overage_cents_per_minute: null } },
       payment: paymentOut(),
       go_live: { ready: false, live: false, checks: [
@@ -204,16 +221,66 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     }),
     identityStatus: (id) => db(() => { owner(id); return identityOut(); }),
     paymentStatus: (id) => db(() => { owner(id); return paymentOut(); }),
-    startCheckout: (id, key) => db(() => {
+    // billing-api checkout_start for Stripe's card fields in the page (ui_mode custom): the same answer shape, made up values (no real key or secret)
+    // the agreement and the add ons as the server checks them: the words rebuilt from the stand in's figures (the plan,
+    // the setup fee and the packs at catalogue prices), refused without the box or with other words; a different
+    // selection while a session is open expires that one first (one session at a time)
+    addonCatalog: (id) => db(() => { owner(id); return ADDONS.map((a) => ({ ...a })); }),
+    startCheckout: async (id, key, opts = {}) => {
+      const packs = [...new Set(opts.packs ?? [])].sort();
+      const sum = packs.reduce((t, c) => t + (ADDONS.find((a) => a.code === c)?.price_cents ?? NaN), 0);
+      const words = consentText({ kind: "plan", todayMinor: DUE + sum, autopay: opts.autopay !== false, renewalMinor: RENEWAL, addonsMinor: Number.isFinite(sum) ? sum : 0 });
+      const expected = words ? await consentHash(words) : null;
+      return db(() => {
       owner(id);
       if (!paying()) throw dbError("PAYMENTS_NOT_LIVE");
       if (!/^[A-Za-z0-9_-]{8,100}$/.test(String(key))) throw dbError("INVALID_INPUT");
+      if (st.payment_confirmed) throw Object.assign(new Error("Your payment is already confirmed."), { code: "ALREADY_PAID", status: 400 });
+      if (st.checkout_completed) return { status: "processing" };
+      if (!Number.isFinite(sum)) throw dbError("UNKNOWN_PACK");
+      if (!/^[0-9a-f]{64}$/.test(String(opts.consentHash ?? ""))) throw Object.assign(new Error("Please tick the box to continue."), { code: "CONSENT_REQUIRED", status: 400 });
+      if (opts.consentHash !== expected) throw Object.assign(new Error("The total changed. Please tick the box again."), { code: "CONSENT_MISMATCH", status: 409 });
+      const selection = packs.join(",");
+      if (st.checkout_started && (st.checkout_selection ?? "") !== selection) st.sessions_expired = (st.sessions_expired ?? 0) + 1;   // the old session expired first
+      if (!st.checkout_started || (st.checkout_selection ?? "") !== selection) st.sessions_made = (st.sessions_made ?? 0) + 1;
+      st.checkout_selection = selection; st.checkout_amount = DUE + sum;
+      (st.consents ??= []).push(opts.consentHash);
       st.checkout_started = true;
-      const back = new URLSearchParams(globalThis.location?.search ?? "");   // keeps ?scenario=pay, as Stripe's success_url keeps ours
-      back.set("business", id); back.set("checkout", "return"); back.set("session_id", "cs_fake");
-      return { url: `${globalThis.location?.pathname ?? "/welcome/setup"}?${back}`, mode: "pay", amount_minor: 89800 };
+      if (typeof opts.autopay === "boolean") { st.autopay_choice = opts.autopay; save(); }   // kept with the checkout, as on the server
+      // Stripe's own page (the fallback): a made up address of Stripe's checkout host; the test browser never reaches it
+      if (opts.hosted) return { status: "redirect", url: "https://checkout.stripe.com/c/pay/cs_standin_hosted", mode: "pay", amount_minor: 89800, currency: "usd" };
+      save();
+      return { status: "open", client_secret: "cs_standin_secret_standin", publishable_key: "pk_test_standin", livemode: false, mode: "pay", amount_minor: DUE + sum, currency: "usd",
+        renewal_minor: RENEWAL, addons: packs, billing_prefill: { line1: "214 Maple Street", city: "Springfield", state: "IL", postal_code: "62701", country: "US" } };   // fake business address
+      });
+    },
+    // the stand in for Stripe's embedded form (fake only): a box in the page with one button; Stripe.js is never loaded
+    // the stand in for Stripe's card fields (billing/standinForm.js: no input elements; demo() plays the test card)
+    mountCheckout: async (slots, opts) => {
+      await wait(delay * 2);
+      if (st.scenario === "payjsfail") throw Object.assign(new Error("Stripe.js didn't load"), { code: "STRIPE_JS" });
+      if (opts.clientSecret !== "cs_standin_secret_standin") throw Object.assign(new Error("not the stand in's checkout"), { code: "STRIPE_JS" });
+      const outcomes = { paydeclined: ["declined:generic_decline", "ok"], paybank: ["verify"], payunknown: ["unknown", "ok"] }[st.scenario] ?? ["ok"];
+      return mountStandInCard(slots, opts, { outcomes, onPay: () => { st.checkout_completed = true; st.return_looks = 0; save(); } });
+    },
+    checkoutReturn: (id) => db(() => {
+      owner(id);
+      if (st.checkout_completed && !st.payment_confirmed && (st.return_looks = (st.return_looks ?? 0) + 1) >= 2) st.payment_confirmed = true;
+      // the issuing bank as Stripe would give it (payhtml: a name with angle brackets, to prove it is shown as text)
+      const card = { brand: "visa", last4: "4242", issuer: st.scenario === "payhtml" ? "<b>Bold Bank</b>" : "Test Bank" };
+      return st.payment_confirmed && st.checkout_completed ? { payment: paymentOut(), card } : { payment: paymentOut() };
     }),
-    checkoutReturn: (id) => db(() => { owner(id); if (st.checkout_started) st.payment_confirmed = true; return { payment: paymentOut() }; }),
+    // Auto pay (fake): on by default; the choice applies once the payment is confirmed (the subscription exists)
+    // a later Auto pay change wins over the checkout's choice; the checkout's off choice applies once paid (review)
+    autopayStatus: (id) => db(() => { owner(id); const on = typeof st.autopay === "boolean" ? st.autopay : !(st.payment_confirmed && st.autopay_choice === false);
+      return { on, desired: on, pending: false, email_live: false, subscribed: Boolean(st.payment_confirmed) }; }),
+    autopaySet: (id, on, key) => db(() => {
+      owner(id);
+      if (!/^[A-Za-z0-9_-]{8,100}$/.test(String(key)) || typeof on !== "boolean") throw dbError("INVALID_INPUT");
+      if (!st.payment_confirmed) throw Object.assign(new Error("Auto pay can be changed once your plan is active."), { code: "NO_SUBSCRIPTION", status: 400 });
+      st.autopay = on; save();
+      return { on, desired: on, pending: false, email_live: false, subscribed: true };
+    }),
     finishLater: (id) => db(() => { owner(id); st.paused_at = now(); return { changed: true, state: stateOut() }; }),
     resume: (id) => db(() => { owner(id); const changed = Boolean(st.paused_at); st.paused_at = null; return { changed, state: stateOut() }; }),
 

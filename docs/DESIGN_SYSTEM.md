@@ -38,6 +38,10 @@ Change a value in `tokens.css` and every app follows. Don't add hex colours to a
 | Borders | `--zella-border` / `--zella-border-strong` | #E9E2D9 / #D9CFC3 |
 | Selected navigation | `--zella-nav-active` | #E7D9CB |
 | Success, info, warning, danger | `--zella-{success,info,warning,danger}` + `-bg`, `-border` | green, blue, amber, red |
+| Text on a solid success surface (27 Nov 2026) | `--zella-on-success` | #FFFFFF (5.3:1 on #1F7A45); Zella Voice #FFFFFF on #0B7A5E; Glass #0E2A1B on #86E3AE |
+| A sheen or highlight edge on a solid surface (27 Nov 2026) | `--zella-sheen` | rgba(255, 255, 255, 0.16); Glass 0.22 |
+| The card picture's chip metal, light to dark (27 Nov 2026) | `--zella-metal-1`, `-2`, `-3` | #F3E2B3, #CDA85C, #8E6B2C in every look |
+| The lowlight under embossed lettering (27 Nov 2026) | `--zella-emboss-low` | rgba(0, 0, 0, 0.32) |
 
 The table above is Classic. The Zella Voice look re-points the same names (`zella-theme.css`): page #FAFAF7, cards and
 sidebar white, primary midnight #0B0F1A, `--zella-primary-soft` coral tint #FFE9E3, text #0B0F1A, borders #D9DCE1.
@@ -102,6 +106,86 @@ are not changed by this.
 
 ## Components added with the owner onboarding journey
 
+- **Glass checkout** (`web/src/billing/GlassCheckout.jsx`, `.zgc` in `billing/glassCheckout.css`; owner, 27 Nov
+  2026): every payment the owner makes (the onboarding Pay step, Pay now, finishing or buying a pack). Like a real
+  checkout: a status panel (`.zob-status` tones; its `h2` takes focus when the state changes), then three panels on a
+  faint tinted backdrop (`--zella-primary-soft` glows over `--zella-alt`): the customer's card on the left, **Payment
+  details** in the middle (Stripe's own card fields, number full width, expiry and security code side by side, then
+  Stripe's billing address fields under them, with our Pay button at the bottom; the field Stripe reports focused gets
+  the `--zella-primary` border and `--zella-primary-ring`; Stripe's fields take the look's tokens through their style
+  object and the Appearance API; a skeleton while they load; the trust row "Secured by Stripe", "Card details never reach Zella
+  Voice"), and the order summary as a receipt on the right (an icon per line, tabular numbers, a dashed divider, then
+  the total at page heading size). From 1100px three columns (the journey card widens to 1240px); from 760px the card
+  above the payment panel with the summary beside them; below that one column: card, payment details, summary. Panels
+  have a light rim on the top edge (`--zella-sheen`), a contact and an ambient shadow, and a faint grain; Glass gets a
+  stronger frost (28px blur), a fine light border (`--zella-border-strong`) and an inner glow from the primary.
+- **Type on the payment pages** (owner, 27 Nov 2026): new tokens `--zella-text-md` (15px, reading text in the
+  checkout's panels and on Billing and subscription) and `--zella-leading-loose` (1.6, paragraphs in narrow panels).
+  Labels are `--zella-text-base` (14px); helper and footnote text is never smaller than `--zella-text-sm` (13px); panel
+  headings are `--zella-text-xl` (18px); Due today stays `--zella-text-page`. Copy is short and plain, one idea per
+  line, with no internal terms; Pay buttons read "Pay $278"; the trust row is "Secured by Stripe" once.
+- **Add ons in the receipt** (`AddonPicker` in `web/src/billing/ReceiptExtras.jsx`, `.zgc-addons`; owner, 27 Nov 2026):
+  under the receipt's total, an "Add ons" heading and a short note, then one `fieldset` per type with its `legend`
+  (Minutes, Texts, Emails; small capitals in `--zella-text-secondary`). Each row is a real checkbox whose `label` is the
+  whole row (`.zgc-addon`, at least 48px tall): a drawn box (`--zella-border-strong`, ticked `--zella-primary` with
+  `--zella-on-primary` check), the pack's name (`--zella-text`, semibold) and a one line description
+  (`--zella-text-2`), and its price "$29 one time" on the right; a ticked row takes `--zella-primary-soft` and
+  `--zella-primary-border`; the keyboard focus ring is `--zella-focus` on the drawn box. Ticked packs are receipt lines
+  (icon `add_circle`), with "Add ons are one time." under the total (on Pay now instead "Add ons are charged right
+  after your plan."); a change of total is announced politely ("Total due today
+  $278."). Below 360px the price moves under the name. Locked (dimmed, not clickable) while a start is in flight.
+- **"I agree" box above Pay** (`ConsentBox`, `.zgc-consent`): a real checkbox (`accent-color: --zella-primary`,
+  focus ring `--zella-focus`) with its label, on `--zella-subtle` with `--zella-border`; "Terms" and "Privacy Policy" are
+  `.ba-link`s opening in a new tab (each with a screen reader "opens in a new tab"). Unticked, Pay keeps its place
+  and its focus but looks disabled (`.zgc-pay-btn.is-blocked`, `aria-disabled="true"`); pressing it shows the error
+  under the box (`--zella-danger`, `role="alert"`, the box's border `--zella-danger-border`). Pay buttons show the full
+  total: "Pay $278" (it first opens Stripe's card form, then pays).
+- **Add on progress after Pay now** (`AddonProgress`, `.zgc-addon-progress`): a card under the checkout once the plan
+  payment is confirmed, one row per add on: adding (`hourglass_top`), added (`--zella-success-bg`,
+  `--zella-success-border`) or "Plan paid. 100 minutes not added" (`--zella-danger-bg`, `--zella-danger-border`) with
+  Try again for that pack only; announced politely.
+- **Card problems** (`.zgc-field-error`, `.zgc-decline`, `.zgc.is-bankwait`, `.zgc-bank-preview`): Stripe's inline words
+  under a field in `--zella-danger` (the slot's border `--zella-danger-border`); a declined card in the Payment details
+  panel on `--zella-danger-bg` with `--zella-danger-border`, an icon, the title, what it means and "Try another card";
+  while the bank checks, the status says "Waiting for your bank to confirm" and the card's motion pauses; the local
+  preview's bank check is a modal card (`--zella-card`, `--zella-shadow-pop`, over `--zella-overlay`) with a "Preview
+  only" badge and Approve, Fail and Close.
+- **The card picture**: a photoreal ISO card (85.6 by 54 mm, corners 3.5% of the width) built from the look's
+  primary (midnight, mocha, copper or the picture's colour): layered radial and linear gradients, film grain (an SVG
+  `feTurbulence` texture), a holographic brushed sheen that moves with the pointer or the device's tilt, a thin bevel,
+  a perspective drop shadow, and a slight 3D angle at rest. Real card layout: a gold EMV chip with contact pads
+  (`--zella-metal-1` to `-3`) left of centre with the contactless mark beside it, the number across the middle in
+  embossed monospace ("OCR A" when the device has it, then Courier New, then the system monospace; `--zella-sheen`
+  above, `--zella-emboss-low` below), the cardholder name bottom left, "VALID THRU" and the expiry, and the brand
+  bottom right as plain text (no licensed network artwork was available, so no logos). The back: a magnetic stripe, a
+  signature panel (`--zella-on-primary` on `--zella-primary`, readable in every look) and the security code box
+  showing "•••". **Card fields (owner decision, 27 Nov 2026):** the only card fields Zella Voice may store are the brand and last 4 digits that Stripe returns. On screen during a payment it may also show the expiry from Stripe's preview, the cardholder name the owner typed (in the browser's memory only), and the issuing bank's name when Stripe provides it; it never stores those. Never a full card number, a security code, or card details spoken on a call (`NN-9`). **Live fill (NN-9 safe):** the brand appears as Stripe's card number field reports it; the part
+  being typed is highlighted; focusing the security code turns the card over; once Stripe's preview returns, the
+  number reads "•••• •••• •••• 4242" and the expiry "12/28". The name is the one typed in Stripe's billing address,
+  in capitals; the address itself never shows. It **never shows the Zella Voice name**: it is the customer's card.
+  After the server confirms, it shows the issuing bank (only Stripe's own `card.issuer`, as text) in the corner, the
+  brand and "•••• •••• •••• 4242", on `--zella-success` with `--zella-on-success` text. On a fine pointer it tilts slightly and a highlight follows the pointer. In the local preview only, Payment
+  details shows a static picture of Stripe's fields and billing address (divs, aria-hidden, no input, badged "Preview
+  of Stripe's form"), laid out in the country's format (United States: State and ZIP code; Canada: Province and Postal
+  code), with a "Fill with Stripe's test card" button that plays the typing with fake data.
+- **Checkout motion (owner approved exception to the calm CRM motion, 27 Nov 2026):** the reference video's motion in
+  Zella Voice's own colours, 600 to 900ms each, with a light spring (`cubic-bezier(0.34, 1.32, 0.64, 1)`). When Stripe
+  finishes, a frosted layer fades in over the panels (they blur and dim), and the card lifts off the left column and
+  settles in the centre (transform only, measured once) while its shadow on the "table" widens and fades with the
+  height. While confirming, a sheen sweeps across the card and a progress ring turns. When the server confirms, the
+  card flips (its thickness shows while it turns) to the success colour, the check draws itself (stroke dash offset)
+  and a `--zella-success` glow pulses twice; the title becomes "Payment confirmed" (pending the owner's confirmation;
+  step 7 owns "You're all set"). Everything behind the layer is `inert`. With reduced motion there is no blur, tilt,
+  highlight, flight, flip, shimmer, spin, glow or drawing: the states simply change.
+- **A payment's own page** (`web/src/billing/BillingPayRoute.jsx`, `.zpay-route`; owner, 27 Nov 2026): inside the CRM
+  shell, a back link "Billing and subscription" (`--zella-text-2`, underlined on hover and focus), the title at
+  `--zella-text-page` ("Pay for your plan"; never an invoice number), then the glass checkout at full width (its summary
+  panel: "Summary", "Your Pro plan", one "Covers" line, "Due today") (up to 1240px) and, once paid, a primary "Back to Billing
+  and subscription". The overview's "Next payment" line is `.zpay-next`: information only, never a button.
+- **Payments panel** (`web/src/billing/PaymentsPanel.jsx`, `.zpay` in `billing/payments.css`): the renewal line with
+  the saved card and Update card, the invoices as rows (number and period, amount, a status chip with a word, Pay now
+  or View, a link to Stripe's page), and the packs with Buy. Rows stack on a phone. Used in Settings > Billing and
+  subscription > Invoices and payments and on the owner's `/pay` page.
 - **Progress steps** (`web/src/onboarding/ProgressSteps.jsx`, `.zv-progress` in `onboarding/onboarding.css`): "Step 3 of 7" and the step's name, a mocha bar with `role="progressbar"` and an accessible value text, and one dot per step (done, here, to come). The words carry the meaning; the bar and dots back them up. Give it `screens` and the `current` index.
 - **Authenticator set up** (`web/src/AuthenticatorSetup.jsx`, `.zv-authsetup`): the three instructions, the QR code (kept black on white in every look), the key to type by hand, the six digit code and one main button. It uses the same calls as the admin sign in and Settings (`mfa.js`); `start` and `finish` can be passed in. It never decides who must use two step sign in.
 - **Journey page** (`.ba-root.zob`): a top bar (Zella Voice, the business, Finish later) and one card, 16px gutters on a phone, 680px wide from 760px. Main buttons are full width on a phone. Status panels (`.zob-status`, tones `good`, `info`, `heads`, `urgent`) always carry a word. Headings that take focus when a step opens show no focus ring (they aren't controls). The Glass look frosts the card and the top bar.

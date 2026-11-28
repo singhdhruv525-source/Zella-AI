@@ -18,7 +18,8 @@ export async function queueBillingEmails(rpc: Rpc, limit = 20): Promise<Record<s
     try {
       if (!it.recipients?.length) throw new Error("NO_RECIPIENT");
       for (const r of it.recipients) {
-        const mail = renderEmail(it.code, { ...it.data, owner: r.owner }, { strict: true });
+        // the business id lets Pay now and Update card open this business's Payments page (an invoice's own page when the data names it)
+        const mail = renderEmail(it.code, { ...it.data, owner: r.owner, businessId: it.business_id }, { strict: true });
         await rpc("zella_queue_platform_email", {
           p_business: it.business_id, p_code: it.code, p_dedupe_key: `${it.dedupe_key}:${r.user_id}`, p_to: r.email,
           p_subject: mail.subject, p_html: mail.html, p_text: mail.text, p_mandatory: true, p_user: r.user_id, p_cc: [],

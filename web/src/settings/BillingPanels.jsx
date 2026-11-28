@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import PaymentsPanel from "../billing/PaymentsPanel";
+import { getBillingApi } from "../billing/billingApi";
+import { payPageAddress } from "../billing/payRedirect.js";
+import "../onboarding/onboarding.css";
 import { friendly } from "../BusinessShared";
 import { Banner, Card, Facts, Field, LoadState, Pill, SaveBar, Table, useAsync, useForm } from "./SettingsKit";
 import "../billing.css";
@@ -114,6 +118,28 @@ export function BillingPlanPanel({ w }) {
   );
 }
 
+// Settings > Billing and subscription > Invoices and payments (owner, 27 Nov 2026: "auto charge plus Pay now"): the
+// renewal line with the saved card, Update card, open invoices with Pay now and buying packs, all through the glass
+// checkout (web/src/billing/PaymentsPanel.jsx). Owner only, enforced by the database and billing-api.
+// A payment page is opened as a full page load, so it arrives with its own ENFORCING Content Security Policy (web/public/
+// _headers; owner decision, 27 Nov 2026: a go live gate for Stripe's card fields in our pages). The preview keeps the
+// address's stand in scenario.
+// The workspace goes with it (?business=, payRedirect.js), so the page opens in the same business for an owner of several (review).
+function openPayPage(path, businessId) {
+  window.location.assign(payPageAddress(path, businessId, window.location.search));
+}
+
+export function PaymentsSettingsPanel({ w }) {
+  const [api, setApi] = useState(null);
+  useEffect(() => { let alive = true; getBillingApi().then((a) => { if (alive) setApi(a); }); return () => { alive = false; }; }, []);
+  const [cardReturned] = useState(() => new URLSearchParams(window.location.search).get("card") === "updated");   // read once: the panel tidies the address
+  const base = window.location.pathname.startsWith("/app/preview") ? "/app/preview" : "/app";
+  if (!api) return <Card title="Invoices and payments" sub="Loading…" />;
+  return <PaymentsPanel api={api} businessId={w.id} cardReturned={cardReturned}
+    onOpenInvoice={(id) => openPayPage(`${base}/settings/billing/pay/${encodeURIComponent(id)}`, w.id)}
+    onOpenPack={(code) => openPayPage(`${base}/settings/billing/pack/${encodeURIComponent(code)}`, w.id)} />;
+}
+
 // Settings > Billing and subscription > Balances and packs
 export function BillingBalancesPanel({ w }) {
   const state = useBillingOverview(w);
@@ -136,7 +162,7 @@ export function BillingBalancesPanel({ w }) {
           <Card title="add on packs" sub={`Packs last until the end of the month you buy them in${days != null ? ` (${days} ${days === 1 ? "day" : "days"} left now)` : ""}. Only part of a minutes pack rolls over.`}>
             <Table rows={o.packs} rowKey={(p) => p.code} columns={[["Pack", (p) => `${num(p.quantity)} ${RES[p.resource][1]}`], ["Price", (p) => money(p.price_cents)],
               ["Rolls over if unused", (p) => (p.rollover_if_unused > 0 ? `up to ${num(p.rollover_if_unused)} minutes` : "No")]]} />
-            <Banner>Packs can't be bought online yet. Ask Zella Voice support to add one.</Banner>
+            <Banner>Buy a pack in Billing and subscription, Invoices and payments. It's charged to your saved card.</Banner>
           </Card>
         </>
       );

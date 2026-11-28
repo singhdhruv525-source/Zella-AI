@@ -1,0 +1,399 @@
+// Add ons on the Pay pages and the required "I agree" box (owner decisions, 27 Nov 2026), and the round 1 review fixes on
+// the page side. Local and pure: the stand ins and a fake Stripe.js, nothing reaches Stripe or a server.
+//   cd web && node --test tests/addonsConsent.test.mjs
+import test from "node:test";
+import assert from "node:assert/strict";
+import { addonKeys, addonName, addonShort, addonStep, addonsTotal, chosen, groupOffer, invoiceConsent, offerFrom, packConsent, planConsent, selectionKey, toggle } from "../src/billing/addons.js";
+import { consentHash, consentMoney, consentText } from "../supabase/functions/_shared/paymentConsent.js";
+import { ERROR_KINDS, ERROR_WORDS, reduce } from "../src/billing/checkoutMachine.js";
+import { createFakeBillingApi, FAKE_BUSINESS } from "../src/billing/fakeBillingApi.js";
+import { createFakeApi } from "../src/onboarding/fakeApi.js";
+
+const DASH = /[—–]|[A-Za-z]-[A-Za-z]/;
+const OPEN = "00000000-0000-4000-8000-0000000000e2";
+const memory = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+const CATALOG = [{ code: "texts_500", resource: "texts", quantity: 500, price_cents: 1800 }, { code: "minutes_250", resource: "minutes", quantity: 250, price_cents: 8900 },
+  { code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900 }, { code: "emails_10000", resource: "emails", quantity: 10000, price_cents: 2500 },
+  { code: "BAD", resource: "minutes", quantity: 1, price_cents: 1 }, { code: "calls_1", resource: "calls", quantity: 1, price_cents: 100 }, { code: "minutes_9", resource: "minutes", quantity: 9, price_cents: 0 }];
+
+test("the agreement's words: Auto pay on and off, Pay now naming which card, a pack, add ons one time, no dashes", async () => {
+  assert.equal(consentText({ kind: "plan", todayMinor: 27800, autopay: true, renewalMinor: 24900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $278 today and $249 each renewal until I cancel.");
+  assert.equal(consentText({ kind: "plan", todayMinor: 27800, autopay: false, renewalMinor: 24900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $278 today.");
+  assert.equal(planConsent({ todayMinor: 92700, autopay: true, renewalMinor: 24900, addonsMinor: 2900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $927 today and $249 each renewal until I cancel. Add ons are one time.");
+  assert.equal(invoiceConsent({ planMinor: 24900, addonsMinor: 2900, autopay: true, renewalMinor: 24900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $249 to this card and $29 for add ons to my saved card today, and $249 each renewal until I cancel. Add ons are one time.");
+  assert.equal(invoiceConsent({ planMinor: 24900, addonsMinor: 2900, autopay: false, renewalMinor: 24900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $249 to this card and $29 for add ons to my saved card today. Add ons are one time.");
+  assert.equal(invoiceConsent({ planMinor: 24900, addonsMinor: 0, autopay: true, renewalMinor: 24900 }), planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900 }), "no add ons: the plan wording");
+  assert.equal(consentText({ kind: "pack", todayMinor: 2900 }), "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $29 today for this add on.");
+  assert.equal(planConsent({ todayMinor: 100, autopay: true, renewalMinor: null }), null, "a missing renewal price: no words, nothing can be agreed");
+  assert.equal(packConsent(undefined), null);
+  assert.deepEqual([consentMoney(2950), consentMoney(114700), consentMoney(123456789), consentMoney(0), consentMoney(-1), consentMoney(1.5), consentMoney(null)], ["$29.50", "$1,147", "$1,234,567.89", "$0", null, null, null]);
+  for (const t of [invoiceConsent({ planMinor: 1, addonsMinor: 2, autopay: false, renewalMinor: 1 }), packConsent(1)]) assert.ok(!DASH.test(t), t);
+  assert.equal(await consentHash("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "sha256 hex, as the database computes it");
+});
+
+test("add ons: the server's catalogue only, grouped minutes, texts, emails; names, totals and toggles", () => {
+  const offer = offerFrom(CATALOG);
+  assert.deepEqual(offer.map((a) => a.code), ["texts_500", "minutes_250", "minutes_100", "emails_10000"], "anything malformed or unknown is dropped");
+  assert.deepEqual(groupOffer(offer).map((g) => [g.title, g.items.map((a) => a.code)]), [["Minutes", ["minutes_100", "minutes_250"]], ["Texts", ["texts_500"]], ["Emails", ["emails_10000"]]]);
+  assert.deepEqual([addonName(offer[2]), addonShort(offer[2]), addonName(offer[3])], ["100 AI minutes", "100 minutes", "10,000 emails"]);
+  let sel = toggle([], "minutes_100", true); sel = toggle(sel, "texts_500", true); sel = toggle(sel, "minutes_100", true);
+  assert.deepEqual(sel, ["minutes_100", "texts_500"]);
+  assert.equal(addonsTotal(offer, [...sel, "not_offered"]), 4700, "only packs on offer count, at the server's price");
+  assert.deepEqual(chosen(offer, sel).map((a) => a.code), ["texts_500", "minutes_100"]);
+  assert.equal(selectionKey(["texts_500", "minutes_100", "texts_500"]), "minutes_100,texts_500");
+  assert.deepEqual(toggle(sel, "texts_500", false), ["minutes_100"]);
+  // review round 4: anything but a list is "not available" (null), never an empty offer; an empty list is empty
+  assert.equal(offerFrom(null), null);
+  assert.equal(offerFrom({ error: "x" }), null);
+  assert.deepEqual(offerFrom([]), []);
+  assert.deepEqual([groupOffer(null), chosen(null, ["minutes_100"]), addonsTotal(null, ["minutes_100"])], [[], [], 0], "a missing catalogue prices nothing");
+});
+
+test("add on keys: made when Pay is pressed, kept on retry and reload, a new one only for a newly ticked pack", () => {
+  const store = memory();
+  const a = addonKeys("zella.addonkeys.x", ["minutes_100"], store);
+  const b = addonKeys("zella.addonkeys.x", ["minutes_100", "texts_500"], store);
+  assert.equal(b.minutes_100, a.minutes_100, "the same key on retry or reload: the same purchase, never a second charge");
+  assert.match(b.texts_500, /^[A-Za-z0-9_-]{8,100}$/);
+  assert.notEqual(b.texts_500, b.minutes_100);
+  assert.deepEqual(addonKeys("zella.addonkeys.y", ["minutes_100"], null).minutes_100.length > 8, true, "no storage: keys for this page only");
+  assert.deepEqual([addonStep({}), addonStep({ purchase_id: "p", status: "pending" }), addonStep({ purchase_id: "p", status: "granted" }), addonStep({ purchase_id: "p", status: "failed" })],
+    ["todo", "adding", "added", "failed"]);
+});
+
+test("the checkout machine: a changed selection with the form open goes back to Pay; an answer without a status changes nothing (review)", () => {
+  assert.deepEqual(reduce({ state: "ready" }, { type: "RESET" }), { state: "idle" });
+  assert.deepEqual(reduce({ state: "loading" }, { type: "RESET" }), { state: "idle" });
+  const confirming = { state: "confirming", attempt: 2 };
+  assert.equal(reduce(confirming, { type: "RESET" }), confirming, "never while Stripe is confirming a payment");
+  for (const p of [undefined, null, {}, { status: 5 }]) assert.equal(reduce(confirming, { type: "SERVER", payment: p }), confirming, JSON.stringify(p));
+  const ready = { state: "ready" };
+  assert.equal(reduce(ready, { type: "SERVER", payment: {} }), ready, "never turned into off");
+  assert.ok(ERROR_KINDS.includes("not_taken"));
+  assert.deepEqual(reduce({ state: "confirming", attempt: 1 }, { type: "STOPPED", kind: "not_taken" }), { state: "error", kind: "not_taken" }, "a payable invoice with nothing taken: the owner can pay again (review)");
+  assert.deepEqual(reduce({ state: "error", kind: "not_taken" }, { type: "RETRY" }), { state: "idle" });
+  assert.ok(!DASH.test(Object.values(ERROR_WORDS.not_taken).join(" ")));
+});
+
+test("CRM stand in, Pay now with add ons: refused without the agreement; the plan payment first, each add on after with its key", async () => {
+  globalThis.sessionStorage = memory();
+  const api = createFakeBillingApi({ scenario: "addonfail", delay: 0 });
+  const offer = offerFrom(await api.addonCatalog(FAKE_BUSINESS));
+  assert.ok(offer.length >= 3);
+  const addons = [{ code: "minutes_100", key: "pay-now-key-a1" }, { code: "texts_500", key: "pay-now-key-b1" }];
+  const words = invoiceConsent({ planMinor: 24900, addonsMinor: 2900 + 1800, autopay: true, renewalMinor: 24900 });
+  await assert.rejects(api.invoiceStart(OPEN, { addons }), (e) => e.code === "CONSENT_REQUIRED");
+  await assert.rejects(api.invoiceStart(OPEN, { addons, consentHash: await consentHash(planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900 })) }),
+    (e) => e.code === "CONSENT_MISMATCH", "the words without the add ons");
+  const hash = await consentHash(words);
+  const open = await api.invoiceStart(OPEN, { addons, consentHash: hash, autopay: true });
+  assert.equal(open.amount_minor, 24900, "Stripe takes the invoice's own amount; the add ons are separate charges");
+  await assert.rejects(api.packBuy(FAKE_BUSINESS, "minutes_100", "pay-now-key-a1", { invoiceId: OPEN, consentHash: hash }), (e) => e.code === "INVOICE_NOT_PAID",
+    "never before the plan payment is confirmed");
+  // the plan payment: Stripe's form completes, the server confirms on a later look
+  const doc = { createElement: () => ({ setAttribute() {}, classList: { remove() {} }, textContent: "" }) };
+  const slot = () => ({ ownerDocument: doc, replaceChildren() {} });
+  const h = await api.mountPayment({ number: slot(), expiry: slot(), cvc: slot() }, { clientSecret: open.client_secret, invoiceId: OPEN, onEvent: () => {}, onComplete: () => {} });
+  await h.demo(); await h.submit();
+  await api.invoiceReturn(OPEN);
+  assert.equal((await api.invoiceReturn(OPEN)).invoice.status, "paid");
+  await assert.rejects(api.packBuy(FAKE_BUSINESS, "minutes_100", "another-key-1", { invoiceId: OPEN, consentHash: hash }), (e) => e.code === "CONSENT_MISMATCH", "a key the agreement didn't name");
+  const p1 = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pay-now-key-a1", { invoiceId: OPEN, consentHash: hash });
+  const p1again = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pay-now-key-a1", { invoiceId: OPEN, consentHash: hash });
+  assert.equal(p1again.purchase_id, p1.purchase_id, "a double click or a retry with the same key: the same purchase");
+  // a reload mid way: a new stand in (the page) finds the agreed add ons and their state from the "server"
+  const reloaded = createFakeBillingApi({ scenario: "addonfail", delay: 0 });
+  const st = await reloaded.invoiceStatus(OPEN);
+  assert.equal(st.addons_consent, hash);
+  assert.deepEqual(st.addons.map((a) => [a.code, a.key, Boolean(a.purchase_id)]), [["minutes_100", "pay-now-key-a1", true], ["texts_500", "pay-now-key-b1", false]]);
+  const p2 = await reloaded.packBuy(FAKE_BUSINESS, "texts_500", "pay-now-key-b1", { invoiceId: OPEN, consentHash: hash });
+  await reloaded.packStatus(FAKE_BUSINESS, p2.purchase_id);
+  const failed = (await reloaded.packStatus(FAKE_BUSINESS, p2.purchase_id)).purchase;
+  assert.deepEqual([failed.status, failed.failure_reason, failed.can_act], ["failed", "card_declined", true], "the texts add on fails after the plan was paid");
+  assert.equal((await reloaded.invoiceStatus(OPEN)).status, "paid", "the plan stays paid");
+  await assert.rejects(reloaded.invoiceStart(OPEN, { addons, consentHash: hash }), (e) => e.code === "ALREADY_PAID", "the invoice is never charged again");
+  assert.equal((await reloaded.packBuy(FAKE_BUSINESS, "texts_500", "pay-now-key-b1", { invoiceId: OPEN, consentHash: hash })).purchase_id, p2.purchase_id, "Try again with the same key: that pack only");
+  // the pack page: its own words, at the catalogue's price
+  await assert.rejects(reloaded.packBuy(FAKE_BUSINESS, "emails_10000", "pack-page-key-1", { consentHash: await consentHash(packConsent(2900)) }), (e) => e.code === "CONSENT_MISMATCH");
+  assert.ok((await reloaded.packBuy(FAKE_BUSINESS, "emails_10000", "pack-page-key-1", { consentHash: await consentHash(packConsent(2500)) })).purchase_id);
+  await assert.rejects(reloaded.packActStart(FAKE_BUSINESS, p2.purchase_id, {}), (e) => e.code === "CONSENT_REQUIRED", "finishing a pack needs the agreement too");
+  delete globalThis.sessionStorage;
+});
+
+test("CRM stand in: a new instance after a reload keeps the completion marker, so the invoice can be confirmed (review)", async () => {
+  globalThis.sessionStorage = memory();
+  const a = createFakeBillingApi({ scenario: "", delay: 0 });
+  const open = await a.invoiceStart(OPEN, { consentHash: await consentHash(planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900 })) });
+  const doc = { createElement: () => ({ setAttribute() {}, classList: { remove() {} }, textContent: "" }) };
+  const slot = () => ({ ownerDocument: doc, replaceChildren() {} });
+  const h = await a.mountPayment({ number: slot(), expiry: slot(), cvc: slot() }, { clientSecret: open.client_secret, invoiceId: OPEN, onEvent: () => {}, onComplete: () => {} });
+  await h.demo(); await h.submit();
+  const b = createFakeBillingApi({ scenario: "", delay: 0 });   // the reload
+  assert.equal((await b.invoiceStatus(OPEN)).processing, true);
+  await b.invoiceReturn(OPEN);
+  assert.equal((await b.invoiceReturn(OPEN)).invoice.status, "paid", "the reloaded page confirms it");
+  const c = createFakeBillingApi({ scenario: "", delay: 0 });
+  globalThis.sessionStorage = memory();
+  const fresh = createFakeBillingApi({ scenario: "", delay: 0 });
+  assert.equal((await fresh.invoiceStatus(OPEN)).status, "open", "without the marker an invoice stays unpaid");
+  void c;
+  delete globalThis.sessionStorage;
+});
+
+test("onboarding stand in: the plan and the packs in one checkout; other words refused; a changed selection expires the old session first", async () => {
+  const api = createFakeApi({ scenario: "pay", storage: memory(), delay: 0 });
+  const id = (await api.listBusinesses()).businesses[0].business_id;
+  api.approveIdentity();
+  const offer = offerFrom(await api.addonCatalog(id));
+  const t1 = planConsent({ todayMinor: 89800 + addonsTotal(offer, ["minutes_100", "texts_500"]), autopay: true, renewalMinor: 24900, addonsMinor: addonsTotal(offer, ["minutes_100", "texts_500"]) });
+  await assert.rejects(api.startCheckout(id, "a-good-key-1", { packs: ["minutes_100", "texts_500"], consentHash: await consentHash(planConsent({ todayMinor: 89800, autopay: true, renewalMinor: 24900 })) }),
+    (e) => e.code === "CONSENT_MISMATCH");
+  const r = await api.startCheckout(id, "a-good-key-1", { packs: ["texts_500", "minutes_100"], consentHash: await consentHash(t1) });
+  assert.deepEqual([r.status, r.amount_minor, r.addons], ["open", 94500, ["minutes_100", "texts_500"]], "one payment of $945 for the plan, the setup fee and both packs");
+  const t2 = planConsent({ todayMinor: 89800 + 2900, autopay: false, renewalMinor: 24900, addonsMinor: 2900 });
+  const r2 = await api.startCheckout(id, "a-good-key-1", { packs: ["minutes_100"], autopay: false, consentHash: await consentHash(t2) });
+  assert.equal(r2.amount_minor, 92700, "the new selection's own amount (the old session expired first)");
+});
+
+test("onboarding stand in: a later Auto pay change wins over the checkout's off choice (review)", async () => {
+  const api = createFakeApi({ scenario: "pay", storage: memory(), delay: 0 });
+  const id = (await api.listBusinesses()).businesses[0].business_id;
+  api.approveIdentity();
+  await api.startCheckout(id, "a-good-key-1", { autopay: false, consentHash: await consentHash(planConsent({ todayMinor: 89800, autopay: false, renewalMinor: 24900 })) });
+  api.confirmPayment();
+  assert.equal((await api.autopayStatus(id)).on, false, "the checkout's off choice once paid");
+  await api.autopaySet(id, true, "autopay-key-0001");
+  assert.equal((await api.autopayStatus(id)).on, true, "the later change wins");
+});
+
+test("pay pages keep the workspace: the business goes with the address, the stand in scenario too (review)", async () => {
+  const { payPageAddress } = await import("../src/billing/payRedirect.js");
+  assert.equal(payPageAddress("/app/settings/billing/pay/x", FAKE_BUSINESS, "?scenario=paid&x=1"), `/app/settings/billing/pay/x?business=${FAKE_BUSINESS}&scenario=paid`);
+  assert.equal(payPageAddress("/app/settings/billing/pack/minutes_100", "not-an-id", ""), "/app/settings/billing/pack/minutes_100");
+});
+
+test("the emailed Pay now link names the business too (review)", async () => {
+  const { renderEmail } = await import("../src/emails/businessEmails.js");
+  const inv = "11111111-2222-4333-8444-555555555555", biz = "00000000-0000-4000-8000-0000000000b1";
+  assert.ok(renderEmail("D1", { invoiceId: inv, businessId: biz }).html.includes(`/pay/invoice/${inv}?business=${biz}`));
+  assert.ok(renderEmail("D1", { invoiceId: inv }).html.includes(`/pay/invoice/${inv}`));
+});
+
+test("card fields: every change drops the earlier preview and makes a new one when complete; a stale preview is ignored (review)", async () => {
+  const made = [], pms = [];
+  let release;
+  const element = (type, options) => { const on = {}; const el = { type, options, mount: () => {}, destroy: () => {}, on: (ev, fn) => { on[ev] = fn; }, fire: (ev, e) => on[ev]?.(e) }; made.push(el); return el; };
+  globalThis.Stripe = () => ({ elements: () => ({ create: element }),
+    createPaymentMethod: async (p) => { pms.push(p); const n = pms.length; if (n === 1) await new Promise((r) => { release = r; }); return { paymentMethod: { id: `pm_${n}`, card: { brand: "visa", last4: n === 1 ? "1111" : "4242", exp_month: 12, exp_year: 2028 } } }; },
+    confirmCardPayment: async () => ({ paymentIntent: { status: "succeeded" } }) });
+  const { mountCardFields, destroyCurrent } = await import("../src/billing/stripeEmbedded.js");
+  const events = [];
+  await mountCardFields({ number: {}, expiry: {}, cvc: {} }, { kind: "intent", clientSecret: "pi_1_secret_x", publishableKey: "pk_test_abc", livemode: false, onEvent: (e) => events.push(e), onComplete: () => {} });
+  const el = (t) => made.find((m) => m.type === t);
+  for (const t of ["cardNumber", "cardExpiry", "cardCvc"]) el(t).fire("change", { complete: true, empty: false, brand: "visa" });
+  // a digit changes in a number that stays complete, while the first preview is still on its way
+  el("cardNumber").fire("change", { complete: true, empty: false, brand: "visa" });
+  await new Promise((r) => setTimeout(r, 0));
+  release();
+  await new Promise((r) => setTimeout(r, 0));
+  const previews = events.filter((e) => e.type === "preview" && e.card).map((e) => e.card.last4);
+  assert.deepEqual(previews, ["4242"], "only the latest value's preview reaches the card; the stale one is dropped");
+  assert.equal(pms.length, 2, "a new PaymentMethod for the changed value");
+  destroyCurrent();
+  delete globalThis.Stripe;
+});
+
+test("card problems in the owner's words: declines by Stripe's code, the bank's check, and unknown outcomes (owner question)", async () => {
+  const { declineOf, savedCardDecline, FIELD_ERRORS } = await import("../src/billing/declines.js");
+  const dc = (decline_code) => declineOf({ code: "DECLINED", decline_code, stripe_type: "card_error", stripe_code: "card_declined" });
+  assert.equal(dc("generic_decline").title, "Your card was declined");
+  assert.equal(dc("lost_card").title, "Your card was declined", "lost or stolen reads as a generic decline");
+  assert.equal(dc("stolen_card").body, dc("generic_decline").body);
+  assert.equal(dc("insufficient_funds").title, "This card doesn't have enough funds");
+  assert.equal(dc("incorrect_cvc").title, "The security code is incorrect");
+  for (const c of ["generic_decline", "insufficient_funds", "incorrect_cvc", "lost_card"]) assert.match(dc(c).body, /You weren't charged\.$/, "a definite decline: you weren't charged");
+  const bank = declineOf({ code: "BANK_FAILED", stripe_code: "payment_intent_authentication_failure" });
+  assert.deepEqual([bank.kind, bank.title], ["bank_failed", "Your bank didn't confirm the payment"]);
+  assert.equal(`${bank.title}. ${bank.body}`, "Your bank didn't confirm the payment. You weren't charged. Try again, or try another card.");
+  const unk = declineOf({ code: "UNKNOWN_OUTCOME" });
+  assert.equal(unk.kind, "unknown");
+  assert.ok(!/weren't charged|Nothing was charged/.test(unk.body), "unknown never says you weren't charged");
+  assert.equal(unk.body, "We couldn't confirm your payment yet. Please don't pay again; we'll update this page.");
+  assert.equal(declineOf({ code: "LOCAL_CHECK", message: "Complete the card details first." }), null, "a local check is not a decline");
+  assert.equal(savedCardDecline("insufficient_funds").title, "This card doesn't have enough funds");
+  assert.equal(savedCardDecline("stolen_card").title, "Your card was declined");
+  for (const t of [...Object.values(FIELD_ERRORS), unk.body, bank.body, dc("incorrect_cvc").body]) assert.ok(!DASH.test(t), t);
+  const { packAnswer } = await import("../src/billing/payState.js");
+  const a = packAnswer({ status: "failed", can_act: true, failure_reason: "insufficient_funds" });
+  assert.equal(a.stopped, "card_declined");
+  assert.match(a.stoppedWords, /^This card doesn't have enough funds\./);
+});
+
+test("the stand in's card fields: wrong details inline, no preview; a decline then another card; Try another card empties the fields", async () => {
+  const { mountStandInCard } = await import("../src/billing/standinForm.js");
+  const doc = { createElement: () => ({ setAttribute() {}, classList: { remove() {}, add() {}, contains: () => false }, textContent: "", dataset: {}, append() {}, addEventListener() {} }) };
+  const slot = () => ({ ownerDocument: doc, replaceChildren() {} });
+  const events = [];
+  let paid = 0;
+  const h = mountStandInCard({ number: slot(), expiry: slot(), cvc: slot() }, { onEvent: (e) => events.push(e), onComplete: () => {} },
+    { speed: 0, outcomes: ["declined:insufficient_funds", "ok"], onPay: () => { paid++; } });
+  await h.demoInvalid();
+  assert.deepEqual(events.filter((e) => e.type === "change" && e.error).map((e) => [e.field, e.error]),
+    [["number", "Your card number is invalid."], ["expiry", "Your card's expiration year is in the past."], ["cvc", "Your card's security code is incomplete."]]);
+  assert.ok(!events.some((e) => e.type === "preview" && e.card), "no last 4 until the card is valid");
+  await assert.rejects(h.submit(), (e) => e.code === "LOCAL_CHECK", "Pay can't go ahead with wrong details");
+  await h.demo();
+  await assert.rejects(h.submit(), (e) => e.code === "DECLINED" && e.decline_code === "insufficient_funds");
+  assert.equal(paid, 0, "declined: nothing taken");
+  h.clear();
+  assert.equal(events.at(-1).card, null, "Try another card: the fields emptied, no preview");
+  await h.demo();
+  await h.submit();
+  assert.equal(paid, 1, "another card pays, on the same payment");
+});
+
+test("CRM stand in, two tabs with different add ons: the second tab's Pay waits while the first may be paying (review round 2)", async () => {
+  globalThis.sessionStorage = memory();
+  const api = createFakeBillingApi({ scenario: "", delay: 0 });
+  const one = [{ code: "minutes_100", key: "tab-one-key-001" }], two = [{ code: "texts_500", key: "tab-two-key-001" }];
+  const h1 = await consentHash(invoiceConsent({ planMinor: 24900, addonsMinor: 2900, autopay: true, renewalMinor: 24900 }));
+  const h2 = await consentHash(invoiceConsent({ planMinor: 24900, addonsMinor: 1800, autopay: true, renewalMinor: 24900 }));
+  await api.invoiceStart(OPEN, { addons: one, consentHash: h1, autopay: true, submit: true });
+  await assert.rejects(api.invoiceStart(OPEN, { addons: two, consentHash: h2, autopay: true, submit: true }), (e) => e.code === "ADDONS_IN_PROGRESS");
+  await api.invoiceStart(OPEN, { addons: two, consentHash: h2, autopay: true });   // the other tab only opening its form changes nothing
+  const st = await api.invoiceStatus(OPEN);
+  assert.deepEqual([st.addons_consent, st.addons.map((a) => a.code)], [h1, ["minutes_100"]], "the add ons listed are the paying tab's");
+  delete globalThis.sessionStorage;
+});
+
+// ---- CodeRabbit review round 3 ----
+test("review round 3: a Checkout Session's paymentFailed is the decline contract (its decline code); other errors and a lost answer stay unknown", async () => {
+  const element = (type) => { const on = {}; return { type, mount: () => {}, destroy: () => {}, on: (ev, fn) => { on[ev] = fn; }, fire: (ev, e) => on[ev]?.(e) }; };
+  let answer;
+  const made = [];
+  globalThis.Stripe = () => ({ elements: () => ({ create: (t) => { const el = element(t); made.push(el); return el; } }),
+    initCheckout: async () => ({ loadActions: async () => ({ type: "success", actions: { confirm: async () => answer() } }) }),
+    createPaymentMethod: async () => ({ paymentMethod: { id: "pm_1", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2028 } } }) });
+  const { mountCardFields, destroyCurrent } = await import("../src/billing/stripeEmbedded.js");
+  const { declineOf } = await import("../src/billing/declines.js");
+  let completed = 0;
+  const h = await mountCardFields({ number: {}, expiry: {}, cvc: {} }, { kind: "checkout", clientSecret: "cs_test_1_secret_x", publishableKey: "pk_test_abc", livemode: false, onEvent: () => {}, onComplete: () => { completed++; } });
+  for (const t of ["cardNumber", "cardExpiry", "cardCvc"]) made.find((m) => m.type === t).fire("change", { complete: true, empty: false, brand: "visa" });
+  await new Promise((r) => setTimeout(r, 0));
+  answer = async () => ({ type: "error", error: { code: "paymentFailed", message: "Your card has insufficient funds.", paymentFailed: { declineCode: "insufficient_funds" } } });
+  const e1 = await h.submit().catch((e) => e);
+  assert.deepEqual([e1.code, e1.decline_code, e1.stripe_type], ["DECLINED", "insufficient_funds", "card_error"]);
+  assert.equal(declineOf(e1).title, "This card doesn't have enough funds", "the owner sees why, and can try another card");
+  answer = async () => ({ type: "error", error: { code: "paymentFailed", message: "Declined.", paymentFailed: { declineCode: null } } });
+  assert.equal(declineOf(await h.submit().catch((e) => e)).title, "Your card was declined", "no decline code: a generic decline");
+  answer = async () => ({ type: "error", error: { code: null, message: "Something else" } });
+  assert.equal((await h.submit().catch((e) => e)).code, "UNKNOWN_OUTCOME", "another error code is not known to have failed");
+  answer = async () => { throw new Error("network"); };
+  assert.equal((await h.submit().catch((e) => e)).code, "UNKNOWN_OUTCOME", "a lost answer stays unknown");
+  assert.equal(completed, 0);
+  answer = async () => ({ type: "success", session: {} });
+  await h.submit();
+  assert.equal(completed, 1, "success still completes");
+  destroyCurrent();
+  delete globalThis.Stripe;
+});
+
+test("review round 3: a cancelled pack purchase is final: its own words and Try again, never processing; Try again buys it as a new purchase", async () => {
+  const { packAnswer } = await import("../src/billing/payState.js");
+  const a = packAnswer({ status: "cancelled" });
+  assert.equal(a.stopped, "pack_cancelled");
+  assert.notEqual(a.payment.reason, "processing");
+  assert.ok(ERROR_KINDS.includes("pack_cancelled"));
+  assert.deepEqual([ERROR_WORDS.pack_cancelled.label, ERROR_WORDS.pack_cancelled.body, ERROR_WORDS.pack_cancelled.action], ["This add on wasn't bought", "You weren't charged.", "Try again"]);
+  const stopped = reduce({ state: "confirming" }, { type: "STOPPED", kind: "pack_cancelled" });
+  assert.deepEqual([stopped.state, stopped.kind], ["error", "pack_cancelled"]);
+  assert.equal(reduce(stopped, { type: "RETRY" }).state, "idle", "Try again goes back to Pay");
+  globalThis.sessionStorage = memory();
+  const api = createFakeBillingApi({ scenario: "packcancelled", delay: 0 });
+  const hash = await consentHash(packConsent(2900));
+  const first = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-cancel-key-1", { consentHash: hash });
+  await api.packStatus(FAKE_BUSINESS, first.purchase_id);
+  assert.equal(packAnswer((await api.packStatus(FAKE_BUSINESS, first.purchase_id)).purchase).stopped, "pack_cancelled");
+  assert.equal((await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-cancel-key-1", { consentHash: hash })).purchase_id, first.purchase_id, "the old key only shows the cancelled purchase again");
+  const second = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-cancel-key-2", { consentHash: hash });
+  assert.notEqual(second.purchase_id, first.purchase_id);
+  await api.packStatus(FAKE_BUSINESS, second.purchase_id);
+  assert.equal((await api.packStatus(FAKE_BUSINESS, second.purchase_id)).purchase.status, "granted", "a new key: a new purchase, confirmed by the server");
+  delete globalThis.sessionStorage;
+});
+
+test("review round 4: server answers are checked: a missing purchase is an error, a card answer without card is an error, Stripe's page only at a real address", async () => {
+  const { packAnswer } = await import("../src/billing/payState.js");
+  assert.throws(() => packAnswer(undefined), { code: "BAD_RESPONSE" });
+  assert.throws(() => packAnswer({ status: "weird" }), { code: "BAD_RESPONSE" });
+  assert.equal(packAnswer({ status: "pending" }).payment.reason, "processing", "a pending purchase is still processing");
+  const { cardSummaryFrom, portalUrlFrom } = await import("../src/billing/payState.js");
+  assert.equal(cardSummaryFrom({ card: null }), null, "an explicit no card");
+  assert.deepEqual(cardSummaryFrom({ card: { brand: "visa", last4: "4242" } }), { brand: "visa", last4: "4242" });
+  for (const bad of [null, undefined, {}, "x"]) assert.throws(() => cardSummaryFrom(bad), { code: "BAD_RESPONSE" });
+  assert.equal(portalUrlFrom({ url: "https://billing.stripe.com/p/session/x" }), "https://billing.stripe.com/p/session/x");
+  assert.equal(portalUrlFrom({ url: "/app/settings/billing/invoices?card=updated" }), "/app/settings/billing/invoices?card=updated");
+  for (const bad of [null, {}, { url: "" }, { url: "//evil.example" }, { url: "javascript:alert(1)" }, { url: "http://x" }]) assert.throws(() => portalUrlFrom(bad), { code: "BAD_RESPONSE" });
+});
+
+test("review round 3: the server's granted wins over a local failure; Auto pay unknown shows only the amount and date", async () => {
+  const { addonRows } = await import("../src/billing/addons.js");
+  const local = { minutes_100: { step: "failed", words: "We couldn't confirm this pack. Try again uses the same payment, never a second charge." } };
+  const [granted] = addonRows([{ code: "minutes_100", purchase_id: "p1", status: "granted" }], local);
+  assert.deepEqual([granted.step, granted.words], ["added", undefined]);
+  const [waiting] = addonRows([{ code: "minutes_100", purchase_id: "p1", status: "pending" }], local);
+  assert.deepEqual([waiting.step, waiting.words], ["failed", local.minutes_100.words], "unresolved: the uncertainty stays");
+  assert.equal(addonRows([{ code: "texts_500" }], local)[0].step, "todo");
+  const { nextPaymentLine } = await import("../src/billing/payState.js");
+  const f = { amount: "$249", date: "Dec 20", due: "Dec 23" };
+  assert.equal(nextPaymentLine({ ...f, apKnown: false, apOn: false }), "Next payment: $249 on Dec 20.");
+  assert.equal(nextPaymentLine({ ...f, apKnown: true, apOn: true }), "Next payment: $249 on Dec 20. Auto pay is on.");
+  assert.equal(nextPaymentLine({ ...f, apKnown: true, apOn: false }), "Next payment: $249 on Dec 20. Auto pay is off, so you'll pay it here by Dec 23.");
+});
+
+test("review round 3: the stand in's bank preview keeps focus inside, gives it back on close, and closes when the form is taken down", async () => {
+  const { mountStandInCard } = await import("../src/billing/standinForm.js");
+  const doc = { activeElement: null, body: null, createElement: null };
+  const el = () => {
+    const on = {}, kids = [];
+    const node = { kids, on, connected: false, className: "", textContent: "", dataset: {}, attrs: {}, classList: { remove() {}, add() {}, contains: () => false },
+      setAttribute(k, v) { node.attrs[k] = v; }, append(...c) { kids.push(...c); for (const k of c) k.connected = true; }, replaceChildren(...c) { kids.length = 0; kids.push(...c); },
+      addEventListener(ev, fn) { on[ev] = fn; }, remove() { node.connected = false; }, focus() { doc.activeElement = node; }, get isConnected() { return node.connected; }, ownerDocument: doc };
+    return node;
+  };
+  doc.createElement = el; doc.body = el(); doc.body.connected = true;
+  const payButton = el(); payButton.connected = true; payButton.focus();
+  const slot = () => { const s = el(); return s; };
+  let paid = 0, completed = 0;
+  const h = mountStandInCard({ number: slot(), expiry: slot(), cvc: slot() }, { onEvent: () => {}, onComplete: () => { completed++; } }, { speed: 0, outcomes: ["verify"], onPay: () => { paid++; } });
+  await h.demo();
+  const shade = () => doc.body.kids.find((k) => k.className === "zgc-bank-preview" && k.connected);
+  const buttons = () => shade().kids[0].kids.find((k) => k.className === "zgc-bank-preview-actions").kids;
+  // Escape closes it and focus goes back to Pay
+  let run = h.submit().catch((e) => e);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(shade(), "the preview is open");
+  assert.equal(doc.activeElement.textContent, "Approve", "focus starts on Approve");
+  const keys = (key, shiftKey = false) => shade().on.keydown({ key, shiftKey, preventDefault() {} });
+  keys("Tab"); assert.equal(doc.activeElement.textContent, "Fail");
+  keys("Tab"); keys("Tab"); assert.equal(doc.activeElement.textContent, "Approve", "Tab wraps inside the dialog");
+  keys("Tab", true); assert.equal(doc.activeElement.textContent, "Close", "Shift+Tab wraps backwards");
+  keys("Escape");
+  assert.equal((await run).code, "BANK_FAILED");
+  assert.equal(doc.activeElement, payButton, "focus is back where it was");
+  // the form is taken down while the preview is open: it closes, the wait settles, nothing is paid
+  run = h.submit().catch((e) => e);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(shade());
+  h.destroy();
+  const gone = await run;
+  assert.equal(gone.code, "LOCAL_CHECK");
+  assert.ok(!shade(), "the preview closed");
+  assert.deepEqual([paid, completed], [0, 0], "nothing paid after the form was taken down");
+  void buttons;
+});

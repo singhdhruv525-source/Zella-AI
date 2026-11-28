@@ -37,6 +37,8 @@ html[data-zella-theme="glass"]:has(.ba-root, .owner-app) {
 
   --zella-success-bg: rgba(64, 200, 125, 0.17);
   --zella-success: #86E3AE;
+  --zella-on-success: #0E2A1B;   /* dark text on the light success green: 10:1 */
+  --zella-sheen: rgba(255, 255, 255, 0.22);   /* a little stronger on glass */
   --zella-success-border: rgba(64, 200, 125, 0.34);
   --zella-info-bg: rgba(96, 156, 235, 0.18);
   --zella-info: #A9CBF7;

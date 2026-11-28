@@ -1,9 +1,18 @@
 # Cloudflare Pages response headers for app.zellavoice.com and admin.zellavoice.com (security audit 18 Nov 2026, M14).
-# The Content Security Policy is REPORT ONLY for now: browsers log what it would block, nothing is blocked. Switch the
-# header name to Content-Security-Policy once a release has run clean (no reports from real pages).
-# Sources, from the built app (web/dist): scripts and styles from this site; Google Fonts (index.html); Supabase for the
-# API, realtime, edge functions and stored files. Stripe and Vapi are allowed ahead of use (nothing in the app loads
-# them today). Inline styles: React sets style attributes, so style-src needs 'unsafe-inline'. No inline scripts.
+# The Content Security Policy is REPORT ONLY for the site: browsers log what it would block, nothing is blocked.
+# ENFORCING on the pages that hold Stripe's card fields (owner decision, 27 Nov 2026: card fields in our pages are
+# approved on the condition that an enforcing CSP on them is a go live gate): the onboarding Pay step (/welcome/setup)
+# and the CRM's payment pages (/app/settings/billing/pay/<invoice>, /app/settings/billing/pack/<code>), which the CRM
+# opens as a full page load so this header applies. Same policy, enforced; the rest of the site stays report only.
+# Sources, from the built app (web/dist): scripts and styles from this site; Google Fonts (index.html, and the font
+# stylesheet the app reads, connect-src); Supabase for the
+# API, realtime, edge functions and stored files. Vapi is allowed ahead of use. Stripe (owner, 27 Nov 2026): the payment
+# pages load Stripe.js and mount Stripe's card fields and billing address (Elements) in Stripe's frames, so, as Stripe's
+# integration security guide lists for Stripe.js and Checkout: script-src js.stripe.com and *.js.stripe.com; frame-src
+# js.stripe.com, *.js.stripe.com, hooks.stripe.com (3D Secure) and checkout.stripe.com; connect-src api.stripe.com and
+# checkout.stripe.com. Nothing else of Stripe's is needed by our page (the fields' own images and scripts load inside
+# Stripe's frames, under Stripe's policy). Inline styles: React sets style attributes, so style-src needs
+# 'unsafe-inline'. No inline scripts.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
@@ -11,4 +20,10 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), hid=(), midi=(), magnetometer=(), gyroscope=(), accelerometer=(), display-capture=(), interest-cohort=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://pffqxlumqhjdbzvvoszm.supabase.co; media-src 'self' blob: https://pffqxlumqhjdbzvvoszm.supabase.co; connect-src 'self' https://pffqxlumqhjdbzvvoszm.supabase.co wss://pffqxlumqhjdbzvvoszm.supabase.co https://api.stripe.com https://api.vapi.ai; frame-src 'self' https://js.stripe.com https://hooks.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://pffqxlumqhjdbzvvoszm.supabase.co; media-src 'self' blob: https://pffqxlumqhjdbzvvoszm.supabase.co; connect-src 'self' https://fonts.googleapis.com https://pffqxlumqhjdbzvvoszm.supabase.co wss://pffqxlumqhjdbzvvoszm.supabase.co https://api.stripe.com https://checkout.stripe.com https://api.vapi.ai; frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+/welcome/setup
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://pffqxlumqhjdbzvvoszm.supabase.co; media-src 'self' blob: https://pffqxlumqhjdbzvvoszm.supabase.co; connect-src 'self' https://fonts.googleapis.com https://pffqxlumqhjdbzvvoszm.supabase.co wss://pffqxlumqhjdbzvvoszm.supabase.co https://api.stripe.com https://checkout.stripe.com https://api.vapi.ai; frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+/app/settings/billing/pay/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://pffqxlumqhjdbzvvoszm.supabase.co; media-src 'self' blob: https://pffqxlumqhjdbzvvoszm.supabase.co; connect-src 'self' https://fonts.googleapis.com https://pffqxlumqhjdbzvvoszm.supabase.co wss://pffqxlumqhjdbzvvoszm.supabase.co https://api.stripe.com https://checkout.stripe.com https://api.vapi.ai; frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+/app/settings/billing/pack/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://pffqxlumqhjdbzvvoszm.supabase.co; media-src 'self' blob: https://pffqxlumqhjdbzvvoszm.supabase.co; connect-src 'self' https://fonts.googleapis.com https://pffqxlumqhjdbzvvoszm.supabase.co wss://pffqxlumqhjdbzvvoszm.supabase.co https://api.stripe.com https://checkout.stripe.com https://api.vapi.ai; frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests

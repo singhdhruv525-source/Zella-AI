@@ -68,6 +68,34 @@ export function keyIsLive(secretKey: string): boolean {
   return /^(sk|rk)_live_/.test(secretKey);
 }
 
+// The publishable key (STRIPE_PUBLISHABLE_KEY, not a secret: Stripe.js uses it in the owner's browser) must be in the
+// same mode as the secret key, so a test form can never open a live session or the reverse. true live, false test,
+// null when it isn't a publishable key at all.
+export function publishableKeyLive(key: string): boolean | null {
+  if (/^pk_live_[A-Za-z0-9]{8,255}$/.test(key)) return true;
+  if (/^pk_test_[A-Za-z0-9]{8,255}$/.test(key)) return false;
+  return null;
+}
+
+// What Stripe says about the saved card, for the owner's own screen only (owner decision, 27 Nov 2026: brand and last 4
+// may be shown). Only a known brand and exactly four digits pass; anything else is dropped, never guessed.
+const CARD_BRANDS = new Set(["amex", "cartes_bancaires", "diners", "discover", "eftpos_au", "jcb", "link", "mastercard", "unionpay", "visa"]);
+// The issuing bank's name (owner, 27 Nov 2026) only as Stripe's own `card.issuer` gives it on the PaymentMethod (the
+// pinned types say it is "not typically available in standard API requests", so it is usually absent and nothing is
+// shown). Plain text: control characters removed, trimmed, at most 40 characters. Never guessed from the card number.
+export function issuerText(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, 40).trim();
+  return t || null;
+}
+export function cardSummary(paymentMethod: unknown): { brand: string; last4: string; issuer?: string } | null {
+  const card = paymentMethod && typeof paymentMethod === "object" ? (paymentMethod as Json).card as Json | undefined : undefined;
+  const brand = typeof card?.brand === "string" ? card.brand : "", last4 = typeof card?.last4 === "string" ? card.last4 : "";
+  if (!CARD_BRANDS.has(brand) || !/^\d{4}$/.test(last4)) return null;
+  const issuer = issuerText(card?.issuer);
+  return issuer ? { brand, last4, issuer } : { brand, last4 };
+}
+
 export function stripeClient(opts: StripeClientOptions): StripeClient {
   if (!opts.secretKey) throw new Error("STRIPE_SECRET_KEY is not set");
   const base = (opts.baseUrl ?? STRIPE_DEFAULT_BASE).replace(/\/+$/, "");

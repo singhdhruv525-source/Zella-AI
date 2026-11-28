@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../BusinessUI";
-import { Actions, EmptyNote, ErrorText, useAction, useLatest } from "./kit";
-import { allowance, billingPeriod, errorCode, errorWords, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
+import GlassCheckout from "../billing/GlassCheckout";
+import { autopayWords } from "../billing/payState.js";
+import { keyIsSpent, formatMoney } from "../billing/checkoutMachine";
+import { addonsTotal, consentHash, offerFrom, planConsent, selectionKey, toggle } from "../billing/addons.js";
+import { Actions, EmptyNote, ErrorText, useAction } from "./kit";
+import { allowance, billingPeriod, errorCode, languageWords, money, paymentPassed, paymentState, tierName } from "./steps";
 
 // Screens 5 to 7: Your plan, Pay, and You're all set.
 
@@ -65,86 +69,102 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
   );
 }
 
-// Pay. While payments aren't connected (rule payments_connected false) the owner sees a calm waiting screen. Once they
-// are, "Pay securely" opens Stripe Checkout (billing-api) and Stripe sends the owner back here; the screen then asks
-// the server to look again and shows "Confirming" until a verified payment arrives. "Payment received" shows only when
-// the server says the payment is confirmed: coming back from Stripe proves nothing by itself.
+// Pay (owner, 27 Nov 2026): the glass checkout (billing/GlassCheckout.jsx) with Stripe's card fields and billing address inside the
+// page. While payments aren't switched on, the step says payment opens here soon and can be passed (owner decision,
+// 16 Nov 2026). Once they are, Pay securely asks billing-api for the checkout (one key per attempt; a double click,
+// a second tab or a reload gets the same open checkout from the server) and Stripe's own form opens in place. When
+// Stripe finishes, or sends the owner back from a redirect, the screen asks OUR server again with backoff and shows
+// "Payment received" only when the server confirms a verified, bound payment: Stripe finishing proves nothing by itself.
 const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, "");
 export function PaymentScreen({ api, state, onState, onComplete }) {
   const st = paymentState(state.payment);
-  const [checking, setChecking] = useState(false);
-  const [problem, setProblem] = useState("");
-  // one key per attempt: a double click reuses it, but after a failed start the next try uses a new one (an expired
-  // or failed Checkout is never handed back for the old key)
-  const [key, setKey] = useState(newKey);
-  const inFlight = useRef(false);
+  // Auto pay (owner, 27 Nov 2026: on by default): the owner's choice, sent with the start and kept on the server
+  const [autopayOn, setAutopayOn] = useState(true);
+  const [emailLive, setEmailLive] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    Promise.resolve(api.autopayStatus?.(state.business_id)).then((a) => { if (alive && a) setEmailLive(a.email_live === true); }, () => {});
+    return () => { alive = false; };
+  }, [api, state.business_id]);
+  // one key per attempt: a double click reuses it, but after a failed or expired start the next try uses a new one
+  const key = useRef(newKey());
   const [returned] = useState(() => new URLSearchParams(window.location.search).get("checkout"));
   const action = useAction();
-  const trial = state.payment?.checkout?.mode === "trial" || state.payment?.due_now_minor === 0;
-  const reads = useLatest();
-  async function refresh(fromStripe = false) {
-    const ticket = reads.start();
-    setChecking(true);
-    try {
-      const fresh = fromStripe && api.checkoutReturn ? (await api.checkoutReturn(state.business_id)).payment : await api.paymentStatus(state.business_id);
-      if (reads.isLatest(ticket)) { onState((s) => ({ ...s, payment: fresh })); setProblem(""); }
-    } catch (err) { if (reads.isLatest(ticket)) setProblem(errorWords(err)); }
-    finally { if (reads.isLatest(ticket)) setChecking(false); }
-  }
-  async function pay() {
-    let r;
-    try { r = await api.startCheckout(state.business_id, key); }
-    catch (err) { setKey(newKey()); throw err; }
-    if (typeof r?.url !== "string") { setKey(newKey()); throw new Error("We couldn't open the payment page. Please try again in a minute."); }
-    window.location.assign(r.url);
-  }
-  // back from Stripe: ask the server to look again (it applies the verified events), then tidy the address bar
+  const pay = state.payment ?? {};
+  const p = state.plan?.current ?? {};
+  const trial = pay.checkout?.mode === "trial" || pay.due_now_minor === 0;
+  // add ons (owner, 27 Nov 2026: one single payment): the packs on offer from the server's catalogue, ticked here, priced
+  // by the server; not offered with a trial (nothing is charged today then)
+  const [offer, setOffer] = useState([]);   // [] while loading or empty; null when the catalogue couldn't be loaded
+  const [selected, setSelected] = useState([]);
+  const [catalogTry, setCatalogTry] = useState(0);
   useEffect(() => {
-    if (returned !== "return") return;
-    refresh(true);
+    let alive = true;
+    if (trial || !api.addonCatalog) return undefined;
+    // a failed or malformed answer is "not available right now", never an empty catalogue (review round 4)
+    Promise.resolve(api.addonCatalog(state.business_id)).then((c) => { if (alive) setOffer(offerFrom(c)); }, () => { if (alive) setOffer(null); });
+    return () => { alive = false; };
+  }, [api, state.business_id, trial, catalogTry]);
+  const picked = trial ? [] : selected;
+  const baseDue = Number.isFinite(Number(pay.due_now_minor)) ? Number(pay.due_now_minor) : null;
+  const totalDue = baseDue === null ? null : baseDue + addonsTotal(offer, picked);
+  // the required "I agree" words, from the server's figures (the plan's due today and renewal price, the packs' prices)
+  const consent = totalDue === null ? null : planConsent({ todayMinor: totalDue, autopay: autopayOn, renewalMinor: p.price_cents, addonsMinor: addonsTotal(offer, picked) });
+  // back from Stripe (a payment method that redirects): the session id never stays in the address bar
+  useEffect(() => {
+    if (!returned) return;
     const u = new URL(window.location.href);
-    ["checkout", "session_id"].forEach((k) => u.searchParams.delete(k));
+    // never trusted: removed at once, the server is asked (double payment case 9)
+    ["checkout", "session_id", "payment_intent", "payment_intent_client_secret", "redirect_status", "setup_intent", "setup_intent_client_secret"].forEach((k) => u.searchParams.delete(k));
     window.history.replaceState(null, "", u.pathname + u.search);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // while confirming, look again every 5 seconds; otherwise once a minute while the page is in view
-  useEffect(() => {
-    if (st.key === "confirmed") return undefined;
-    const every = st.key === "processing" || returned === "return" ? 5000 : 60000;
-    // never a second look while one is still on its way (a slow answer still updates the screen)
-    const t = setInterval(() => {
-      if (document.visibilityState !== "visible" || inFlight.current) return;
-      inFlight.current = true;
-      refresh(st.key === "processing").finally(() => { inFlight.current = false; });
-    }, every);
-    return () => clearInterval(t);
-  }, [st.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the Auto pay choice goes with the start and is kept with the checkout on the server (review M2); the key changes only
+  // once the server says this attempt is over (a lost reply and Try again reach the same checkout, review M1)
+  async function start(opts = {}) {
+    try { return await api.startCheckout(state.business_id, key.current, { autopay: autopayOn, packs: picked, consentHash: consent ? await consentHash(consent) : null, ...opts }); }
+    catch (err) { if (keyIsSpent(err)) key.current = newKey(); throw err; }
+  }
+  // Stripe.js couldn't load: Stripe's own Checkout page instead (owner, 27 Nov 2026); an open in page session is expired
+  // at Stripe first, so the start is asked once more with a new key
+  async function hostedFallback() {
+    try { return await start({ hosted: true }); }
+    catch (err) {
+      if (err?.code !== "CHECKOUT_EXPIRED") throw err;
+      key.current = newKey();
+      return start({ hosted: true });
+    }
+  }
+  const confirm = () => api.checkoutReturn(state.business_id);
+  const onPayment = (payment) => { if (payment && typeof payment === "object") onState((s) => ({ ...s, payment })); };
+  const period = billingPeriod(p.billing_interval);
+  const lines = [["Plan", `${money(p.price_cents, p.currency)} ${period}`, "workspace_premium"]];
+  if (Number(p.setup_fee_cents) > 0) lines.push(["Setup fee", money(p.setup_fee_cents, p.currency), "build"]);
+  if (p.trial_enabled === true) lines.push(["Free trial", trial ? "Starts today" : "Not included", "redeem"]);
+  if (p.minutes != null) lines.push(["Call minutes", `${allowance(p.minutes, "minute")} ${period}`, "call"]);
+  const summary = {
+    title: p.tier ? `Your ${tierName(p.tier)} plan` : "Your plan",
+    lines,
+    totalLabel: "Due today",
+    amountMinor: totalDue,
+    currency: pay.checkout?.currency ?? p.currency ?? "USD",
+    // the trial's note follows the amount due today, never the trial alone (review)
+    footnote: !trial ? undefined : totalDue === 0 ? "Nothing is charged until your trial ends."
+      : `${formatMoney(totalDue, p.currency ?? "USD")} is charged today. Your plan starts charging when the trial ends.`,
+  };
   return (
     <>
-      <div className={`zob-status tone-${st.tone}`} role="status" aria-live="polite">
-        <span className="ba-icon" aria-hidden="true">{{ confirmed: "paid", locked: "lock", waiting: "schedule", ready: "credit_card", processing: "hourglass_top" }[st.key]}</span>
-        <div>
-          <strong>{st.label}</strong>
-          <p>{{
-            confirmed: "Thank you. Your payment is confirmed.",
-            locked: "You'll be able to pay once your identity is verified.",
-            waiting: "You'll pay for your plan right here. We're finishing this part now. Nothing is charged until then.",
-            ready: trial ? "Add a card on Stripe's secure page to start your trial. Nothing is charged until the trial ends."
-                         : `You'll pay ${money(state.payment?.checkout?.amount_minor ?? state.payment?.due_now_minor)} today on Stripe's secure page. Your card details never reach Zella Voice.`,
-            processing: "Stripe sent you back. We're waiting for Stripe to confirm the payment, which usually takes a few seconds.",
-          }[st.key]}</p>
-        </div>
-      </div>
-      {returned === "cancelled" && st.key === "ready" && <p className="zob-muted">You left the payment page. Nothing was charged.</p>}
-      {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. We'll ask for payment here once it's switched on.</p>}
-      {st.key !== "confirmed" && state.payment?.required !== false && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}
-      <ErrorText>{problem || action.error}</ErrorText>
-      <Actions>
-        {st.key === "confirmed" || paymentPassed(state.payment)
-          ? <button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(() => onComplete("payment"))}>{action.busy ? "One moment…" : "Continue"}</button>
-          : st.key === "ready"
-            ? <button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(pay)}>{action.busy ? "Opening Stripe…" : trial ? "Add a card and start my trial" : "Pay securely"}</button>
-            : <button type="button" className="ba-btn" disabled={checking} onClick={() => refresh(st.key === "processing")}>{checking ? "Checking…" : "Check again"}</button>}
-      </Actions>
+      <GlassCheckout summary={summary} payment={state.payment} start={start} confirm={confirm} onPayment={onPayment}
+        kind="checkout" saveNote="This card is saved for your renewals." mount={api.mountCheckout} returned={returned === "return"}
+        payLabel={trial ? "Add a card and start my trial" : (a) => `Pay ${a}`}
+        addons={trial ? null : { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)), onRetry: () => { setOffer([]); setCatalogTry((n) => n + 1); } }}
+        consentText={consent} restartKey={selectionKey(picked)}
+        autopay={{ on: autopayOn, onChange: setAutopayOn, ...autopayWords(emailLive) }} hostedFallback={hostedFallback} beforeSubmit={() => start()} />
+      {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. You'll pay here once payments open.</p>}
+      {st.key !== "confirmed" && state.payment?.required !== false && <><p className="zob-muted">Your AI receptionist starts answering calls after you pay.</p><p className="zob-muted">You can choose Finish later and come back any time.</p></>}
+      <ErrorText>{action.error}</ErrorText>
+      {(st.key === "confirmed" || paymentPassed(state.payment)) && (
+        <Actions><button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(() => onComplete("payment"))}>{action.busy ? "One moment…" : "Continue"}</button></Actions>
+      )}
     </>
   );
 }
@@ -161,8 +181,8 @@ export function DoneScreen({ state, onComplete }) {
     <>
       <p className="zob-lead">Thank you. {state.business_name} is set up. Here's what happens next.</p>
       <ol className="zob-ahead zob-next">
-        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="call" size="sm" /></span><div><strong>A test call</strong><span>We make a test call to your receptionist and check its answers before anything goes live.</span></div></li>
-        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="rocket_launch" size="sm" /></span><div><strong>Going live</strong><span>{state.go_live?.live ? "Your receptionist is live and answering your calls." : "Once every check below passes, your receptionist starts answering your calls. You can follow it on the AI receptionist page in your CRM."}</span></div></li>
+        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="call" size="sm" /></span><div><strong>A test call</strong><span>We make a test call to your AI receptionist and check its answers before anything goes live.</span></div></li>
+        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="rocket_launch" size="sm" /></span><div><strong>Going live</strong><span>{state.go_live?.live ? "Your AI receptionist is live and answering your calls." : "Once every check below passes, your AI receptionist starts answering your calls. You can follow it on the AI receptionist page in your CRM."}</span></div></li>
         <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="dashboard" size="sm" /></span><div><strong>Your CRM</strong><span>Your customers, bookings, calls and messages will all land there.</span></div></li>
       </ol>
       {checks.length > 0 && (
