@@ -154,6 +154,19 @@ test("control flow after a closing brace is code, but text after an expression i
     "}", "",
   ].join("\n"));
   assert.equal(flow.code, 0, flow.out);
+  const more = check([
+    "export function g(a) {",
+    "  if (a) { go(); } else { stop-it(); }",
+    "  for (const x of a) { y(); } while (z-y) { w(); }",
+    "  try { go(); } finally { stop(); }",
+    "}", "",
+  ].join("\n"));
+  assert.equal(more.code, 0, more.out);
+  // a word like "for" or "if" that starts visible text is still text
+  const words = check("export const B = ({ n, m }) => <p>{n} for follow-up calls{m} if check-in is late</p>;\n");
+  assert.equal(words.code, 1);
+  assert.match(words.out, /for follow-up calls/);
+  assert.match(words.out, /if check-in is late/);
   const text = check("export const A = ({ n }) => <p>{n} follow-ups sent</p>;\n");
   assert.equal(text.code, 1);
   assert.match(text.out, /follow-ups sent/);

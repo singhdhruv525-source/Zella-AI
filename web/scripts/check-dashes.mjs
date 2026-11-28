@@ -50,8 +50,9 @@ function stripComments(src) {
 // arrived", "<strong>Save</strong> keeps a copy", "</strong> and more") keeps the text going, and the words after its
 // last tag or brace are checked. What sits inside tags or braces on the line is taken out before it is checked.
 const JS_LINE = /^(?:[<{})\]?:&|+*/.,;]|return\b|const\b|let\b|var\b|if\b|else\b|import\b|export\b|function\b|case\b|default\b)|=>|[;=]\s*$|&&|\|\||\b[\w.]+\(|^\w+:\s|[=!]==/;
-// control flow after a closing brace: "} else {", "} else if (x) {", "} catch (e) {"
-const JS_FLOW = /^\s*(?:else|if|catch|finally|while|for|do|try|return|case|default|switch)\b/;
+// control flow after a closing brace: "} else {", "} else if (x) {", "} catch (e) {", "} while (x)". Only the keyword
+// with its syntax counts ("if (", "else" right before "{"), so "} for follow-up calls" is still read as text.
+const JS_FLOW = /^\s*(?:else\s*$|else\s+if\s*\(|(?:if|for|while|switch|catch)\s*\(|(?:try|finally|do)\s*$|return\s*\()/;
 const CODE_BITS = /=>|&&|\|\||[=;{}]|\b[\w.]+\(/;
 const count = (s, ch) => s.split(ch).length - 1;
 // a line that starts with a child: a whole {expression}, a whole element, a self closing tag, or a closing tag
