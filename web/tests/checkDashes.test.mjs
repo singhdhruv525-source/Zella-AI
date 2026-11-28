@@ -89,6 +89,42 @@ test("JSX text on a line of its own is found", () => {
   assert.match(two.out, /Sample\.jsx:4/);
 });
 
+test("a > on its own line, after props spread over lines, opens the text", () => {
+  const r = check([
+    "export const A = ({ on }) => (",
+    "  <p",
+    "    className=\"note\"",
+    "    aria-live=\"polite\"",
+    "  >",
+    "    Showing them needs a server-side token.",
+    "  </p>",
+    ");", "",
+  ].join("\n"));
+  assert.equal(r.code, 1);
+  assert.match(r.out, /Sample\.jsx:6 {2}hyphen in text: Showing them needs a server-side token\./);
+});
+
+test("a line that starts with an expression or a child element is checked after it", () => {
+  const lines = (body) => check(["export const A = ({ name }) => (", "  <p>", ...body.map((l) => `    ${l}`), "  </p>", ");", ""].join("\n"));
+  const expr = lines(["{name} has a follow-up due."]);
+  assert.equal(expr.code, 1);
+  assert.match(expr.out, /Sample\.jsx:3 {2}hyphen in text: has a follow-up due\./);
+  const tag = lines(["<strong>Save</strong> keeps a 6-digit code."]);
+  assert.equal(tag.code, 1);
+  assert.match(tag.out, /Sample\.jsx:3 {2}hyphen in text: keeps a 6-digit code\./);
+  const closing = lines(["Open <strong>", "Settings", "</strong> for the sign-in options."]);
+  assert.equal(closing.code, 1);
+  assert.match(closing.out, /Sample\.jsx:5 {2}hyphen in text: for the sign-in options\./);
+});
+
+test("an expression inside the text doesn't end it: the next line is still checked", () => {
+  const r = check(["export const A = ({ name }) => (", "  <p>", "    Hello", "    {name}", "    and welcome to the check-in desk.", "  </p>", ");", ""].join("\n"));
+  assert.equal(r.code, 1);
+  assert.match(r.out, /Sample\.jsx:5 {2}hyphen in text: and welcome to the check-in desk\./);
+  // a closing tag on its own still ends the text
+  assert.equal(check(["export const B = (", "  <div>", "    <p>Hi</p>", "  </div>", ");", "const css = \"x-y\";", ""].join("\n")).code, 0);
+});
+
 test("code after a tag is not JSX text: expressions, props, arrow functions, statements", () => {
   const r = check([
     "export function A({ items, on }) {",

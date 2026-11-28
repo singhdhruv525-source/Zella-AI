@@ -44,22 +44,40 @@ function stripComments(src) {
 //   <p>
 //     Uses a server-side token.
 //   </p>
-// A line is text when it follows an opening tag (a line ending in ">", but not "=>" or "/>") or more such text, and
-// reads as words: it doesn't start a tag, an expression or a statement, and holds no code punctuation. What sits
-// inside tags or braces on the line is taken out before it is checked.
+// A line is text when it follows an opening tag (a line ending in ">", including a ">" on its own after props spread
+// over lines, but not "=>" or "/>") or more such text, and reads as words: it doesn't start a statement and holds no
+// code punctuation. A line inside the text that starts with a whole expression or child element ("{name} has
+// arrived", "<strong>Save</strong> keeps a copy", "</strong> and more") keeps the text going, and the words after its
+// last tag or brace are checked. What sits inside tags or braces on the line is taken out before it is checked.
 const JS_LINE = /^(?:[<{})\]?:&|+*/.,;]|return\b|const\b|let\b|var\b|if\b|else\b|import\b|export\b|function\b|case\b|default\b)|=>|[;=]\s*$|&&|\|\||\b[\w.]+\(|^\w+:\s|[=!]==/;
+const CODE_BITS = /=>|&&|\|\||[=;{}]|\b[\w.]+\(/;
+const count = (s, ch) => s.split(ch).length - 1;
+// a line that starts with a child: a whole {expression}, a whole element, a self closing tag, or a closing tag
+// followed by more text; braces and tags balance on the line, so nothing carries on to the next one
+function childLine(t) {
+  if (count(t, "{") !== count(t, "}")) return false;
+  if (/^\{/.test(t)) return true;
+  if (/^<\/[\w.]*>\s*\S/.test(t)) return true;
+  const open = t.match(/^<([A-Za-z][\w.]*)\b/);
+  return Boolean(open) && (new RegExp(`</${open[1].replace(".", "\\.")}>`).test(t) || /^<[^<>]*\/>/.test(t));
+}
 function jsxTextLines(lines) {
   const out = [];
   let inText = false;
   lines.forEach((line, i) => {
     const t = line.trim();
     if (!t) return;
-    const textual = inText && !JS_LINE.test(t);
+    const child = inText && /^[<{]/.test(t) && childLine(t);
+    const textual = inText && !child && !JS_LINE.test(t);
     // only the text before the first tag or brace and after the last one: text between tags is checked above
     if (textual) out.push([i, /[<>{}]/.test(t) ? `${t.split(/[<{]/)[0]} ${t.split(/[>}]/).pop()}`.trim() : t]);
-    // the next line is text when this one opens an element, or is text that the element doesn't close
-    const opens = /[^=/-]>$/.test(t) && !/^[)}]/.test(t) && !/^<\/[\w.]*>$/.test(t);
-    inText = opens || (textual && !/<\/[\w.]*>$/.test(t) && !/\/>$/.test(t));
+    if (child) {
+      const rest = t.split(/[>}]/).pop().trim();
+      if (rest && !CODE_BITS.test(rest)) out.push([i, rest]);
+    }
+    // the next line is text when this one opens an element, or is text (or a child) that the element doesn't close
+    const opens = /(^|[^=/-])>$/.test(t) && !/^[)}]/.test(t) && !/^<\/[\w.]*>$/.test(t);
+    inText = opens || child || (textual && !/<\/[\w.]*>$/.test(t) && !/\/>$/.test(t));
   });
   return out;
 }

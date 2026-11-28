@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { inFlight } from "./crm/inFlight";
 import { supabase } from "./supabase";
 import { Field, Icon, Modal, Pill, initials } from "./BusinessUI";
 import { timeAgo } from "./businessTime";
@@ -307,9 +308,15 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
   }, [workspace.id, refreshKey]);
   const rows = FAILED.flatMap(([key, kind, label]) => (data?.[key] ?? []).map((r) => ({ ...r, kind, label })));
 
+  // one request per row at a time: the row's Send again stays disabled until its own request ends (UX-4)
+  const [sending, setSending] = useState(() => new Set());
+  const flight = useRef(null);
+  flight.current ??= inFlight(() => setSending(flight.current.ids()));
   async function retry(row) {
-    const { error: e } = await supabase.rpc("zella_retry_failed", { p_business_id: workspace.id, p_kind: row.kind, p_id: row.id });
-    if (e) return onNotice(say(e));
+    const key = `${row.kind}-${row.id}`;
+    const r = await flight.current.run(key, () => supabase.rpc("zella_retry_failed", { p_business_id: workspace.id, p_kind: row.kind, p_id: row.id }));
+    if (r.skipped) return;
+    if (r.value.error) return onNotice(say(r.value.error));
     onNotice("Queued to send again. It goes out on the next sending run.");
     reload();
   }
@@ -327,7 +334,7 @@ export function FailedWorkPage({ workspace, refreshKey, onNotice }) {
               <li key={`${r.kind}-${r.id}`}>
                 <span className="ba-thread-icon"><Icon name="error" size="sm" /></span>
                 <div><strong>{r.label}{r.channel ? ` by ${humanize(r.channel).toLowerCase()}` : ""}</strong><small>{words(r.outcome || r.error || r.kind)}, {timeAgo(r.at || r.due_at)}</small></div>
-                <div className="ba-thread-meta"><button type="button" className="ba-btn sm" onClick={() => retry(r)}>Send again</button></div>
+                <div className="ba-thread-meta"><button type="button" className="ba-btn sm" disabled={sending.has(`${r.kind}-${r.id}`)} onClick={() => retry(r)}>{sending.has(`${r.kind}-${r.id}`) ? "Sending again…" : "Send again"}</button></div>
               </li>
             ))}
           </ul>

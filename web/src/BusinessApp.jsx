@@ -35,6 +35,7 @@ import { useMfaGate } from "./mfa";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
 import { plainNotice } from "./zellaVoice";
+import { workspaceList, workspaceScreen } from "./crm/workspaceScreen";
 import BusinessToday from "./BusinessToday";
 import { MoneyPage } from "./BusinessMoney";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
@@ -701,15 +702,18 @@ function BusinessHome() {
 
   const loadWorkspaces = useCallback(async () => {
     setError("");
+    // a first read or a retry shows Loading until it ends, never the empty state; a reload inside the app keeps it
+    setWorkspaces((current) => (current?.length ? current : null));
     // Activates any invitation this person hasn't accepted yet (safe to repeat); problems are shown, not hidden.
     try { setInvites(await acceptInvitations()); }
     catch (err) { console.error("Accepting invitations failed:", err); setInvites({ accepted: 0, needsEmailLink: 0, problems: [], failed: true }); }
 
-    const { data, error: loadError } = await supabase.rpc("zella_my_workspaces");
-    if (loadError) {
+    const { data: answer, error: loadError } = await supabase.rpc("zella_my_workspaces");
+    const data = workspaceList(answer);
+    if (loadError || !data) {
       // the technical detail stays in the console; the screen says what happened and offers Try again
-      console.error("Loading workspaces failed:", loadError);
-      setError(loadError.message || "failed");
+      console.error("Loading workspaces failed:", loadError ?? "no list in the answer");
+      setError(loadError?.message || "no list");
       setWorkspaces([]);
       return;
     }
@@ -777,9 +781,10 @@ function BusinessHome() {
       </section>
     </main>
   );
-  if (workspaces === null) return <Loading text="Loading your workspace…" />;
+  const screen = workspaceScreen({ workspaces, failed: Boolean(error) });
+  if (screen === "loading") return <Loading text="Loading your workspace…" />;
 
-  if (!workspaces.length) {
+  if (screen !== "app") {
     return (
       <main className="ba-auth">
         <section className="ba-auth-card">
@@ -790,7 +795,7 @@ function BusinessHome() {
           <h1>{error ? "Your workspace didn't load" : isAdmin ? "You're a Zella Voice admin" : "No workspace yet"}</h1>
           <p className="ba-auth-description">
             {error
-              ? "We couldn't load your workspace. Nothing was changed. Check your connection and try again."
+              ? "We couldn't load your workspace. Check your connection and try again."
               : isAdmin
                 ? `${session.user.email} manages Zella Voice from the admin dashboard and isn't linked to a business here.`
                 : `${session.user.email} isn't linked to a Zella Voice business yet. If you were invited, open the link in your invitation email first, or ask the Zella Voice team to resend it.`}

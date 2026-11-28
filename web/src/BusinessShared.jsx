@@ -145,7 +145,7 @@ export function transcriptLines(transcript) {
 }
 
 
-const NEEDS_UPDATE = "This isn't switched on for your workspace yet. Nothing was saved. Ask the Zella Voice team.";
+const NEEDS_UPDATE = "This isn't switched on for your workspace yet. Ask the Zella Voice team.";
 // Short codes raised by the database functions, in plain words.
 const CODES = {
   NOT_ALLOWED: "You don't have permission to do that in this workspace.",
