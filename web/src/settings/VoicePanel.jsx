@@ -25,11 +25,11 @@ function Editor({ businessId, data }) {
       const { data: next, error } = await supabase.rpc("zella_business_voice_save", { p_business_id: businessId, p_voice_id: values.voice || null });
       if (error) throw new Error(voiceError(error));
       return { voice: next?.voice_id ?? "" };
-    }, "Saved. It's used the next time the receptionist's settings are sent to the phone line.");
+    }, "Saved. It's used the next time the AI receptionist's settings are sent to the phone line.");
   }
 
   return (
-    <Card title="Voice" sub="How the receptionist sounds on calls. Choose from the voices Zella Voice has approved, and press play to hear one.">
+    <Card title="Voice" sub="How the AI receptionist sounds on calls. Choose from the voices Zella Voice has approved, and press play to hear one.">
       <div className="zs-field zs-voice-field">
         <span id={labelId}>Voice</span>
         <VoiceSelect value={form.values.voice} disabled={!data.can_edit} onChange={form.set("voice")} choices={choices} defaultName={defaultName}

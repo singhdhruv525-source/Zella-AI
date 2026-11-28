@@ -14,7 +14,7 @@ const STATE = {
 };
 
 const ABOUT = {
-  scheduling: "Calendar, bookings, and the receptionist offering times",
+  scheduling: "Calendar, bookings, and the AI receptionist offering times",
   checkins: "Marking people arrived and in service at the front desk",
   waitlist: "A list of people waiting for an earlier time",
   dispatch: "Jobs at the customer's address, arrival windows and technicians",

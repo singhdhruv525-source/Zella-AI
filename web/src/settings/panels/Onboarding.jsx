@@ -78,7 +78,7 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
       {deleting && createPortal(   // the settings pane is animated, so a fixed dialog inside it would scroll with it
         <Confirm title={`Delete ${deleting.name}?`} danger word={deleting.name} reason confirmLabel="Delete draft"
           onConfirm={(reason) => remove(deleting, reason)} onClose={() => setDeleting(null)}>
-          <p>This deletes the draft and everything made for it: its settings, receptionist, modules, uploaded documents and any owner invitation not yet accepted. It can't be undone.</p>
+          <p>This deletes the draft and everything made for it: its settings, AI receptionist, modules, uploaded documents and any owner invitation not yet accepted. It can't be undone.</p>
           <p>Its audit history is kept. A business with calls, phone numbers, billing, an accepted owner or finished setup can't be deleted.</p>
         </Confirm>,
         document.body,

@@ -578,7 +578,7 @@ export default function IndustryConfiguration() {
                 <div className="wiz-section-head">
                   <div>
                     <h3>AI receptionist defaults</h3>
-                    <p>Starting wording for new businesses' receptionists. Each business can change its own greeting.</p>
+                    <p>Starting wording for new businesses' AI receptionists. Each business can change its own greeting.</p>
                   </div>
                 </div>
                 <div className="owner-form-grid">

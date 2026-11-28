@@ -774,9 +774,9 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
 
   return (
     <>
-      <Section title="Identity & voice" description="How the receptionist introduces itself and speaks.">
+      <Section title="Identity & voice" description="How the AI receptionist introduces itself and speaks.">
         <div className="owner-form-grid">
-          <Field label="Receptionist name"><input value={value.name} onChange={set("name")} /></Field>
+          <Field label="AI receptionist name"><input value={value.name} onChange={set("name")} /></Field>
           <Field label="Language" hint="Within the business's plan. Voices in a newly chosen language appear once this step is saved.">
             <select value={value.language} onChange={set("language")}>
               {LANGUAGES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}

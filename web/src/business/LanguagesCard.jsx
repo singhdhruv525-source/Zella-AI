@@ -37,7 +37,7 @@ function Editor({ businessId, data, onSaved }) {
   }
 
   return (
-    <Card title="Languages" sub="The language the receptionist answers in, and up to three it switches to when a caller speaks them. Only the Zella Voice team changes these; the owner sees them in Settings.">
+    <Card title="Languages" sub="The language the AI receptionist answers in, and up to three it switches to when a caller speaks them. Only the Zella Voice team changes these; the owner sees them in Settings.">
       <Banner tone={plan?.source === "none" ? "warn" : ""}>{planSummary(plan)}</Banner>
       {!withinPlan && <Banner tone="warn">The saved languages are more than the plan includes. {planMessage(plan)}</Banner>}
       <div className="zs-grid">

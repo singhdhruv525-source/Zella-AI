@@ -49,7 +49,7 @@ export function answeringText(answering, lastServedAt, available = true) {
 export function missingForLive(row) {
   const out = [];
   if (row?.businessState && row.businessState !== "active") out.push(row.businessState === "setup" ? "setup finished" : `business ${row.businessState}`);
-  if (row?.status && row.status !== "active") out.push("receptionist switched on");
+  if (row?.status && row.status !== "active") out.push("AI receptionist switched on");
   if (!row?.checks?.phone) out.push("an active phone number");
   else if (!row?.checks?.voice) out.push("the number linked to Vapi");
   return out;

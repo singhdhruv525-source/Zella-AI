@@ -298,7 +298,7 @@ const EXTRA = {
   daily_summary: ["Your day, wrapped up neatly.", "Today's recap is ready, with everything that mattered."],
   weekly_review: ["Your week at a glance is ready.", "Weekly review is ready. It was a good one."],
   incident_resolved: ["Resolved. Everything is running normally.", "All fixed. Thanks for your patience."],
-  agent_config_published: ["Your AI receptionist just learned something new.", "Your receptionist's update is live."],
+  agent_config_published: ["Your AI receptionist just learned something new.", "Your AI receptionist's update is live."],
   duplicate: ["These two look like the same person. Shall we tidy up?", "Two records may be the same person."],
 };
 for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind]) && !(kind in SERIOUS)) TITLES[kind] = [...TITLES[kind], ...extra];

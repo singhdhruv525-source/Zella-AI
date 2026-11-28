@@ -81,13 +81,13 @@ export const EMAILS = [
   e("S5", "setup", "Business verified", "verification is approved", M, (d) => ({
     tone: "good", subject: `${d.business} is verified`, heading: "You're verified",
     intro: ["Thanks for your patience. Your business is verified, so phone numbers and texting can be switched on."], button: ["Open Zella Voice", L(d, "/")] })),
-  e("S6", "setup", "Your AI receptionist is live", "the receptionist starts answering real calls", M, (d) => ({
+  e("S6", "setup", "Your AI receptionist is live", "the AI receptionist starts answering real calls", M, (d) => ({
     tone: "good", subject: "Your AI receptionist is now answering calls", heading: "You're live",
     intro: [`From now on, calls to ${d.phone} are answered by your AI receptionist, day and night.`, "Calls that need a person go to your team, just as you set them up."],
     facts: [["Your number", d.phone], ["If something goes wrong, calls go to", d.fallbackPhone]], button: ["See today's calls", L(d, "/calls")] })),
   e("S7", "setup", "Phone number connected", "a phone number is connected or moved", M, (d) => ({
     tone: "info", subject: `${d.phone} is connected`, heading: "Your number is connected",
-    intro: [`${d.phone} now rings through to Zella Voice. Make a test call to hear your receptionist.`], button: ["Phone settings", L(d, "/settings/phone")] })),
+    intro: [`${d.phone} now rings through to Zella Voice. Make a test call to hear your AI receptionist.`], button: ["Phone settings", L(d, "/settings/phone")] })),
 
   // ---- sign in and access
   e("K1", "security", "New sign in", "someone signs in from a new device", M, (d) => ({
@@ -107,11 +107,11 @@ export const EMAILS = [
   // ---- summaries
   e("R1", "summaries", "Daily summary", "8:00 each morning, when there is something to report", O, (d) => ({
     tone: "info", subject: `Yesterday at ${d.business}: ${d.calls} calls, ${d.booked} booked`, heading: "Here's yesterday at a glance",
-    facts: [["Calls answered", `${d.calls} (${d.answeredRate})`], ["Booked by your receptionist", d.booked], ["New leads", d.newLeads], ["Need a call back", d.missed]],
+    facts: [["Calls answered", `${d.calls} (${d.answeredRate})`], ["Booked by your AI receptionist", d.booked], ["New leads", d.newLeads], ["Need a call back", d.missed]],
     button: ["Open today", L(d, "/")] })),
   e("R2", "summaries", "Weekly review", "Monday morning", O, (d) => ({
     tone: "brand", subject: `Your week at ${d.business}`, heading: "Your week, wrapped up",
-    intro: [`Your receptionist answered ${d.calls} calls and booked ${d.booked} appointments this week. Here is what stood out.`],
+    intro: [`Your AI receptionist answered ${d.calls} calls and booked ${d.booked} appointments this week. Here is what stood out.`],
     facts: [["Busiest day", d.busiestDay], ["New leads", d.newLeads], ["Questions it couldn't answer", d.questions]], button: ["See the full review", L(d, "/reports")] })),
   e("R3", "summaries", "Monthly report", "the first of each month", O, (d) => ({
     tone: "brand", subject: `${d.business}: your month with Zella Voice`, heading: "Your month in numbers",
@@ -120,14 +120,14 @@ export const EMAILS = [
   // ---- alerts
   e("L1", "alerts", "Urgent: a person is needed", "an emergency or urgent call needs someone now", M, (d) => ({
     tone: "urgent", subject: "Urgent: a caller needs a person now", heading: "A caller needs a person now",
-    intro: ["Your receptionist marked a call as urgent and could not reach anyone on your team. Please call back as soon as you can."],
+    intro: ["Your AI receptionist marked a call as urgent and could not reach anyone on your team. Please call back as soon as you can."],
     button: ["Open the call", L(d, "/calls")] })),
   e("L2", "alerts", "Callbacks waiting", "callbacks are overdue", O, (d) => ({
     tone: "heads", subject: `${d.missed} callers are still waiting to hear from you`, heading: "Callbacks are waiting",
     intro: [`${d.missed} callers asked for a call back and haven't heard from anyone yet.`], button: ["See callbacks", L(d, "/callbacks")] })),
   e("L3", "alerts", "Calendar disconnected", "the connected calendar stops syncing", M, (d) => ({
     tone: "heads", subject: "Your calendar stopped syncing", heading: "Let's reconnect your calendar",
-    intro: ["Your receptionist can't see your calendar right now, so it is offering only times it is sure about. Reconnect it to offer every free time again."], button: ["Reconnect", L(d, "/settings/calendar")] })),
+    intro: ["Your AI receptionist can't see your calendar right now, so it is offering only times it is sure about. Reconnect it to offer every free time again."], button: ["Reconnect", L(d, "/settings/calendar")] })),
   e("L4", "alerts", "A connection stopped working", "an integration fails repeatedly", M, (d) => ({
     tone: "heads", subject: "A connection to Zella Voice stopped working", heading: "A connection needs you",
     intro: ["One of your connected apps stopped answering. Nothing is lost; new items will catch up once it is reconnected."], facts: [["Connection", d.connection]], button: ["Open integrations", L(d, "/settings/integrations")] })),
@@ -138,14 +138,14 @@ export const EMAILS = [
     tone: "heads", subject: "Gaps in this weekend's on call cover", heading: "Who's on call this weekend?",
     intro: [`Nobody is on call from ${d.onCallFrom}. Calls that need a person will go to voicemail then.`], button: ["Open the on call schedule", L(d, "/on-call")] })),
   e("L7", "alerts", "Weekly spam report", "Monday, when spam was stopped", O, (d) => ({
-    tone: "info", subject: "Spam your receptionist stopped this week", heading: "Spam kept out of your day",
+    tone: "info", subject: "Spam your AI receptionist stopped this week", heading: "Spam kept out of your day",
     facts: [["Spam calls stopped", d.spamCalls], ["Spam messages stopped", d.spamMessages]], button: ["Spam protection", L(d, "/spam")] })),
   e("L8", "alerts", "Texts not delivered", "several texts to customers fail", O, (d) => ({
     tone: "heads", subject: "Some texts weren't delivered", heading: "Some texts didn't arrive",
     intro: ["A few texts to your customers were not delivered. Usually the number is wrong or can't receive texts."], button: ["See which ones", L(d, "/messages")] })),
-  e("L9", "alerts", "Questions your receptionist couldn't answer", "weekly, when callers asked something it didn't know", O, (d) => ({
-    tone: "info", subject: `${d.questions} questions your receptionist couldn't answer`, heading: "Teach your receptionist something new",
-    intro: [`Callers asked ${d.questions} questions this week that your receptionist didn't have an answer for. Add the answers and it will know next time.`], button: ["Add answers", L(d, "/knowledge")] })),
+  e("L9", "alerts", "Questions your AI receptionist couldn't answer", "weekly, when callers asked something it didn't know", O, (d) => ({
+    tone: "info", subject: `${d.questions} questions your AI receptionist couldn't answer`, heading: "Teach your AI receptionist something new",
+    intro: [`Callers asked ${d.questions} questions this week that your AI receptionist didn't have an answer for. Add the answers and it will know next time.`], button: ["Add answers", L(d, "/knowledge")] })),
 
   // ---- texts and emails used
   e("U1", "usage", "80% of texts used", "texts reach 80% of the plan", O, (d) => ({
@@ -170,7 +170,7 @@ export const EMAILS = [
     intro: [`The problem is fixed (${d.resolved}). Thank you for your patience.`] })),
   e("V3", "service", "Scheduled maintenance", "7 days before planned maintenance", M, (d) => ({
     tone: "info", subject: `Planned maintenance on ${d.maintenanceDay}`, heading: "A short planned update",
-    intro: [`On ${d.maintenanceDay} between ${d.maintenanceWindow} your time, the CRM may be slow. Your receptionist keeps answering calls throughout.`] })),
+    intro: [`On ${d.maintenanceDay} between ${d.maintenanceWindow} your time, the CRM may be slow. Your AI receptionist keeps answering calls throughout.`] })),
   e("V4", "service", "Terms updated", "30 days before the terms or privacy policy change", M, (d) => ({
     tone: "info", subject: "We're updating our terms", heading: "Our terms are changing",
     intro: [`Our terms of service change on ${d.termsDate}. Here is what is different, in plain words.`], button: ["Read the changes", L(d, "/legal")] })),
@@ -195,8 +195,8 @@ export const EMAILS = [
     tone: "good", subject: `Payment received: ${d.amount}`, heading: "Your plan is active",
     intro: ["Your trial is over and your first payment went through. Thank you."], facts: [["Amount", d.amount], ["Card", `ending ${d.card}`]], button: ["View receipt", L(d, "/settings/billing")] })),
   e("A5", "billing_a", "Trial ended without payment", "the trial ends with no working card", M, (d) => ({
-    tone: "urgent", subject: "Your trial ended: add a card to continue", heading: "Your receptionist is paused",
-    intro: [`Your trial ended and there is no working card, so calls now go to ${d.fallbackPhone}. Add a card and your receptionist answers again within a minute.`], button: ["Add a card", L(d, "/settings/billing")] })),
+    tone: "urgent", subject: "Your trial ended: add a card to continue", heading: "Your AI receptionist is paused",
+    intro: [`Your trial ended and there is no working card, so calls now go to ${d.fallbackPhone}. Add a card and your AI receptionist answers again within a minute.`], button: ["Add a card", L(d, "/settings/billing")] })),
   e("A6", "billing_a", "Setup fee charged", "the setup fee is paid", M, (d) => ({
     tone: "good", subject: `Setup fee received: ${d.setupFee}`, heading: "Setup fee received",
     intro: ["This covers building and tuning your AI receptionist with you."], facts: [["Amount", d.setupFee], ["Card", `ending ${d.card}`]], button: ["View receipt", L(d, "/settings/billing")] })),
@@ -206,7 +206,7 @@ export const EMAILS = [
     intro: [`On ${d.renewDate} we will charge card ending ${d.card} about ${d.amount} plus any pay as you go minutes. Nothing to do.`], facts: [["Plan", d.plan], ["Estimated amount", d.amount]], button: ["Billing settings", L(d, "/settings/billing")] })),
   e("B2", "billing_b", "Card expiring soon", "30 days before the saved card expires", M, (d) => ({
     tone: "heads", subject: "Your card expires before your next renewal", heading: "Time for a new card",
-    intro: [`The card ending ${d.card} expires before your renewal on ${d.renewDate}. Update it so your receptionist keeps answering.`], button: ["Update card", L(d, "/settings/billing")] })),
+    intro: [`The card ending ${d.card} expires before your renewal on ${d.renewDate}. Update it so your AI receptionist keeps answering.`], button: ["Update card", L(d, "/settings/billing")] })),
   e("B3", "billing_b", "No card on file", "automatic payment is on but the card was removed or can't be used", M, (d) => ({
     tone: "heads", subject: "Add a card before your next renewal", heading: "There's no card to charge",
     intro: [`Add a card before ${d.renewDate} so your plan renews without a break.`], button: ["Add a card", L(d, "/settings/billing")] })),
@@ -242,23 +242,23 @@ export const EMAILS = [
 
   e("D1", "billing_d", "Payment failed", "the first charge fails, or the due date passes unpaid", M, (d) => ({
     tone: "urgent", subject: `Payment of ${d.total} didn't go through`, heading: "Your payment didn't go through",
-    intro: [`${d.reason} We will try again on ${d.retryDate}. Pay now or update your card to keep your receptionist answering.`], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]],
+    intro: [`${d.reason} We will try again on ${d.retryDate}. Pay now or update your card to keep your AI receptionist answering.`], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]],
     button: ["Pay now", L(d, "/pay")], secondary: [["Update card", L(d, "/settings/billing")]] })),
   e("D2", "billing_d", "Confirm your payment", "the bank asks for confirmation (3D Secure)", M, (d) => ({
     tone: "heads", subject: "Your bank needs you to confirm a payment", heading: "Please confirm your payment",
     intro: [`Your bank asked you to confirm the payment of ${d.total}. It takes a moment on Stripe's secure page.`], button: ["Confirm the payment", L(d, "/pay")] })),
   e("D3", "billing_d", "Retry failed", "each failed retry", M, (d) => ({
     tone: "urgent", subject: `Payment attempt ${d.attempt} failed`, heading: "We still couldn't take the payment",
-    intro: [`${d.reason} Your receptionist pauses on ${d.pauseDate} unless the invoice is paid.`], button: ["Pay now", L(d, "/pay")], secondary: [["Update card", L(d, "/settings/billing")]] })),
+    intro: [`${d.reason} Your AI receptionist pauses on ${d.pauseDate} unless the invoice is paid.`], button: ["Pay now", L(d, "/pay")], secondary: [["Update card", L(d, "/settings/billing")]] })),
   e("D4", "billing_d", "Final notice", "the day before the pause", M, (d) => ({
     tone: "urgent", subject: "Final notice: your service pauses tomorrow", heading: "Your service pauses tomorrow",
-    intro: [`Unless ${d.total} is paid today, calls go to ${d.fallbackPhone} from tomorrow and your receptionist stops answering.`], button: ["Pay now", L(d, "/pay")] })),
+    intro: [`Unless ${d.total} is paid today, calls go to ${d.fallbackPhone} from tomorrow and your AI receptionist stops answering.`], button: ["Pay now", L(d, "/pay")] })),
   e("D5", "billing_d", "Service paused", "5 days after the failed payment", M, (d) => ({
-    tone: "urgent", subject: "Your service is paused: payment overdue", heading: "Your receptionist is paused",
-    intro: [`Calls now go to ${d.fallbackPhone}. Pay now and your receptionist answers again within a minute.`], button: ["Pay now", L(d, "/pay")] })),
+    tone: "urgent", subject: "Your service is paused: payment overdue", heading: "Your AI receptionist is paused",
+    intro: [`Calls now go to ${d.fallbackPhone}. Pay now and your AI receptionist answers again within a minute.`], button: ["Pay now", L(d, "/pay")] })),
   e("D6", "billing_d", "Payment recovered", "the overdue invoice is paid", M, (d) => ({
     tone: "good", subject: "Payment received: everything is back on", heading: "Welcome back",
-    intro: ["Thank you. Your receptionist is answering calls again."], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]], button: ["Download receipt", L(d, "/settings/billing")] })),
+    intro: ["Thank you. Your AI receptionist is answering calls again."], facts: [["Amount", d.total], ["Card", `ending ${d.card}`]], button: ["Download receipt", L(d, "/settings/billing")] })),
   e("D7", "billing_d", "Payment reversed by the bank", "a payment is reversed outside a dispute", M, (d) => ({
     tone: "heads", subject: "Your bank reversed a payment", heading: "A payment was reversed",
     intro: [`Your bank reversed ${d.refund} of a payment. Please check with your bank, or pay the amount again so your plan stays active.`], button: ["Billing settings", L(d, "/settings/billing")] })),
@@ -271,13 +271,13 @@ export const EMAILS = [
     intro: [`Your current plan continues until ${d.renewDate}. After that you move to the ${d.newPlan} plan with ${d.newPlanMinutes} included minutes.`], button: ["Billing settings", L(d, "/settings/billing")] })),
   e("E3", "billing_e", "Cancellation confirmed", "the owner cancels", M, (d) => ({
     tone: "info", subject: "Your cancellation is confirmed", heading: "We're sorry to see you go",
-    intro: [`Your receptionist keeps answering until ${d.renewDate}. A final invoice for any pay as you go minutes follows. Changed your mind? You can continue with one click.`], button: ["Keep my plan", L(d, "/settings/billing")] })),
+    intro: [`Your AI receptionist keeps answering until ${d.renewDate}. A final invoice for any pay as you go minutes follows. Changed your mind? You can continue with one click.`], button: ["Keep my plan", L(d, "/settings/billing")] })),
   e("E4", "billing_e", "Cancellation withdrawn", "the owner continues before the end", M, (d) => ({
     tone: "good", subject: "Glad you're staying", heading: "Your plan continues",
     facts: [["Next renewal", `${d.amount} on ${d.renewDate}`]] })),
   e("E5", "billing_e", "Subscription ended", "the period ends after a cancellation", M, (d) => ({
     tone: "info", subject: "Your Zella Voice plan has ended", heading: "Your plan has ended",
-    intro: [`Your receptionist no longer answers calls. Your data is kept for ${d.dataDays} days in case you come back, and the final invoice follows.`], button: ["Reactivate", L(d, "/settings/billing")] })),
+    intro: [`Your AI receptionist no longer answers calls. Your data is kept for ${d.dataDays} days in case you come back, and the final invoice follows.`], button: ["Reactivate", L(d, "/settings/billing")] })),
   e("E6", "billing_e", "Billing period changed", "the plan switches between monthly and yearly", M, (d) => ({
     tone: "info", subject: `You're now billed ${d.newInterval.toLowerCase()}`, heading: "Your billing period changed",
     facts: [["New period", d.newInterval], ["Amount", d.intervalAmount], ["Credit for unused time", d.unusedCredit], ["Next renewal", d.nextRenewal]] })),
@@ -290,11 +290,11 @@ export const EMAILS = [
   e("E9", "billing_e", "Account paused or restored", "an admin pauses or restores the account for billing reasons", M, (d) => ({
     tone: d.accountPaused ? "heads" : "good", subject: d.accountPaused ? "Your account was paused" : "Your account is restored",
     heading: d.accountPaused ? "Your account is paused" : "Welcome back",
-    intro: [d.accountPaused ? `Your account was paused because an invoice is unpaid. Calls go to ${d.fallbackPhone} until it is settled.` : "Your account is active again and your receptionist is answering calls."],
+    intro: [d.accountPaused ? `Your account was paused because an invoice is unpaid. Calls go to ${d.fallbackPhone} until it is settled.` : "Your account is active again and your AI receptionist is answering calls."],
     button: d.accountPaused ? ["Pay now", L(d, "/pay")] : ["Open Zella Voice", L(d, "/")] })),
 
   e("F1", "billing_f", "80% of minutes used", "minutes reach 80% of the plan", O, (d) => ({
-    tone: "heads", subject: "You've used 80% of this month's minutes", heading: "Your receptionist has been busy",
+    tone: "heads", subject: "You've used 80% of this month's minutes", heading: "Your AI receptionist has been busy",
     intro: [`${d.minutesUsed} of ${d.minutesIncluded} minutes are used with ${d.daysLeft} days to go. Every call is still answered.`],
     facts: [["Options", "A minutes pack, auto reload or an upgrade"]], button: ["Add minutes", L(d, "/settings/billing")] })),
   e("F2", "billing_f", "Minutes used up", "minutes reach 100% of the plan", M, (d) => ({

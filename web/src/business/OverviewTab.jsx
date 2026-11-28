@@ -139,7 +139,7 @@ export default function OverviewTab({ can, data, b, r, kb, term, invitation, pho
             ) : (
               <div>
                 <strong>Suspend now</strong>
-                <span>Stops the workspace, receptionist and automations immediately. For example, a payment problem.</span>
+                <span>Stops the workspace, AI receptionist and automations immediately. For example, a payment problem.</span>
                 <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("suspend")} disabled={busy}>Suspend</button>
               </div>
             )}

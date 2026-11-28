@@ -294,7 +294,7 @@ export function sectionRows(key, data) {
     const setup = d.phone_setup ?? {};
     const mode = setup.mode === "call_forwarding" ? `Calls forwarded from ${phoneWords(setup.forward_from)}` : setup.mode === "new_number" ? "A new Zella Voice number" : text(setup.mode && String(setup.mode).replace(/_/g, " "));
     return [
-      ["Receptionist name", text(d.name)], ["Greeting", text(d.greeting)], ["Language", languageWords(d.language)],
+      ["AI receptionist name", text(d.name)], ["Greeting", text(d.greeting)], ["Language", languageWords(d.language)],
       ["Calls are transferred to", transfer], ["Fallback number", phoneWords(d.fallback_number)],
       ["Phone setup", mode], ["Zella Voice numbers", listRows(d.numbers, "No numbers yet", (n) => `${phoneWords(n.e164)}${n.status === "active" ? "" : " (not active yet)"}`)],
     ];

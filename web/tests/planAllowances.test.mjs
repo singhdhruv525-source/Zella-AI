@@ -7,7 +7,7 @@ const map = (rows) => Object.fromEntries(rows);
 
 test("a plan with only a language limit still lists every allowance", () => {
   const rows = map(planAllowances({ languages: 2 }));
-  assert.equal(rows["Languages the receptionist speaks"], "2");
+  assert.equal(rows["Languages the AI receptionist speaks"], "2");
   assert.equal(rows["AI voice minutes per period"], "No limit");
   assert.equal(rows["Texts per period"], "No limit");
   assert.equal(rows["Emails per period"], "No limit");

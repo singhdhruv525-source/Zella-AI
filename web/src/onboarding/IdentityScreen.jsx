@@ -89,7 +89,7 @@ export function IdentityScreen({ api, state, onState, onComplete }) {
   const shownKinds = [...new Set([...kinds, ...docs.map((d) => d.kind)])].filter((k) => KIND_WORDS[k]);
   return (
     <>
-      <p className="zob-lead">Before your receptionist answers calls, we check that you are who you say and that the business is real. Your files are private: only the Zella Voice team can open them.</p>
+      <p className="zob-lead">Before your AI receptionist answers calls, we check that you are who you say and that the business is real. Your files are private: only the Zella Voice team can open them.</p>
       <div className={`zob-status tone-${st.tone}`} role="status" aria-live="polite">
         <span className="ba-icon" aria-hidden="true">{ICON[st.key]}</span>
         <div>

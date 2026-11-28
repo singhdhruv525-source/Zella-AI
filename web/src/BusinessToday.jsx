@@ -597,7 +597,7 @@ export default function BusinessToday({ workspace, industry, operations = [], ca
               })}
             </ul>
           ) : (
-            <Empty title={loading && !data ? "Loading…" : "No activity yet"}>{!loading && (agent.live ? "Calls and messages your receptionist handles appear here." : "Starts once your AI receptionist is live.")}</Empty>
+            <Empty title={loading && !data ? "Loading…" : "No activity yet"}>{!loading && (agent.live ? "Calls and messages your AI receptionist handles appear here." : "Starts once your AI receptionist is live.")}</Empty>
           )}
         </Card>
 

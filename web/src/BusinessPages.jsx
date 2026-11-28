@@ -748,10 +748,10 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
   const missed = calls.filter((c) => c.status === "missed").length;
   const primary = data?.agents?.[0];
   const checks = [
-    ["Receptionist created", Boolean(workspace.receptionist), "Zella Voice sets this up for you."],
+    ["AI receptionist created", Boolean(workspace.receptionist), "Zella Voice sets this up for you."],
     ["Phone line connected", workspace.phone_connected, "Zella Voice connects your number before going live."],
     ["AI receptionist connected", workspace.voice_connected, "The Zella Voice team connects your AI receptionist to your number."],
-    ["Receptionist switched on", workspace.receptionist?.status === "active", "It starts answering once everything above is done."],
+    ["AI receptionist switched on", workspace.receptionist?.status === "active", "It starts answering once everything above is done."],
   ];
 
   return (

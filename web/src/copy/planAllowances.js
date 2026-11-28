@@ -13,7 +13,7 @@ export const PLAN_ALLOWANCES = [
   ["phone_numbers", "Phone numbers", "count"],
   ["team_members", "Team seats (including the owner)", "count"],
   ["locations", "Business locations", "count"],
-  ["languages", "Languages the receptionist speaks", "count"],
+  ["languages", "Languages the AI receptionist speaks", "count"],
   ["automations", "Active automations", "count"],
   ["integrations", "Connected integrations", "count"],
   ["reporting", "Reporting", "choice"],

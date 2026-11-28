@@ -405,7 +405,7 @@ export function WebsiteSources({ w }) {
         {!s.live && <Banner tone="warn">Reading websites isn't switched on for Zella Voice yet (it starts at go live). You can add and approve your site now; pages are read once it starts.</Banner>}
         <Banner tone="error">{msg.error}</Banner>
         {msg.text && <Banner tone="success">{msg.text}</Banner>}
-        <Card title="Your websites" sub="Zella Voice reads approved pages and drafts answers for your receptionist. Drafts wait in Business knowledge until someone approves them.">
+        <Card title="Your websites" sub="Zella Voice reads approved pages and drafts answers for your AI receptionist. Drafts wait in Business knowledge until someone approves them.">
           <Facts rows={[["Pages being read", s.pages?.approved ?? 0], ["Found, waiting for a decision", s.pages?.pending ?? 0], ["Broken or missing", (s.pages?.broken ?? 0) + (s.pages?.missing ?? 0)],
             ["Draft answers waiting", s.drafts_waiting], ["Answers to recheck (page changed)", s.needs_check]]} />
           <Table rows={s.sources} empty="No websites added." columns={[["Website", (x) => x.url], ["State", (x) => <Pill tone={x.status === "active" ? "success" : "warning"}>{x.status === "pending_approval" ? "Waiting for approval" : words(x.status)}</Pill>],

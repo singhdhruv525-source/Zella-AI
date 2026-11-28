@@ -65,7 +65,7 @@ function Overview({ onTab, onOpenCalls }) {
       <ErrorNote error={data.error} onRetry={data.reload} />
       {o && (
         <>
-          {!o.calls_live && <NotAvailable title="Outbound AI calls are off" tip={switchHint("calls_live")}>Zella Voice places no outbound calls until they are switched on at go live. Inbound calls are answered by each business's receptionist once its number is linked in Vapi.</NotAvailable>}
+          {!o.calls_live && <NotAvailable title="Outbound AI calls are off" tip={switchHint("calls_live")}>Zella Voice places no outbound calls until they are switched on at go live. Inbound calls are answered by each business's AI receptionist once its number is linked in Vapi.</NotAvailable>}
           {/* Grouped under Calls and Numbers, like Messaging's Texts and Emails (owner approved 25 Nov 2026) */}
           <h3 className="ao-h3">Calls</h3>
           <div className="owner-stat-grid ao-stats vn-stats">
@@ -151,7 +151,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
         empty={f.offset > 0 ? <>Nothing on this page. <button type="button" className="owner-secondary-button op-small" onClick={() => setF((x) => ({ ...x, offset: 0 }))}>Back to the first page</button></> : f.q || f.status || f.business ? "No numbers match these filters." : <>No numbers yet.{manage && <> <button type="button" className="owner-secondary-button op-small" onClick={() => onAssign({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button></>}</>}
         columns={[
           ["Number", (r) => <strong>{phone(r.e164)}</strong>], ["Business", (r) => r.business_name], ["Label", (r) => r.label ?? <EmptyValue label="Not set" />],
-          ["Receptionist", (r) => r.agent?.name ?? <Pill tone="warning">No receptionist</Pill>],
+          ["AI receptionist", (r) => r.agent?.name ?? <Pill tone="warning">No AI receptionist</Pill>],
           ["Vapi", (r) => (r.vapi_linked ? <Pill tone="success">Linked</Pill> : <Pill tone="warning">Not linked</Pill>)],
           ["Status", (r) => <Pill tone={statusTone(r.status)}>{words(r.status)}</Pill>], ["Calls (30 days)", (r) => num(r.calls_30d)], ["Last call", (r) => (r.last_call_at ? when(r.last_call_at) : <EmptyValue label="Never" />)],
         ]} />
@@ -161,7 +161,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
         <Drawer title={formatPhone(open.e164)} icon="call" onClose={() => setOpen(null)}>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(open.business_id)}>{open.business_name}</button>],
             ["Business state", words(open.business_state)], ["Label", open.label], ["Country code", open.country_code], ["Status", <Pill key="s" tone={statusTone(open.status)}>{words(open.status)}</Pill>],
-            ["Receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None. Calls can't be answered"],
+            ["AI receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None. Calls can't be answered"],
             ["Vapi phone number id", open.vapi_phone_number_id ? <code key="v">{open.vapi_phone_number_id}</code> : "Not linked"],
             ["Calls, last 30 days", num(open.calls_30d)], ["Last call", when(open.last_call_at, "No calls yet")], ["Added", when(open.created_at, "Not recorded")]]} />
           <NotAvailable title="Carrier details aren't shown yet" tip="Needs the Telnyx API from a server action, which isn't built">Number type and carrier status are in the Telnyx dashboard. Buying and releasing numbers at the carrier is done in the Telnyx or Vapi dashboard.</NotAvailable>
@@ -220,7 +220,7 @@ function AssignDialog({ edit: initial, options, onClose, onDone }) {
         <label className="owner-field"><span>Vapi phone number id</span><input value={edit.vapiPhoneNumberId} onChange={field("vapiPhoneNumberId")} placeholder="From the Vapi dashboard" /></label>
         <label className="owner-field"><span>Label</span><input value={edit.label} onChange={field("label")} placeholder="Main line" /></label>
       </div>
-      <p className="op-muted">The number must already be bought in Telnyx or Vapi; Zella Voice doesn't buy numbers.{initial.id ? " Calls reach the new business's receptionist once Vapi points at it." : ""}</p>
+      <p className="op-muted">The number must already be bought in Telnyx or Vapi; Zella Voice doesn't buy numbers.{initial.id ? " Calls reach the new business's AI receptionist once Vapi points at it." : ""}</p>
     </ReasonDialog>
   );
 }
@@ -316,7 +316,7 @@ function Routing({ me, options, say }) {
   const [saves, setSaves] = useState(0);   // a saved form reloads Missing routing, so a fixed business leaves the list
   const manage = can(me, "telephony.manage");
   return (
-    <Panel title="Call routing" description="Who the AI receptionist puts a caller through to when they ask for a person. The same rules the receptionist reads on every call.">
+    <Panel title="Call routing" description="Who the AI receptionist puts a caller through to when they ask for a person. The same rules the AI receptionist reads on every call.">
       <Filters>
         <Select label="Business" value={business} any="Choose a business…" onChange={setBusiness} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
       </Filters>
@@ -341,7 +341,7 @@ function MissingRouting({ onOpen, refresh = 0 }) {
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => r.business_id} onRow={open}
         empty={!list.data || !Number.isFinite(Number(list.data.total)) ? "Couldn't read Missing routing."
           : Number(list.data.total) > 0 ? "Nothing on this page. Go back a page to see the businesses still missing a number."
-            : "Every business with a receptionist has a transfer and a fallback number."}
+            : "Every business with an AI receptionist has a transfer and a fallback number."}
         columns={[["Business", (r) => <strong>{r.name}</strong>],
           ["Missing", (r) => <span className="ao-flags">{r.missing_transfer && <Pill tone="warning">Transfer number</Pill>}{r.missing_fallback && <Pill tone="warning">Fallback number</Pill>}</span>],
           ["Business status", (r) => (r.suspended ? <Pill tone="neutral">Suspended</Pill> : "Open")]]} />
@@ -357,7 +357,7 @@ function RoutingForm({ businessId, manage, say, onSaved }) {
   if (d.error) return <ErrorNote error={d.error} onRetry={d.reload} />;
   if (!d.data) return <p className="op-muted">Loading…</p>;
   const r = d.data;
-  if (!r.has_agent) return <NotAvailable title="No AI receptionist">This business has no receptionist yet, so calls aren't answered and there is no routing to change.</NotAvailable>;
+  if (!r.has_agent) return <NotAvailable title="No AI receptionist">This business has no AI receptionist yet, so calls aren't answered and there is no routing to change.</NotAvailable>;
   const base = { transfer_enabled: r.transfer_enabled, transfer_number: r.transfer_number ?? "", fallback_number: r.fallback_number ?? "", transfer_route: r.transfer_route, transfer_open_hours_only: r.transfer_open_hours_only };
   const v = form ?? base;
   const set = (k, val) => setForm({ ...v, [k]: val });
@@ -387,7 +387,7 @@ function RoutingForm({ businessId, manage, say, onSaved }) {
         <ReasonDialog title="Save call routing?" icon="alt_route" confirmLabel="Save" onClose={() => setConfirm(false)}
           onConfirm={async (reason) => {
             await rpc("zella_admin_routing_save", { p_business_id: businessId, p_rules: v, p_reason: reason });
-            setForm(null); d.reload(); onSaved?.(); say("Call routing saved. The receptionist uses it from the next call.");
+            setForm(null); d.reload(); onSaved?.(); say("Call routing saved. The AI receptionist uses it from the next call.");
           }}>
           <table className="owner-table ao-table ao-diff"><thead><tr><th>Setting</th><th>Now</th><th>After</th></tr></thead>
             <tbody>{changes.map((k) => <tr key={k}><td>{label[k]}</td><td>{show(k, base[k])}</td><td><strong>{show(k, v[k])}</strong></td></tr>)}</tbody></table>

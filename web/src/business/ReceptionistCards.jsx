@@ -37,7 +37,7 @@ export function CallersGetCard({ deliveries }) {
   const last = st.delivery?.last_served;
   const counts = deliveries.counts;
   return (
-    <Card title="What callers get" description="The receptionist settings calls were last given, compared with what the next call gets now.">
+    <Card title="What callers get" description="The AI receptionist settings calls were last given, compared with what the next call gets now.">
       <Facts items={[
         ["Settings for the next call", !statusOk ? unknown : st.current_config_hash ? `Configuration ${String(st.current_config_hash).slice(0, 8)}` : "Not worked out"],
         ["Last call served", !statusOk ? unknown : last ? `${formatDateTime(last.at)}, ${last.is_current ? "same settings as now" : "older settings"}` : "No call served yet"],

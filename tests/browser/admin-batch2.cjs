@@ -160,7 +160,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     check(pill === "Not connected", `B2-04 'active' without phone and voice isn't labelled Live (pill: "${pill}")`);
     await p.fill(".ag-search", "beta"); check(await p.isVisible("text=Beta Salon") && !(await p.isVisible("text=Alpha Plumbing")), "B2-04 search still works");
     await p.fill(".ag-search", ""); await p.click(".ag-filters >> text=Live");
-    check(await p.isVisible("text=No receptionists match this filter."), "B2-04 Live filter matches the Live label");
+    check(await p.isVisible("text=No AI receptionists match this filter."), "B2-04 Live filter matches the Live label");
     await p.getByRole("tab", { name: "Not live", exact: true }).click();
     check(await p.isVisible("text=Alpha Plumbing") && await p.isVisible("text=Beta Salon"), "B2-04 Not live includes disconnected and paused agents");
     await p.click(".ag-filters >> text=All"); check(await p.isVisible("text=Alpha Plumbing") && await p.isVisible("text=Beta Salon"), "B2-04 filters still work");

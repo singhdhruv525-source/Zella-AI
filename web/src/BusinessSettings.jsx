@@ -244,7 +244,7 @@ function ServicesEditor({ w, data }) {
         name: r.name.trim(), duration_minutes: r.duration_minutes ? Number(r.duration_minutes) : null, price: r.price.trim(), description: r.description.trim(),
       })) });
       return { rows: (next.services ?? []).map(asRow) };
-    }, "Saved. The receptionist uses these the next time its settings are sent to the phone line.");
+    }, "Saved. The AI receptionist uses these the next time its settings are sent to the phone line.");
   }
   return (
     <Card title="Services" sub="What callers can ask about and book. Your AI receptionist names these services, asks which one the caller wants, and books it for the right length. It quotes a price only when you enter one.">
@@ -254,7 +254,7 @@ function ServicesEditor({ w, data }) {
         <div key={i} className="zs-grid" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--zs-line, rgba(0,0,0,.08))" }}>
           <Field label="Service name"><input value={r.name} onChange={setRow(i, "name")} maxLength={120} disabled={!edit} placeholder={i === 0 ? "Haircut" : ""} /></Field>
           <Field label="Length (minutes)" error={badLength(r) ? "Between 5 and 480." : ""}><input value={r.duration_minutes} onChange={setRow(i, "duration_minutes")} inputMode="numeric" maxLength={3} disabled={!edit} placeholder={i === 0 ? "30" : ""} /></Field>
-          <Field label="Price (optional)" hint="Leave empty if the receptionist shouldn't quote one."><input value={r.price} onChange={setRow(i, "price")} maxLength={60} disabled={!edit} placeholder={i === 0 ? "$25" : ""} /></Field>
+          <Field label="Price (optional)" hint="Leave empty if the AI receptionist shouldn't quote one."><input value={r.price} onChange={setRow(i, "price")} maxLength={60} disabled={!edit} placeholder={i === 0 ? "$25" : ""} /></Field>
           <Field full label="Description (optional)"><input value={r.description} onChange={setRow(i, "description")} maxLength={600} disabled={!edit} placeholder={i === 0 ? "Wash, cut and style" : ""} /></Field>
           {edit && <div className="zs-actions"><button type="button" className="zs-btn sm danger-outline" onClick={() => form.setValues((v) => ({ rows: v.rows.filter((_, j) => j !== i) }))}>Remove service</button></div>}
         </div>
@@ -297,7 +297,7 @@ const ROLE_ROWS = [
   ["See customers, calendar, calls", ["owner", "admin", "manager", "staff", "viewer"]],
   ["Add and edit customers and appointments", ["owner", "admin", "manager", "staff"]],
   ["Listen to recordings, read transcripts", ["owner", "admin", "manager"]], // staff too where the owner allows it (Call recording and privacy)
-  ["Change automations, hours, receptionist", ["owner", "admin", "manager"]],
+  ["Change automations, hours, AI receptionist", ["owner", "admin", "manager"]],
   ["Business profile, logo, words", ["owner", "admin"]],
   ["Invite people and change roles", ["owner", "admin"]],
   ["Approve sensitive actions, security log", ["owner", "admin"]],
@@ -344,7 +344,7 @@ function ReceptionistOverview({ w }) {
           ["Voice connection", w.voice_connected ? "Connected" : "Not connected yet"], ["Live version", d.versions.find((v) => v.status === "published") ? `Version ${d.versions.find((v) => v.status === "published").version}` : "Set up by Zella Voice"],
           ["Last change", when(d.versions[0]?.created_at ?? d.agent.updated_at)]]} />
       </Card>
-    ) : <Empty title="No receptionist yet">The Zella Voice team creates it during setup.</Empty>}</LoadState>
+    ) : <Empty title="No AI receptionist yet">The Zella Voice team creates it during setup.</Empty>}</LoadState>
   );
 }
 
@@ -354,7 +354,7 @@ function ReceptionistEdit({ w, onNotice }) {
     <LoadState state={state}>{(d) => (d.agent
       ? <><ReceptionistEditor workspace={w} agent={d.agent} onNotice={onNotice} stacked />
         <VoicePanel businessId={w.id} /></>
-      : <Empty title="No receptionist yet" />)}</LoadState>
+      : <Empty title="No AI receptionist yet" />)}</LoadState>
   );
 }
 
@@ -366,7 +366,7 @@ function ConfigFacts({ w, onGo, pick }) {
       const rules = d.config?.escalation_rules ?? {};
       return (
         <>
-          <Card title="Current settings" sub="What the receptionist does right now (the live version).">
+          <Card title="Current settings" sub="What the AI receptionist does right now (the live version).">
             <Facts rows={pick(rules, d.config ?? {})} />
           </Card>
           <LinkRows rows={[{ title: "Change these", detail: "Voice and personality: instructions, after hours, hand over and emergencies", onClick: () => onGo("settings/receptionist/voice") }]} />
@@ -387,7 +387,7 @@ function Booking({ w, onGo }) {
   return (
     <LoadState state={state}>{(d) => (
       <>
-        <Card title="Booking by phone" sub="The receptionist only offers times the calendar shows as free and never says booked until the calendar confirms.">
+        <Card title="Booking by phone" sub="The AI receptionist only offers times the calendar shows as free and never says booked until the calendar confirms.">
           <Facts rows={[["Can book", (d.config?.capabilities ?? []).includes?.("book_appointments") ? "Yes" : "Set by your setup"],
             ["Rules", d.config?.appointment_rules ? JSON.stringify(d.config.appointment_rules).slice(0, 200) : "Your opening hours, team hours and blocked times"]]} />
         </Card>
@@ -431,7 +431,7 @@ function PhoneSetup({ w }) {
     <>
       <Card title="Setting up your line">
         <Facts rows={[["Status", w.phone_connected ? "Connected" : "Waiting for Zella Voice to connect your number"], ["Keep your existing number", "Forward it to your Zella Voice number: on most carriers dial *72 then the Zella Voice number (check your carrier's instructions)"],
-          ["Test", "Call your number after forwarding; the receptionist should answer"]]} />
+          ["Test", "Call your number after forwarding; the AI receptionist should answer"]]} />
       </Card>
       <Needs title="Ordering a new number from here isn't available yet." have="The Zella Voice team orders and connects numbers." />
     </>
@@ -974,7 +974,7 @@ function registry(w) {
       page("security", "Team security", (c) => only(manage, <><SecurityLogPage workspace={w} refreshKey={0} /><ApprovalsPage workspace={w} refreshKey={0} onNotice={c.onNotice} /></>), "access review role history"),
     ] },
     { key: "receptionist", label: "AI receptionist", icon: "record_voice_over", items: [
-      page("overview", "Receptionist overview", () => <ReceptionistOverview w={w} />, "status phone version"),
+      page("overview", "AI receptionist overview", () => <ReceptionistOverview w={w} />, "status phone version"),
       page("voice", "Voice and personality", (c) => only(lead, <ReceptionistEdit w={w} onNotice={c.onNotice} />), "greeting tone personality instructions voice language"),
       page("languages", "Languages", (c) => <LanguagePanel w={w} onGo={c.onGo} />, "language spanish hindi french multilingual greeting support"),
       page("services", "Services", () => <ServicesPanel w={w} />, "services prices duration length menu treatments book"),

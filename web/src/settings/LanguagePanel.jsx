@@ -6,7 +6,7 @@ import { languageError, languageNames } from "../business/languagePlan";
 // admin business page (sql/zella_admin_languages.sql: zella_business_language_save refuses owners and staff with
 // LANGUAGES_ADMIN_ONLY). Owners, admins, managers and staff read them here with zella_business_language_get.
 
-export const LANGUAGES_NOTE = "Your receptionist's languages are set by Zella Voice and come with your plan. To add Spanish, contact Zella Voice support.";
+export const LANGUAGES_NOTE = "Your AI receptionist's languages are set by Zella Voice and come with your plan. To add Spanish, contact Zella Voice support.";
 
 function View({ w, data, onGo }) {
   const catalog = data.catalog ?? [];
@@ -20,7 +20,7 @@ function View({ w, data, onGo }) {
 
   return (
     <>
-      <Card title="Languages" sub="The language your receptionist answers every call in, and the ones it switches to when a caller speaks them.">
+      <Card title="Languages" sub="The language your AI receptionist answers every call in, and the ones it switches to when a caller speaks them.">
         <Facts rows={[
           ["Main language", main?.label ?? data.primary],
           ["Other languages", extras.length ? languageNames(extras, catalog).join(", ") : "None"],

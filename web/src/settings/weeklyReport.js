@@ -4,7 +4,7 @@
 // Each figure, in the order shown, with what it counts (the same definitions as zella_platform_weekly_summary).
 export const FIGURES = [
   ["new_businesses", "New businesses", "Businesses created in the week, at any setup stage."],
-  ["live_businesses", "Live businesses", "Live when the report ran, by the one shared definition: active, receptionist switched on, a number linked to Vapi."],
+  ["live_businesses", "Live businesses", "Live when the report ran, by the one shared definition: active, AI receptionist switched on, a number linked to Vapi."],
   ["calls", "Calls", "Every call in the week, answered or not, both directions."],
   ["missed_calls", "Missed calls", "Calls in the week whose status is missed."],
   ["texts_sent", "Texts sent", "Texts that reached the provider (sent or delivered). Test mode and blocked texts are not counted."],

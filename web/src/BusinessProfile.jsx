@@ -94,7 +94,7 @@ export function Transcript({ transcript, role }) {
         const ai = /assistant|ai|bot/i.test(l.who);
         return (
           <p key={i} className={ai ? "ai" : "caller"}>
-            {l.who && <b>{ai ? "Receptionist" : "Caller"}</b>}
+            {l.who && <b>{ai ? "AI receptionist" : "Caller"}</b>}
             {l.text}
           </p>
         );

@@ -250,7 +250,7 @@ export function TestVoiceModal({ workspace, phone, agent, onClose, onGo }) {
         {phone ? (
           <>
             <p className="ba-note">Call your Zella Voice number from your own phone: <strong>{phone}</strong></p>
-            {!agent.live && <div className="ba-banner">The receptionist isn't live yet, so the call may not be answered by Zella Voice.</div>}
+            {!agent.live && <div className="ba-banner">The AI receptionist isn't live yet, so the call may not be answered by Zella Voice.</div>}
             <ul className="ba-test-list">
               <li>Ask for your opening hours.</li>
               <li>Book a time, then check it appears in your Calendar.</li>

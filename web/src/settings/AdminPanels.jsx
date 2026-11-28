@@ -758,12 +758,12 @@ export function AgentRegistry({ onNavigate }) {
 export function AgentConfiguration({ onNavigate }) {
   return (
     <>
-      <Card title="How receptionist settings are layered" sub="Global changes never overwrite a business's own instructions.">
+      <Card title="How AI receptionist settings are layered" sub="Global changes never overwrite a business's own instructions.">
         <Facts rows={[["Industry defaults", "Words, starter wording and modules per industry (Industry configuration)"], ["Each business", "Its own versions: draft, check, publish, restore (business Settings, AI receptionist)"],
           ["Deployment", "A published version is synced to Vapi by n8n; it's live when the sync succeeds"]]} />
       </Card>
       <LinkRows rows={[{ title: "Industry defaults", detail: "Industry configuration page", onClick: () => onNavigate("Industry configuration") }]} />
-      <Needs title="A global default prompt that rolls out to businesses isn't built" have="Each business edits and publishes its own receptionist; nothing global overwrites it.">
+      <Needs title="A global default prompt that rolls out to businesses isn't built" have="Each business edits and publishes its own AI receptionist; nothing global overwrites it.">
         Rolling out a global change safely needs a migration that creates a draft in every business for its owner to approve.
       </Needs>
     </>
@@ -796,7 +796,7 @@ export function TelephonyProviders() {
         <>
           <Card title="Providers">
             <Facts rows={[["Telnyx (numbers, texts)", n.telnyx ? "Key configured" : "Key not set"], ["Vapi (AI voice)", n.vapi ? "Key configured" : "Key not set"],
-              ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
+              ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's AI receptionist"]]} />
           </Card>
           <Needs title="Buying numbers and provider error logs are off until the keys are added" have="Voice & numbers > Providers: an admin asks, a Zella Voice owner approves, then Telnyx and Vapi are called. Numbers are assigned to businesses under Numbers.">
             Both keys, and number_orders_enabled switched on by a Zella Voice owner, are needed before anything is bought or released.
@@ -832,7 +832,7 @@ export function PhoneNumbers({ me }) {
             <Field label="Vapi phone number id" hint="From the Vapi dashboard"><input value={edit.vapiPhoneNumberId} onChange={(e) => setEdit({ ...edit, vapiPhoneNumberId: e.target.value })} /></Field>
             <Field label="Label"><input value={edit.label} onChange={(e) => setEdit({ ...edit, label: e.target.value })} placeholder="Main line" /></Field>
           </div>
-          {edit.id && <p className="zs-muted">Calls to this number will reach the new business's receptionist once Vapi is updated.</p>}
+          {edit.id && <p className="zs-muted">Calls to this number will reach the new business's AI receptionist once Vapi is updated.</p>}
         </Confirm>}
         {confirm && <Confirm title={confirm.status === "active" ? `Pause ${confirm.e164}?` : `Activate ${confirm.e164}?`} reason confirmLabel={confirm.status === "active" ? "Pause" : "Activate"} danger={confirm.status === "active"}
           onClose={() => setConfirm(null)} onConfirm={async (reason) => { await call("number_set_status", { id: confirm.id, status: confirm.status === "active" ? "paused" : "active", reason }); state.reload(); }}>
