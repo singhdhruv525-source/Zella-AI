@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertMatch } from "jsr:@std/assert@1";
-import { type Deps, type Json, notificationEmail, runOnce } from "./logic.ts";
+import { type Deps, type Json, notificationEmail, replyTo, runOnce, senderAddress } from "./logic.ts";
 
 const note = (over: Json = {}): Json => ({
   notification_id: "n1", business_id: "b1", business_name: "Test Clinic", user_id: "u1", role: "owner", to: "owner@example.com",
@@ -7,7 +7,7 @@ const note = (over: Json = {}): Json => ({
   body: "Nobody is on call from Saturday 18:00.", ...over,
 });
 
-function world(opts: { claimed?: Json[]; due?: Json[]; queueFails?: boolean; sendResult?: { ok: boolean; status: number; id?: string }; canSend?: boolean; from?: string | null } = {}) {
+function world(opts: { claimed?: Json[]; due?: Json[]; queueFails?: boolean; sendResult?: { ok: boolean; status: number; id?: string }; canSend?: boolean; from?: string | null; supportEmail?: string | null } = {}) {
   const calls: { fn: string; args: Json }[] = [];
   const sends: { body: Json; key: string }[] = [];
   const deps: Deps = {
@@ -20,7 +20,7 @@ function world(opts: { claimed?: Json[]; due?: Json[]; queueFails?: boolean; sen
     },
     send: (body, key) => { sends.push({ body, key }); return Promise.resolve(opts.sendResult ?? { ok: true, status: 200, id: "re_1" }); },
     from: opts.from === undefined ? "Zella Voice <hello@example.com>" : opts.from,
-    canSend: opts.canSend ?? true, appUrl: "https://app.example.com", supportEmail: null,
+    canSend: opts.canSend ?? true, appUrl: "https://app.example.com", supportEmail: opts.supportEmail ?? null,
   };
   return { deps, calls, sends };
 }
@@ -94,4 +94,25 @@ Deno.test("links open the right page in the business app", async () => {
     const m = notificationEmail(note({ page_key: key || null, business_id: "0a1b2c3d-0000-4000-8000-000000000009" }), "https://app.example.com", null);
     assertMatch(m.html, new RegExp(`href="https://app\\.example\\.com${path.replace(/\//g, "\\/")}\\?business=0a1b2c3d-0000-4000-8000-000000000009"`), key);
   }
+});
+
+Deno.test("automatic emails come from Zella Voice with Reply-To support (architecture §14)", async () => {
+  const due = [{ id: "e1", business_id: "b1", dedupe_key: "k", to_email: "o@example.com", subject: "S", html: "h", text_body: "t", claim_token: "tok1" }];
+  const w = world({ due, from: "no-reply@example.com", supportEmail: "support@example.com" });
+  await runOnce(w.deps);
+  assertEquals(w.sends[0].body.from, "Zella Voice <no-reply@example.com>");
+  assertEquals(w.sends[0].body.reply_to, "support@example.com");
+});
+
+Deno.test("a sender that already has a name is kept, and a missing or invalid support address adds no Reply-To", async () => {
+  assertEquals(senderAddress("Zella Voice <no-reply@example.com>"), "Zella Voice <no-reply@example.com>");
+  assertEquals(senderAddress(" no-reply@example.com "), "Zella Voice <no-reply@example.com>");
+  assertEquals(replyTo(null), null);
+  assertEquals(replyTo(""), null);
+  assertEquals(replyTo("not an email"), null);
+  assertEquals(replyTo("a@b.com\r\nBcc: x@y.com"), null);
+  const due = [{ id: "e1", business_id: "b1", dedupe_key: "k", to_email: "o@example.com", subject: "S", html: "h", text_body: "t", claim_token: "tok1" }];
+  const w = world({ due, from: "no-reply@example.com" });
+  await runOnce(w.deps);
+  assertEquals("reply_to" in w.sends[0].body, false);
 });

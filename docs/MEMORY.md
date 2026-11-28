@@ -104,6 +104,16 @@ Not deployed yet from `main`: `billing-webhook`, `continue-plan`, `reschedule-ap
 
 <!-- /coderabbit-ai-generated:v1 -->
 
+**Platform email sender (26 Nov 2026):** `platform-emails` sent from the bare `email_from_address` with no Reply-To,
+against architecture §14 (owner, 30 Oct). It now sends as `Zella Voice <address>` with Reply-To from the platform
+setting `support_email` (a value that already has a name is kept). Emails from a business to its own customers must come
+from the business's own address (owner, 26 Nov): a verified business domain, or a connected Gmail or Outlook mailbox, set up as a step of Create
+Business;
+until connected, the built fallback sends as the business name at no-reply@ with Reply-To the business email. The
+rules for replies, mailboxes, limits, DNS and plans are decided (architecture §14.4, settles D-19 and D-19a). The
+domain verification and mailbox connection are not built. Live steps, each with approval: set
+`support_email` to `support@zellavoice.com` (the setting does not exist yet) and redeploy `platform-emails`.
+
 n8n workflows are not re-imported since PR #57. Deploying needs the owner's approval.
 
 **n8n:** the 30 workflows were renamed "Zella Voice - …" in n8n on 13 Nov 2026 (owner's approval; name only, all still unpublished), matching `n8n/workflows/`.
