@@ -63,7 +63,7 @@ can turn it off in Settings › Billing › Emails).
 | C1 | Your invoice | an invoice is issued (`invoice.finalized`) | invoice number, period, every line (plan, setup fee, packs, pay-as-you-go minutes, credits, tax), total; auto-debit on: the card it will be charged to; auto-debit off: due date and **Pay now** (link and "or pay in the app"); links: invoice page, PDF | M |
 | C2 | Receipt (no Stripe invoice) | a yearly pay-as-you-go or pack charge succeeds | same detail from our own `invoices` rows | M |
 | C3 | Paid | every successful payment (`invoice.paid`): auto-debit, first payment, the owner paying by the email link, or paying in the app | "paid", amount, card, date, PDF receipt | M |
-| C4 | Invoice cancelled | an invoice we already emailed is voided | "this invoice no longer needs paying", reason if given | M |
+| C4 | Invoice canceled | an invoice we already emailed is voided | "you don't need to pay it", reason if given | M |
 | C5 | Invoice due soon (auto-debit off) | 1 day before the due date, if still unpaid | amount, due date, Pay now (link or in the app) | M |
 | C6 | Replacement invoice | an admin re-bills usage after an invoice was cancelled (§6.9) | which invoice it replaces, what changed | M |
 | C7 | Credit note | an issued invoice is reduced by a credit note | invoice number, amount reduced, new total, PDF | M |

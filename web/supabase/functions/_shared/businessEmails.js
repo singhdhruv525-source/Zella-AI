@@ -68,15 +68,15 @@ export const EMAILS = [
     button: ["Set your password", L(d, "/welcome")] })),
   e("S2", "setup", "Team invitation", "someone is invited to join a business", M, (d) => ({
     tone: "brand", subject: `${d.owner} invited you to ${d.business} on Zella Voice`, heading: "You're invited",
-    intro: [`${d.owner} added you to ${d.business} on Zella Voice, where calls, bookings and messages come together.`, "This invitation works for 7 days and only for this email address."],
+    intro: [`${d.owner} added you to ${d.business} on Zella Voice.`, "This invitation works for 7 days and only for this email address."],
     button: ["Accept the invitation", L(d, "/invite")] })),
   e("S3", "setup", "Finish setting up", "setup is unfinished 3 days after the account was created", O, (d) => ({
     tone: "info", subject: "A few steps left before your AI receptionist goes live", heading: "You're nearly there",
-    intro: ["A few setup steps are still open. Most take less than five minutes, and you can pick up exactly where you left off."],
+    intro: ["A few setup steps are still open. You can pick up exactly where you left off."],
     facts: [["Still to do", "Opening hours, services, call forwarding"]], button: ["Continue setup", L(d, "/setup")] })),
   e("S4", "setup", "Documents needed", "verification documents are missing or were not accepted", M, (d) => ({
     tone: "heads", subject: "We need one more document to verify your business", heading: "One more document, please",
-    intro: [`To verify ${d.business}, we still need a document that shows the business name and address, such as a utility bill or a business licence.`, "Documents are stored privately and seen only by our verification team."],
+    intro: [`To verify ${d.business}, we still need a document that shows the business name and address, such as a utility bill or a business license.`, "Documents are stored privately and seen only by our verification team."],
     button: ["Upload the document", L(d, "/settings/business")] })),
   e("S5", "setup", "Business verified", "verification is approved", M, (d) => ({
     tone: "good", subject: `${d.business} is verified`, heading: "You're verified",
@@ -127,7 +127,7 @@ export const EMAILS = [
     intro: [`${d.missed} callers asked for a call back and haven't heard from anyone yet.`], button: ["See callbacks", L(d, "/callbacks")] })),
   e("L3", "alerts", "Calendar disconnected", "the connected calendar stops syncing", M, (d) => ({
     tone: "heads", subject: "Your calendar stopped syncing", heading: "Let's reconnect your calendar",
-    intro: ["Your receptionist can't see your calendar right now, so it is offering only times it is sure about. Reconnecting takes a minute."], button: ["Reconnect", L(d, "/settings/calendar")] })),
+    intro: ["Your receptionist can't see your calendar right now, so it is offering only times it is sure about. Reconnect it to offer every free time again."], button: ["Reconnect", L(d, "/settings/calendar")] })),
   e("L4", "alerts", "A connection stopped working", "an integration fails repeatedly", M, (d) => ({
     tone: "heads", subject: "A connection to Zella Voice stopped working", heading: "A connection needs you",
     intro: ["One of your connected apps stopped answering. Nothing is lost; new items will catch up once it is reconnected."], facts: [["Connection", d.connection]], button: ["Open integrations", L(d, "/settings/integrations")] })),
@@ -136,7 +136,7 @@ export const EMAILS = [
     intro: ["New Google reviews aren't coming into Zella Voice. Reconnect to keep seeing them and drafting replies."], button: ["Reconnect", L(d, "/reviews")] })),
   e("L6", "alerts", "Weekend on call cover", "Thursday or Friday, when part of the weekend has nobody on call", O, (d) => ({
     tone: "heads", subject: "Gaps in this weekend's on call cover", heading: "Who's on call this weekend?",
-    intro: [`Nobody is on call from ${d.onCallFrom}. Calls that need a person will go to voicemail then.`], button: ["Open the rota", L(d, "/on-call")] })),
+    intro: [`Nobody is on call from ${d.onCallFrom}. Calls that need a person will go to voicemail then.`], button: ["Open the on call schedule", L(d, "/on-call")] })),
   e("L7", "alerts", "Weekly spam report", "Monday, when spam was stopped", O, (d) => ({
     tone: "info", subject: "Spam your receptionist stopped this week", heading: "Spam kept out of your day",
     facts: [["Spam calls stopped", d.spamCalls], ["Spam messages stopped", d.spamMessages]], button: ["Spam protection", L(d, "/spam")] })),
@@ -163,8 +163,8 @@ export const EMAILS = [
 
   // ---- service and privacy
   e("V1", "service", "Service incident", "a problem affects calls or messages", M, (d) => ({
-    tone: "heads", subject: `We're working on it: ${d.incident.toLowerCase()}`, heading: "We're on it",
-    intro: [`${d.incident} since ${d.started}. Our team is working on it and calls are still being answered.`], button: ["Status page", L(d, "/status")] })),
+    tone: "heads", subject: `We're working on it: ${d.incident.toLowerCase()}`, heading: "We're working on a problem",
+    intro: [`${d.incident} since ${d.started}. Our team is working on it. The status page shows what's affected.`], button: ["Status page", L(d, "/status")] })),
   e("V2", "service", "Incident resolved", "the incident is fixed", M, (d) => ({
     tone: "good", subject: "Resolved: everything is running normally", heading: "All fixed",
     intro: [`The problem is fixed (${d.resolved}). Thank you for your patience.`] })),
@@ -227,15 +227,15 @@ export const EMAILS = [
   e("C3", "billing_c", "Paid", "every successful payment", M, (d) => ({
     tone: "good", subject: `Payment received: ${d.total}`, heading: "Thank you, payment received",
     facts: [["Invoice", d.invoice], ["Amount", d.total], ["Card", `ending ${d.card}`], ["Date", d.date]], button: ["Download receipt", L(d, "/settings/billing")] })),
-  e("C4", "billing_c", "Invoice cancelled", "an invoice already emailed is cancelled", M, (d) => ({
-    tone: "info", subject: `Invoice ${d.invoice} was cancelled`, heading: "No need to pay this invoice",
-    intro: [`Invoice ${d.invoice} was cancelled, so it no longer needs paying.`], button: ["Billing history", L(d, "/settings/billing")] })),
+  e("C4", "billing_c", "Invoice canceled", "an invoice already emailed is canceled", M, (d) => ({
+    tone: "info", subject: `Invoice ${d.invoice} was canceled`, heading: "No need to pay this invoice",
+    intro: [`Invoice ${d.invoice} was canceled, so you don't need to pay it.`], button: ["Billing history", L(d, "/settings/billing")] })),
   e("C5", "billing_c", "Invoice due tomorrow", "1 day before the due date, if unpaid and automatic payment is off", M, (d) => ({
     tone: "heads", subject: `Invoice ${d.invoice} is due tomorrow`, heading: "Your invoice is due tomorrow",
     facts: [["Amount", d.total], ["Due", d.dueDate]], button: ["Pay now", L(d, "/pay")], note: "Or pay in the app, under Settings, Billing." })),
-  e("C6", "billing_c", "Replacement invoice", "usage is billed again after an invoice was cancelled", M, (d) => ({
+  e("C6", "billing_c", "Replacement invoice", "usage is billed again after an invoice was canceled", M, (d) => ({
     tone: "info", subject: `Replacement invoice ${d.invoice}`, heading: "A corrected invoice",
-    intro: ["This invoice replaces one we cancelled. The only change is the corrected pay as you go minutes."], lines: d.lines, total: d.total, button: ["View invoice", L(d, "/settings/billing")] })),
+    intro: ["This invoice replaces one we canceled. The only change is the corrected pay as you go minutes."], lines: d.lines, total: d.total, button: ["View invoice", L(d, "/settings/billing")] })),
   e("C7", "billing_c", "Credit note", "an issued invoice is reduced", M, (d) => ({
     tone: "good", subject: `Credit note for invoice ${d.invoice}`, heading: "Your invoice was reduced",
     facts: [["Invoice", d.invoice], ["Reduced by", d.credit], ["New total", d.newTotal]], button: ["Download PDF", L(d, "/settings/billing")] })),
@@ -339,10 +339,10 @@ export const EMAILS = [
     intro: [`Your bank opened a dispute for ${d.total}. Your service continues while it is reviewed. If this was a mistake, tell your bank and reply to us.`] })),
   e("G6", "billing_g", "Dispute closed", "the dispute is won or lost", M, (d) => ({
     tone: "info", subject: "Your payment dispute is closed", heading: "The dispute is closed",
-    intro: [d.disputeWon ? "The bank closed the dispute in our favour, so the original payment stands. Nothing else changes on your account."
-      : `The bank closed the dispute in your favour and returned ${d.total} to you. The invoice is unpaid again; please pay it so your plan stays active.`],
+    intro: [d.disputeWon ? "The bank closed the dispute in our favor, so the original payment stands. Nothing else changes on your account."
+      : `The bank closed the dispute in your favor and returned ${d.total} to you. The invoice is unpaid again; please pay it so your plan stays active.`],
     button: d.disputeWon ? null : ["Pay now", L(d, "/pay")] })),
-  e("G7", "billing_g", "Usage waived", "an admin waives usage after a cancelled invoice", M, (d) => ({
+  e("G7", "billing_g", "Usage waived", "an admin waives usage after a canceled invoice", M, (d) => ({
     tone: "good", subject: "Nothing to pay for these minutes", heading: "We've waived these minutes",
     intro: [`We've waived ${d.paygMinutes} pay as you go minutes (${d.paygAmount}). There is nothing to pay.`] })),
   e("G8", "billing_g", "Refund partly issued", "only part of a refund is approved", M, (d) => ({
