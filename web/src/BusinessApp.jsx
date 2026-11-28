@@ -34,7 +34,7 @@ import { BusinessSignIn, MfaCodeCard, Welcome, acceptInvitations, emailMeSignInL
 import { useMfaGate } from "./mfa";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
-import { plainNotice } from "./zellaVoice";
+import { warm } from "./zellaVoice";
 import { workspaceList, workspaceScreen } from "./crm/workspaceScreen";
 import BusinessToday from "./BusinessToday";
 import { MoneyPage } from "./BusinessMoney";
@@ -146,7 +146,7 @@ function Workspace({ workspace, workspaces, onSwitch, email, userId, fallbackNam
   const [notice, setNoticeRaw] = useState("");
   // P21: on a phone, messages after an action appear above the bar (a toast) instead of the banner at the top.
   // `phone` and `toaster` are set further down; this only runs later, from an event.
-  const setNotice = (message) => (phone && message ? toaster.show(plainNotice(message, workspace)) : setNoticeRaw(plainNotice(message, workspace)));
+  const setNotice = (message) => (phone && message ? toaster.show(warm(message, workspace)) : setNoticeRaw(warm(message, workspace)));
   const [search, setSearch] = useState("");
   const [profileId, setProfileId] = useState(null);
   const [attentionState, setAttentionState] = useState(() => ({ ...ATTENTION_START, businessId: workspace.id }));

@@ -5,7 +5,7 @@ import { Field, Icon, Modal, Pill, initials, personName } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo, todayInput, zonedDateTime } from "./businessTime";
 import { PhoneField } from "./formFields";
 import { validatePhone } from "./formValidation";
-import { ALL_QUIET, noteIcon, noteStyle, voiceTitle } from "./zellaVoice";
+import { noteIcon, noteStyle, pickQuiet, voiceTitle } from "./zellaVoice";
 import { chime, desktopAlert, deviceAlerts, tabCount, unlockAlerts } from "./liveAlerts";
 import { Empty, Notice, PageHead, Segment, explain, loadPeople, orThrow, plural, useLoad } from "./BusinessShared";
 import { usePhoneUi } from "./navigation/phoneContext";
@@ -504,6 +504,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);   // a read of the notifications has worked
   const [toasts, setToasts] = useState([]);
+  const [quiet] = useState(() => pickQuiet());
   const seen = useRef(null);
 
   async function load() {
@@ -600,7 +601,7 @@ export function NotificationsBell({ workspace, onGo, needsNow }) {
           {needsNow?.unavailable && <p className="ba-muted pad" role="status">Some of what needs you now couldn't be checked just now. Zella Voice will try again shortly.</p>}
           {/* quiet only once every source has read and found nothing; "checking" while any is still reading */}
           {!shown.length && (!loaded || needsNow?.loading) && !failed && !needsNow?.unavailable && <p className="ba-muted pad" role="status">Checking what needs you now…</p>}
-          {!shown.length ? (loaded && !failed && !needsNow?.unavailable && !needsNow?.loading && <p className="ba-muted pad">{ALL_QUIET}</p>) : (
+          {!shown.length ? (loaded && !failed && !needsNow?.unavailable && !needsNow?.loading && <p className="ba-muted pad">{quiet}</p>) : (
             <ul>
               {shown.map((n) => {
                 const style = noteStyle(n);
