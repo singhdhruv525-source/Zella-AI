@@ -62,7 +62,7 @@ function UsageTile({ resource, u }) {
       <div className="bp-tile-value">{num(used)} <small>/ {num(inc)}</small></div>
       <Meter used={used} included={inc} over={over} />
       <div className="bp-tile-note">
-        {num(u.remaining)} {unit} left{Number(u.buffer) > 0 ? ` · reminder buffer ${num(u.buffer_remaining)} of ${num(u.buffer)}` : ""}{over > 0 ? ` · ${num(over)} over` : ""}
+        {num(u.remaining)} {unit} left{Number(u.buffer) > 0 ? `, reminder buffer ${num(u.buffer_remaining)} of ${num(u.buffer)}` : ""}{over > 0 ? `, ${num(over)} over` : ""}
       </div>
     </div>
   );
@@ -84,13 +84,13 @@ export function BillingPlanPanel({ w }) {
             <div className="bp-hero">
               <div>
                 <div className="bp-hero-name"><h3>{p.tier === "pro" ? "Pro" : "Base"} plan</h3><Pill tone={status[0]}>{status[1]}</Pill></div>
-                <div className="bp-price" style={{ marginTop: 6 }}><strong>{money(p.price_cents)}</strong><span>{p.billing_interval === "yearly" ? "per year" : "per month"} · USD</span></div>
+                <div className="bp-price" style={{ marginTop: 6 }}><strong>{money(p.price_cents)}</strong><span>{p.billing_interval === "yearly" ? "per year" : "per month"}, USD</span></div>
                 {p.setup_fee_cents > 0 && <p className="bp-sub">One time setup fee {money(p.setup_fee_cents)}</p>}
               </div>
               {s?.current_period_end && s.status !== "trial" && <div style={{ textAlign: "right" }}><p className="bp-muted">Current period ends</p><strong>{day(s.current_period_end)}</strong></div>}
             </div>
             <div className="bp-chips">
-              <span className="bp-chip">{p.minutes == null ? "AI minutes not set" : `${num(p.minutes)} AI minutes / month`}</span>
+              <span className="bp-chip">{p.minutes == null ? "AI minutes not set" : `${num(p.minutes)} AI minutes a month`}</span>
               <span className="bp-chip">{p.texts == null ? "Texts not set" : `${num(p.texts)} texts / month`}</span>
               <span className="bp-chip">{p.emails == null ? "Emails not set" : `${num(p.emails)} emails / month`}</span>
               <span className="bp-chip">{p.team_seats} {p.team_seats === 1 ? "user" : "users"}</span>
@@ -102,7 +102,7 @@ export function BillingPlanPanel({ w }) {
           </div></section>
           <section className="zs-card">
             <div className="zs-card-head bp-pad-head"><div><h3>This month</h3>
-              <p>{period ? `${day(period.from)} to ${day(period.to)} · ${period.days_left} ${period.days_left === 1 ? "day" : "days"} left${period.trial ? " · trial allowance" : ""}` : "Your first billing period hasn't started."}</p></div></div>
+              <p>{period ? `${day(period.from)} to ${day(period.to)}, ${period.days_left} ${period.days_left === 1 ? "day" : "days"} left${period.trial ? ", trial allowance" : ""}` : "Your first billing period hasn't started."}</p></div></div>
             <div className="zs-card-body bp-pad">
             <div className="bp-tiles">{["minutes", "texts", "emails"].map((r) => <UsageTile key={r} resource={r} u={o.usage?.[r]} />)}</div>
             <p className="zs-muted" style={{ margin: "14px 0 0" }}>We tell you at 80% and 100%. A call in progress is never cut. For now, nothing is stopped at 100%: texts and emails keep sending and anything over your allowance is recorded. When limits are switched on, routine texts and emails will pause at 100% while appointment confirmations and reminders keep a small 5% buffer.</p>
@@ -133,7 +133,7 @@ export function BillingBalancesPanel({ w }) {
               ["Texts and emails", "Don't roll over; they refresh every month"],
               ["Yearly plans", "Charged once a year; minutes, texts and emails still refresh every month"]]} />
           </Card>
-          <Card title="add on packs" sub={`Packs last until the end of the month you buy them in${days != null ? ` (${days} ${days === 1 ? "day" : "days"} left now)` : ""}. Only part of a minutes pack rolls over.`}>
+          <Card title="Add on packs" sub={`Packs last until the end of the month you buy them in${days != null ? ` (${days} ${days === 1 ? "day" : "days"} left now)` : ""}. Only part of a minutes pack rolls over.`}>
             <Table rows={o.packs} rowKey={(p) => p.code} columns={[["Pack", (p) => `${num(p.quantity)} ${RES[p.resource][1]}`], ["Price", (p) => money(p.price_cents)],
               ["Rolls over if unused", (p) => (p.rollover_if_unused > 0 ? `up to ${num(p.rollover_if_unused)} minutes` : "No")]]} />
             <Banner>Packs can't be bought online yet. Ask Zella Voice support to add one.</Banner>
@@ -178,7 +178,7 @@ function AutoReloadForm({ w, resource, packs, current, onSaved }) {
     onSaved?.();
   }, "Saved. Automatic reloads start once online payments are switched on.");
   return (
-    <Card title={`Auto-reload: ${RES[resource][0].toLowerCase()}`} sub="Off unless you switch it on. A reload never goes over your monthly limit.">
+    <Card title={`Auto reload: ${RES[resource][0].toLowerCase()}`} sub="Off unless you switch it on. A reload never goes over your monthly limit.">
       <div className="zs-grid">
         <label className="zs-check full"><input type="checkbox" checked={v.enabled} onChange={(e) => form.set("enabled")(e.target.checked)} /><span>Buy a pack automatically when I'm running low</span></label>
         <Field label={`When ${RES[resource][1]} left reach`} error={problem.startsWith("Enter") ? problem : ""}><input inputMode="numeric" value={v.threshold} onChange={form.set("threshold")} /></Field>

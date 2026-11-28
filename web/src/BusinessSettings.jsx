@@ -202,7 +202,7 @@ function BusinessAddress({ w }) {
               <Field label="Country" hint="Two letters, like US."><input value={f.values.country} maxLength={2} onChange={(e) => f.set("country")(e.target.value.toUpperCase())} /></Field>
             </div>
           )} />
-        <Needs title="Service areas aren't a setting yet" have="Add the areas you cover to Knowledge so your AI receptionist can answer questions about them.">A service area setting needs a list of ZIP codes or cities that booking checks before offering a time.</Needs>
+        <Needs title="Service areas aren't available yet." have="Add the areas you cover to Knowledge so your AI receptionist can answer questions about them." />
       </>
     )}</LoadState>
   );
@@ -273,7 +273,7 @@ function TimezoneLocale({ w }) {
         <ProfileForm w={w} initial={s.business} title="Time zone" sub="Appointments, hours, reminders and reports all use this time zone." fields={["timezone"]}
           render={(f) => <div className="zs-field"><span>Business time zone</span><TimeZoneSelect label="Business time zone" value={f.values.timezone || w.timezone} onChange={f.set("timezone")} /></div>} />
         <Card title="Formats"><Facts rows={[["Date format", "Oct 26, 2026"], ["Time format", "3:04 PM"], ["Language", "English (US)"], ["Currency", "USD"]]} /></Card>
-        <Needs title="Other languages, formats and currencies aren't available yet" have="Everything is in US English and US formats.">They need translated text and a format setting that every screen and message reads.</Needs>
+        <Needs title="Other languages, formats and currencies aren't available yet." have="Everything is in US English and US formats." />
       </>
     )}</LoadState>
   );
@@ -286,7 +286,7 @@ function Branding({ w, onGo }) {
         <Facts rows={[["Brand name", w.name], ["Text messages", `Sent as ${w.name}`], ["Emails", `Sent with ${w.name} as the sender name`], ["Logo", "Business information"]]} />
       </Card>
       <LinkRows rows={[{ title: "Change the logo or name", detail: "Business information", onClick: () => onGo("settings/profile/info") }]} />
-      <Needs title="Brand colors and branded emails aren't available yet" have="Your name and logo are used. Zella Voice's own branding never replaces yours.">They need an email template and booking pages that read your colors.</Needs>
+      <Needs title="Brand colors and branded emails aren't available yet." have="Your name and logo are used. Zella Voice's own branding never replaces yours." />
     </>
   );
 }
@@ -308,13 +308,13 @@ function RolesPermissions() {
   const roles = ["owner", "admin", "manager", "staff", "viewer"];
   return (
     <>
-      <Card title="What each role can do" sub="Checked by the database on every change, not just hidden in the app. These are business roles; Zella Voice's own admin roles are separate.">
+      <Card title="What each role can do" sub="Zella Voice checks this on every change, not just by hiding buttons. These are business roles; Zella Voice's own admin roles are separate.">
         <div className="zs-table-wrap" tabIndex={0}><table className="zs-matrix">
           <thead><tr><th>Permission</th>{roles.map((r) => <th key={r}>{words(r === "viewer" ? "view only" : r)}</th>)}</tr></thead>
           <tbody>{ROLE_ROWS.map(([label, who]) => <tr key={label}><td>{label}</td>{roles.map((r) => <td key={r}>{who.includes(r) ? "✓" : "No"}</td>)}</tr>)}</tbody>
         </table></div>
       </Card>
-      <Needs title="Custom roles (receptionist, sales, technician) aren't available yet" have="Use Staff for front desk, sales and field teams, Manager for leads, View only for read only access.">Custom roles need a permission list per role that every database check reads.</Needs>
+      <Needs title="Custom roles (receptionist, sales, technician) aren't available yet." have="Use Staff for front desk, sales and field teams, Manager for leads, View only for read only access." />
     </>
   );
 }
@@ -392,7 +392,7 @@ function Booking({ w, onGo }) {
             ["Rules", d.config?.appointment_rules ? JSON.stringify(d.config.appointment_rules).slice(0, 200) : "Your opening hours, team hours and blocked times"]]} />
         </Card>
         <LinkRows rows={[{ title: "Hours and holidays", detail: "Business profile", onClick: () => onGo("settings/profile/hours") }, { title: "Team availability", detail: "Team and access", onClick: () => onGo("settings/team/availability") }]} />
-        <Needs title="Minimum notice, buffers and appointment types aren't editable yet" have="Booking uses your hours, each person's working hours and blocked times, and prevents double booking.">They need an appointment types table that the booking tool reads.</Needs>
+        <Needs title="Minimum notice, buffers and appointment types aren't editable yet." have="Booking uses your hours, each person's working hours and blocked times, and prevents double booking." />
       </>
     )}</LoadState>
   );
@@ -407,7 +407,7 @@ function AiTesting({ w }) {
           <Table rows={rows} empty="No saved test questions yet." columns={[["Question", (r) => r.question], ["Should say", (r) => (r.expect_none ? "That it doesn't know" : (r.expect_contains ?? []).join(", "))], ["Added", (r) => when(r.created_at)]]} />
         )}</LoadState>
       </Card>
-      <Needs title="Running the test questions from here isn't built" have="Publishing checks every version first (instructions present, no secrets, hand over rules set).">Running them needs a server action that asks the assistant each question and records the result.</Needs>
+      <Needs title="You can't run the test questions from here yet." have="Publishing checks every version first (instructions present, no secrets, hand over rules set)." />
     </>
   );
 }
@@ -433,7 +433,7 @@ function PhoneSetup({ w }) {
         <Facts rows={[["Status", w.phone_connected ? "Connected" : "Waiting for Zella Voice to connect your number"], ["Keep your existing number", "Forward it to your Zella Voice number: on most carriers dial *72 then the Zella Voice number (check your carrier's instructions)"],
           ["Test", "Call your number after forwarding; the receptionist should answer"]]} />
       </Card>
-      <Needs title="Ordering a new number from here isn't available" have="The Zella Voice team orders and connects numbers.">It needs Telnyx number ordering and carrier registration from a server action.</Needs>
+      <Needs title="Ordering a new number from here isn't available yet." have="The Zella Voice team orders and connects numbers." />
     </>
   );
 }
@@ -458,10 +458,10 @@ function Recording({ w }) {
   return (
     <>
       <Card title="Recordings and transcripts">
-        <Facts rows={[["Who can listen and read", "Owners, admins and managers, and staff if you allow it below (checked by the database)"], ["Kept", "With the call, until the customer is erased"], ["Your role", words(w.role)]]} />
+        <Facts rows={[["Who can listen and read", "Owners, admins and managers, and staff if you allow it below (Zella Voice checks this on every change)"], ["Kept", "With the call, until the customer is erased"], ["Your role", words(w.role)]]} />
       </Card>
       <CallContentAccess w={w} />
-      <Needs title="Turning recording off and the spoken disclosure aren't settings yet" have="Recording follows the voice provider's setting for your number.">Laws on recording calls differ by state; some need everyone's consent. Check what applies to you. A switch here needs the phone assistant to read it at the start of every call and say the disclosure.</Needs>
+      <Needs title="Turning recording off and the spoken disclosure aren't settings yet." have="Recording follows the voice provider's setting for your number.">Laws on recording calls differ by state; some need everyone's consent. Check what applies to you.</Needs>
     </>
   );
 }
@@ -472,7 +472,7 @@ function PhoneTroubleshooting({ w }) {
     <LoadState state={state}>{(s) => (
       <Card title="Connection check" sub="Live from your records.">
         <Table rowKey={(i) => i.key} rows={s.items} columns={[["Check", (i) => i.label], ["Result", (i) => <Pill tone={i.ok ? "success" : "warning"}>{i.ok ? "OK" : "Needs attention"}</Pill>], ["Detail", (i) => i.detail]]} />
-        <p className="zs-muted" style={{ marginTop: 10 }}>Calls not arriving? Check forwarding on your carrier, then call your Zella Voice number directly. If that fails, contact Zella Voice support (Help & support).</p>
+        <p className="zs-muted" style={{ marginTop: 10 }}>Calls not arriving? Check forwarding on your carrier, then call your Zella Voice number directly. If that fails, contact Zella Voice support (Help and support).</p>
       </Card>
     )}</LoadState>
   );
@@ -533,7 +533,7 @@ function ProtectionForm({ w, p }) {
           <Field label="Extra usage" full><select value={v.mode} onChange={form.set("mode")}>
             <option value="stop">Stop: no extra minutes</option>
             <option value="pay_as_you_go" disabled={p.payg_cents == null && v.mode !== "pay_as_you_go"}>{p.payg_cents != null ? `Pay as you go: $${(p.payg_cents / 100).toFixed(2)} per extra minute, up to my limit` : p.payg_error ? "Pay as you go (rate unavailable, try again)" : "Pay as you go (not on your plan)"}</option>
-            <option value="auto_top_up">auto reload a pack, up to my limit</option></select></Field>
+            <option value="auto_top_up">Auto reload a pack, up to my limit</option></select></Field>
           {v.mode !== "stop" && <Field label="Monthly spending limit (USD)" error={v.limit && !(Number(v.limit) > 0) ? "Enter an amount above 0" : ""}><input inputMode="decimal" value={v.limit} onChange={form.set("limit")} /></Field>}
           <Field label="If extra usage isn't allowed"><select value={v.fallback} onChange={form.set("fallback")}>
             <option value="take_message">AI takes a message</option><option value="forward_to_business">Forward calls to the business</option><option value="voicemail_only">Voicemail only</option></select></Field>
@@ -564,7 +564,7 @@ function PlanChanges({ w }) {
       <>
         <Banner tone="success">{done}</Banner>
         <Card title="Compare plans" sub="Every plan has the full CRM. They differ by included usage and support.">
-          <Table rows={plans} empty="Plans aren't published yet. Ask Zella Voice support." columns={[["Plan", (p) => <>{p.name}{e.plan?.id === p.id && <> · <Pill tone="accent">Current</Pill></>}</>],
+          <Table rows={plans} empty="Plans aren't published yet. Ask Zella Voice support." columns={[["Plan", (p) => <>{p.name}{e.plan?.id === p.id && <>, <Pill tone="accent">Current</Pill></>}</>],
             ["Monthly", (p) => (p.price_monthly != null ? `$${p.price_monthly}` : "None")], ["Annual", (p) => (p.price_yearly != null ? `$${p.price_yearly}` : "None")],
             ["AI minutes", (p) => p.limits?.voice_minutes ?? "None"], ["Team seats", (p) => p.limits?.team_members ?? "None"], ["Support", (p) => words(p.limits?.support_level ?? "None")],
             ["", (p) => w.role === "owner" && e.plan?.id !== p.id && <button type="button" className="zs-btn sm" onClick={() => setAsk(p)}>Request this plan</button>]]} />
@@ -699,7 +699,7 @@ function AppointmentSettings({ onGo }) {
       <LinkRows rows={[{ title: "Opening hours and holidays", detail: "Business profile > Business hours", onClick: () => onGo("settings/profile/hours") },
         { title: "Who can be booked, and when", detail: "Team and access, Staff availability", onClick: () => onGo("settings/team/availability") },
         { title: "Reminders, confirmations, follow ups", detail: "Automations", onClick: () => onGo("settings/automations/library") }]} />
-      <Needs title="Default length, buffers, minimum notice and booking horizon aren't settings yet" have="Each booking sets its own length; the calendar prevents overlaps with appointments and blocked times.">They need an appointment types table with these fields that booking reads.</Needs>
+      <Needs title="Default length, buffers, minimum notice and booking horizon aren't settings yet." have="Each booking sets its own length; the calendar prevents overlaps with appointments and blocked times." />
     </>
   );
 }
@@ -850,7 +850,7 @@ function HelpCenter() {
       <Card title="Get help from Zella Voice">
         <Facts rows={[["Email", p.support_email ?? "Not published yet"], ["Phone", p.support_phone ?? "Not published yet"], ["Website", p.website ?? "None"]]} />
       </Card>
-      <Needs title="A help center with guides isn't published yet" have="Contact Zella Voice support, or open a support request.">Guides need a documentation site; links will appear here once it exists.</Needs>
+      <Needs title="Guides are coming soon." have="Contact Zella Voice support, or open a support request." />
     </>
   );
 }
@@ -887,7 +887,7 @@ function SupportTickets({ w, kind = "support" }) {
       )}</LoadState>
       {/* one thread per request (keyed by its id), so a draft written for one request is never sent with another */}
       {open && <TicketThread key={open.id} ticket={open} businessName={w.name} canReply={roleIn(w, ["owner", "admin", "manager"])} onClose={() => setOpen(null)} onAnswered={() => state.reload()} />}
-      <Needs title="Attachments inside Zella Voice aren't available" have="Describe the problem in words, or ask support for an email address to send files to.">Attachments need file storage for support requests.</Needs>
+      <Needs title="Attachments aren't available yet." have="Describe the problem in words, or ask support for an email address to send files to." />
     </>
   );
 }
@@ -1010,7 +1010,7 @@ function registry(w) {
     { key: "calendar", label: "Calendar and appointments", icon: "calendar_today", items: [
       page("connections", "Calendar connections", () => <CalendarConnections w={w} />, "google outlook sync"),
       page("settings", "Appointment settings", (c) => <AppointmentSettings onGo={c.onGo} />, "duration buffer notice"),
-      page("types", "Appointment types", lazyNeeds("Appointment types aren't a setting yet", "Each booking has its own title and length.", "They need an appointment types table (name, length, staff, rules).")),
+      page("types", "Appointment types", lazyNeeds("Appointment types aren't available yet.", "Each booking has its own title and length.")),
       page("rules", "Scheduling rules", () => <Card title="How scheduling works"><Facts rows={[["Double booking", "Prevented: overlapping appointments and blocked times are refused"], ["Staff", "Only during each person's working hours"], ["Time zone", formatTimeZone(w.timezone)], ["Holidays", "Closed days from Business hours"]]} /></Card>, "conflicts holidays"),
       page("notifications", "Appointment notifications", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "reminder confirmation"),
     ] },
@@ -1020,9 +1020,9 @@ function registry(w) {
       page("forms", "Website forms", () => <WebsiteForms w={w} />, "website form contact embed code key allowed websites"),
       page("assignment", "Lead assignment rules", () => <LeadRules w={w} />, "assign route priority urgent keyword source rule"),
       page("questions", "Qualifying questions", () => <LeadQuestions w={w} />, "qualify qualification questions required answer"),
-      page("pipeline", "Pipeline", lazyNeeds("Pipeline stages aren't editable yet", "Leads move through the fixed stages on the Leads page; changing stage never changes the customer's details.", "Custom stages need a stage list per business that the Leads page and automations read.")),
+      page("pipeline", "Pipeline", lazyNeeds("Pipeline stages aren't editable yet.", "Leads move through the fixed stages on the Leads page; changing stage never changes the customer's details.")),
       page("fields", "Custom fields", (c) => <RecordSettingsPage workspace={w} types={c.records.types} canManage={lead} onNotice={c.onNotice} onChanged={c.records.reload} loadError={c.records.error} />, "field type required"),
-      page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet" have="Add people one at a time, or ask Zella Voice to import a file for you.">Importing needs a file upload with field mapping, a preview and duplicate checks.</BillingNeeds></>, "csv import export"),
+      page("export", "Import and export", () => <><DataExport w={w} /><BillingNeeds title="Importing isn't available yet." have="Add people one at a time, or ask the Zella Voice team to import a file for you." /></>, "csv import export"),
       page("communication", "Customer communication", () => <Communication w={w} />, "consent unsubscribe opt out"),
     ] },
     { key: "industry", label: "Industry and workflows", icon: "tune", items: [
@@ -1037,7 +1037,7 @@ function registry(w) {
     ] },
     { key: "automations", label: "Automations", icon: "bolt", items: [
       page("library", "Automation library", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "templates active disabled"),
-      page("events", "Event based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment canceled", "Waitlist offer"], ["follow up due", "Quote and lead follow ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
+      page("events", "Event based automations", () => <Card title="What starts an automation"><Facts rows={[["New lead", "Fast callback, follow ups"], ["Missed call", "Callback and text when allowed"], ["Appointment booked or moved", "Confirmation and reminders"], ["Appointment canceled", "Waitlist offer"], ["Follow up due", "Quote and lead follow ups"], ["Status changes", "Industry rules"]]} /></Card>, "trigger event"),
       page("history", "Automation history", (c) => <AutomationsPage workspace={w} refreshKey={0} onNotice={c.onNotice} />, "runs executions"),
       page("suggestions", "You might also need", () => <CrossSellPanel w={w} />, "cross sell upsell suggest offer after service follow up"),
       page("recovery", "Failure recovery", (c) => only(lead, <FailedWorkPage workspace={w} refreshKey={0} onNotice={c.onNotice} />), "failed retry"),
@@ -1067,7 +1067,7 @@ function registry(w) {
       page("data", "Data management", () => <DataExport w={w} />, "export retention deletion"),
     ] },
     { key: "reports", label: "Reports and preferences", icon: "monitoring", items: [
-      page("dashboard", "Dashboard preferences", lazyNeeds("Dashboard preferences aren't saved yet", "Today opens first; each report remembers its period while you're on it.", "Saving them needs a per person preferences record.")),
+      page("dashboard", "Dashboard preferences", lazyNeeds("Dashboard preferences aren't available yet.", "Today opens first; each report remembers its period while you're on it.")),
       page("reporting", "Reporting preferences", () => <ReportSchedule key={`${w.id}:${roleIn(w, LEAD)}`} w={w} />, "daily report summary time recipients schedule"),
       page("performance", "Business performance", () => <ReportsPage workspace={w} refreshKey={0} />, "calls leads appointments"),
       page("export", "Data export", () => <DataExport w={w} />, "csv"),
@@ -1125,7 +1125,7 @@ function Templates({ w }) {
           {open && (() => { const t = rows.find((x) => x.id === open); return <div className="zs-card" style={{ padding: 12, marginTop: 10 }}>{t.subject && <strong>{t.subject}</strong>}<p style={{ whiteSpace: "pre-wrap" }}>{t.body}</p></div>; })()}
         </Card>
       )}</LoadState>
-      <BillingNeeds title="Editing templates here isn't available yet" have="Suggested messages (in the sidebar) can be reviewed before they send.">Editing needs a save step that checks each variable against what the message type supports.</BillingNeeds>
+      <BillingNeeds title="Editing templates here isn't available yet." have="Suggested messages (in the sidebar) can be reviewed before they send." />
     </>
   );
 }

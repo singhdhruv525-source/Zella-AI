@@ -69,12 +69,10 @@ export function BusinessModulesPanel({ w, onGo }) {
               <LinkRows rows={[{ title: "Switch records on or off, or add your own", detail: "Customize records", onClick: () => onGo("record-settings") }]} />
             )}
           </Card>
-          <Needs title="Switching shared modules here isn't available" have="Ask the Zella Voice team (Help and support) and they'll change it for your plan.">
-            Changing a shared module from here needs the plan's list of optional modules, checked on the server, so nothing is switched on outside your plan.
-          </Needs>
-          <Card title="Not built yet" sub="Not shown in your menu until they work.">
+          <Needs title="Switching shared modules here isn't available yet." have="Ask the Zella Voice team (Help and support) and they'll change it for your plan." />
+          <Card title="Coming soon" sub="Not shown in your menu until they work.">
             <Facts rows={[["Voicemails", "Calls with a recording are in Calls"], ["Reviews inbox", "Send your review link from SMS, email and messages"],
-              ["Marketing campaigns", "Lead sources shows where leads come from"], ["AI agents beyond the receptionist", "None"]]} />
+              ["Marketing campaigns", "Lead sources shows where leads come from"], ["More AI tools beyond the AI receptionist", "None"]]} />
           </Card>
         </>
       );

@@ -234,7 +234,7 @@ function RuleEditor({ w, rule, people, keys, next, onClose, onSaved }) {
         <Field label="Assign to">
           <select value={v.assign_to} onChange={form.set("assign_to")}>
             <option value="">Don't choose (share by workload)</option>
-            {people.map((p) => <option key={p.user_id} value={p.user_id}>{p.name} · {words(p.role)}</option>)}
+            {people.map((p) => <option key={p.user_id} value={p.user_id}>{p.name}, {words(p.role)}</option>)}
           </select>
         </Field>
         <Field label="Set priority"><select value={v.set_priority} onChange={form.set("set_priority")}>{PRIORITY.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>

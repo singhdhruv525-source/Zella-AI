@@ -96,7 +96,7 @@ export const languageName = (code) => (code ? LANGUAGE_NAME[code] ?? code : "");
 export function voiceTraits(choice) {
   if (!choice) return "";
   const g = choice.gender ? choice.gender.charAt(0).toUpperCase() + choice.gender.slice(1) : "";
-  return [languageName(choice.language), g].filter(Boolean).join(" · ");
+  return [languageName(choice.language), g].filter(Boolean).join(", ");
 }
 
 // What a screen reader hears when the centred card changes

@@ -37,7 +37,7 @@ export function CapabilitiesPanel({ w, onReload }) {
   const [note, setNote] = useState("");
   const state = useAsync(async () => {
     const { data, error: e } = await supabase.rpc("zella_capabilities", { p_business_id: w.id });
-    if (e) throw new Error(/could not find the function/i.test(e.message) ? "This needs the latest Zella Voice update." : e.message);
+    if (e) throw new Error(/could not find the function/i.test(e.message) ? "This isn't switched on for your workspace yet. Nothing was saved. Ask the Zella Voice team." : e.message);
     return data;
   }, [w.id, attempt]);
   const canManage = ["owner", "admin"].includes(w.role);
@@ -111,7 +111,7 @@ export function CallContentAccess({ w }) {
       <Card title="Who can read transcripts and play recordings" sub="Owners, admins and managers always can. View only members never can.">
         <Banner tone="error">{error}</Banner>
         {s.sensitive === null ? (
-          <p className="zs-muted">Choosing this needs the latest Zella Voice update.</p>
+          <p className="zs-muted">This choice isn't switched on for your workspace yet. Ask the Zella Voice team.</p>
         ) : s.sensitive ? (
           <p className="zs-muted">Calls in your industry often include health, legal, financial or children's details, so staff can't be given access.</p>
         ) : (
