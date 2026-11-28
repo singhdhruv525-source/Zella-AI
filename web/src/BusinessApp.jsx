@@ -35,7 +35,7 @@ import { useMfaGate } from "./mfa";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
-import { workspaceList, workspaceScreen } from "./crm/workspaceScreen";
+import { latestOnly, workspaceList, workspaceScreen } from "./crm/workspaceScreen";
 import BusinessToday from "./BusinessToday";
 import { MoneyPage } from "./BusinessMoney";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
@@ -700,15 +700,23 @@ function BusinessHome() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [invites, setInvites] = useState(null);
 
+  // Only the latest read writes: a read that a newer one replaced never sets the error, the list or the invitations.
+  const [reads] = useState(latestOnly);
   const loadWorkspaces = useCallback(async () => {
-    setError("");
+    const read = reads.start();
+    const stillLatest = () => reads.isCurrent(read);
     // a first read or a retry shows Loading until it ends, never the empty state; a reload inside the app keeps it
-    setWorkspaces((current) => (current?.length ? current : null));
+    setError("");
+    setWorkspaces((list) => (list?.length ? list : null));
     // Activates any invitation this person hasn't accepted yet (safe to repeat); problems are shown, not hidden.
-    try { setInvites(await acceptInvitations()); }
-    catch (err) { console.error("Accepting invitations failed:", err); setInvites({ accepted: 0, needsEmailLink: 0, problems: [], failed: true }); }
+    let invited;
+    try { invited = await acceptInvitations(); }
+    catch (err) { console.error("Accepting invitations failed:", err); invited = { accepted: 0, needsEmailLink: 0, problems: [], failed: true }; }
+    if (!stillLatest()) return;
+    setInvites(invited);
 
     const { data: answer, error: loadError } = await supabase.rpc("zella_my_workspaces");
+    if (!stillLatest()) return;
     const data = workspaceList(answer);
     if (loadError || !data) {
       // the technical detail stays in the console; the screen says what happened and offers Try again
@@ -717,12 +725,14 @@ function BusinessHome() {
       setWorkspaces([]);
       return;
     }
-    if (!(data ?? []).length) {
+    if (!data.length) {
       // A Zella Voice admin without a business of their own belongs in the admin dashboard.
       const { data: admin } = await supabase.rpc("is_platform_admin");
+      if (!stillLatest()) return;
       setIsAdmin(admin === true);
     }
-    setWorkspaces(data ?? []);
+    setError("");
+    setWorkspaces(data);
     const linked = openedFor.current;
     openedFor.current = null;
     if (linked && linkBusiness() === linked) forgetLinkBusiness();   // leave another tab's newer hint alone
@@ -731,7 +741,7 @@ function BusinessHome() {
       if ((data ?? []).some((w) => w.id === want)) return want;
       return (data ?? []).some((w) => w.id === current) ? current : data?.[0]?.id ?? null;
     });
-  }, []);
+  }, [reads]);
 
   useEffect(() => {
     let active = true;

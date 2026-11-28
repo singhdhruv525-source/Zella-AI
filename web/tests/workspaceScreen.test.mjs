@@ -4,7 +4,24 @@
 //   cd web && node --test tests/workspaceScreen.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
-import { workspaceList, workspaceScreen } from "../src/crm/workspaceScreen.js";
+import { latestOnly, workspaceList, workspaceScreen } from "../src/crm/workspaceScreen.js";
+
+test("only the latest read may write: an older answer that arrives late is dropped", async () => {
+  const reads = latestOnly();
+  const writes = [];
+  const read = async (answer, delay) => {
+    const n = reads.start();
+    await new Promise((r) => setTimeout(r, delay));
+    if (reads.isCurrent(n)) writes.push(answer);
+  };
+  // the first read fails late while the retry succeeds first: the late failure never shows
+  await Promise.all([read("failed", 30), read("list", 5)]);
+  assert.deepEqual(writes, ["list"]);
+  const n = reads.start();
+  assert.equal(reads.isCurrent(n), true);
+  reads.start();
+  assert.equal(reads.isCurrent(n), false);
+});
 
 test("pending reads and retries show Loading, never the empty state", () => {
   assert.equal(workspaceScreen({ workspaces: null, failed: false }), "loading");

@@ -125,6 +125,40 @@ test("an expression inside the text doesn't end it: the next line is still check
   assert.equal(check(["export const B = (", "  <div>", "    <p>Hi</p>", "  </div>", ");", "const css = \"x-y\";", ""].join("\n")).code, 0);
 });
 
+test("a nested element's closing tag keeps the parent's text going; the parent's closing tag ends it", () => {
+  const r = check([
+    "export const A = () => (",
+    "  <section>",
+    "    <strong>",
+    "      Title",
+    "    </strong>",
+    "    Text with a follow-up step.",
+    "  </section>",
+    ");",
+    "const kind = { a: 1 };",
+    "export const B = () => <div>{kind.a}</div>;", "",
+  ].join("\n"));
+  assert.equal(r.code, 1);
+  assert.match(r.out, /Sample\.jsx:6 {2}hyphen in text: Text with a follow-up step\./);
+  // after </section> the text has ended: a plain line of code that follows isn't read as text
+  const after = check(["export const C = () => (", "  <section>", "    <strong>", "      Title", "    </strong>", "  </section>", ");",
+    "hide-me", ""].join("\n"));
+  assert.equal(after.code, 0, after.out);
+});
+
+test("control flow after a closing brace is code, but text after an expression is still checked", () => {
+  const flow = check([
+    "export function f(a, b) {",
+    "  if (a) { go(); } else if (b-c) { stop(); }",
+    "  try { go(); } catch (e-x) { stop(); }",
+    "}", "",
+  ].join("\n"));
+  assert.equal(flow.code, 0, flow.out);
+  const text = check("export const A = ({ n }) => <p>{n} follow-ups sent</p>;\n");
+  assert.equal(text.code, 1);
+  assert.match(text.out, /follow-ups sent/);
+});
+
 test("code after a tag is not JSX text: expressions, props, arrow functions, statements", () => {
   const r = check([
     "export function A({ items, on }) {",

@@ -37,7 +37,7 @@ export function CapabilitiesPanel({ w, onReload }) {
   const [note, setNote] = useState("");
   const state = useAsync(async () => {
     const { data, error: e } = await supabase.rpc("zella_capabilities", { p_business_id: w.id });
-    if (e) throw new Error(/could not find the function/i.test(e.message) ? "This isn't switched on for your workspace yet. Nothing was saved. Ask the Zella Voice team." : e.message);
+    if (e) throw new Error(/could not find the function/i.test(e.message) ? "This isn't switched on for your workspace yet. Ask the Zella Voice team." : e.message);
     return data;
   }, [w.id, attempt]);
   const canManage = ["owner", "admin"].includes(w.role);

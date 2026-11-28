@@ -127,6 +127,13 @@ test("warm() keeps its playful toasts, and never rewrites money, service, error 
     "Plan is saved.", "Spam protection is off.", "Password is saved.", "Recording is off. Callers aren't told about recording."]) {
     assert.equal(warm(m), m, m);
   }
+  // call recording is a privacy matter: its on and off confirmations are shown exactly as written
+  for (const m of ["Call recording is on.", "Call recording is off.", "Recording is on.", "Recordings options saved.",
+    "Transcripts is saved.", "Consent is saved."]) {
+    for (let i = 0; i < 5; i++) assert.equal(warm(m), m, m);
+  }
+  // an unrelated toast keeps its playful rewrite
+  assert.equal(warm("Reminders is on."), "Reminders is on. It's got it from here.");
   // the business's own words still apply
   assert.equal(warm("Your card is saved for this customer.", { terminology: { customer: "Client" } }), "Your card is saved for this client.");
 });

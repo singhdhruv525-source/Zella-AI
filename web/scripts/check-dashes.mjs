@@ -50,6 +50,8 @@ function stripComments(src) {
 // arrived", "<strong>Save</strong> keeps a copy", "</strong> and more") keeps the text going, and the words after its
 // last tag or brace are checked. What sits inside tags or braces on the line is taken out before it is checked.
 const JS_LINE = /^(?:[<{})\]?:&|+*/.,;]|return\b|const\b|let\b|var\b|if\b|else\b|import\b|export\b|function\b|case\b|default\b)|=>|[;=]\s*$|&&|\|\||\b[\w.]+\(|^\w+:\s|[=!]==/;
+// control flow after a closing brace: "} else {", "} else if (x) {", "} catch (e) {"
+const JS_FLOW = /^\s*(?:else|if|catch|finally|while|for|do|try|return|case|default|switch)\b/;
 const CODE_BITS = /=>|&&|\|\||[=;{}]|\b[\w.]+\(/;
 const count = (s, ch) => s.split(ch).length - 1;
 // a line that starts with a child: a whole {expression}, a whole element, a self closing tag, or a closing tag
@@ -61,23 +63,31 @@ function childLine(t) {
   const open = t.match(/^<([A-Za-z][\w.]*)\b/);
   return Boolean(open) && (new RegExp(`</${open[1].replace(".", "\\.")}>`).test(t) || /^<[^<>]*\/>/.test(t));
 }
+// elements a line opens minus those it closes (self closing tags count for neither)
+const netTags = (t) => (t.match(/<[A-Za-z][\w.]*(?:\s[^<>]*?)?(?<!\/)>/g) ?? []).length - (t.match(/<\/[\w.]*>/g) ?? []).length;
+// The text lasts while an element opened since it began is still open: a closing </strong> inside an open <section>
+// keeps the section's text going, and the closing </section> ends it.
 function jsxTextLines(lines) {
   const out = [];
-  let inText = false;
+  let inText = false, depth = 0;
   lines.forEach((line, i) => {
     const t = line.trim();
     if (!t) return;
+    const closeOnly = /^<\/[\w.]*>$/.test(t);
     const child = inText && /^[<{]/.test(t) && childLine(t);
-    const textual = inText && !child && !JS_LINE.test(t);
+    const textual = inText && !child && !closeOnly && !JS_LINE.test(t);
     // only the text before the first tag or brace and after the last one: text between tags is checked above
     if (textual) out.push([i, /[<>{}]/.test(t) ? `${t.split(/[<{]/)[0]} ${t.split(/[>}]/).pop()}`.trim() : t]);
     if (child) {
       const rest = t.split(/[>}]/).pop().trim();
       if (rest && !CODE_BITS.test(rest)) out.push([i, rest]);
     }
-    // the next line is text when this one opens an element, or is text (or a child) that the element doesn't close
-    const opens = /(^|[^=/-])>$/.test(t) && !/^[)}]/.test(t) && !/^<\/[\w.]*>$/.test(t);
-    inText = opens || child || (textual && !/<\/[\w.]*>$/.test(t) && !/\/>$/.test(t));
+    // the next line is text when this one opens an element, or is text (or a child) inside an element still open
+    const opens = /(^|[^=/-])>$/.test(t) && !/^[)}]/.test(t) && !closeOnly;
+    if (opens) depth = (inText ? depth : 0) + Math.max(1, netTags(t));   // a ">" alone ends a tag begun above
+    else if (inText && (child || textual || closeOnly)) depth += closeOnly ? -1 : netTags(t);
+    else depth = 0;
+    inText = depth > 0;
   });
   return out;
 }
@@ -94,6 +104,7 @@ for (const f of [...files(ROOT), ...EXTRA]) {
     // second kind holds no code punctuation, so props and calls after a "}" are left alone
     const between = [...line.matchAll(/(?<!=)>([^<>{}]*[A-Za-z][^<>{}]*)[<{]/g), ...line.matchAll(/\}([^<>{}=[\]"`\\:;]*[A-Za-z][^<>{}=[\]"`\\:;]*)[<{]/g)];
     for (const m of between) {
+      if (m[0].startsWith("}") && JS_FLOW.test(m[1])) continue;   // "} else if (a-b) {" is code, not text
       if (WORD_HYPHEN.test(wordsOnly(m[1])) && !/=>/.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);
     }
     // quoted strings

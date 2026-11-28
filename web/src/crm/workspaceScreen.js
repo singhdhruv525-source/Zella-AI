@@ -10,3 +10,10 @@ export function workspaceScreen({ workspaces, failed }) {
 
 // The list in a read's answer, or null when the answer isn't a list (treated as a failed read).
 export const workspaceList = (data) => (Array.isArray(data) ? data : null);
+
+// Only the latest of overlapping reads may write: start() gives each read a number, and isCurrent(n) is false once a
+// newer read has started, so an older answer that arrives late is dropped.
+export function latestOnly() {
+  let latest = 0;
+  return { start: () => ++latest, isCurrent: (n) => n === latest };
+}

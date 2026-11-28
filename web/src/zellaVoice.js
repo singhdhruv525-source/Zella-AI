@@ -346,8 +346,9 @@ const RULES = [
   [/^Saved to the customer\.?$/, () => "Saved to the customer. Thanks for checking!"],
 ];
 
-// Messages about money, service, errors and security are shown as written, whatever a rule above would match.
-export const SERIOUS_MESSAGE = /\b(pay|paid|payment|billing|bill|invoice|refund|dispute|charge|charged|card|plan|subscription|trial|price|minutes? pack|auto reload|usage|limit|error|errors|failed|failure|couldn't|can't|didn't|wasn't|isn't|not|denied|problem|outage|incident|paused|suspended|urgent|emergency|security|password|sign in|sign out|two step|authenticator|code|session|permission|role|access|spam|blocked|privacy|erase|erased|delete|deleted)\b/i;
+// Messages about money, service, errors, security and privacy (call recording, transcripts, consent) are shown as
+// written, whatever a rule above would match.
+export const SERIOUS_MESSAGE = /\b(pay|paid|payment|billing|bill|invoice|refund|dispute|charge|charged|card|plan|subscription|trial|price|minutes? pack|auto reload|usage|limit|error|errors|failed|failure|couldn't|can't|didn't|wasn't|isn't|not|denied|problem|outage|incident|paused|suspended|urgent|emergency|security|password|sign in|sign out|two step|authenticator|code|session|permission|role|access|spam|blocked|privacy|erase|erased|delete|deleted|record|recording|recordings|recorded|transcript|transcripts|consent)\b/i;
 
 export function warm(message, workspace) {
   if (typeof message !== "string" || !message) return message;
