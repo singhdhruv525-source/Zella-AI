@@ -66,8 +66,11 @@ function childLine(t) {
   const open = t.match(/^<([A-Za-z][\w.]*)\b/);
   return Boolean(open) && (new RegExp(`</${open[1].replace(".", "\\.")}>`).test(t) || /^<[^<>]*\/>/.test(t));
 }
-// elements a line opens minus those it closes (self closing tags count for neither)
-const netTags = (t) => (t.match(/<[A-Za-z][\w.]*(?:\s[^<>]*?)?(?<!\/)>/g) ?? []).length - (t.match(/<\/[\w.]*>/g) ?? []).length;
+// elements a line opens minus those it closes (self closing tags count for neither); a fragment "<>" opens one and
+// "</>" closes it, like any element
+const netTags = (t) => (t.match(/<[A-Za-z][\w.]*(?:\s[^<>]*?)?(?<!\/)>|<>/g) ?? []).length - (t.match(/<\/[\w.]*>/g) ?? []).length;
+// a JSX entity (&nbsp; &amp; &#39; &#x2019;) is a character of the text, not code punctuation: it reads as a space
+const ENTITY = /&(?:[A-Za-z]+|#\d+|#x[0-9A-Fa-f]+);/g;
 // The text lasts while an element opened since it began is still open: a closing </strong> inside an open <section>
 // keeps the section's text going, and the closing </section> ends it.
 // A line ending in ">" opens an element only when it holds an opening tag, or ends one begun on an earlier line
@@ -77,7 +80,7 @@ function jsxTextLines(lines) {
   const out = [], ctx = new Set();
   let inText = false, depth = 0, tagOpen = false;
   lines.forEach((line, i) => {
-    const t = line.trim();
+    const t = line.trim().replace(ENTITY, " ");
     if (!t) return;
     if (inText) ctx.add(i);
     const closeOnly = /^<\/[\w.]*>$/.test(t);
@@ -122,8 +125,9 @@ for (const f of [...files(ROOT), ...EXTRA]) {
     // second kind holds no code punctuation, so props and calls after a "}" are left alone
     // the second kind only where the line is JSX: it holds a tag, or sits inside an element's text
     const inJsx = /<\/?[A-Za-z][\w.]*[\s>/]/.test(line) || jsx.ctx.has(i);
-    const between = [...line.matchAll(/(?<!=)>([^<>{}]*[A-Za-z][^<>{}]*)[<{]/g),
-      ...(inJsx ? line.matchAll(/\}([^<>{}=[\]"`\\:;]*[A-Za-z][^<>{}=[\]"`\\:;]*)[<{]/g) : [])];
+    const text = line.replace(ENTITY, " ");
+    const between = [...text.matchAll(/(?<!=)>([^<>{}]*[A-Za-z][^<>{}]*)[<{]/g),
+      ...(inJsx ? text.matchAll(/\}([^<>{}=[\]"`\\:;]*[A-Za-z][^<>{}=[\]"`\\:;]*)[<{]/g) : [])];
     for (const m of between) {
       if (m[0].startsWith("}") && JS_FLOW.test(m[1])) continue;   // "} else if (a-b) {" is code, not text
       if (WORD_HYPHEN.test(wordsOnly(m[1])) && !/=>/.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);

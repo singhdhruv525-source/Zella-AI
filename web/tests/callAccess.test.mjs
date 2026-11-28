@@ -10,6 +10,8 @@ test("a check that couldn't run is unknown, not off", () => {
   assert.equal(callAccessState(undefined), "unknown");
   assert.match(CALL_ACCESS_UNKNOWN, /couldn't check/);
   assert.doesNotMatch(CALL_ACCESS_UNKNOWN, /isn't switched on|off/i);
+  // a refresh after a saved change can fail this check too, so it never says nothing was changed
+  assert.doesNotMatch(CALL_ACCESS_UNKNOWN, /nothing was changed/i);
 });
 
 test("a confirmed answer keeps its own message", () => {

@@ -280,7 +280,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
         <>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(c.business_id)}>{c.business_name}</button>],
             ["Direction", words(c.direction)], ["From", phone(c.from)], ["To", phone(c.to)], ["Status", <Pill key="s" tone={statusTone(c.status)}>{words(c.status)}</Pill>],
-            ["Answered by AI receptionist", c.ai_handled ? "Yes" : "No"], ["Outcome", c.outcome ? words(c.outcome) : "Not recorded"], ["Outcome note", c.outcome_note],
+            ["Handled by", c.ai_handled ? "AI receptionist" : "Team"], ["Outcome", c.outcome ? words(c.outcome) : "Not recorded"], ["Outcome note", c.outcome_note],
             ["Transfer", c.transfer_status ? words(c.transfer_status) : null], ["Length", duration(c.duration_seconds, "Not recorded")],
             c.needs_human ? ["Needs a person", c.escalation_reason ?? "Yes"] : null, c.escalation_resolved_at ? ["Resolved", when(c.escalation_resolved_at)] : null,
             c.failure_reason ? ["Error", c.failure_reason] : null, ["Provider call id", c.provider_call_id ? <code key="p">{c.provider_call_id}</code> : null]]} />

@@ -268,3 +268,17 @@ test("code is not text: class lists, object keys, file names", () => {
   ].join("\n"));
   assert.equal(r.code, 0, r.out);
 });
+
+test("a fragment holds text, and an entity is part of the text", () => {
+  const frag = check("export const A = () => (\n  <>\n    Enter a 6-digit code.\n  </>\n);\n");
+  assert.equal(frag.code, 1);
+  assert.match(frag.out, /Sample\.jsx:3 {2}hyphen in text: Enter a 6-digit code\./);
+  const entity = check("export const B = ({ n }) => <p>{n} 6-digit codes&nbsp;ready</p>;\n");
+  assert.equal(entity.code, 1);
+  assert.match(entity.out, /6-digit codes/);
+  const multi = check("export const C = ({ n }) => (\n  <p>\n    {n} 6-digit codes&nbsp;ready\n  </p>\n);\n");
+  assert.equal(multi.code, 1);
+  assert.match(multi.out, /Sample\.jsx:3 /);
+  const clean = check("export const D = () => (\n  <>\n    <p>Save&nbsp;changes</p>\n  </>\n);\n");
+  assert.equal(clean.code, 0, clean.out);
+});

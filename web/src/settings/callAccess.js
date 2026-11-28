@@ -6,4 +6,4 @@ export function callAccessState(sensitive) {
   if (sensitive === null || sensitive === undefined) return "unknown";
   return sensitive ? "blocked" : "choose";
 }
-export const CALL_ACCESS_UNKNOWN = "We couldn't check whether staff can be given access. Nothing was changed.";
+export const CALL_ACCESS_UNKNOWN = "We couldn't check whether staff can be given access.";
