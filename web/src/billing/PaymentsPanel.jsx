@@ -155,7 +155,7 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
           <div className="zpay-dialog">
             {ask.on
               ? <p>{needCard ? "Auto pay needs a saved card that works. Update your card first." : `We'll charge ${which ? `your ${which}` : "your saved card"} on each renewal date.`}</p>
-              : <><p>{autopayWords(autopay?.email_live === true).offText}</p><p>An unpaid bill pauses your receptionist 5 days after it's due.</p></>}
+              : <><p>{autopayWords(autopay?.email_live === true).offText}</p><p>An unpaid bill pauses your AI receptionist 5 days after it's due.</p></>}
             {apError && <p className="ba-error" role="alert">{apError}</p>}
           </div>
         </Modal>

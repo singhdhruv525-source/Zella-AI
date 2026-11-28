@@ -71,7 +71,7 @@ const WORDS: Record<string, string> = {
   INVALID_INPUT: "That didn't work. Reload the page and try again.",
   CHECKOUT_NOT_READY: "We couldn't open the payment form. Please try again in a minute.",
   CHECKOUT_EXPIRED: "This payment form expired. You weren't charged. Start again to get a new one.",
-  PAYMENTS_MISCONFIGURED: "Payments can't open right now. Nothing has been charged, and Zella Voice has been told.",
+  PAYMENTS_MISCONFIGURED: "Payments can't open right now. You weren't charged. We've been alerted.",
   NOT_FOUND: "We couldn't find that for your account. Check you're signed in as the business owner.",
   NOT_PAYABLE: "This can't be paid online right now. You weren't charged.",
   NO_CUSTOMER: "Your card is added with your first payment. There's nothing to update yet.",

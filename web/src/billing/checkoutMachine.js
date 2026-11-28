@@ -140,9 +140,9 @@ export const WORDS = {
 export const ERROR_WORDS = {
   expired: { label: "This card form expired", body: "You weren't charged. Start again to get a new one.", action: "Start again" },
   network: { label: "You're offline", body: "We couldn't reach Zella Voice. Check your connection and try again.", action: "Try again" },
-  stripe_load: { label: "The card form didn't load", body: "Stripe's card form couldn't open here. Check your connection, or allow js.stripe.com in your blocker.", action: "Try again" },
+  stripe_load: { label: "The card form didn't load", body: "Stripe's card form couldn't open. Check your connection or turn off any ad blocker for this page.", action: "Try again" },
   server: { label: "We couldn't open the card form", body: "Something went wrong on our side. Please try again in a minute.", action: "Try again" },
-  misconfigured: { label: "Payments can't open right now", body: "Zella Voice has been told. Please try again later.", action: "Try again" },
+  misconfigured: { label: "Payments can't open right now", body: "We've been alerted. Please try again later.", action: "Try again" },
   needs_action: { label: "Your bank wants to confirm this payment", body: "You weren't charged yet. Confirm it with your bank to finish.", action: "Confirm with your bank" },
   card_declined: { label: "Your saved card was declined", body: "You weren't charged. Pay with another card, or update your saved card.", action: "Pay with another card" },
   no_card: { label: "There's no card to charge", body: "You weren't charged. Add a card on Stripe's page, then try again.", action: "Update card" },

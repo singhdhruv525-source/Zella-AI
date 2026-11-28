@@ -359,9 +359,11 @@ async function shot(page, look, width, state, axeSource) {
     await n.ctx.close();
     const d = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/app/settings/billing/pay/${OPEN}?scenario=`);
     await d.page.waitForSelector("#zpay-route-title:has-text('Pay for your plan')", { timeout: 10000 }).catch(() => {});
+    await d.page.waitForSelector(".zgc", { state: "visible", timeout: 10000 }).catch(() => {});
     const first = await d.page.isVisible(".zgc");
     await d.page.reload();
     await d.page.waitForSelector("#zpay-route-title:has-text('Pay for your plan')", { timeout: 10000 }).catch(() => {});
+    await d.page.waitForSelector(".zgc", { state: "visible", timeout: 10000 }).catch(() => {});   // the card box renders just after the title
     check("navigation: a deep link opens the page, and so does a reload", first && await d.page.isVisible(".zgc") && (await d.page.locator("#zpay-route-title").innerText()) === "Pay for your plan");
     await d.ctx.close();
     const e = await open(browser, LOOKS[0], { width: 1440, height: 900 }, `/pay/invoice/${OPEN}?scenario=`);

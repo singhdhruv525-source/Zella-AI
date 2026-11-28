@@ -158,7 +158,7 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
         consentText={consent} restartKey={selectionKey(picked)}
         autopay={{ on: autopayOn, onChange: setAutopayOn, ...autopayWords(emailLive) }} hostedFallback={hostedFallback} beforeSubmit={() => start()} />
       {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. You'll pay here once payments open.</p>}
-      {st.key !== "confirmed" && state.payment?.required !== false && <><p className="zob-muted">Your receptionist starts answering calls after you pay.</p><p className="zob-muted">You can choose Finish later and come back any time.</p></>}
+      {st.key !== "confirmed" && state.payment?.required !== false && <><p className="zob-muted">Your AI receptionist starts answering calls after you pay.</p><p className="zob-muted">You can choose Finish later and come back any time.</p></>}
       <ErrorText>{action.error}</ErrorText>
       {(st.key === "confirmed" || paymentPassed(state.payment)) && (
         <Actions><button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(() => onComplete("payment"))}>{action.busy ? "One moment…" : "Continue"}</button></Actions>
@@ -179,8 +179,8 @@ export function DoneScreen({ state, onComplete }) {
     <>
       <p className="zob-lead">Thank you. {state.business_name} is set up. Here's what happens next.</p>
       <ol className="zob-ahead zob-next">
-        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="call" size="sm" /></span><div><strong>A test call</strong><span>We make a test call to your receptionist and check its answers before anything goes live.</span></div></li>
-        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="rocket_launch" size="sm" /></span><div><strong>Going live</strong><span>{state.go_live?.live ? "Your receptionist is live and answering your calls." : "Once every check below passes, your receptionist starts answering your calls. You can follow it on the AI receptionist page in your CRM."}</span></div></li>
+        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="call" size="sm" /></span><div><strong>A test call</strong><span>We make a test call to your AI receptionist and check its answers before anything goes live.</span></div></li>
+        <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="rocket_launch" size="sm" /></span><div><strong>Going live</strong><span>{state.go_live?.live ? "Your AI receptionist is live and answering your calls." : "Once every check below passes, your AI receptionist starts answering your calls. You can follow it on the AI receptionist page in your CRM."}</span></div></li>
         <li><span className="zob-ahead-n" aria-hidden="true"><Icon name="dashboard" size="sm" /></span><div><strong>Your CRM</strong><span>Your customers, bookings, calls and messages will all land there.</span></div></li>
       </ol>
       {checks.length > 0 && (
