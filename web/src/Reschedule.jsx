@@ -30,15 +30,15 @@ const clock = (value, tz) => fmt(value, tz, { hour: "numeric", minute: "2-digit"
 const PROBLEMS = {
   invalid: {
     title: "This link isn't valid",
-    body: "Please open the full link from your message, or contact the business.",
+    body: "Open the full link from your message, or contact the business.",
   },
   not_available: {
     title: "This appointment can't be changed here",
-    body: "It may have been canceled or already finished. Please contact the business to book a new time.",
+    body: "It may have been canceled or already finished. Contact the business to book a new time.",
   },
   past: {
     title: "This appointment has already passed",
-    body: "Please contact the business to book a new time.",
+    body: "Contact the business to book a new time.",
   },
 };
 
@@ -112,7 +112,7 @@ export default function Reschedule() {
       if (res.ok) {
         setDone(res.new_start);
       } else if (res.reason === "slot_taken") {
-        setError("Sorry, that time was just taken. Please pick another one.");
+        setError("Sorry, that time was just taken. Pick another one.");
         setPicked("");
         const free = await call(token, "slots");
         if (free.ok) { setSlots(free.slots); setSlotsFailed(false); }
@@ -180,7 +180,7 @@ export default function Reschedule() {
               <p>We couldn't load the free times just now. <button type="button" className="ba-link" onClick={retrySlots} disabled={working}>Try again</button></p>
             )}
             {!slotsFailed && days.length === 0 && (
-              <p>There are no free times in the next two weeks. Please contact {info.business} to find one.</p>
+              <p>There are no free times in the next two weeks. Contact {info.business} to find one.</p>
             )}
 
             {days.length > 0 && (

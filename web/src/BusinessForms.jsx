@@ -348,7 +348,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
         )}
         <div className="ba-form-grid">
           <Field label="Title" full>
-            <input value={form.title} onChange={set("title")} placeholder={`e.g. ${term("service")}`} />
+            <input value={form.title} onChange={set("title")} placeholder={`For example, ${term("service")}`} />
           </Field>
           <Field label="Date"><input type="date" value={form.date} onChange={set("date")} required /></Field>
           <Field label="Start time"><input type="time" value={form.time} onChange={set("time")} required /></Field>

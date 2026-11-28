@@ -427,7 +427,7 @@ function WaitlistModal({ working, onClose, onSubmit }) {
         <Field label="Name"><input value={f.name} onChange={set("name")} maxLength={80} autoFocus /></Field>
         <Field label="Party size"><input type="number" min={1} max={100} value={f.party} onChange={set("party")} /></Field>
         <Field label="Phone"><input value={f.phone} onChange={set("phone")} inputMode="tel" /></Field>
-        <Field label="Preferences"><input value={f.preferences} onChange={set("preferences")} maxLength={300} placeholder="e.g. patio, high chair" /></Field>
+        <Field label="Preferences"><input value={f.preferences} onChange={set("preferences")} maxLength={300} placeholder="For example, patio, high chair" /></Field>
         <Field label="Contact" full><label className="ba-check"><input type="checkbox" checked={f.contact_ok} onChange={set("contact_ok")} /> They agreed to be texted when a table is ready</label></Field>
       </div>
       <p className="ba-muted">Waiting times aren't promised. Tell guests any wait is an estimate.</p>
@@ -462,7 +462,7 @@ function BlockModal({ table, tz, date, working, onClose, onSubmit }) {
       <div className="ba-form-grid">
         <Field label="From" hint="Empty means now"><input type="time" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="Until"><input type="time" value={until} onChange={(e) => setUntil(e.target.value)} /></Field>
-        <Field label="Reason" full><input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="e.g. broken chair, private event" /></Field>
+        <Field label="Reason" full><input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} placeholder="For example, broken chair, private event" /></Field>
       </div>
     </Modal>
   );

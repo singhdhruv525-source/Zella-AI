@@ -969,7 +969,7 @@ export function Templates() {
     <>
       <LoadState state={state}>{(c) => (
         <Card title="Platform message templates" sub="Templates every business starts with. Businesses can have their own versions.">
-          <Table rows={c.templates} empty="No platform templates." columns={[["Key", (t) => t.key], ["Channel", (t) => words(t.channel)], ["Purpose", (t) => words(t.purpose)],
+          <Table rows={c.templates} empty="No platform templates." columns={[["Message", (t) => words(t.key)], ["Channel", (t) => words(t.channel)], ["Purpose", (t) => words(t.purpose)],
             ["Version", (t) => t.version], ["Status", (t) => words(t.status)], ["", (t) => <button type="button" className="zs-btn sm" onClick={() => setOpen(open === t.id ? null : t.id)}>{open === t.id ? "Hide" : "Preview"}</button>]]} />
           {open && (() => { const t = c.templates.find((x) => x.id === open); return <div className="zs-card" style={{ padding: 12, marginTop: 10 }}>{t.subject && <strong>{t.subject}</strong>}<pre style={{ whiteSpace: "pre-wrap", font: "inherit" }}>{t.body}</pre><small className="zs-muted">Variables: {(t.body.match(/\{\{\s*[\w.]+\s*\}\}/g) ?? []).join(", ") || "none"}</small></div>; })()}
         </Card>

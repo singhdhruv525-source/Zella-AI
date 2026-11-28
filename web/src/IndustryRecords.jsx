@@ -116,11 +116,11 @@ export default function IndustryRecords({ industryId, industryName }) {
                 {open === i && (
                   <div className="ir-body">
                     <div className="owner-form-grid">
-                      <label className="owner-field"><span>Singular</span><input value={t.singular} onChange={(e) => setType(i, { singular: e.target.value })} placeholder="e.g. Table" /></label>
-                      <label className="owner-field"><span>Plural</span><input value={t.plural} onChange={(e) => setType(i, { plural: e.target.value })} placeholder="e.g. Tables" /></label>
+                      <label className="owner-field"><span>Singular</span><input value={t.singular} onChange={(e) => setType(i, { singular: e.target.value })} placeholder="For example, Table" /></label>
+                      <label className="owner-field"><span>Plural</span><input value={t.plural} onChange={(e) => setType(i, { plural: e.target.value })} placeholder="For example, Tables" /></label>
                       <label className="owner-field"><span>Icon</span><input value={t.icon} onChange={(e) => setType(i, { icon: e.target.value.trim() })} placeholder="table_restaurant" /><small className="wiz-hint">A Material Symbols name. Preview: <Icon name={t.icon || "folder"} size="sm" /></small></label>
                       <label className="owner-field"><span>Each record's name is called</span><input value={t.title_label} onChange={(e) => setType(i, { title_label: e.target.value })} /></label>
-                      <label className="owner-field wiz-field-full"><span>Notice shown on the page</span><input value={t.notice} onChange={(e) => setType(i, { notice: e.target.value })} placeholder="e.g. Keep clinical records in your practice system." /></label>
+                      <label className="owner-field wiz-field-full"><span>Notice shown on the page</span><input value={t.notice} onChange={(e) => setType(i, { notice: e.target.value })} placeholder="For example, Keep clinical records in your practice system." /></label>
                       <label className="wiz-inline-check"><input type="checkbox" checked={t.link_person} onChange={(e) => setType(i, { link_person: e.target.checked })} /> Records can be linked to a customer</label>
                     </div>
 

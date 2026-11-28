@@ -102,7 +102,7 @@ function Blocked({ workspace, onSignOut, signOutError }) {
         <p className="ba-auth-description">
           {canceled
             ? "Your Zella Voice plan has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella Voice team to start again."
-            : "Your workspace and AI receptionist are paused for now. Please contact the Zella Voice team to get it running again."}
+            : "Your workspace and AI receptionist are paused for now. Contact the Zella Voice team to get it running again."}
         </p>
         <button type="button" className="ba-btn block" onClick={onSignOut}>Sign out</button>
         {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}

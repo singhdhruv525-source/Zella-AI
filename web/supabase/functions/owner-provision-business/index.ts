@@ -3703,7 +3703,7 @@ Deno.serve(withCors(async (req: Request) => {
         return respond({ error: error.message }, error.status);
       }
       console.error(`Setup action ${action} failed`, error);
-      return respond({ error: "The change could not be saved. Please try again." }, 500);
+      return respond({ error: "That didn't work. Try again, or contact Zella Voice support if it keeps happening." }, 500);
     }
   } catch (error) {
     console.error("Platform dashboard function failed", error);

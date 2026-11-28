@@ -240,7 +240,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
             {dialogError && <div className="owner-form-error" role="alert">{dialogError}</div>}
             <label className="owner-field">
               <span>Reason (shown in setup, kept in the audit log)</span>
-              <input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="e.g. The name doesn't match the business" autoFocus />
+              <input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="For example, The name doesn't match the business" autoFocus />
             </label>
             <div className="ic-actions">
               <button type="button" className="owner-secondary-button" onClick={closeDialog} disabled={Boolean(busy)}>Go back</button>

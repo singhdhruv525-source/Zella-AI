@@ -44,11 +44,11 @@ const MESSAGES = {
   }),
   outdated: () => ({
     title: "This link is out of date",
-    body: "There's a newer email about your plan. Please use the link in that email.",
+    body: "There's a newer email about your plan. Use the link in that email.",
   }),
   invalid: () => ({
     title: "This link isn't valid",
-    body: "Please check you opened the full link from your email, or contact the Zella Voice team.",
+    body: "Check that you opened the full link from your email, or contact the Zella Voice team.",
   }),
 };
 

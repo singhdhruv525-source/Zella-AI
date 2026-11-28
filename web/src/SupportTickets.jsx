@@ -321,7 +321,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
               </label>
               <label className="owner-field">
                 <span>Category</span>
-                <input value={draft.category} placeholder="e.g. Phone, AI answers, Billing" onChange={(e) => setDraft({ ...draft, category: e.target.value })} />
+                <input value={draft.category} placeholder="For example, Phone, AI answers, Billing" onChange={(e) => setDraft({ ...draft, category: e.target.value })} />
               </label>
               <label className="owner-field">
                 <span>Priority</span>

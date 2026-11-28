@@ -484,7 +484,7 @@ function BusinessStep({ value, onChange, industries, isExisting, locked, showErr
       <Section title="Business details" description="The basics Zella Voice uses across the CRM and the AI receptionist.">
         <div className="owner-form-grid">
           <Field label="Business name" required>
-            <input value={value.name} onChange={set("name")} placeholder="e.g. Sunshine Dental Clinic" />
+            <input value={value.name} onChange={set("name")} placeholder="For example, Sunshine Dental Clinic" />
           </Field>
           <Field label="Legal name" hint="If different from the business name">
             <input value={value.legalName} onChange={set("legalName")} />
@@ -801,7 +801,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
           ))}
         </div>
         <Field label="Extra communication instructions" full>
-          <textarea value={value.instructions} onChange={set("instructions")} placeholder="e.g. Always confirm the caller's name before ending the call." />
+          <textarea value={value.instructions} onChange={set("instructions")} placeholder="For example, Always confirm the caller's name before ending the call." />
         </Field>
       </Section>
 
@@ -842,7 +842,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
       <Section title="What the AI receptionist can do">
         <CheckGrid options={CAPABILITIES} values={value.capabilities} onChange={(capabilities) => onChange({ ...value, capabilities })} />
         <Field label={`${termFor(terminology, "appointment")} booking notes`} full>
-          <textarea value={value.bookingNotes} onChange={set("bookingNotes")} placeholder="e.g. New patients need a 60 minute slot." />
+          <textarea value={value.bookingNotes} onChange={set("bookingNotes")} placeholder="For example, New patients need a 60 minute slot." />
         </Field>
       </Section>
 
@@ -883,7 +883,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
           className="wiz-textarea"
           value={value.restrictions}
           onChange={set("restrictions")}
-          placeholder={"e.g. Never give medical advice\nNever promise a same day appointment"}
+          placeholder={"For example, Never give medical advice\nNever promise a same day appointment"}
         />
       </Section>
     </>
@@ -1378,7 +1378,7 @@ function DocumentsSection({ businessId, documents, available, onChange }) {
               </div>
               {rejecting === doc?.id && (
                 <div className="wiz-doc-reject">
-                  <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Why? e.g. the name doesn't match the business" aria-label="Reason for rejecting" />
+                  <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Why? For example, the name doesn't match the business" aria-label="Reason for rejecting" />
                   <button type="button" className="owner-secondary-button" onClick={() => setRejecting(null)}>Cancel</button>
                   <button type="button" className="owner-primary-button" disabled={!note.trim() || Boolean(busy)} onClick={() => review(doc, "rejected")}>Reject</button>
                 </div>
@@ -1508,7 +1508,7 @@ function OperationsStep({ value, onChange, config, terminology, industryName }) 
           fields={[
             { key: "name", label: "Name", required: true },
             { key: "price", label: "Price", placeholder: "Leave empty if the AI receptionist shouldn't quote it" },
-            { key: "duration", label: "Duration", placeholder: "e.g. 45 minutes" },
+            { key: "duration", label: "Duration", placeholder: "For example, 45 minutes" },
             { key: "description", label: "Description", full: true, multiline: true },
           ]}
         />
@@ -1543,7 +1543,7 @@ function TeamStep({ value, onChange, config, terminology, showErrors }) {
           <div className="wiz-list-item" key={m.id || `new-${i}`}>
             <div className="owner-form-grid">
               <Field label="Name" required><input value={m.name} onChange={(e) => set(i, { name: e.target.value })} /></Field>
-              <Field label="Role"><input value={m.title} placeholder={`e.g. ${staffWord}`} onChange={(e) => set(i, { title: e.target.value })} /></Field>
+              <Field label="Role"><input value={m.title} placeholder={`For example, ${staffWord}`} onChange={(e) => set(i, { title: e.target.value })} /></Field>
               <Field label="Phone" bare><PhoneField value={m.phone} onChange={(phone) => set(i, { phone })} showErrors={showErrors} label={`${m.name || "Team member"} phone`} /></Field>
               <Field label="Email" bare><EmailField label={`${m.name || "Team member"} email`} value={m.email} onChange={(email) => set(i, { email })} showErrors={showErrors} placeholder="name@business.com" /></Field>
             </div>

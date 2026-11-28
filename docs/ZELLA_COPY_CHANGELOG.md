@@ -1,5 +1,25 @@
 # Zella Voice: copy changelog
 
+## 28 November 2026: every screen and pop up checked in a browser (Writing Skills plugin, Microsoft style)
+
+A crawl signed in as every test role (Zella Voice owner, read only admin, business owner, staff, viewer, public) on an
+isolated copy of today's schema, opened 342 pages (every admin and CRM page, all 74 admin and 94 CRM settings pages, the
+public pages, and the main pages at phone width) and 30 pop ups, and ran the plugin's Verify checklist over 7,000 lines
+of text. The house voice wins where the two differ (no serial comma, "Zella Voice" in full).
+
+| Found | Fixed |
+|---|---|
+| Serial commas on Check ins and Customize records; "today (Central Time (Chicago))" | No serial comma; "today, in Central Time (Chicago)" |
+| "Please" on the unsubscribe, reschedule, waitlist and continue plan pages, the website form, the paused banner and onboarding | Removed (kept only in the owner's notification lines) |
+| "e.g." in 58 placeholders and hints | "For example," |
+| "could not", "was not", "do not" in three alert names | Contractions |
+| A page that failed to load said "The change could not be saved. Please try again." (owner-provision-business's catch all) | "That didn't work. Try again, or contact Zella Voice support if it keeps happening." (needs a deploy of owner-provision-business with the owner's approval) |
+| Communication templates listed by code name (appointment_confirmation) | Listed by name (Appointment confirmation) |
+
+Checked and kept: Title Case findings were names (businesses, industries, modules, countries, time zones); "raw value"
+findings were icon names drawn by the icon font, test data (provider ids), and setting and job names that admins need to
+look up (calls_live, zella_dispatch, the audit filter's record type).
+
 ## 28 November 2026: business app (CRM), onboarding and public pages, line by line
 
 Words only, plus two raw errors replaced. Every sentence of eight words or more in the CRM, the owner onboarding

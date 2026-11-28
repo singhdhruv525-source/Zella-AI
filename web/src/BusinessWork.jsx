@@ -396,7 +396,7 @@ function JoinWaitlistModal({ workspace, term, onClose, onSaved }) {
         {error && <p className="ba-error" role="alert">{error}</p>}
         <PersonPicker businessId={workspace.id} label={term("customer")} value={person} onChange={setPerson} />
         <div className="ba-form-grid">
-          <Field label="For what?"><input value={form.title} onChange={set("title")} placeholder="e.g. Cleaning" /></Field>
+          <Field label="For what?"><input value={form.title} onChange={set("title")} placeholder="For example, Cleaning" /></Field>
           <Field label="How long (minutes)"><input type="number" min="5" step="5" value={form.minutes} onChange={set("minutes")} /></Field>
           <Field label="Any time from"><input type="date" min={todayInput(tz)} value={form.from} onChange={set("from")} /></Field>
           <Field label="Until"><input type="date" min={form.from || todayInput(tz)} value={form.to} onChange={set("to")} /></Field>
@@ -691,7 +691,7 @@ export function LeadTab({ person, workspace, onChanged, onNotice }) {
       <section>
         <h3 className="ba-sub">Quotes</h3>
         <form className="ba-inline-form" onSubmit={(e) => { e.preventDefault(); if (!quoteTitle.trim()) return; run("quote", () => supabase.rpc("zella_issue_quote", { p_customer_id: person.id, p_title: quoteTitle.trim() }), "Quote recorded. Zella Voice will follow up if that's switched on.").then((ok) => ok && setQuoteTitle("")); }}>
-          <input value={quoteTitle} onChange={(e) => setQuoteTitle(e.target.value)} placeholder="What was quoted? e.g. Kitchen repair" aria-label="Quote description" />
+          <input value={quoteTitle} onChange={(e) => setQuoteTitle(e.target.value)} placeholder="What was quoted? For example, Kitchen repair" aria-label="Quote description" />
           <button type="submit" className="ba-btn sm" disabled={working === "quote"}>Record quote</button>
         </form>
         {loading && !data ? <p className="ba-muted">Loading…</p> : !data?.quotes.length ? <p className="ba-muted">No quotes yet.</p> : (

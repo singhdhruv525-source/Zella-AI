@@ -54,7 +54,7 @@ function AnswerModal({ title, description, initial, askKind, submitLabel, onClos
         <div className="ba-form-grid">
           {askKind && (
             <>
-              <Field label="Title"><input value={form.title} onChange={set("title")} autoFocus placeholder="e.g. Accepted insurance" /></Field>
+              <Field label="Title"><input value={form.title} onChange={set("title")} autoFocus placeholder="For example, Accepted insurance" /></Field>
               <Field label="Type">
                 <select value={form.kind} onChange={set("kind")}>{KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
               </Field>

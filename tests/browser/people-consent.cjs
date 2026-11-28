@@ -107,7 +107,7 @@ const authorized = (perm) => sql(`select public.zella_is_authorized('${BIZ}', nu
     const givers = await cf.locator("select").nth(2).locator("option").allInnerTexts();
     check("consent can be given by the primary contact, not by a guardian without 'approve'", givers.length === 1 && /primary contact/.test(givers[0]), givers.join(" | "));
     await cf.locator("select").first().selectOption("photo_media");
-    await cf.getByPlaceholder("e.g. class photos only").fill("Class photos only");
+    await cf.getByPlaceholder("For example, class photos only").fill("Class photos only");
     await cf.getByRole("button", { name: "Record" }).click();
     await page.waitForSelector("[data-consent=active]");
     check("consent shows as given, with its scope", await page.isVisible("[data-consent=active] >> text=Class photos only"));

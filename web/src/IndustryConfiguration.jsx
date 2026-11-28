@@ -27,10 +27,10 @@ const TERM_ROWS = [
 ];
 
 const VOICE_FIELDS = [
-  ["caller_role", "Caller is called", "e.g. Patient"],
-  ["staff_role", "Staff is called", "e.g. Provider"],
-  ["booking_action", "A booking is called", "e.g. Appointment"],
-  ["primary_service", "Main service", "e.g. Treatment"],
+  ["caller_role", "Caller is called", "For example, Patient"],
+  ["staff_role", "Staff is called", "For example, Provider"],
+  ["booking_action", "A booking is called", "For example, Appointment"],
+  ["primary_service", "Main service", "For example, Treatment"],
 ];
 
 function toDraft(industry) {
@@ -414,7 +414,7 @@ export default function IndustryConfiguration() {
                   <input
                     value={newIndustry.name}
                     onChange={(e) => setNewIndustry({ ...newIndustry, name: e.target.value })}
-                    placeholder="e.g. Cleaning Services"
+                    placeholder="For example, Cleaning Services"
                     required
                   />
                 </label>

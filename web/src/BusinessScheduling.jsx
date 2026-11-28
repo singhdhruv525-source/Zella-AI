@@ -197,7 +197,7 @@ function ChecklistModal({ job, busy, onClose, onSave }) {
           </ul>
         ) : <p className="ba-muted">No items yet. Required items must be ticked before the job can be completed.</p>}
         <form className="ba-inline" onSubmit={(e) => { e.preventDefault(); if (label.trim()) { setItems((l) => [...l, { label: label.trim(), required: false, done: false }]); setLabel(""); } }}>
-          <Field label="Add an item"><input value={label} maxLength={120} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Photos of the finished work" /></Field>
+          <Field label="Add an item"><input value={label} maxLength={120} onChange={(e) => setLabel(e.target.value)} placeholder="For example, Photos of the finished work" /></Field>
           <button type="submit" className="ba-btn sm" disabled={!label.trim()}>Add</button>
         </form>
       </div>
@@ -229,7 +229,7 @@ function ReturnVisitModal({ job, tz, technicians, busy, onClose, onSave }) {
             {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </Field>
-        <Field label="What's left to do" full><input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Fit the part when it arrives" /></Field>
+        <Field label="What's left to do" full><input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="For example, Fit the part when it arrives" /></Field>
       </form>
     </Modal>
   );
@@ -328,7 +328,7 @@ function ResourceModal({ resource, busy, onClose, onSave }) {
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="submit" form="ba-resource" className="ba-btn primary" disabled={busy || !f.name.trim()}>{busy ? "Saving…" : "Save"}</button></>}>
       <form id="ba-resource" className="ba-modal-body ba-form-grid" onSubmit={(e) => { e.preventDefault(); if (f.name.trim() && !busy) onSave(f); }}>
-        <Field label="Name"><input value={f.name} maxLength={80} onChange={set("name")} placeholder="e.g. Treatment room 1" required /></Field>
+        <Field label="Name"><input value={f.name} maxLength={80} onChange={set("name")} placeholder="For example, Treatment room 1" required /></Field>
         <Field label="Kind"><select value={f.kind} onChange={set("kind")}>{RESOURCE_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
         <Field label="Holds at once" hint="1 for a chair or room; more for a boarding area or a class room."><input type="number" min={1} max={500} value={f.capacity} onChange={set("capacity")} /></Field>
         <Field label="Gap after each booking (minutes)" hint="Cleaning or turnover time."><input type="number" min={0} max={240} value={f.buffer_minutes} onChange={set("buffer_minutes")} /></Field>
@@ -350,7 +350,7 @@ function NeedsModal({ needs, busy, onClose, onSave }) {
       <div className="ba-modal-body">
         {rows.map((r, i) => (
           <div key={i} className="ba-form-grid">
-            <Field label="Service"><input value={r.service} maxLength={80} onChange={(e) => set(i, { service: e.target.value })} placeholder="e.g. color" /></Field>
+            <Field label="Service"><input value={r.service} maxLength={80} onChange={(e) => set(i, { service: e.target.value })} placeholder="For example, color" /></Field>
             <Field label="Needs"><select value={r.kind} onChange={(e) => set(i, { kind: e.target.value })}>{RESOURCE_KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
             <Field label="How many"><input type="number" min={1} max={10} value={r.quantity} onChange={(e) => set(i, { quantity: e.target.value })} /></Field>
             <button type="button" className="ba-link" onClick={() => setRows((x) => x.filter((_, n) => n !== i))}>Remove</button>
@@ -456,7 +456,7 @@ function PlanModal({ workspace, plan, staff, resources, person: initialPerson, b
       footer={<><button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
         <button type="submit" form="ba-plan" className="ba-btn primary" disabled={busy || !f.title.trim()}>{busy ? "Saving…" : "Save plan"}</button></>}>
       <form id="ba-plan" className="ba-modal-body ba-form-grid" onSubmit={submit}>
-        <Field label="Title"><input value={f.title} maxLength={120} onChange={set("title")} placeholder="e.g. Every other week clean" required /></Field>
+        <Field label="Title"><input value={f.title} maxLength={120} onChange={set("title")} placeholder="For example, Every other week clean" required /></Field>
         <Field label="Service (optional)" hint="Used to pick resources the service needs."><input value={f.service} maxLength={80} onChange={set("service")} /></Field>
         <PersonPicker businessId={workspace.id} label="Customer (optional)" value={person} onChange={setPerson} />
         <Field label="Repeats">

@@ -59,7 +59,7 @@ document.getElementById("zella-lead").addEventListener("submit", async (e) => {
     body: JSON.stringify({ key: "${key}", kind: "contact_form", ...fields, source: { page_url: location.href, referrer: document.referrer } }),
   }).catch(() => null);
   const out = res ? await res.json().catch(() => ({})) : {};
-  status.textContent = out.message || (out.ok ? "Thank you." : "We couldn't send your message. Please call us instead.");
+  status.textContent = out.message || (out.ok ? "Thank you." : "We couldn't send your message. Call us instead.");
   if (out.ok) form.reset();
 });
 </script>`;

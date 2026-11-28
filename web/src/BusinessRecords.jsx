@@ -668,7 +668,7 @@ export function RecordSettingsPage({ workspace, types, loaded = true, canManage,
   }
   return (
     <>
-      <PageHead crumb={`${groupLabel} / Customize records`} title="Customize records" sub="Rename what you track, change its statuses, and add the fields your team needs. Other businesses aren't affected.">
+      <PageHead crumb={`${groupLabel} / Customize records`} title="Customize records" sub="Rename what you track, change its statuses and add the fields your team needs. Other businesses aren't affected.">
         <button type="button" className="ba-btn primary" onClick={() => setEditing("new")}><Icon name="add" size="sm" /> Add a type of record</button>
       </PageHead>
       <section className="ba-panel">

@@ -37,8 +37,8 @@ export default function Unsubscribe() {
     <main className="cp-page">
       <section className="cp-card">
         {business && <div className="cp-brand"><span>{business}</span></div>}
-        {state === "invalid" && (<><div className="cp-icon">!</div><h1>This link isn't valid</h1><p>Please open the full link from your email, or reply to the email and ask to be removed.</p></>)}
-        {state === "unreachable" && (<><h1>We can't reach Zella Voice right now</h1><p>Your link looks fine. Please try again in a few minutes, or reply to the email and ask to be removed.</p><button type="button" className="owner-primary-button cp-button" onClick={() => window.location.reload()}>Try again</button></>)}
+        {state === "invalid" && (<><div className="cp-icon">!</div><h1>This link isn't valid</h1><p>Open the full link from your email, or reply to the email and ask to be removed.</p></>)}
+        {state === "unreachable" && (<><h1>We can't reach Zella Voice right now</h1><p>Your link looks fine. Try again in a few minutes, or reply to the email and ask to be removed.</p><button type="button" className="owner-primary-button cp-button" onClick={() => window.location.reload()}>Try again</button></>)}
         {state === "busy" && (<><h1>Stop marketing emails?</h1><p>This link was opened many times in a short while, so we can't show the business name right now. You can still unsubscribe.</p><button type="button" className="owner-primary-button cp-button" onClick={confirm}>Unsubscribe</button></>)}
         {state === "error" && (<><h1>We couldn't confirm that you're unsubscribed</h1><p>Try again, or reply to the email and ask to be removed.</p><button type="button" className="owner-primary-button cp-button" onClick={confirm}>Try again</button></>)}
         {(state === "ready" || state === "working") && (

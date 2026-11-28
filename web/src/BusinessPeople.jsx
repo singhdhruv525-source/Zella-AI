@@ -206,7 +206,7 @@ function RelationshipForm({ workspace, subject, rel, busy, onCancel, onSave }) {
         {PERMISSIONS.map(([k, label]) => <label key={k} className="ba-check"><input type="checkbox" checked={form.permissions.includes(k)} onChange={() => toggle(k)} /><span>{label}</span></label>)}
       </fieldset>
       <Field label="Until (optional)"><input type="date" min={today()} value={form.valid_until ?? ""} onChange={(e) => setForm((f) => ({ ...f, valid_until: e.target.value }))} /></Field>
-      <Field label="Note (optional)" full><input value={form.note ?? ""} maxLength={500} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="e.g. picks up on Fridays" /></Field>
+      <Field label="Note (optional)" full><input value={form.note ?? ""} maxLength={500} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="For example, picks up on Fridays" /></Field>
       {rel && <p className="ba-muted ba-small">Changing the person, the relationship or adding permissions means verifying them again.</p>}
       <div className="ba-form-actions">
         <button type="button" className="ba-btn" onClick={onCancel} disabled={busy}>Cancel</button>
@@ -253,9 +253,9 @@ function ConsentForm({ givers, busy, onCancel, onSave }) {
         )
           : <p className="ba-muted ba-small">Nobody here can give consent yet: link and verify someone allowed to approve.</p>}
       </Field>
-      <Field label="What exactly (optional)"><input value={f.scope} maxLength={300} onChange={set("scope")} placeholder="e.g. class photos only" /></Field>
+      <Field label="What exactly (optional)"><input value={f.scope} maxLength={300} onChange={set("scope")} placeholder="For example, class photos only" /></Field>
       <Field label="Until (optional)"><input type="date" min={today()} value={f.expires} onChange={set("expires")} /></Field>
-      <Field label="Evidence (optional)"><input value={f.evidence} maxLength={500} onChange={set("evidence")} placeholder="e.g. signed form, 6 Nov" /></Field>
+      <Field label="Evidence (optional)"><input value={f.evidence} maxLength={500} onChange={set("evidence")} placeholder="For example, signed form, 6 Nov" /></Field>
       <div className="ba-form-actions">
         <button type="button" className="ba-btn" onClick={onCancel} disabled={busy}>Cancel</button>
         <button type="submit" className="ba-btn primary" disabled={busy || !givenBy}>{busy ? "Saving…" : "Record"}</button>

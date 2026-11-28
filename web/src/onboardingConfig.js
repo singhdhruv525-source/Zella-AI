@@ -18,7 +18,7 @@ const GENERAL = {
   servicesHint: "What customers can ask about or book. Leave a price empty if your AI receptionist shouldn't quote it.",
   defaultLength: 30,
   details: [
-    f("service_area", "Area served", "text", { placeholder: "e.g. Austin and nearby towns" }),
+    f("service_area", "Area served", "text", { placeholder: "For example, Austin and nearby towns" }),
   ],
   faqPrompts: ["Do you take walk ins?", "Where can I park?", "What payment methods do you accept?"],
   capabilities: ["answer_questions", "answer_calls", "collect_customer_info", "take_messages", "book_appointments", "reschedule_appointments"],
@@ -37,8 +37,8 @@ const DINING = {
     f("seating_capacity", "Seats", "number", { required: true, min: 1, max: 5000 }),
     f("max_party_size", "Largest party your AI receptionist may book", "number", { required: true, min: 1, max: 100, hint: "Bigger groups are passed to the team." }),
     f("walk_ins", "Walk ins welcome", "yesno"),
-    f("large_party_deposit", "Deposit for large groups", "text", { placeholder: "e.g. $10 per person for 8 or more" }),
-    f("dietary_options", "Dietary options", "list", { placeholder: "e.g. vegetarian, vegan, gluten free" }),
+    f("large_party_deposit", "Deposit for large groups", "text", { placeholder: "For example, $10 per person for 8 or more" }),
+    f("dietary_options", "Dietary options", "list", { placeholder: "For example, vegetarian, vegan, gluten free" }),
     f("takeaway_delivery", "Takeout or delivery", "select", { options: [["none", "Neither"], ["takeaway", "Takeout"], ["delivery", "Delivery"], ["both", "Both"]] }),
   ],
   faqPrompts: ["Do you have vegetarian options?", "Can I bring my own cake?", "Is there parking nearby?", "Do you host private events?"],
@@ -56,9 +56,9 @@ const LODGING = {
     f("room_count", "Rooms", "number", { required: true, min: 1, max: 5000 }),
     f("check_in_time", "Check in from", "time", { required: true }),
     f("check_out_time", "Check out by", "time", { required: true }),
-    f("parking", "Parking", "text", { placeholder: "e.g. Free on site, valet $25 a night" }),
+    f("parking", "Parking", "text", { placeholder: "For example, Free on site, valet $25 a night" }),
     f("pets_allowed", "Pets allowed", "yesno"),
-    f("amenities", "Amenities", "list", { placeholder: "e.g. pool, gym, restaurant" }),
+    f("amenities", "Amenities", "list", { placeholder: "For example, pool, gym, restaurant" }),
   ],
   faqPrompts: ["Can I check in early?", "Is breakfast included?", "Do you have airport transfers?"],
 };
@@ -73,8 +73,8 @@ const CLINIC = {
   defaultLength: 30,
   details: [
     f("new_patients", "Accepting new patients", "yesno", { required: true }),
-    f("insurance_accepted", "Insurance accepted", "list", { placeholder: "e.g. Delta Dental, Cigna, self pay" }),
-    f("emergency_policy", "Urgent or emergency cases", "text", { placeholder: "e.g. Same day slots held for emergencies; after hours call 911" }),
+    f("insurance_accepted", "Insurance accepted", "list", { placeholder: "For example, Delta Dental, Cigna, self pay" }),
+    f("emergency_policy", "Urgent or emergency cases", "text", { placeholder: "For example, Same day slots held for emergencies; after hours call 911" }),
     f("arrival_minutes", "Ask new patients to arrive early (minutes)", "number", { min: 0, max: 60 }),
   ],
   faqPrompts: ["Do you accept my insurance?", "Do you see children?", "What should I bring to my first visit?"],
@@ -84,9 +84,9 @@ const VET = {
   ...CLINIC,
   kind: "vet",
   details: [
-    f("species_treated", "Animals treated", "list", { required: true, placeholder: "e.g. dogs, cats, rabbits" }),
+    f("species_treated", "Animals treated", "list", { required: true, placeholder: "For example, dogs, cats, rabbits" }),
     f("new_patients", "Accepting new patients", "yesno", { required: true }),
-    f("emergency_policy", "Emergencies", "text", { placeholder: "e.g. After hours: nearest emergency vet and number" }),
+    f("emergency_policy", "Emergencies", "text", { placeholder: "For example, After hours: nearest emergency vet and number" }),
   ],
   faqPrompts: ["Do you treat exotic pets?", "Do you offer vaccinations?", "Do you board pets?"],
 };
@@ -100,9 +100,9 @@ const FIELD = {
   defaultLength: 60,
   arrivalWindow: 120,   // callers are offered "between 8 and 10" instead of an exact minute (sql/zella_arrival_windows.sql)
   details: [
-    f("service_area", "Area served", "text", { required: true, placeholder: "e.g. Travis and Williamson County" }),
+    f("service_area", "Area served", "text", { required: true, placeholder: "For example, Travis and Williamson County" }),
     f("emergency_service", "24/7 emergency callouts", "yesno", { required: true }),
-    f("call_out_fee", "Callout or diagnostic fee", "text", { placeholder: "e.g. $89, waived if the job goes ahead" }),
+    f("call_out_fee", "Callout or diagnostic fee", "text", { placeholder: "For example, $89, waived if the job goes ahead" }),
     f("free_estimates", "Free estimates", "yesno"),
     f("license_number", "License number", "text", { placeholder: "Shown to customers who ask" }),
   ],
@@ -118,7 +118,7 @@ const BEAUTY = {
   defaultLength: 45,
   details: [
     f("walk_ins", "Walk ins welcome", "yesno"),
-    f("deposit_policy", "Deposit", "text", { placeholder: "e.g. $20 deposit for color appointments" }),
+    f("deposit_policy", "Deposit", "text", { placeholder: "For example, $20 deposit for color appointments" }),
     f("cancellation_notice_hours", "Cancellation notice needed (hours)", "number", { min: 0, max: 168 }),
   ],
   faqPrompts: ["How long does a color take?", "Do you do bridal packages?", "Which products do you use?"],
@@ -131,8 +131,8 @@ const FITNESS = {
   servicesHint: "Classes, sessions and memberships. Prices are optional.",
   defaultLength: 60,
   details: [
-    f("membership_types", "Memberships", "list", { placeholder: "e.g. monthly, pass for 10 classes, drop in" }),
-    f("trial_offer", "Free trial", "text", { placeholder: "e.g. First class free" }),
+    f("membership_types", "Memberships", "list", { placeholder: "For example, monthly, pass for 10 classes, drop in" }),
+    f("trial_offer", "Free trial", "text", { placeholder: "For example, First class free" }),
     f("cancellation_notice_hours", "Cancellation notice needed (hours)", "number", { min: 0, max: 168 }),
   ],
   faqPrompts: ["Do you have a free trial?", "Can I freeze my membership?", "Are there showers?"],
@@ -146,8 +146,8 @@ const PROPERTY = {
   servicesHint: "What the business offers: sales, rentals, valuations, management.",
   defaultLength: 45,
   details: [
-    f("areas_covered", "Areas covered", "list", { required: true, placeholder: "e.g. Downtown, Riverside, Eastwood" }),
-    f("property_types", "Property types", "list", { placeholder: "e.g. houses, condos, commercial" }),
+    f("areas_covered", "Areas covered", "list", { required: true, placeholder: "For example, Downtown, Riverside, Eastwood" }),
+    f("property_types", "Property types", "list", { placeholder: "For example, houses, condos, commercial" }),
     f("license_number", "License or registration number", "text"),
   ],
   faqPrompts: ["Can I book a viewing this weekend?", "How do I get a valuation?", "What are your fees?"],
@@ -160,7 +160,7 @@ const PROPERTY_MGMT = {
   details: [
     f("areas_covered", "Areas covered", "list", { required: true }),
     f("units_managed", "Units managed", "number", { min: 0, max: 100000 }),
-    f("maintenance_emergency", "Emergency maintenance line", "text", { placeholder: "e.g. 24/7 on (555) 010 0200" }),
+    f("maintenance_emergency", "Emergency maintenance line", "text", { placeholder: "For example, 24/7 on (555) 010 0200" }),
   ],
   faqPrompts: ["How do I report a repair?", "When is rent due?", "Are pets allowed?"],
 };
@@ -173,7 +173,7 @@ const ADVISORY = {
   servicesHint: "Practice areas or services. Fees are optional.",
   defaultLength: 60,
   details: [
-    f("practice_areas", "Practice areas", "list", { required: true, placeholder: "e.g. family law, estate planning" }),
+    f("practice_areas", "Practice areas", "list", { required: true, placeholder: "For example, family law, estate planning" }),
     f("free_consultation", "Free first consultation", "yesno"),
     f("license_number", "License or registration number", "text"),
   ],
@@ -188,7 +188,7 @@ const EDUCATION = {
   defaultLength: 60,
   details: [
     f("subjects", "Subjects or courses", "list", { required: true }),
-    f("age_groups", "Age groups", "text", { placeholder: "e.g. 6 to 16, adults" }),
+    f("age_groups", "Age groups", "text", { placeholder: "For example, 6 to 16, adults" }),
     f("online_sessions", "Online sessions", "yesno"),
   ],
   faqPrompts: ["Do you offer a trial lesson?", "Are sessions online or in person?"],
@@ -201,7 +201,7 @@ const CHILDCARE = {
   servicesHint: "Programs and age groups (infant, toddler, PreK, after school).",
   defaultLength: 30,
   details: [
-    f("age_range", "Ages cared for", "text", { required: true, placeholder: "e.g. 6 weeks to 5 years" }),
+    f("age_range", "Ages cared for", "text", { required: true, placeholder: "For example, 6 weeks to 5 years" }),
     f("capacity", "Places", "number", { min: 1, max: 2000 }),
     f("license_number", "Childcare license number", "text", { required: true }),
     f("waitlist_open", "Waitlist open", "yesno"),
@@ -216,7 +216,7 @@ const AUTOMOTIVE = {
   servicesHint: "Repairs and services, with usual time and price where fixed.",
   defaultLength: 60,
   details: [
-    f("makes_serviced", "Makes serviced", "list", { placeholder: "e.g. all makes, Toyota, Honda" }),
+    f("makes_serviced", "Makes serviced", "list", { placeholder: "For example, all makes, Toyota, Honda" }),
     f("loaner_cars", "Courtesy or loaner cars", "yesno"),
     f("pickup_dropoff", "pickup and drop off", "yesno"),
   ],
@@ -230,7 +230,7 @@ const EVENTS = {
   servicesHint: "Packages, with what's included and the starting price.",
   defaultLength: 60,
   details: [
-    f("event_types", "Event types", "list", { required: true, placeholder: "e.g. weddings, portraits, corporate" }),
+    f("event_types", "Event types", "list", { required: true, placeholder: "For example, weddings, portraits, corporate" }),
     f("travel_area", "Will travel to", "text"),
     f("deposit_policy", "Deposit to secure a date", "text"),
   ],
@@ -246,8 +246,8 @@ const ECOMMERCE = {
   servicesHint: "Product ranges your AI receptionist can talk about.",
   details: [
     f("returns_window_days", "Returns accepted for (days)", "number", { required: true, min: 0, max: 365 }),
-    f("shipping_regions", "Ships to", "list", { required: true, placeholder: "e.g. United States, Canada" }),
-    f("order_lookup", "How customers check an order", "text", { placeholder: "e.g. Order page with order number and email" }),
+    f("shipping_regions", "Ships to", "list", { required: true, placeholder: "For example, United States, Canada" }),
+    f("order_lookup", "How customers check an order", "text", { placeholder: "For example, Order page with order number and email" }),
   ],
   faqPrompts: ["Where is my order?", "How do I return something?", "Do you ship internationally?"],
   capabilities: ["answer_questions", "answer_calls", "handle_sms", "collect_customer_info", "take_messages"],

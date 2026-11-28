@@ -185,7 +185,7 @@ function Journey({ api, email }) {
   }
 
   if (state.business_available === false) {
-    return <Frame state={state} title="This workspace is paused"><p className="zob-lead">Please contact Zella Voice support to carry on setting up {state.business_name}.</p></Frame>;
+    return <Frame state={state} title="This workspace is paused"><p className="zob-lead">Contact Zella Voice support to carry on setting up {state.business_name}.</p></Frame>;
   }
 
   const step = STEP_KEYS.includes(view) ? view : resumeStep(state);

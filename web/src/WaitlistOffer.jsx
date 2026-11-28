@@ -22,7 +22,7 @@ const longDay = (value, tz) => fmt(value, tz, { weekday: "long", month: "long", 
 const clock = (value, tz) => fmt(value, tz, { hour: "numeric", minute: "2-digit" });
 
 const PROBLEMS = {
-  invalid: { title: "This link isn't valid", body: "Please open the full link from your message, or contact the business." },
+  invalid: { title: "This link isn't valid", body: "Open the full link from your message, or contact the business." },
   gone: { title: "This time is no longer available", body: "It may have been taken, or the offer ran out. You're still on the waiting list, and we'll text you if another time opens." },
   booked: { title: "You're already booked", body: "This time has already been booked for you." },
 };
