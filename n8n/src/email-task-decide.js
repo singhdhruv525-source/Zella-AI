@@ -8,6 +8,11 @@ const fail = (reason) => ({ json: { task_id: plan.task_id, finish: { rpc: 'zella
 if (!(status >= 200 && status < 300)) return fail('The database call zella_prepare_email returned ' + status + '.');
 if (b.allowed !== true) return skip(String(b.reason || 'not_allowed').slice(0, 60));
 if (b.live === true && !b.from) return fail('sender_address_not_set');
+// Pacing (owner, 27 Nov 2026): a connected mailbox sends at most 20 emails a minute. The database says when the next
+// one may go (pace_until); this follow up waits until then, its try given back (zella_business_email_paced).
+if (typeof b.pace_until === 'string' && b.pace_until) {
+  return { json: { task_id: plan.task_id, finish: { rpc: 'zella_business_email_paced', body: { p_item: 'task', p_id: plan.task_id, p_until: b.pace_until.slice(0, 40) } } } };
+}
 // Who sends (sql/zella_business_email_send.sql): the business's verified domain or the fallback, both through Resend,
 // or its connected mailbox through Gmail or Microsoft Graph. Anything else is Resend.
 const transport = b.transport === 'gmail' || b.transport === 'outlook' ? b.transport : 'resend';

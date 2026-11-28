@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./supabase";
-import { reasonWords, recordRows, senderSummary } from "./businessEmailSetup";
+import { linkSummary, reasonWords, recordRows, senderSummary } from "./businessEmailSetup";
 
 // The business's own email address, in the Create Business wizard (docs/ARCHITECTURE.md §14.4). The business adds the
 // DNS records itself, step by step; Zella Voice never holds its domain or website login. Each action takes effect on
@@ -19,11 +19,13 @@ export default function BusinessEmailSetup({ businessId, Badge }) {
   const [state, setState] = useState({ phase: "loading", status: null, error: "" });
   const [route, setRoute] = useState("");          // the way the admin chose on screen: "domain" or "mailbox"
   const [address, setAddress] = useState("");
-  const [busy, setBusy] = useState("");            // "start", "verify" or "disconnect" while the server works
+  const [busy, setBusy] = useState("");            // "start", "verify", "disconnect", "link" or "remove" while the server works
   const [problem, setProblem] = useState("");
   const [notice, setNotice] = useState("");
   const [asking, setAsking] = useState(false);     // the disconnect confirmation is open
   const [copied, setCopied] = useState("");
+  const [removing, setRemoving] = useState(false);  // the "remove the pending domain" confirmation is open
+  const [removeWhy, setRemoveWhy] = useState("");
 
   const load = useCallback(async () => {
     if (!businessId) return;
@@ -151,7 +153,40 @@ export default function BusinessEmailSetup({ businessId, Badge }) {
       )}
 
       {route === "mailbox" && (
-        <p className="wiz-hint">The business signs in to its own Gmail or Outlook itself, from Settings, SMS, email and messages, Business email address, once its owner has accepted the invitation. Zella Voice never asks for that password. Until then, customer emails use Zella Voice's address with replies going to the business.</p>
+        <>
+          <p className="wiz-hint">The business signs in to its own Gmail or Outlook itself, from Settings, SMS, email and messages, Business email address, once its owner has accepted the invitation. Zella Voice never asks for that password and never gets access to the mailbox. Until then, customer emails use Zella Voice's address with replies going to the business.</p>
+          <p className="wiz-hint">You can also email the owner a Connect your mailbox link. It opens that page for this business, works once, for 7 days, and only for the owner signed in.</p>
+          {linkSummary(status.mailbox_link) && <p className="wiz-hint" role="status">{linkSummary(status.mailbox_link).text}</p>}
+          <div className="wiz-email-actions">
+            <button type="button" className="owner-secondary-button" disabled={!!busy || (status.route === "mailbox" && status.mailbox_status === "connected")}
+              onClick={() => run("link", "mailbox_link_send", {}, (a) => `Link queued for ${a.to}. It works once, until ${a.expires_on}.${a.owner_invited ? " The owner accepts the invitation first." : ""}${a.email_live ? "" : " Zella Voice emails are in test mode right now, so it isn't sent yet."}`)}>
+              {busy === "link" ? "Queuing the link…" : status.mailbox_link?.status === "open" ? "Send a new link" : "Email the owner a link"}
+            </button>
+          </div>
+        </>
+      )}
+
+      {status.can_remove_pending && (
+        removing ? (
+          <div className="wiz-note" role="alertdialog" aria-label="Remove the pending domain">
+            <p>Remove {status.domain} from this business now? It isn't verified, so customer emails already come from Zella Voice's address with the business name, and that doesn't change. The business is told, and the domain is free for whoever owns it.</p>
+            <label className="owner-field">
+              <span>Reason (kept in the audit log)</span>
+              <input type="text" value={removeWhy} maxLength={300} autoComplete="off" placeholder="Another business proved it owns this domain" onChange={(e) => setRemoveWhy(e.target.value)} />
+            </label>
+            <div className="wiz-email-actions">
+              <button type="button" className="bd-danger-button" disabled={!!busy || removeWhy.trim().length < 3}
+                onClick={() => run("remove", "domain_remove_pending", { reason: removeWhy.trim() }, (a) => (a.provider_cleanup === "removed" ? "Removed. The email provider removed the domain too." : "Removed. The email provider removes the domain shortly.")).then(() => { setRemoving(false); setRemoveWhy(""); })}>
+                {busy === "remove" ? "Removing…" : "Remove it now"}
+              </button>
+              <button type="button" className="owner-secondary-button" disabled={!!busy} onClick={() => setRemoving(false)}>Keep it</button>
+            </div>
+          </div>
+        ) : (
+          <div className="wiz-email-actions">
+            <button type="button" className="owner-secondary-button" disabled={!!busy} onClick={() => setRemoving(true)}>Remove this pending domain now</button>
+          </div>
+        )
       )}
 
       {notice && <p className="wiz-hint" role="status">{notice}</p>}

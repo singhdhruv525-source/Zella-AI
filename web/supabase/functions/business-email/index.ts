@@ -14,7 +14,19 @@
 //        here: the code and state go on to the app in the address fragment (never sent to a server)
 //   POST { action: "mailbox_finish", code, state }           the SAME person, signed in: the stored value is used up once,
 //        the code is exchanged for a refresh token, which the database stores in Vault; a domain set up before is
-//        removed at Resend
+//        removed at Resend; the mailbox's type (Workspace or free Gmail, Microsoft 365 or Outlook.com) is read from
+//        the provider's sign in, for its daily cap (owner, 27 Nov 2026)
+//   The owner's "Connect your mailbox" link (owner, 27 Nov 2026; sql/zella_business_email_mailbox_link.sql):
+//   POST { action: "mailbox_link_send", business_id }       a Zella Voice admin with businesses.manage (Create
+//        Business): a one time token is made here, the database keeps its hash bound to the business and its owner (7
+//        days), and email S8 with the link is queued in the platform outbox (held as test mode while email_live is off)
+//   POST { action: "mailbox_link_open", token }              the owner, signed in: the link is used up once and answers
+//        the business, whose Settings page then offers the usual Connect Gmail and Connect Outlook
+//   Pending domains (owner, 27 Nov 2026; sql/zella_business_email_pending_domains.sql):
+//   POST { action: "domain_remove_pending", business_id, reason }  a Zella Voice admin with businesses.manage removes
+//        an unverified domain at once; it is removed at Resend straight away (or later by the queue)
+//   POST { action: "domain_removals" } + X-Zella-Secret       the database's daily job (no person): the Resend domains
+//        it queued are removed (DELETE /domains/{id}), each reported back with its claim token
 // Thin adapter (ARC-3): it authenticates, asks the database, calls Resend once or twice with a time limit, reports
 // to the database and answers in short names. Resend's own error text, the key and any token never leave it.
 // verify_jwt is off (config.toml): the provider's redirect carries no Supabase sign in. Every POST is checked through Auth.
@@ -22,8 +34,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { asObject, readJsonLimited } from "../_shared/body.ts";
 import { withCors } from "../_shared/cors.ts";
 import { checkLimits, idKey, type Limit, TOO_MANY_ATTEMPTS } from "../_shared/rate_limit.ts";
-import { alreadyAdded, domainStatus, findDomain, readDomain, reason, RESEND, UUID } from "./logic.ts";
-import { accountEmail, MAIL, type Mailbox, MAILBOXES, mailAuthorizeUrl, mailTokenForm, newNonce, nonceHash, problem, signMailState, STATE_PROVIDER, STATE_SECONDS, verifyMailState } from "./oauth.ts";
+import { alreadyAdded, domainStatus, findDomain, LINK_TOKEN, mailboxLinkPath, maskEmail, newLinkToken, readDomain, reason, removalOk, RESEND, tokenHash, UUID } from "./logic.ts";
+import { accountEmail, MAIL, type Mailbox, MAILBOXES, mailAuthorizeUrl, mailboxKind, mailTokenForm, newNonce, nonceHash, problem, signMailState, STATE_PROVIDER, STATE_SECONDS, verifyMailState } from "./oauth.ts";
+// @ts-ignore: plain JavaScript module shared with the web app (the same catalogue the admin preview shows)
+import { renderEmail } from "../_shared/businessEmails.js";
 
 const json = (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -139,7 +153,8 @@ async function mailbox(req: Request, body: Record<string, unknown> | null, base:
   if (!okExchange || typeof t.refresh_token !== "string") return json({ ok: false, error: okExchange ? "no_refresh_token" : problem(t.error ?? "token_exchange_failed") }, 400);
   const account = accountEmail(t.id_token);
   if (!account) return json({ ok: false, error: "no_account_email" }, 400);
-  const saved = await rpc(base, server, "zella_business_email_mailbox_saved", { p_business_id: s.b, p_actor: s.u, p_provider: s.p, p_account_email: account, p_refresh_token: t.refresh_token });
+  const saved = await rpc(base, server, "zella_business_email_mailbox_saved", { p_business_id: s.b, p_actor: s.u, p_provider: s.p, p_account_email: account,
+    p_refresh_token: t.refresh_token, p_mailbox_kind: mailboxKind(s.p, t.id_token) });
   if (!saved) return json({ ok: false, error: "try_again" }, 502);
   if (saved.ok !== true) return json({ ok: false, error: reason(saved.reason) }, saved.reason === "NOT_ALLOWED" ? 403 : 400);
   // a domain this business set up before leaves Zella Voice's Resend account (best effort)
@@ -158,6 +173,105 @@ async function rpcValue(base: string, server: string, name: string, body: unknow
   } catch (error) { console.error("database call", name, error instanceof Error ? error.name : "unknown"); return null; }
 }
 
+// Remove claimed Resend domains (the database's queue, sql/zella_business_email_pending_domains.sql): one DELETE each,
+// each reported back with its claim token. Answers how many were removed and how many wait for a later try.
+async function removeClaimed(base: string, server: string, key: string, claimed: unknown): Promise<{ removed: number; waiting: number }> {
+  const out = { removed: 0, waiting: 0 };
+  for (const c of Array.isArray(claimed) ? claimed : []) {
+    if (!c || typeof c !== "object") continue;
+    const x = c as Record<string, unknown>;
+    if (!UUID.test(String(x.id)) || !UUID.test(String(x.claim_token)) || !/^[A-Za-z0-9_-]{1,100}$/.test(String(x.resend_domain_id))) continue;
+    const d = await resend(key, "DELETE", `/domains/${x.resend_domain_id}`);
+    const ok = removalOk(d.status);
+    await rpcValue(base, server, "zella_business_email_domain_removal_done", { p_id: x.id, p_claim_token: x.claim_token, p_ok: ok, p_http_status: d.status || null });
+    if (ok) out.removed++; else out.waiting++;
+  }
+  return out;
+}
+
+// The database's daily job wakes this (zella_business_email_kick_removals) with the secret it keeps in Vault; the
+// database checks it (zella_business_email_jobs_check), so no secret lives here. No person, no sign in.
+export const JOBS_LIMIT = { max: 30, seconds: 60 };
+async function removals(req: Request, base: string, server: string): Promise<Response> {
+  const secret = (req.headers.get("x-zella-secret") ?? "").slice(0, 200);
+  if (!secret) return json({ ok: false, error: "unauthorized" }, 401);
+  const checked = await rpcValue(base, server, "zella_business_email_jobs_check", { p_secret: secret });
+  if (checked === null) return json({ ok: false, error: "try_again" }, 502);
+  if (checked !== true) return json({ ok: false, error: "unauthorized" }, 401);
+  const limited = await limit(base, server, ["business-email:jobs", JOBS_LIMIT.max, JOBS_LIMIT.seconds]);
+  if (limited) return limited;
+  const key = env("RESEND_DOMAINS_API_KEY");
+  if (!key) return json({ ok: false, error: "provider_not_configured" }, 503);   // nothing claimed: the queue keeps them
+  const claimed = await rpcValue(base, server, "zella_business_email_domain_removals_claim", { p_limit: 10, p_id: null });
+  if (claimed === null) return json({ ok: false, error: "try_again" }, 502);
+  const r = await removeClaimed(base, server, key, claimed);
+  console.log(JSON.stringify({ business_email_removals: r }));   // counts only
+  return json({ ok: true, ...r }, 200);
+}
+
+// The admin's "Connect your mailbox" link and removal of a pending domain, and the owner opening the link.
+async function adminAndLink(req: Request, body: Record<string, unknown>, base: string, server: string, anon: string): Promise<Response> {
+  const action = body.action;
+  const biz = typeof body.business_id === "string" ? body.business_id : "";
+  const token = typeof body.token === "string" ? body.token : "";
+  const why = typeof body.reason === "string" ? body.reason.trim() : "";
+  if (action === "mailbox_link_open" ? !LINK_TOKEN.test(token) : !UUID.test(biz)) return json({ ok: false, error: "bad_request" }, 400);
+  if (action === "domain_remove_pending" && (why.length < 3 || why.length > 300)) return json({ ok: false, error: "reason_required" }, 400);
+
+  const who = await signedIn(req, base, anon, server);
+  if (!who.ok) return who.res;
+  const mine = await limit(base, server, [`business-email:user:${who.id}`, USER_LIMIT.max, USER_LIMIT.seconds]);
+  if (mine) return mine;
+
+  if (action === "mailbox_link_open") {
+    const r = await rpc(base, server, "zella_business_email_mailbox_link_redeem", { p_token_hash: await tokenHash(token), p_actor: who.id });
+    if (!r) return json({ ok: false, error: "try_again" }, 502);
+    if (r.ok !== true) return json({ ok: false, error: reason(r.reason) }, r.reason === "MAILBOX_LINK_NOT_YOURS" || r.reason === "NOT_OWNER" ? 403 : 400);
+    return json({ ok: true, business_id: r.business_id, business_name: r.business_name }, 200);
+  }
+
+  // both admin actions: a Zella Voice admin with businesses.manage, asked of the database before anything else
+  const can = await rpcValue(base, server, "zella_business_email_platform_admin", { p_business_id: biz, p_actor: who.id });
+  if (can === null) return json({ ok: false, error: "try_again" }, 502);
+  if (can !== true) return json({ ok: false, error: "not_allowed" }, 403);
+  const theirs = await limit(base, server, [`business-email:business:${idKey(biz)}`, BUSINESS_LIMIT.max, BUSINESS_LIMIT.seconds]);
+  if (theirs) return theirs;
+
+  if (action === "domain_remove_pending") {
+    const r = await rpc(base, server, "zella_business_email_domain_remove_pending", { p_business_id: biz, p_actor: who.id, p_reason: why });
+    if (!r) return json({ ok: false, error: "try_again" }, 502);
+    if (r.ok !== true) return json({ ok: false, error: reason(r.reason) }, r.reason === "NOT_ALLOWED" ? 403 : 409);
+    // removed from the business now; at Resend straight away when possible, otherwise the queue keeps it
+    let cleanup = "queued";
+    const key = env("RESEND_DOMAINS_API_KEY");
+    if (key && typeof r.removal_id === "string" && UUID.test(r.removal_id)) {
+      const claimed = await rpcValue(base, server, "zella_business_email_domain_removals_claim", { p_limit: 1, p_id: r.removal_id });
+      const done = claimed === null ? null : await removeClaimed(base, server, key, claimed);
+      cleanup = done && done.removed === 1 ? "removed" : "queued";
+    } else if (!r.removal_id) cleanup = "none";
+    return json({ ok: true, provider_cleanup: cleanup }, 200);
+  }
+
+  // mailbox_link_send
+  const app = env("ZELLA_APP_URL").replace(/\/+$/, "");
+  if (!/^https:\/\/[^\s/]+/.test(app)) return json({ ok: false, error: "not_configured" }, 503);
+  const t = newLinkToken();
+  const r = await rpc(base, server, "zella_business_email_mailbox_link_issue", { p_business_id: biz, p_actor: who.id, p_token_hash: await tokenHash(t) });
+  if (!r) return json({ ok: false, error: "try_again" }, 502);
+  if (r.ok !== true) return json({ ok: false, error: reason(r.reason) }, r.reason === "NOT_ALLOWED" ? 403 : 409);
+  let m: { subject: string; html: string; text: string };
+  try {
+    // strict: a fact the email needs and the database didn't give stops it, never a made up value
+    m = renderEmail("S8", { business: String(r.business_name ?? ""), role: "owner", appUrl: app, linkPath: mailboxLinkPath(biz, t),
+      linkExpires: String(r.expires_on ?? ""), ownerInvited: r.owner_invited === true } as never, { strict: true });
+  } catch (error) { console.error("render S8", error instanceof Error ? error.message.split(":")[0] : "unknown"); return json({ ok: false, error: "email_not_queued" }, 502); }
+  const queued = await rpcValue(base, server, "zella_queue_platform_email", { p_business: biz, p_code: "S8", p_dedupe_key: `email:S8:${r.link_id}:1`, p_to: r.to,
+    p_subject: m.subject, p_html: m.html, p_text: m.text, p_mandatory: true, p_user: r.owner_id, p_cc: [] });
+  // the link exists but its email didn't queue: the admin sends a new one (which replaces it)
+  if (typeof queued !== "string" || !UUID.test(queued)) return json({ ok: false, error: "email_not_queued" }, 502);
+  return json({ ok: true, to: maskEmail(r.to), expires_on: r.expires_on, email_live: r.email_live === true, owner_invited: r.owner_invited === true }, 200);
+}
+
 export const handle = withCors(async (req: Request): Promise<Response> => {
   const base = env("SUPABASE_URL"), server = env("ZELLA_SERVER_SECRET_KEY"), anon = env("SUPABASE_ANON_KEY");
   if (!base || !server || !anon) return json({ ok: false, error: "not_configured" }, 503);
@@ -166,7 +280,9 @@ export const handle = withCors(async (req: Request): Promise<Response> => {
   const read = await readJsonLimited(req, 8_000);   // SEC-12
   if (!read.ok) return json({ ok: false, error: read.error }, read.error === "too_large" ? 413 : 400);
   const body = asObject(read.value);
+  if (body?.action === "domain_removals") return removals(req, base, server);
   if (body?.action === "mailbox_start" || body?.action === "mailbox_finish") return mailbox(req, body, base, server, anon);
+  if (body?.action === "mailbox_link_send" || body?.action === "mailbox_link_open" || body?.action === "domain_remove_pending") return adminAndLink(req, body, base, server, anon);
   const action = body?.action, biz = typeof body?.business_id === "string" ? body.business_id : "";
   if (!body || !["domain_start", "domain_verify", "disconnect"].includes(String(action)) || !UUID.test(biz)) return json({ ok: false, error: "bad_request" }, 400);
   const address = typeof body.address === "string" ? body.address.trim() : "";

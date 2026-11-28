@@ -59,6 +59,31 @@ export async function verifyMailState(secret: string, token: string, now = Date.
   } catch { return null; }
 }
 
+// The mailbox's type, from the provider's own sign in (owner, 27 Nov 2026: the daily cap is 80% of that type's limit;
+// a type that can't be determined gets the provider's lowest cap). The ID token comes straight from the provider's
+// token endpoint over TLS, so its claims are read, not verified again. Google: a Workspace account carries "hd" (its
+// domain); a gmail.com address is free Gmail. Microsoft: a personal account (Outlook.com) signs in to Microsoft's
+// consumer tenant; any other tenant is Microsoft 365. Anything else: null (not known).
+export const MICROSOFT_CONSUMER_TENANT = "9188040d-6c67-4c5b-b112-36a304b66dad";
+export function idClaims(idToken: unknown): Record<string, unknown> | null {
+  if (typeof idToken !== "string" || idToken.length > 16_000) return null;
+  try {
+    const c = JSON.parse(new TextDecoder().decode(fromB64url(idToken.split(".")[1] ?? "")));
+    return c && typeof c === "object" && !Array.isArray(c) ? c as Record<string, unknown> : null;
+  } catch { return null; }
+}
+export function mailboxKind(p: Mailbox, idToken: unknown): "personal" | "work" | null {
+  const c = idClaims(idToken);
+  if (!c) return null;
+  if (p === "gmail") {
+    if (typeof c.hd === "string" && /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/i.test(c.hd)) return "work";
+    return typeof c.email === "string" && /@(gmail|googlemail)\.com$/i.test(c.email) ? "personal" : null;
+  }
+  const tid = typeof c.tid === "string" ? c.tid.toLowerCase() : "";
+  if (tid === MICROSOFT_CONSUMER_TENANT) return "personal";
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(tid) ? "work" : null;
+}
+
 export function mailAuthorizeUrl(p: Mailbox, clientId: string, redirectUri: string, state: string, loginHint?: string): string {
   const c = MAIL[p];
   return `${c.authorize}?${new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "code", scope: c.scope, state, ...c.extra,

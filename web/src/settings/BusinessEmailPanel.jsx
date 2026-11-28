@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { Banner, Card, Confirm, Facts, Field, LoadState, Pill, Table, useAsync } from "./SettingsKit";
-import { mailboxReturn, reasonWords, recordRows, senderSummary } from "../businessEmailSetup";
+import { mailboxLimits, mailboxReturn, reasonWords, recordRows, senderSummary } from "../businessEmailSetup";
 
 // Settings > SMS, email and messages > Business email address (docs/ARCHITECTURE.md §14.4). The business's customer
 // emails come from its own address: a connected Gmail or Outlook mailbox (only the business's owner or an admin signs
@@ -24,6 +24,18 @@ function startMailboxFinish() {
   if (!code || !state) return null;
   window.history.replaceState(null, "", window.location.pathname + window.location.search);   // used once; kept out of history
   return callEmail({ action: "mailbox_finish", code, state });
+}
+
+// The owner's "Connect your mailbox" link (an email from the Zella Voice team, owner, 27 Nov 2026): its one time token
+// arrives in the address fragment. It is used up once, here, with the owner's own sign in; business-email checks the
+// link is theirs and that they are still the owner, then this page offers the usual Connect Gmail and Connect Outlook.
+let opening;
+function startLinkOpen() {
+  const frag = new URLSearchParams(typeof window === "undefined" ? "" : window.location.hash.slice(1));
+  const token = frag.get("mailbox_link");
+  if (!token) return null;
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);   // used once; kept out of history
+  return callEmail({ action: "mailbox_link_open", token: token.slice(0, 100) });
 }
 
 const BOX = { gmail: "Gmail", outlook: "Outlook" };
@@ -58,6 +70,23 @@ export function BusinessEmailPanel({ w }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    opening ??= startLinkOpen();
+    if (!opening) return;
+    let live = true;
+    setBusy("link");
+    opening.then((answer) => {
+      if (!live) return;
+      opening = undefined;
+      setBusy("");
+      if (!answer?.ok) return setMessage({ tone: "error", text: reasonWords(answer?.error) });
+      setMessage(answer.business_id === w.id
+        ? { tone: "success", text: "Your link is open. Choose Connect Gmail or Connect Outlook below, then sign in with Google or Microsoft on their own page. Zella Voice never sees your password." }
+        : { tone: "warning", text: `This link is for ${answer.business_name || "another business"}. Switch to it, then connect its mailbox here in Settings.` });
+    });
+    return () => { live = false; };
+  }, [w.id]);
+
   async function connect(provider) {
     setMessage(null); setBusy(provider);
     const answer = await callEmail({ action: "mailbox_start", business_id: w.id, provider });
@@ -89,15 +118,16 @@ export function BusinessEmailPanel({ w }) {
             <Facts rows={[["Now", summary.text], ["Status", <Pill key="s" tone={TONE[summary.tone]}>{summary.badge}</Pill>]]} />
           </Card>
 
-          <Card title="Connect Gmail or Outlook" sub="Sign in on Google's or Microsoft's own page and allow sending. Zella Voice only sends; it never reads your mailbox. The provider's daily limit applies, then the rest of that day goes from Zella Voice's address and you are told."
+          <Card title="Connect Gmail or Outlook" sub="Sign in on Google's or Microsoft's own page and allow sending. Zella Voice only sends; it never reads your mailbox. It sends at most 80% of the provider's daily limit and 20 emails a minute. Past the daily limit, the rest of that day goes from Zella Voice's address with your business name, and you are told."
             actions={canManage && (
               <>
-                <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("gmail")}>{busy === "finish" ? "Connecting…" : busy === "gmail" ? "Opening Google…" : s.mailbox_provider === "gmail" ? "Reconnect Gmail" : "Connect Gmail"}</button>
+                <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("gmail")}>{busy === "finish" ? "Connecting…" : busy === "link" ? "Opening your link…" : busy === "gmail" ? "Opening Google…" : s.mailbox_provider === "gmail" ? "Reconnect Gmail" : "Connect Gmail"}</button>
                 <button type="button" className="zs-btn sm" disabled={!!busy} onClick={() => connect("outlook")}>{busy === "outlook" ? "Opening Microsoft…" : s.mailbox_provider === "outlook" ? "Reconnect Outlook" : "Connect Outlook"}</button>
               </>
             )}>
             {s.route === "mailbox"
-              ? <Facts rows={[["Mailbox", `${BOX[s.mailbox_provider] ?? "Mailbox"}: ${s.mailbox_account}`], ["Connection", s.mailbox_status === "connected" ? "Connected" : "Reconnect needed"]]} />
+              ? <Facts rows={[["Mailbox", `${BOX[s.mailbox_provider] ?? "Mailbox"}: ${s.mailbox_account}`], ["Connection", s.mailbox_status === "connected" ? "Connected" : "Reconnect needed"],
+                  ...(mailboxLimits(s) ? [["Limits", mailboxLimits(s)]] : [])]} />
               : <p className="zs-muted">{canManage ? "No mailbox connected. Connecting one replaces a business domain set up before." : "No mailbox connected. The owner or an admin can connect one."}</p>}
           </Card>
 

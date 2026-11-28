@@ -53,9 +53,38 @@ export function findDomain(list: unknown, name: string): string | null {
 }
 
 // The database's refusals, as short stable names the page turns into words
-export const REASONS = ["NOT_ALLOWED", "BAD_ADDRESS", "FREE_MAILBOX_DOMAIN", "PLATFORM_DOMAIN", "DOMAIN_TAKEN", "NOT_SET_UP", "BAD_PROVIDER_ANSWER"] as const;
+export const REASONS = ["NOT_ALLOWED", "BAD_ADDRESS", "FREE_MAILBOX_DOMAIN", "PLATFORM_DOMAIN", "DOMAIN_TAKEN", "NOT_SET_UP", "BAD_PROVIDER_ANSWER",
+  // the "Connect your mailbox" link (sql/zella_business_email_mailbox_link.sql)
+  "BUSINESS_NOT_ACTIVE", "NO_OWNER", "NO_OWNER_EMAIL", "ALREADY_CONNECTED", "TOO_MANY_LINKS", "MAILBOX_LINK_NOT_FOUND", "MAILBOX_LINK_USED",
+  "MAILBOX_LINK_REPLACED", "MAILBOX_LINK_EXPIRED", "MAILBOX_LINK_NOT_YOURS", "NOT_OWNER",
+  // removing a pending domain (sql/zella_business_email_pending_domains.sql)
+  "REASON_REQUIRED", "NOT_PENDING"] as const;
 export function reason(r: unknown): string {
   return typeof r === "string" && (REASONS as readonly string[]).includes(r) ? r.toLowerCase() : "try_again";
 }
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The "Connect your mailbox" link (owner, 27 Nov 2026): a long random token (32 bytes) that goes only into the email;
+// the database keeps its SHA 256 hash. It travels in the address fragment, so it never reaches a server log or a Referer.
+export const LINK_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+export function newLinkToken(): string {
+  return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+export async function tokenHash(t: string): Promise<string> {
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+// where the link opens: the owner's own Settings page for that business, the token in the fragment
+export function mailboxLinkPath(businessId: string, token: string): string {
+  return `/app/settings/messages/business-email?business=${businessId.toLowerCase()}#mailbox_link=${token}`;
+}
+// an address shown back to the admin, partly hidden (BE-5): "ow***@example.com"
+export function maskEmail(e: unknown): string {
+  const s = typeof e === "string" ? e : "";
+  const at = s.indexOf("@");
+  return at < 1 ? "" : `${s.slice(0, Math.min(2, at))}***${s.slice(at)}`;
+}
+
+// The Resend domain removals the database queued (expired or admin removed pending domains): one DELETE each. 2xx or
+// 404 (already gone) is removed; anything else is tried again later by the database.
+export function removalOk(status: number): boolean { return (status >= 200 && status < 300) || status === 404; }
