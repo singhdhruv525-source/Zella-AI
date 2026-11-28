@@ -159,7 +159,7 @@ are not changed by this.
   above, `--zella-emboss-low` below), the cardholder name bottom left, "VALID THRU" and the expiry, and the brand
   bottom right as plain text (no licensed network artwork was available, so no logos). The back: a magnetic stripe, a
   signature panel (`--zella-on-primary` on `--zella-primary`, readable in every look) and the security code box
-  showing "•••". **Live fill (NN-9 safe):** the brand appears as Stripe's card number field reports it; the part
+  showing "•••". **Card fields (owner decision, 27 Nov 2026):** the only card fields Zella Voice may store are the brand and last 4 digits that Stripe returns. On screen during a payment it may also show the expiry from Stripe's preview, the cardholder name the owner typed (in the browser's memory only), and the issuing bank's name when Stripe provides it; it never stores those. Never a full card number, a security code, or card details spoken on a call (`NN-9`). **Live fill (NN-9 safe):** the brand appears as Stripe's card number field reports it; the part
   being typed is highlighted; focusing the security code turns the card over; once Stripe's preview returns, the
   number reads "•••• •••• •••• 4242" and the expiry "12/28". The name is the one typed in Stripe's billing address,
   in capitals; the address itself never shows. It **never shows the Zella Voice name**: it is the customer's card.

@@ -10,9 +10,19 @@ import { TERMS_PREFIX } from "../../supabase/functions/_shared/paymentConsent.js
 
 // Add ons: a real checkbox per row, its label the whole row (name, one line description, "$29 one time"), grouped by
 // type. Ticking adds a receipt line and changes the total (announced politely by the receipt).
-export function AddonPicker({ offer, selected, onChange, locked = false, note }) {
+export function AddonPicker({ offer, selected, onChange, locked = false, note, onRetry }) {
   const groups = groupOffer(offer);
   const base = useId();
+  // the catalogue couldn't be loaded (review round 4): said so, never hidden as if there were no add ons
+  if (offer === null) {
+    return (
+      <section className="zgc-addons" aria-labelledby={`${base}-t`}>
+        <h4 id={`${base}-t`}>Add ons</h4>
+        <p className="zgc-addons-note" role="status">We couldn't load the add ons. You can still pay for your plan.</p>
+        {onRetry && <button type="button" className="ba-btn sm" onClick={onRetry} disabled={locked}>Try again</button>}
+      </section>
+    );
+  }
   if (!groups.length) return null;
   return (
     <section className="zgc-addons" aria-labelledby={`${base}-t`}>
@@ -62,7 +72,20 @@ export function ConsentBox({ text, agreed, onChange, error, id }) {
 // Pay now, after the server confirmed the plan payment: each add on bought separately, its own state, and Try again for
 // that pack only. The plan payment is never charged again.
 const STEP_WORDS = { todo: "Adding", adding: "Adding", added: "Added" };
-export function AddonProgress({ items, onRetry, busy }) {
+export function AddonProgress({ items, onRetry, busy, error = "", onRetryAll }) {
+  // the add ons couldn't be checked at all: said so, with Try again for the same add ons and keys (review round 4)
+  if (error && !items?.length) {
+    return (
+      <section className="zgc-addon-progress" aria-labelledby="zgc-addon-progress-t">
+        <h3 id="zgc-addon-progress-t">Add ons</h3>
+        <div className="zgc-addon-step is-failed" role="alert">
+          <span className="ba-icon" aria-hidden="true">error</span>
+          <div><strong>We couldn't check your add ons</strong><span className="zob-hint">Your plan is paid. Try again uses the same add ons, never a second charge.</span></div>
+          {onRetryAll && <button type="button" className="ba-btn sm" disabled={busy} onClick={onRetryAll}>Try again</button>}
+        </div>
+      </section>
+    );
+  }
   if (!items?.length) return null;
   const failed = items.filter((a) => a.step === "failed");
   return (

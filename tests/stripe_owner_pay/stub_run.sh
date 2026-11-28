@@ -152,7 +152,7 @@ made=$(md5of 'public.zella_owner_invoices(uuid)')
 [ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "e71bf72e22f1e906f1022c5e94f44f5e" ] && [ "$(q "select position('''invoiceId'', new.id' in pg_get_functiondef('public.zella_billing_email_invoice_trg()'::regprocedure)) > 0")" = "t" ] \
   && ok "invoice emails now carry our invoice id (for the /pay/invoice/<id> link), one exact change" || bad "trigger change"
 "${P[@]}" -d "$DB" -f "$MIG" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "$made" ] && ok "applies again, unchanged" || bad "second apply"
-[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_stripe_refs(uuid,boolean)', 'execute')::text || has_function_privilege('anon', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)', 'execute')::text || has_function_privilege('authenticated', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)', 'execute')::text")" = "falsefalsetrue" ] \
+[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_stripe_refs(uuid,boolean)', 'execute')::text || has_function_privilege('anon', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean,text)', 'execute')::text || has_function_privilege('authenticated', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean,text)', 'execute')::text")" = "falsefalsetrue" ] \
   && ok "the Stripe lookup is server only; the owner functions are for signed in people, never anonymous" || bad "grants"
 
 b=$(q "insert into public.businesses (name) values ('Pay One') returning id"); b2=$(q "insert into public.businesses (name) values ('Pay Two') returning id")

@@ -528,6 +528,23 @@ async function shot(page, look, width, state, axeSource) {
       && (await k.page.locator(".zgc-status p").first().innerText().catch(() => "")).startsWith("This card doesn't have enough funds.") && await k.page.isVisible("button:has-text('Pay with another card')"));
     await shot(k.page, look, W, "pack-declined", axe);
     await k.ctx.close();
+    // Pay now while the Auto pay setting can't be loaded (review round 4): no agreement and no Pay until it is known
+    const af = await open(browser, look, W.viewport, `/app/settings/billing/pay/${OPEN}?scenario=autopayfail`);
+    await af.page.waitForSelector(".zob-state.error", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: Pay now: Auto pay unknown, no Pay and no agreement, with Try again`, (await af.page.locator(".zob-state.error strong").innerText().catch(() => "")) === "We couldn't load your Auto pay setting"
+      && !(await af.page.isVisible("#zgc-consent")) && !(await af.page.isVisible(".zgc-pay-foot button")));
+    await af.page.click(".zob-state.error button:has-text('Try again')");
+    await af.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: Pay now: once Auto pay is known, the agreement and Pay appear`, await af.page.isVisible("#zgc-consent"));
+    await af.ctx.close();
+    // the add on catalogue's answer isn't a list: "not available", never hidden as empty, with Try again
+    const kf = await open(browser, look, W.viewport, `/app/settings/billing/pay/${OPEN}?scenario=catalogfail`);
+    await kf.page.waitForSelector(".zgc-addons", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: Pay now: add ons not available is said, with Try again`, (await kf.page.locator(".zgc-addons").innerText().catch(() => "")).includes("We couldn't load the add ons. You can still pay for your plan."));
+    await kf.page.click(".zgc-addons button:has-text('Try again')");
+    await kf.page.waitForSelector(".zgc-addon input[type=checkbox]", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: Pay now: Try again loads the add ons`, (await kf.page.locator(".zgc-addon input[type=checkbox]").count()) > 0);
+    await kf.ctx.close();
     // the saved card lookup failed (review round 3): its own error with Try again, never "your saved card"; then the pack page
     const cf = await open(browser, look, W.viewport, `/app/settings/billing/pack/minutes_100?scenario=cardfail`);
     await cf.page.waitForSelector(".zob-state.error", { timeout: 10000 }).catch(() => {});
@@ -536,6 +553,17 @@ async function shot(page, look, width, state, axeSource) {
     await cf.page.click(".zob-state.error button:has-text('Try again')");
     await cf.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
     check(`${look.name}: pack: Try again loads the saved card`, await cf.page.isVisible(".zgc") && (await cf.page.locator(".zgc").innerText().catch(() => "")).includes("4242"));
+    // bought, then reloaded while the card lookup fails again (review round 4): the purchase's status still comes from the
+    // server, beside the card error, which never claims anything about the payment
+    await agree(cf.page);
+    await cf.page.click(".zgc-pay-foot button:has-text('Pay $29')");
+    await cf.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    await cf.page.reload();
+    await cf.page.waitForSelector(".zob-state.error", { timeout: 10000 }).catch(() => {});
+    await cf.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    check(`${look.name}: pack: a restored purchase shows the server's answer even when the card lookup fails`, await cf.page.isVisible(".zob-state.error")
+      && (await cf.page.locator("#zgc-status").innerText().catch(() => "")) === "100 AI minutes added"
+      && !(await cf.page.locator(".zob-state.error").innerText().catch(() => "")).includes("weren't charged"));
     await cf.ctx.close();
     // a pack purchase that ended cancelled (owner, review round 3): final, nothing charged, Try again buys it as a new purchase
     const q = await open(browser, look, W.viewport, `/app/settings/billing/pack/minutes_100?scenario=packcancelled`);

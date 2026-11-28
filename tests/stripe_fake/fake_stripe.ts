@@ -292,7 +292,18 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       if (!inv) return err(404, "invalid_request_error", "No such invoice", "resource_missing");
       if (method === "POST" && r2 === "finalize") return ok(finalize(inv));
       if (method === "POST" && r2 === "pay") return ok(pay(inv));
-      if (method === "POST" && r2 === "void") { if (inv.status === "open") { inv.status = "void"; emit("invoice.voided", inv); } return ok(inv); }
+      if (method === "POST" && r2 === "void") {
+        if (inv.status === "open") {
+          inv.status = "void";
+          // as at Stripe, voiding cancels the invoice's open PaymentIntents (they can no longer be confirmed)
+          for (const p of inv.payments?.data ?? []) {
+            const vpi = get(p.payment?.payment_intent);
+            if (vpi && vpi.status !== "succeeded" && vpi.status !== "canceled") { vpi.status = "canceled"; vpi.canceled_at = clock; vpi.cancellation_reason = "void_invoice"; p.status = "canceled"; }
+          }
+          emit("invoice.voided", inv);
+        }
+        return ok(inv);
+      }
       if (method === "GET" && r2 === "lines") return ok({ object: "list", data: inv.lines.data.map(clone), has_more: false });
       return ok(method === "GET" ? includable(clone(inv), b) : inv);
     }
@@ -424,7 +435,9 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
     // intent pays that invoice; a pack's intent succeeds on its own. "decline" leaves it unpaid.
     confirmIntent(piId, card = "ok") {
       const pi = get(piId)!;
-      if (pi.status === "succeeded") return clone(pi);
+      if (pi.status === "succeeded") return clone(pi);   // a replay of a confirmed intent: the same answer
+      // a canceled intent (its invoice voided) can't be confirmed: Stripe refuses before any charge
+      if (pi.status === "canceled") throw Object.assign(new Error("This PaymentIntent's status is canceled"), { code: "payment_intent_unexpected_state" });
       // "auth": the bank asks for 3D Secure again (an authentication challenge, nothing taken); any other card is declined
       if (card === "auth") { pi.status = "requires_action"; pi.last_payment_error = { code: "authentication_required" }; emit("payment_intent.requires_action", pi); return clone(pi); }
       if (card !== "ok") {

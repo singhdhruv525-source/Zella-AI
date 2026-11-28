@@ -20,6 +20,8 @@
 //   unknown    Stripe doesn't answer the confirm: the page checks with the server and says the payment wasn't taken
 //   packdeclined buying a pack: the saved card is declined for insufficient funds
 //   cardfail   the pack page's saved card lookup fails once: an error with Try again, never "your saved card"
+//   autopayfail Pay now: the Auto pay lookup fails once: no Pay until it is known (Try again)
+//   catalogfail Pay now: the add on catalogue's first answer isn't a list: "We couldn't load the add ons" with Try again
 //   packcancelled buying a pack: the first purchase ends cancelled ("This add on wasn't bought"); Try again buys it as a new purchase
 // Like the server, every payment start checks the owner's agreement: the sha256 of the words for the stand in's own
 // figures (paymentConsent.js), refused without it (CONSENT_REQUIRED) or with other words (CONSENT_MISMATCH).
@@ -32,7 +34,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const refuse = (code, words) => Object.assign(new Error(words ?? code), { code, words });
 const day = (d) => new Date(Date.UTC(2026, 10, d)).toISOString();
 
-export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
+// schedule: when "Stripe's event" lands after an Auto pay change (a test passes its own to control it; review round 4)
+export function createFakeBillingApi({ scenario = "", delay = 120, schedule = (fn, ms) => setTimeout(fn, ms) } = {}) {
   const live = scenario !== "off";
   const st = {
     invoices: [
@@ -98,7 +101,11 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       plan: { tier: "pro", price_cents: 24900, billing_interval: "monthly", setup_fee_cents: 64900 },
       subscription: { status: scenario === "" || scenario === "canada" ? "past_due" : "active", current_period_end: day(30) }, packs: PACKS, payments_live: live }; },
     invoices: async (id) => { await wait(delay); owner(id); return st.invoices.map(out); },
-    autopayStatus: async (id) => { await wait(delay); owner(id); return autopayOut(); },
+    autopayStatus: async (id) => {
+      await wait(delay); owner(id);
+      if (scenario === "autopayfail" && !st.autopayAsked) { st.autopayAsked = true; throw refuse("ERROR", "Something went wrong"); }   // the first lookup fails
+      return autopayOut();
+    },
     autopaySet: async (id, on, key) => {
       await wait(delay); owner(id);
       if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. You weren't charged.");
@@ -107,7 +114,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       if (on && scenario === "nocard") throw refuse("NO_SAVED_CARD", "Add a card in Settings, Billing first.");
       st.autopay.keys.add(key); st.autopay.desired = on;
       // Stripe's customer.subscription.updated, applied by the server a moment later: only then does Auto pay change
-      setTimeout(() => { st.autopay.on = on; st.autopay.desired = null; }, delay * 3);
+      schedule(() => { st.autopay.on = on; st.autopay.desired = null; }, delay * 3);
       return autopayOut();
     },
     cardSummary: async (id) => {
@@ -123,7 +130,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       const back = new URLSearchParams(); back.set("scenario", scenario); back.set("card", "updated");
       return { url: `/app/settings/billing/invoices?${back}` };
     },
-    addonCatalog: async (id) => { await wait(delay); owner(id); return PACKS.map(({ code, resource, quantity, price_cents }) => ({ code, resource, quantity, price_cents, currency: "usd" })); },
+    addonCatalog: async (id) => { await wait(delay); owner(id); if (scenario === "catalogfail" && !st.catalogAsked) { st.catalogAsked = true; return { error: "not a list" }; } return PACKS.map(({ code, resource, quantity, price_cents }) => ({ code, resource, quantity, price_cents, currency: "usd" })); },
     invoiceStatus: async (invoiceId) => { await wait(delay); const i = find(invoiceId);
       // as billing-api asks Stripe: a payment it already has shows as processing (the marker survives a reload in sessionStorage)
       if (completed(invoiceId) && i.status !== "paid" && st.looks >= 2) markPaid(i);
@@ -136,7 +143,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       // the Auto pay choice made with Pay now, applied as the server would at the start (Stripe's event a moment later)
       if (opts && typeof opts.autopay === "boolean" && live) {
         if (opts.autopay && scenario === "nocard") { /* turning it on needs a saved card: the payment still opens */ }
-        else { st.autopay.desired = opts.autopay; setTimeout(() => { st.autopay.on = opts.autopay; st.autopay.desired = null; }, delay * 3); }
+        else { st.autopay.desired = opts.autopay; schedule(() => { st.autopay.on = opts.autopay; st.autopay.desired = null; }, delay * 3); }
       }
       if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. You weren't charged.");
       if (i.status === "paid") throw refuse("ALREADY_PAID", "Your payment is already confirmed.");

@@ -412,8 +412,8 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
             {picked.length > 0 && <p className="zgc-addon-onetime"><Icon name="info" size="sm" /> {addons?.note ? `${addons.note}.` : "Add ons are one time."}</p>}
             <p className="zob-sr" aria-live="polite">{totalNote}</p>
             {summary?.footnote && <p className="zob-hint">{summary.footnote}</p>}
-            {addons && (addons.offer ?? []).length > 0 && m.state !== "confirmed" && !staged && (
-              <AddonPicker offer={addons.offer} selected={addons.selected ?? []} onChange={addons.onChange} locked={m.state === "submitting" || sending} />
+            {addons && (addons.offer === null || (addons.offer ?? []).length > 0) && m.state !== "confirmed" && !staged && (
+              <AddonPicker offer={addons.offer} selected={addons.selected ?? []} onChange={addons.onChange} onRetry={addons.onRetry} locked={m.state === "submitting" || sending} />
             )}
           </aside>
         </div>

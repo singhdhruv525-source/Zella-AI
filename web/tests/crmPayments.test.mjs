@@ -145,20 +145,24 @@ test("Auto pay words: say only what will happen, no promise of an email, no dash
   for (const w of [held.onText, held.offText, live.offText]) assert.doesNotMatch(w, DASH);
 });
 
-test("stand in Auto pay: owner only, on by default, a double submit changes nothing, Stripe's event (a moment later) changes it, no card refuses on", async () => {
-  const api = createFakeBillingApi({ delay: 1 });
+test("stand in Auto pay: owner only, on by default, a double submit changes nothing, Stripe's event (when it lands) changes it, no card refuses on", async () => {
+  // Stripe's event lands only when the test says so (review round 4): no reliance on elapsed time
+  const landing = [];
+  const schedule = (fn) => { landing.push(fn); };
+  const land = () => { while (landing.length) landing.shift()(); };
+  const api = createFakeBillingApi({ delay: 0, schedule });
   assert.equal((await api.autopayStatus(FAKE_BUSINESS)).on, true);
   await assert.rejects(api.autopaySet("00000000-0000-4000-8000-00000000ffff", false, "autopay-key-1"), { code: "NOT_ALLOWED" });
   const a = await api.autopaySet(FAKE_BUSINESS, false, "autopay-key-1");
   assert.deepEqual([a.on, a.desired, a.pending], [true, false, true], "still on until Stripe's event");
   const b = await api.autopaySet(FAKE_BUSINESS, false, "autopay-key-1");
-  assert.equal(b.pending, true);
-  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual([b.on, b.pending, landing.length], [true, true, 1], "the duplicate changes nothing and schedules nothing more");
+  land();
   const c = await api.autopayStatus(FAKE_BUSINESS);
   assert.deepEqual([c.on, c.pending, c.days_until_due], [false, false, 3]);
-  const nocard = createFakeBillingApi({ scenario: "nocard", delay: 1 });
+  const nocard = createFakeBillingApi({ scenario: "nocard", delay: 0, schedule });
   await nocard.autopaySet(FAKE_BUSINESS, false, "autopay-key-2");
-  await new Promise((r) => setTimeout(r, 20));
+  land();
   await assert.rejects(nocard.autopaySet(FAKE_BUSINESS, true, "autopay-key-3"), { code: "NO_SAVED_CARD" });
   await assert.rejects(api.autopaySet(FAKE_BUSINESS, "yes", "autopay-key-4"), { code: "INVALID_INPUT" });
 });

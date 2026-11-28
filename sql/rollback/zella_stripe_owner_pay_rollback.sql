@@ -45,6 +45,20 @@ begin
                              where c.status in (''preparing'', ''open'', ''expiring'', ''completed''))' into v;
     if v then raise exception 'ROLLBACK_HAS_PENDING: a checkout with add ons is still in progress'; end if;
   end if;
+  -- Pay now add ons still to be bought (review round 4): after a rollback nothing could buy them, so it refuses while
+  -- a submitted agreement with add ons is for an invoice that may still be paid (submitted in the last 10 minutes,
+  -- the same window as the in flight guard) or is paid with an add on not yet bought or still being paid. Settled
+  -- agreements (every add on granted, failed or cancelled; or an invoice voided) never block it.
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'billing_payment_consents' and column_name = 'payment_intent') then
+    execute 'select exists (select 1 from public.billing_payment_consents k join public.billing_invoices i on i.id = k.payment_id
+               where k.payment_kind = ''invoice'' and k.submitted_at is not null and jsonb_array_length(k.addons) > 0
+                 and ((i.status in (''open'', ''payment_failed'') and k.submitted_at > clock_timestamp() - interval ''10 minutes'')
+                   or (i.status = ''paid'' and k.payment_intent is not distinct from i.payment_intent and exists (
+                         select 1 from jsonb_array_elements(k.addons) a
+                          where not exists (select 1 from public.pack_purchases pp where pp.business_id = i.business_id and pp.idempotency_key = a ->> ''key''
+                                              and pp.source = ''owner_purchase'' and pp.status in (''granted'', ''failed'', ''cancelled''))))))' into v;
+    if v then raise exception 'ROLLBACK_HAS_PENDING: add ons agreed with Pay now are still to be bought'; end if;
+  end if;
   -- the trigger is the one the file made (review), or already gone (a repeat rollback)
   if exists (select 1 from pg_trigger where tgname = 'zella_billing_checkout_autopay' and tgrelid = 'public.billing_checkouts'::regclass)
      and (select regexp_replace(pg_get_triggerdef(t.oid), 'FUNCTION public\.', 'FUNCTION ') from pg_trigger t
@@ -96,8 +110,8 @@ end $x$;
 do $$
 declare s text;
   owned constant jsonb := '{
-    "public.zella_owner_invoice_pay_status(uuid)": "def8331d20227467d2553700d98e459d",
-    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)": "3505734881de90a958cd1bbe1de3c4b8",
+    "public.zella_owner_invoice_pay_status(uuid)": "2526a6d23b5e3e7a4958fd8f4e2a4600",
+    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean,text)": "72d40dc65a49a4c35ac4d13bbf67787b",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "6e71430a8f8331ba81fce4300d15dfa7",
@@ -121,7 +135,7 @@ declare s text;
     "public.zella_billing_consent_record(uuid,text,uuid,text,text,bigint,boolean,bigint,jsonb)": "6567947a4f7b20d20743f42281308f1e",
     "public.zella_owner_addon_catalog(uuid)": "89b1e2c913c527a6ea27377bdac1da9b",
     "public.zella_billing_card_checked(uuid,text)": "108b36e936fec7fc8b3386d9d576d87b",
-    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "21934591b0e48de02f90e75df435136f",
+    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "5a201f7e71a40a07ffbb3eb6bb6a9d58",
     "public.zella_billing_checkout_addon_codes(uuid)": "d0ec4062ffbf554269af24efc6e08841",
     "public.zella_billing_checkout_addon_lines(uuid,boolean)": "ddae63c27e07df49902c33ef00a1d0c1",
     "public.zella_billing_checkout_addon_price(uuid,text)": "e502357e2cc991ad5424017a3abb6def",
@@ -129,8 +143,10 @@ declare s text;
     "public.zella_stripe_failed_addon_price(billing_outbox)": "2485145a3aaee43c7f0c993a5e55365e",
     "public.zella_billing_checkout_addons_bind(billing_checkouts,jsonb)": "4a92accd70e9463aac14bbb16c57f4a3",
     "public.zella_billing_checkout_addons_grant(billing_checkouts,billing_periods)": "c66d31d7939007d7cf37bcce11241b60",
-    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "ef2df08aa30563a2569dcd4a6c267864",
+    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "3aec168c1c74e4fd559ad017317652ae",
     "public.zella_billing_invoice_attempts_clear(uuid,text,timestamp with time zone)": "403d3484ce63b1a0a3dd0ca388c5e209",
+    "public.zella_billing_invoice_agreement(uuid)": "6a219fd47ec98c075a09226b4f33124f",
+    "public.zella_billing_checkout_addon_amounts(uuid)": "be504ed6c4921b2136e334ec60618e5b",
     "public.zella_stripe_on_customer_updated(billing_events,jsonb)": "787f60b347bef56d98b4c40e99748295"
   }';
 begin

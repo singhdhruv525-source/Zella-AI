@@ -357,35 +357,15 @@ export async function handle(req: Request): Promise<Response> {
       // are bought right after the plan payment (pack_buy with invoice_id), never on the invoice
       const addons = Array.isArray(body.addons) ? body.addons : [];
       if (addons.length > 20 || !addons.every((a) => a && typeof a === "object" && PACK_CODE.test(String(a.code ?? "")) && ATTEMPT_KEY.test(String(a.key ?? "")))) return refuse("INVALID_INPUT");
-      // submit: true is the Pay press (the agreement that goes with the payment to Stripe). Another tab's payment with
-      // other add ons may be in flight: the database refuses (ADDONS_IN_PROGRESS); only when Stripe says that attempt
-      // failed (the invoice's intent has a payment error, or was cancelled) is it cleared and this one let through, so
-      // the add ons bought after the payment are exactly those of the attempt that paid (review round 2)
+      // submit: true is the Pay press (the agreement that goes with the payment to Stripe). The agreement is recorded and
+      // checked first; the press itself is sent once we know the invoice's PaymentIntent, and names it (review round 4):
+      // add ons are bought only under the submitted agreement for the intent that paid. Another tab's payment with other
+      // add ons may be in flight: the database refuses (ADDONS_IN_PROGRESS); only when Stripe says that attempt failed is
+      // it cleared and this one let through (review rounds 2 and 3)
+      const submit = body.submit === true;
       const payArgs = { p_invoice_id: invoiceId, p_autopay: typeof body.autopay === "boolean" ? body.autopay : null,
-        p_addons: addons.map((a: Record<string, unknown>) => ({ code: String(a.code), key: String(a.key) })), p_consent_hash: String(body.consent_hash), p_submit: body.submit === true };
-      let inv: Record<string, any>;
-      try { inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", payArgs) as Record<string, any>; }
-      catch (e) {
-        if (!(e instanceof DbRefusal) || e.code !== "ADDONS_IN_PROGRESS") throw e;
-        const seen = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId }) as Record<string, any>;
-        const si = /^in_[A-Za-z0-9_]{1,250}$/.test(String(seen?.stripe_invoice_id ?? "")) ? await stripe.get(`/v1/invoices/${seen.stripe_invoice_id}`, { expand: ["payments"] }).catch(() => null) as Record<string, any> | null : null;
-        const piId = si ? invoicePaymentIntent(si) : null;
-        const pi = piId ? await stripe.get(`/v1/payment_intents/${piId}`).catch(() => null) as Record<string, any> | null : null;
-        // when that attempt failed, as Stripe says (review round 3): the cancellation's time, or the failed charge's. Only
-        // agreements submitted up to then are cleared, for this intent, so a Pay pressed after the failure (a retry that
-        // may be paying now) is never cleared; no time from Stripe, nothing cleared
-        let failedAt: number | null = null;
-        if (pi?.id === piId && pi.status === "canceled" && Number.isInteger(pi.canceled_at)) failedAt = pi.canceled_at;
-        else if (pi?.id === piId && pi.status === "requires_payment_method" && pi.last_payment_error) {
-          const chId = String(pi.last_payment_error.charge ?? pi.latest_charge ?? "");
-          const ch = /^ch_[A-Za-z0-9_]{1,250}$/.test(chId) ? await stripe.get(`/v1/charges/${chId}`).catch(() => null) as Record<string, any> | null : null;
-          if (ch?.id === chId && ch.payment_intent === piId && ch.status === "failed" && Number.isInteger(ch.created)) failedAt = ch.created;
-        }
-        if (failedAt === null) return refuse("ADDONS_IN_PROGRESS", 409);
-        const cleared = await rpc("zella_billing_invoice_attempts_clear", { p_invoice_id: invoiceId, p_payment_intent: piId, p_failed_at: new Date(failedAt * 1000).toISOString() });
-        if (!Number(cleared)) return refuse("ADDONS_IN_PROGRESS", 409);
-        inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", payArgs) as Record<string, any>;
-      }
+        p_addons: addons.map((a: Record<string, unknown>) => ({ code: String(a.code), key: String(a.key) })), p_consent_hash: String(body.consent_hash) };
+      const inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", { ...payArgs, p_submit: false }) as Record<string, any>;
       business = String(inv.business_id);
       const publishable = await browserKey();   // after the owner check (review 7)
       if (publishable instanceof Response) return publishable;
@@ -425,9 +405,30 @@ export async function handle(req: Request): Promise<Response> {
       let secret = typeof si.confirmation_secret?.client_secret === "string" ? si.confirmation_secret.client_secret : "";
       if (!secret && typeof si.payment_intent === "string") secret = String((await stripe.get(`/v1/payment_intents/${si.payment_intent}`)).client_secret ?? "");
       if (!/^pi_[A-Za-z0-9_]+_secret_[A-Za-z0-9_]+$/.test(secret)) return refuse("CHECKOUT_NOT_READY", 502);
-      const pi = await stripe.get(`/v1/payment_intents/${intentOf(secret)}`) as Record<string, any>;
+      const piId = intentOf(secret);
+      const pi = await stripe.get(`/v1/payment_intents/${piId}`) as Record<string, any>;
       if (pi.status === "succeeded" || pi.status === "processing") return reply({ status: "processing" });
       if (!OPEN_INTENT.has(String(pi.status))) return refuse("NOT_PAYABLE");
+      if (submit) {
+        const press = () => asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", { ...payArgs, p_submit: true, p_payment_intent: piId });
+        try { await press(); }
+        catch (e) {
+          if (!(e instanceof DbRefusal) || e.code !== "ADDONS_IN_PROGRESS") throw e;
+          // when that attempt failed, as Stripe says (review round 3): the failed charge's time on this same intent. Only
+          // agreements submitted up to then are cleared, so a Pay pressed after the failure (a retry that may be paying
+          // now) is never cleared; no time from Stripe, nothing cleared
+          let failedAt: number | null = null;
+          if (pi.id === piId && pi.status === "requires_payment_method" && pi.last_payment_error) {
+            const chId = String(pi.last_payment_error.charge ?? pi.latest_charge ?? "");
+            const ch = /^ch_[A-Za-z0-9_]{1,250}$/.test(chId) ? await stripe.get(`/v1/charges/${chId}`).catch(() => null) as Record<string, any> | null : null;
+            if (ch?.id === chId && ch.payment_intent === piId && ch.status === "failed" && Number.isInteger(ch.created)) failedAt = ch.created;
+          }
+          if (failedAt === null) return refuse("ADDONS_IN_PROGRESS", 409);
+          const cleared = await rpc("zella_billing_invoice_attempts_clear", { p_invoice_id: invoiceId, p_payment_intent: piId, p_failed_at: new Date(failedAt * 1000).toISOString() });
+          if (!Number(cleared)) return refuse("ADDONS_IN_PROGRESS", 409);
+          await press();
+        }
+      }
       return reply({ status: "open", client_secret: secret, publishable_key: publishable, livemode: stripe.livemode, amount_minor: inv.amount_due_minor,
         currency: inv.currency, number: inv.number, hosted_invoice_url: inv.hosted_invoice_url, billing_prefill: await prefill(business), addons: inv.addons ?? [],
         ...(autopayError ? { autopay_error: autopayError } : {}) });
@@ -453,9 +454,11 @@ export async function handle(req: Request): Promise<Response> {
       const app = String(access.app_base_url ?? "");
       if (!/^https:\/\/[^/?#]+/.test(app)) return refuse("ERROR", 500);
       // back to Settings, Billing and subscription, Invoices and payments in the CRM (owner, 27 Nov 2026)
-      const back = `${app.replace(/\/+$/, "")}/app/settings/billing/invoices?card=updated`;
-      const portal = await stripe.post("/v1/billing_portal/sessions", { customer: ref.customer, return_url: back,
-        flow_data: { type: "payment_method_update", after_completion: { type: "redirect", redirect: { return_url: back } } } }, `portal:${business}:${key}`) as Record<string, any>;
+      // leaving Stripe's page without finishing returns to the invoices plainly; only the completed card update comes back
+      // with card=updated, so "Your card is updated" shows only after one (review round 4)
+      const invoices = `${app.replace(/\/+$/, "")}/app/settings/billing/invoices`;
+      const portal = await stripe.post("/v1/billing_portal/sessions", { customer: ref.customer, return_url: invoices,
+        flow_data: { type: "payment_method_update", after_completion: { type: "redirect", redirect: { return_url: `${invoices}?card=updated` } } } }, `portal:${business}:${key}`) as Record<string, any>;
       if (typeof portal.url !== "string" || !portal.url.startsWith("https://")) return refuse("ERROR", 500);
       return reply({ url: portal.url });
     }

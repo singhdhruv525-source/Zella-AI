@@ -1,4 +1,5 @@
 import { supabase } from "../supabase";
+import { cardSummaryFrom } from "./payState.js";
 
 // The owner's payments from inside the CRM (owner, 27 Nov 2026: "auto charge plus Pay now"): every call goes to the
 // database's owner functions or the billing-api edge function, which check the caller is the business's owner. The
@@ -27,7 +28,8 @@ export const realBillingApi = {
   onAuthChange: (fn) => { const { data } = supabase.auth.onAuthStateChange((_e, s) => fn(s)); return () => data.subscription.unsubscribe(); },
   overview: (businessId) => rpc("zella_billing_overview", { p_business_id: businessId }),
   invoices: (businessId) => rpc("zella_owner_invoices", { p_business_id: businessId }),
-  cardSummary: async (businessId) => (await billing("card_summary", { business_id: businessId }))?.card ?? null,
+  // the saved card: { card: null } is "no card"; a missing answer, or one without card, is an error (review round 4)
+  cardSummary: async (businessId) => cardSummaryFrom(await billing("card_summary", { business_id: businessId })),
   cardUpdateStart: (businessId, key) => billing("card_update_start", { business_id: businessId, idempotency_key: key }),
   invoiceStatus: async (invoiceId) => (await billing("invoice_pay_status", { invoice_id: invoiceId })).invoice,
   // every start carries the owner's agreement (consent: true and the sha256 of the words shown; owner, 27 Nov 2026)

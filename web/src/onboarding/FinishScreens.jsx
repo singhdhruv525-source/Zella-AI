@@ -95,14 +95,16 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const trial = pay.checkout?.mode === "trial" || pay.due_now_minor === 0;
   // add ons (owner, 27 Nov 2026: one single payment): the packs on offer from the server's catalogue, ticked here, priced
   // by the server; not offered with a trial (nothing is charged today then)
-  const [offer, setOffer] = useState([]);
+  const [offer, setOffer] = useState([]);   // [] while loading or empty; null when the catalogue couldn't be loaded
   const [selected, setSelected] = useState([]);
+  const [catalogTry, setCatalogTry] = useState(0);
   useEffect(() => {
     let alive = true;
     if (trial || !api.addonCatalog) return undefined;
-    Promise.resolve(api.addonCatalog(state.business_id)).then((c) => { if (alive) setOffer(offerFrom(c)); }, () => {});
+    // a failed or malformed answer is "not available right now", never an empty catalogue (review round 4)
+    Promise.resolve(api.addonCatalog(state.business_id)).then((c) => { if (alive) setOffer(offerFrom(c)); }, () => { if (alive) setOffer(null); });
     return () => { alive = false; };
-  }, [api, state.business_id, trial]);
+  }, [api, state.business_id, trial, catalogTry]);
   const picked = trial ? [] : selected;
   const baseDue = Number.isFinite(Number(pay.due_now_minor)) ? Number(pay.due_now_minor) : null;
   const totalDue = baseDue === null ? null : baseDue + addonsTotal(offer, picked);
@@ -154,7 +156,7 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
       <GlassCheckout summary={summary} payment={state.payment} start={start} confirm={confirm} onPayment={onPayment}
         kind="checkout" saveNote="This card is saved for your renewals." mount={api.mountCheckout} returned={returned === "return"}
         payLabel={trial ? "Add a card and start my trial" : (a) => `Pay ${a}`}
-        addons={trial ? null : { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)) }}
+        addons={trial ? null : { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)), onRetry: () => { setOffer([]); setCatalogTry((n) => n + 1); } }}
         consentText={consent} restartKey={selectionKey(picked)}
         autopay={{ on: autopayOn, onChange: setAutopayOn, ...autopayWords(emailLive) }} hostedFallback={hostedFallback} beforeSubmit={() => start()} />
       {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. You'll pay here once payments open.</p>}

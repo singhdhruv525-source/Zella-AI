@@ -24,7 +24,7 @@ type Db = { checkout: Record<string, unknown> | null; payment: Record<string, un
   limited?: boolean; noMigration?: boolean; reopened?: Record<string, unknown>[]; checkoutAutopay?: unknown[]; hosted?: string[]; expired?: string[];
   startSeq?: Record<string, unknown>[]; packBuys?: Record<string, unknown>[]; cardChecks?: Record<string, unknown>[];
   // the attempts clear (review round 3): how many agreements the database cleared, and what Pay now's start answers after
-  cleared?: number; afterClear?: Answer;
+  cleared?: number; afterClear?: Answer; submitError?: Error;
   // stored outbox commands for a checkout (its expiry), claimed and resulted as the database would
   commands?: { id: string; idempotency_key: string; method: "POST"; path: string; body: Record<string, unknown>; attempts: number; status: string; checkout_id: string }[] };
 // what the database's start answers by default: the amount it computed and the figures of the agreement's words
@@ -57,7 +57,7 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
   if (fn === "zella_billing_checkout_session") return db.noMigration ? json({ code: "PGRST202", message: "Could not find the function public.zella_billing_checkout_session" }, 404) : json(db.checkout);
   const answer = (a: Answer | undefined) => a instanceof Error ? json({ message: a.message }, 400) : json(a ?? null);
   if (fn === "zella_owner_invoice_pay_status") return answer(db.invoice);
-  if (fn === "zella_owner_invoice_pay_start") return answer(db.invoiceStart);
+  if (fn === "zella_owner_invoice_pay_start") return args.p_submit && db.submitError ? answer(db.submitError) : answer(db.invoiceStart);
   if (fn === "zella_billing_stripe_refs") return answer(db.refs);
   if (fn === "zella_rate_limit") return json(!db.limited);
   if (fn === "zella_billing_pack_reopen") { (db.reopened ??= []).push(args); return json({ purchase_id: args.p_purchase_id }); }
@@ -90,7 +90,7 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
     return json(rows);
   }
   if (ap && fn === "zella_stripe_apply_event") { ap.applied.add(args.p_event_id); ap.on = args.p_object.collection_method !== "send_invoice"; return json("applied"); }
-  if (fn === "zella_billing_invoice_attempts_clear") { const n = db.cleared ?? 1; if (n > 0 && db.afterClear !== undefined) db.invoiceStart = db.afterClear; return json(n); }
+  if (fn === "zella_billing_invoice_attempts_clear") { const n = db.cleared ?? 1; if (n > 0 && db.afterClear !== undefined) { db.invoiceStart = db.afterClear; db.submitError = undefined; } return json(n); }
   if (db.commands && fn === "zella_billing_checkout_next_command") return json(db.commands.find((c) => c.checkout_id === args.p_checkout_id && c.status === "pending")?.id ?? null);
   if (db.commands && fn === "zella_billing_outbox_claim") { const c = db.commands.find((x) => x.id === args.p_id && x.status === "pending"); if (c) c.status = "sending"; return json(c ? [c] : []); }
   if (db.commands && fn === "zella_billing_outbox_result") { const c = db.commands.find((x) => x.id === args.p_id)!; c.status = args.p_ok ? "sent" : "retry_wait"; return json(c.status); }
@@ -330,8 +330,9 @@ Deno.test("Update card: Stripe's Customer Portal, card update only, back to the 
   assertEquals(r.status, 200, JSON.stringify(r.body));
   assert(String(r.body.url).startsWith("https://"));
   const req = fake.requests.findLast((x) => x.path === "/v1/billing_portal/sessions")!;
-  assertEquals([req.key, req.body.customer, req.body.flow_data.type, req.body.return_url], ["portal:" + BIZ + ":card-key-0001", sub.customer, "payment_method_update",
-    "https://app.example.test/app/settings/billing/invoices?card=updated"]);
+  assertEquals([req.key, req.body.customer, req.body.flow_data.type, req.body.return_url, req.body.flow_data.after_completion.redirect.return_url],
+    ["portal:" + BIZ + ":card-key-0001", sub.customer, "payment_method_update", "https://app.example.test/app/settings/billing/invoices",
+     "https://app.example.test/app/settings/billing/invoices?card=updated"], "card=updated only when the card update is completed (review round 4)");
   assertEquals((await act({ action: "card_update_start", business_id: BIZ, idempotency_key: "bad key" })).body.code, "INVALID_INPUT");
   db = { checkout: null, payment: {}, refs: { customer: null, subscription: null } };
   assertEquals((await act({ action: "card_update_start", business_id: BIZ, idempotency_key: "card-key-0002" })).body.code, "NO_CUSTOMER");
@@ -631,23 +632,30 @@ Deno.test("review: while our record is still open, Pay now's return says whether
   assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.invoice.processing, true, "Stripe has it: confirming, never Pay again");
 });
 
-Deno.test("review rounds 2 and 3: Pay in a second tab with other add ons waits while the first tab's payment may be in flight; a clear is bound to the failed attempt", async () => {
+Deno.test("review rounds 2 to 4: the Pay press names the invoice's intent; a second tab with other add ons waits while the first may be paying; a clear is bound to the failed attempt", async () => {
   const { customer, sub, inv } = await pastDue();
   const si = await stripe.get(`/v1/invoices/${inv.id}`, { expand: ["payments"] }) as Record<string, any>;
   const piId = String(si.payments.data[0].payment.payment_intent);
   const pi = fake.objects.get(piId)!;
-  const busy = () => ({ checkout: null, payment: {}, invoiceStart: new Error("ADDONS_IN_PROGRESS"), refs: { customer, subscription: sub },
+  const busy = () => ({ checkout: null, payment: {}, invoiceStart: invRow(inv), submitError: new Error("ADDONS_IN_PROGRESS"), refs: { customer, subscription: sub },
     invoice: { invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, status: "open", payable: true } }) as Db;
   const hash = await hashOf({ kind: "invoice", todayMinor: inv.amount_due, autopay: true, renewalMinor: 29900, addonsMinor: 0 });
   const pay = () => act({ action: "invoice_pay_start", invoice_id: INVOICE, submit: true, consent: true, consent_hash: hash });
   const clears = () => calls.filter((c) => c.fn === "zella_billing_invoice_attempts_clear");
+  const presses = () => calls.filter((c) => c.fn === "zella_owner_invoice_pay_start" && c.args.p_submit === true);
+  // a Pay press with nothing in the way: recorded first (not submitted), then pressed with the invoice's own intent
+  db = { ...busy(), submitError: undefined }; pi.status = "requires_payment_method"; pi.last_payment_error = null; pi.latest_charge = null;
+  calls.length = 0;
+  const first = await pay();
+  assertEquals([first.status, first.body.status], [200, "open"], JSON.stringify(first.body));
+  assertEquals(calls.filter((c) => c.fn === "zella_owner_invoice_pay_start").map((c) => [c.args.p_submit, c.args.p_payment_intent ?? null]), [[false, null], [true, piId]],
+    "the agreement is recorded, then the press names the intent Stripe has for this invoice (review round 4)");
   // the first tab's confirm may be on its way: the intent shows no failed attempt
   db = busy(); pi.status = "requires_confirmation"; pi.last_payment_error = null; pi.latest_charge = null;
   calls.length = 0;
   const r = await pay();
   assertEquals([r.status, r.body.code], [409, "ADDONS_IN_PROGRESS"]);
   assertEquals(clears().length, 0, "nothing is cleared while it may be paying");
-  assertEquals(calls.find((c) => c.fn === "zella_owner_invoice_pay_start")?.args.p_submit, true, "the Pay press is marked as such");
   // a payment error with no failed charge to date it: not known when it failed, so nothing is cleared
   db = busy(); pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" }; pi.latest_charge = null;
   calls.length = 0;
@@ -664,12 +672,32 @@ Deno.test("review rounds 2 and 3: Pay in a second tab with other add ons waits w
   assertEquals([ok.status, ok.body.status, String(ok.body.client_secret).split("_secret_")[0]], [200, "open", piId], JSON.stringify(ok.body));
   assertEquals(clears().map((c) => [c.args.p_invoice_id, c.args.p_payment_intent, c.args.p_failed_at]), [[INVOICE, piId, new Date(ch.created * 1000).toISOString()]],
     "the clear names this intent and when its attempt failed");
-  assertEquals(calls.filter((c) => c.fn === "zella_owner_invoice_pay_start").length, 2, "asked again once Stripe says the earlier attempt failed");
+  assertEquals(presses().length, 2, "pressed again once Stripe says the earlier attempt failed");
   // the database cleared nothing (a Pay pressed after that failure, or the invoice is paid): still refused
   db = { ...busy(), cleared: 0, afterClear: invRow(inv) };
   calls.length = 0;
   assertEquals((await pay()).body.code, "ADDONS_IN_PROGRESS");
-  assertEquals(calls.filter((c) => c.fn === "zella_owner_invoice_pay_start").length, 1, "not asked again when nothing was cleared");
+  assertEquals(presses().length, 1, "not pressed again when nothing was cleared");
+});
+
+Deno.test("review round 4: the fake Stripe's void cancels the invoice's intent, which can no longer be confirmed; Pay now refuses", async () => {
+  const { customer, sub, inv } = await pastDue();
+  const si = await stripe.get(`/v1/invoices/${inv.id}`, { expand: ["payments"] }) as Record<string, any>;
+  const piId = String(si.payments.data[0].payment.payment_intent);
+  await stripe.post(`/v1/invoices/${inv.id}/void`, {}, `void:${crypto.randomUUID()}`);
+  const pi = fake.objects.get(piId)!;
+  assertEquals([pi.status, pi.cancellation_reason], ["canceled", "void_invoice"]);
+  let refused = "";
+  try { fake.confirmIntent(piId); } catch (e) { refused = String((e as { code?: string }).code); }
+  assertEquals([refused, fake.objects.get(piId)!.latest_charge], ["payment_intent_unexpected_state", null], "no charge on a canceled intent");
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv), refs: { customer, subscription: sub } };
+  assertEquals((await act({ action: "invoice_pay_start", invoice_id: INVOICE, submit: true })).body.code, "NOT_PAYABLE");
+  // an intent already confirmed replays the same answer
+  const { inv: inv2 } = await pastDue();
+  const si2 = await stripe.get(`/v1/invoices/${inv2.id}`, { expand: ["payments"] }) as Record<string, any>;
+  const pi2 = String(si2.payments.data[0].payment.payment_intent);
+  assertEquals((fake.confirmIntent(pi2) as Record<string, any>).status, "succeeded");
+  assertEquals((fake.confirmIntent(pi2) as Record<string, any>).status, "succeeded", "a replay is the same answer");
 });
 
 Deno.test("review: the fake Stripe models a 3D Secure challenge, and refuses a redirect method without return_url", async () => {

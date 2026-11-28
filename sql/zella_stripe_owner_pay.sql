@@ -58,8 +58,8 @@ declare s text; d text;
   v_from constant text := '60c0659f065c58b03dc279ffb007825c';   -- sql/zella_stripe_invoices.sql's zella_owner_invoices
   v_to constant text := 'effc5ab4a36f94ac7429909fd534849b';
   owned constant jsonb := '{
-    "public.zella_owner_invoice_pay_status(uuid)": "def8331d20227467d2553700d98e459d",
-    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)": "3505734881de90a958cd1bbe1de3c4b8",
+    "public.zella_owner_invoice_pay_status(uuid)": "2526a6d23b5e3e7a4958fd8f4e2a4600",
+    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean,text)": "72d40dc65a49a4c35ac4d13bbf67787b",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "6e71430a8f8331ba81fce4300d15dfa7",
@@ -83,7 +83,7 @@ declare s text; d text;
     "public.zella_billing_consent_record(uuid,text,uuid,text,text,bigint,boolean,bigint,jsonb)": "6567947a4f7b20d20743f42281308f1e",
     "public.zella_owner_addon_catalog(uuid)": "89b1e2c913c527a6ea27377bdac1da9b",
     "public.zella_billing_card_checked(uuid,text)": "108b36e936fec7fc8b3386d9d576d87b",
-    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "21934591b0e48de02f90e75df435136f",
+    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "5a201f7e71a40a07ffbb3eb6bb6a9d58",
     "public.zella_billing_checkout_addon_codes(uuid)": "d0ec4062ffbf554269af24efc6e08841",
     "public.zella_billing_checkout_addon_lines(uuid,boolean)": "ddae63c27e07df49902c33ef00a1d0c1",
     "public.zella_billing_checkout_addon_price(uuid,text)": "e502357e2cc991ad5424017a3abb6def",
@@ -91,8 +91,10 @@ declare s text; d text;
     "public.zella_stripe_failed_addon_price(billing_outbox)": "2485145a3aaee43c7f0c993a5e55365e",
     "public.zella_billing_checkout_addons_bind(billing_checkouts,jsonb)": "4a92accd70e9463aac14bbb16c57f4a3",
     "public.zella_billing_checkout_addons_grant(billing_checkouts,billing_periods)": "c66d31d7939007d7cf37bcce11241b60",
-    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "ef2df08aa30563a2569dcd4a6c267864",
+    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "3aec168c1c74e4fd559ad017317652ae",
     "public.zella_billing_invoice_attempts_clear(uuid,text,timestamp with time zone)": "403d3484ce63b1a0a3dd0ca388c5e209",
+    "public.zella_billing_invoice_agreement(uuid)": "6a219fd47ec98c075a09226b4f33124f",
+    "public.zella_billing_checkout_addon_amounts(uuid)": "be504ed6c4921b2136e334ec60618e5b",
     "public.zella_stripe_on_customer_updated(billing_events,jsonb)": "787f60b347bef56d98b4c40e99748295"
   }';
 begin
@@ -166,9 +168,13 @@ create table if not exists public.billing_payment_consents (
   addons jsonb not null default '[]'::jsonb check (jsonb_typeof(addons) = 'array'),
   -- Pay now: when this agreement went with the payment to Stripe (the Pay press); the add ons bought after the payment
   -- are those of the one submitted agreement (review round 2)
-  submitted_at timestamptz
+  submitted_at timestamptz,
+  -- Pay now (review round 4): the PaymentIntent the Pay press confirms (billing-api read it from the invoice at Stripe);
+  -- add ons are bought only under the submitted agreement for the intent that paid the invoice
+  payment_intent text check (payment_intent is null or payment_intent ~ '^pi_[A-Za-z0-9_]{1,250}$')
 );
 alter table public.billing_payment_consents add column if not exists submitted_at timestamptz;
+alter table public.billing_payment_consents add column if not exists payment_intent text check (payment_intent is null or payment_intent ~ '^pi_[A-Za-z0-9_]{1,250}$');
 -- one row per agreement: the words (their sha256) AND the exact add ons, keys and prices (review round 3). The words
 -- name only the add ons' total, so two selections with the same total are two agreements; the same payload again (a
 -- retry, a double click) reaches its own row, and a different payload can never reuse or overwrite it.
@@ -216,6 +222,18 @@ begin
     from public.billing_invoices where business_id = p_business_id and status not in ('draft', 'deleted')), '[]'::jsonb);
 end $$;
 
+-- Server only (review round 4): the agreement whose add ons belong to an invoice. Paid: only an agreement submitted with
+-- the PaymentIntent that paid it (our record's payment_intent, from the verified invoice.paid), so add ons come from the
+-- confirmed payment's agreement, never from one that was only shown or sent with another intent. Not paid yet: the
+-- latest one (a preview of what Pay would buy; nothing is bought before the invoice is paid).
+create or replace function public.zella_billing_invoice_agreement(p_invoice_id uuid) returns public.billing_payment_consents
+language sql stable security definer set search_path = public as $$
+  select k.* from public.billing_payment_consents k join public.billing_invoices i on i.id = p_invoice_id
+   where k.payment_kind = 'invoice' and k.payment_id = p_invoice_id
+     and (i.status <> 'paid' or (k.submitted_at is not null and k.payment_intent is not null and k.payment_intent = i.payment_intent))
+   order by k.submitted_at desc nulls last, k.created_at desc, k.id desc limit 1;
+$$;
+
 -- One invoice, by our id alone (the emailed Pay now link). The id grants nothing: the caller must be the active owner
 -- of the invoice's business; a missing invoice and someone else's invoice answer the same NOT_FOUND.
 create or replace function public.zella_owner_invoice_pay_status(p_invoice_id uuid) returns jsonb
@@ -239,14 +257,14 @@ begin
     -- the add ons the owner agreed to with Pay now (owner, 27 Nov 2026: charged separately right after the plan payment),
     -- from the latest consent for this invoice, each with its own key and its purchase so far: a reload mid way resumes
     -- them with the same keys, and the invoice itself is never charged again
-    'addons_consent', (select k.consent_sha256 from public.billing_payment_consents k where k.payment_kind = 'invoice' and k.payment_id = i.id order by k.submitted_at desc nulls last, k.created_at desc, k.id desc limit 1),
+    'addons_consent', (public.zella_billing_invoice_agreement(i.id)).consent_sha256,
     'addons', coalesce((select jsonb_agg(jsonb_build_object('code', a ->> 'code', 'key', a ->> 'key', 'price_cents', (a ->> 'price_cents')::bigint,
         'resource', a ->> 'resource', 'quantity', (a ->> 'quantity')::int, 'purchase_id', pp.id, 'status', pp.status, 'failure_reason', pp.failure_reason,
         'can_act', pp.status = 'failed' and pp.stripe_payment_intent is not null
                    and coalesce(pp.failure_reason, '') in ('authentication_required', 'card_declined', 'expired_card', 'insufficient_funds', 'incorrect_cvc', 'processing_error'))
         order by a ->> 'code')
-      from (select k.addons from public.billing_payment_consents k where k.payment_kind = 'invoice' and k.payment_id = i.id order by k.submitted_at desc nulls last, k.created_at desc, k.id desc limit 1) k
-      cross join lateral jsonb_array_elements(k.addons) a
+      from (select (public.zella_billing_invoice_agreement(i.id)).addons) k
+      cross join lateral jsonb_array_elements(coalesce(k.addons, '[]'::jsonb)) a
       left join public.pack_purchases pp on pp.business_id = i.business_id and pp.idempotency_key = a ->> 'key' and pp.source = 'owner_purchase'), '[]'::jsonb));
 end $$;
 
@@ -258,7 +276,9 @@ end $$;
 -- the one the page showed; it is recorded once per distinct text. Add ons (owner, 27 Nov 2026): Stripe can't add items
 -- to a finalized invoice, so each is bought right after the plan payment through the pack path, with its own key made
 -- when Pay was pressed (kept on retry); they are named here so the consent covers them and a reload can resume them.
-create or replace function public.zella_owner_invoice_pay_start(p_invoice_id uuid, p_autopay boolean, p_addons jsonb, p_consent_hash text, p_submit boolean default false) returns jsonb
+drop function if exists public.zella_owner_invoice_pay_start(uuid, boolean, jsonb, text, boolean);
+create or replace function public.zella_owner_invoice_pay_start(p_invoice_id uuid, p_autopay boolean, p_addons jsonb, p_consent_hash text, p_submit boolean default false,
+  p_payment_intent text default null) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare i public.billing_invoices; s public.subscriptions; v_on boolean; v_add jsonb; v_sum bigint; v_n int; v_codes int; v_keys int; v_known int; v_ok boolean;
   v_plan bigint; v_text text; v_row uuid;
@@ -292,17 +312,24 @@ begin
   -- billing-api found with Stripe that the earlier attempt failed (zella_billing_invoice_attempts_clear). So the add ons
   -- bought after the payment are exactly those agreed with the attempt that was sent.
   if coalesce(p_submit, false) then
-    perform 1 from public.billing_invoices where id = i.id for update;
+    -- the Pay press names the intent it confirms (review round 4), the invoice's own when we know it
+    if p_payment_intent is null or p_payment_intent !~ '^pi_[A-Za-z0-9_]{1,250}$' then raise exception 'INVALID_INPUT'; end if;
+    -- under the lock, the invoice as it is now (review round 4): paid or no longer payable meanwhile, nothing is submitted
+    select * into i from public.billing_invoices where id = i.id for update;
+    if i.status = 'paid' then raise exception 'ALREADY_PAID'; end if;
+    if i.status not in ('open', 'payment_failed') or i.amount_due_minor <= 0 then raise exception 'NOT_PAYABLE'; end if;
+    if i.payment_intent is not null and i.payment_intent <> p_payment_intent then raise exception 'NOT_PAYABLE'; end if;
     -- this payload's own agreement: these words and exactly these add ons, keys and prices (review round 3)
     select k.id into v_row from public.billing_payment_consents k where k.payment_kind = 'invoice' and k.payment_id = i.id and k.consent_sha256 = p_consent_hash and k.addons = v_add;
     if v_row is null then raise exception 'CONSENT_MISMATCH'; end if;
     if exists (select 1 from public.billing_payment_consents k where k.payment_kind = 'invoice' and k.payment_id = i.id and k.id <> v_row
-                 and k.submitted_at > now() - interval '10 minutes'
+                 and k.submitted_at > clock_timestamp() - interval '10 minutes'
                  and coalesce((select jsonb_agg(x ->> 'code' order by x ->> 'code') from jsonb_array_elements(k.addons) x), '[]'::jsonb)
                      is distinct from coalesce((select jsonb_agg(x ->> 'code' order by x ->> 'code') from jsonb_array_elements(v_add) x), '[]'::jsonb)) then
       raise exception 'ADDONS_IN_PROGRESS';
     end if;
-    update public.billing_payment_consents set submitted_at = now() where id = v_row;
+    -- the moment of this statement, not the transaction's start (review round 4), and the intent it goes with
+    update public.billing_payment_consents set submitted_at = clock_timestamp(), payment_intent = p_payment_intent where id = v_row;
   end if;
   insert into public.audit_logs (business_id, user_id, action, entity_type, entity_id, new_data)
   values (i.business_id, auth.uid(), 'billing.invoice_pay_started', 'billing_invoice', i.id, jsonb_build_object('amount_due_minor', i.amount_due_minor, 'addons', v_n));
@@ -779,7 +806,7 @@ begin
   perform public.zella_onboarding_authorize(p_business_id, true, true);
   if p_consent_hash is null or p_consent_hash !~ '^[0-9a-f]{64}$' then raise exception 'CONSENT_REQUIRED'; end if;
   if p_invoice_id is null then
-    select * into c from public.billing_pack_catalog where code = p_pack_code and active;
+    select * into c from public.billing_pack_catalog where code = p_pack_code and active for share;
     if c.code is null then raise exception 'UNKNOWN_PACK'; end if;
     v_text := public.zella_billing_consent_text('pack', c.price_cents, null, null, 0);
     perform public.zella_billing_consent_check(v_text, p_consent_hash);
@@ -789,10 +816,11 @@ begin
     if i.status <> 'paid' then raise exception 'INVOICE_NOT_PAID'; end if;
     -- only the agreement that went with the payment to Stripe (another tab's agreement never buys anything; review
     -- round 2), with these words, and naming this pack, this key and the price charged now (review round 3)
-    select * into k from public.billing_payment_consents x where x.payment_kind = 'invoice' and x.payment_id = i.id and x.business_id = p_business_id
-     order by x.submitted_at desc nulls last, x.created_at desc, x.id desc limit 1;
-    select * into c from public.billing_pack_catalog where code = p_pack_code and active;
-    if k.id is null or k.submitted_at is null or k.consent_sha256 <> p_consent_hash or c.code is null
+    -- the agreement tied to the confirmed payment: submitted with the intent that paid this invoice (review round 4)
+    k := public.zella_billing_invoice_agreement(i.id);
+    -- the price is held until this purchase is made (review round 4), as the checkout start does
+    select * into c from public.billing_pack_catalog where code = p_pack_code and active for share;
+    if k.id is null or k.submitted_at is null or k.business_id <> p_business_id or k.consent_sha256 <> p_consent_hash or c.code is null
        or not k.addons @> jsonb_build_array(jsonb_build_object('code', p_pack_code, 'key', p_idempotency_key, 'price_cents', c.price_cents)) then
       raise exception 'CONSENT_MISMATCH';
     end if;
@@ -811,6 +839,13 @@ end $$;
 create or replace function public.zella_billing_checkout_addon_codes(p_checkout_id uuid) returns text
 language sql stable security definer set search_path = public as $$
   select string_agg(pack_code, ',' order by pack_code) from public.billing_checkout_addons where checkout_id = p_checkout_id;
+$$;
+
+-- The checkout's add ons with their recorded prices, sorted ("minutes_100=2900,texts_500=1800"; null when none): a
+-- checkout is reused only while these are the catalogue's prices (review round 4).
+create or replace function public.zella_billing_checkout_addon_amounts(p_checkout_id uuid) returns text
+language sql stable security definer set search_path = public as $$
+  select string_agg(pack_code || '=' || price_cents, ',' order by pack_code) from public.billing_checkout_addons where checkout_id = p_checkout_id;
 $$;
 
 -- The Checkout Session's add on lines: the one time Prices we made for THIS checkout, in the key's mode.
@@ -908,7 +943,7 @@ end $$;
 create or replace function public.zella_owner_billing_checkout_start(p_business_id uuid, p_idempotency_key text, p_packs text[], p_autopay boolean, p_consent_hash text) returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare o public.owner_onboarding; p public.business_plans; c public.billing_checkouts; v_trial boolean; s jsonb := public.zella_billing_settings();
-  v_codes text[]; v_sel text; v_key text; v_known int; v_addons bigint; v_text text; v_attempt int; v_snap jsonb;
+  v_codes text[]; v_sel text; v_key text; v_known int; v_addons bigint; v_text text; v_attempt int; v_snap jsonb; v_amounts text;
 begin
   perform public.zella_onboarding_authorize(p_business_id, true, true);
   if p_idempotency_key is null or p_idempotency_key !~ '^[A-Za-z0-9_-]{8,100}$' or p_autopay is null or cardinality(coalesce(p_packs, '{}'::text[])) > 20 then
@@ -931,6 +966,8 @@ begin
   v_snap := coalesce((select jsonb_agg(jsonb_build_object('code', k.code, 'resource', k.resource, 'quantity', k.quantity, 'price_cents', k.price_cents) order by k.code)
                         from (select * from public.billing_pack_catalog where active and code = any (v_codes) order by code for share) k), '[]'::jsonb);
   select count(*), coalesce(sum((x ->> 'price_cents')::bigint), 0) into v_known, v_addons from jsonb_array_elements(v_snap) x;
+  -- each pack at its price now: a checkout is reused only while its recorded add on amounts are these (review round 4)
+  v_amounts := (select string_agg((x ->> 'code') || '=' || (x ->> 'price_cents'), ',' order by x ->> 'code') from jsonb_array_elements(v_snap) x);
   if v_known <> cardinality(v_codes) then raise exception 'UNKNOWN_PACK'; end if;
   v_trial := p.trial_enabled and public.zella_onboarding_rules() ->> 'first_payment' = 'trial_with_card';
   if v_trial and cardinality(v_codes) > 0 then raise exception 'ADDONS_NOT_IN_TRIAL'; end if;   -- a trial charges nothing today
@@ -938,12 +975,16 @@ begin
   v_key := 'k' || md5(p_idempotency_key || '|' || v_sel);
   -- the same key and selection: the same checkout (an expired or failed one is followed by a new attempt)
   select * into c from public.billing_checkouts where business_id = p_business_id and selection_key = v_key order by created_at desc limit 1;
-  if c.id is not null and c.status in ('expired', 'failed') then c := null; end if;
+  -- an open one past its expiry, or one priced differently from the catalogue now, goes through the replacement below
+  -- (marked expired, or expired at Stripe first) (review round 4)
+  if c.id is not null and (c.status in ('expired', 'failed') or (c.status = 'open' and c.expires_at <= now())
+      or (c.status in ('preparing', 'open') and coalesce(public.zella_billing_checkout_addon_amounts(c.id), '') <> coalesce(v_amounts, ''))) then c := null; end if;
   if c.id is null then
     -- locked, so a session answer that opens it meanwhile is seen before the replacement decision
     select * into c from public.billing_checkouts where business_id = p_business_id and status in ('preparing', 'open', 'expiring', 'completed') order by created_at desc limit 1 for update;
     if c.id is not null and c.status in ('preparing', 'open')
-       and (c.business_plan_id <> p.id or coalesce(public.zella_billing_checkout_addon_codes(c.id), '') <> v_sel or (c.status = 'open' and c.expires_at <= now())) then
+       and (c.business_plan_id <> p.id or coalesce(public.zella_billing_checkout_addon_codes(c.id), '') <> v_sel
+            or coalesce(public.zella_billing_checkout_addon_amounts(c.id), '') <> coalesce(v_amounts, '') or (c.status = 'open' and c.expires_at <= now())) then
       if c.status = 'open' and c.expires_at > now() and c.stripe_session_id is not null then
         -- the old session could still be paid at Stripe: Stripe expires it first; a new one is offered only after Stripe
         -- confirms (zella_stripe_after_checkout_expire). If it was paid meanwhile, that payment is processed as usual,
@@ -1127,7 +1168,7 @@ create trigger zella_billing_checkout_autopay after update of stripe_subscriptio
   for each row execute function public.zella_billing_checkout_autopay_trg();
 
 do $$ declare f text; begin
-  foreach f in array array['zella_owner_invoices(uuid)', 'zella_owner_invoice_pay_status(uuid)', 'zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)',
+  foreach f in array array['zella_owner_invoices(uuid)', 'zella_owner_invoice_pay_status(uuid)', 'zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean,text)',
     'zella_owner_billing_access(uuid,boolean)', 'zella_owner_pack_status(uuid,uuid)', 'zella_owner_pack_act_start(uuid,uuid,text)',
     'zella_owner_autopay_status(uuid)', 'zella_owner_autopay_set(uuid,boolean,text)', 'zella_owner_addon_catalog(uuid)',
     'zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)', 'zella_owner_pack_buy(uuid,text,text,text,uuid)'] loop
@@ -1143,10 +1184,10 @@ do $$ declare f text; begin
     'zella_stripe_after_autopay(billing_outbox)', 'zella_stripe_autopay_check(billing_events,jsonb)',
     'zella_billing_consent_money(bigint)', 'zella_billing_terms_version()', 'zella_billing_consent_text(text,bigint,boolean,bigint,bigint)',
     'zella_billing_consent_check(text,text)', 'zella_billing_consent_record(uuid,text,uuid,text,text,bigint,boolean,bigint,jsonb)',
-    'zella_billing_card_checked(uuid,text)', 'zella_billing_checkout_addon_codes(uuid)', 'zella_billing_checkout_addon_lines(uuid,boolean)',
+    'zella_billing_card_checked(uuid,text)', 'zella_billing_checkout_addon_codes(uuid)', 'zella_billing_checkout_addon_amounts(uuid)', 'zella_billing_checkout_addon_lines(uuid,boolean)',
     'zella_billing_checkout_addon_price(uuid,text)', 'zella_stripe_after_addon_price(billing_outbox)', 'zella_stripe_failed_addon_price(billing_outbox)',
     'zella_billing_checkout_addons_bind(billing_checkouts,jsonb)', 'zella_billing_checkout_addons_grant(billing_checkouts,billing_periods)',
-    'zella_stripe_on_customer_updated(billing_events,jsonb)', 'zella_billing_invoice_attempts_clear(uuid,text,timestamptz)'] loop
+    'zella_stripe_on_customer_updated(billing_events,jsonb)', 'zella_billing_invoice_attempts_clear(uuid,text,timestamptz)', 'zella_billing_invoice_agreement(uuid)'] loop
     execute format('revoke execute on function public.%s from public, anon, authenticated', f);
     execute format('grant execute on function public.%s to service_role', f);
   end loop;
@@ -1160,8 +1201,8 @@ do $$
 declare s text;
   made constant jsonb := '{
     "public.zella_owner_invoices(uuid)": "effc5ab4a36f94ac7429909fd534849b",
-    "public.zella_owner_invoice_pay_status(uuid)": "def8331d20227467d2553700d98e459d",
-    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)": "3505734881de90a958cd1bbe1de3c4b8",
+    "public.zella_owner_invoice_pay_status(uuid)": "2526a6d23b5e3e7a4958fd8f4e2a4600",
+    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean,text)": "72d40dc65a49a4c35ac4d13bbf67787b",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "6e71430a8f8331ba81fce4300d15dfa7",
@@ -1185,7 +1226,7 @@ declare s text;
     "public.zella_billing_consent_record(uuid,text,uuid,text,text,bigint,boolean,bigint,jsonb)": "6567947a4f7b20d20743f42281308f1e",
     "public.zella_owner_addon_catalog(uuid)": "89b1e2c913c527a6ea27377bdac1da9b",
     "public.zella_billing_card_checked(uuid,text)": "108b36e936fec7fc8b3386d9d576d87b",
-    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "21934591b0e48de02f90e75df435136f",
+    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "5a201f7e71a40a07ffbb3eb6bb6a9d58",
     "public.zella_billing_checkout_addon_codes(uuid)": "d0ec4062ffbf554269af24efc6e08841",
     "public.zella_billing_checkout_addon_lines(uuid,boolean)": "ddae63c27e07df49902c33ef00a1d0c1",
     "public.zella_billing_checkout_addon_price(uuid,text)": "e502357e2cc991ad5424017a3abb6def",
@@ -1193,8 +1234,10 @@ declare s text;
     "public.zella_stripe_failed_addon_price(billing_outbox)": "2485145a3aaee43c7f0c993a5e55365e",
     "public.zella_billing_checkout_addons_bind(billing_checkouts,jsonb)": "4a92accd70e9463aac14bbb16c57f4a3",
     "public.zella_billing_checkout_addons_grant(billing_checkouts,billing_periods)": "c66d31d7939007d7cf37bcce11241b60",
-    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "ef2df08aa30563a2569dcd4a6c267864",
+    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "3aec168c1c74e4fd559ad017317652ae",
     "public.zella_billing_invoice_attempts_clear(uuid,text,timestamp with time zone)": "403d3484ce63b1a0a3dd0ca388c5e209",
+    "public.zella_billing_invoice_agreement(uuid)": "6a219fd47ec98c075a09226b4f33124f",
+    "public.zella_billing_checkout_addon_amounts(uuid)": "be504ed6c4921b2136e334ec60618e5b",
     "public.zella_stripe_on_customer_updated(billing_events,jsonb)": "787f60b347bef56d98b4c40e99748295"
   }';
 begin

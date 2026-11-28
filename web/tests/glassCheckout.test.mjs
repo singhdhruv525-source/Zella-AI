@@ -56,6 +56,14 @@ test("confirming backs off, then waits calmly; it never fails and never shows su
   assert.equal(reduce({ state: "confirming", attempt: 3 }, { type: "SERVER", payment: { status: "waiting", reason: "processing" } }).attempt, 3, "a repeated answer never restarts the backoff");
   assert.equal(reduce(s, { type: "SERVER", payment: { status: "confirmed" } }).state, "confirmed");
   assert.equal(nextDelay({ state: "idle" }), null);
+  // review round 4: each look that changes nothing still returns a NEW object, so the page's timer is armed again
+  const again = reduce(s, { type: "STILL_WAITING" });
+  assert.ok(again !== s && again.state === "pending" && nextDelay(again) === PENDING_EVERY_MS, "pending keeps looking once a minute");
+  const c = { state: "confirming", attempt: 2 };
+  const off = reduce(c, { type: "FAIL", kind: "network" });
+  assert.ok(off !== c && off.attempt === 2 && nextDelay(off) === nextDelay(c), "offline: the same attempt, looked at again");
+  const offPending = reduce(s, { type: "FAIL", kind: "network" });
+  assert.ok(offPending !== s && offPending.state === "pending");
 });
 
 test("errors have kinds, each with words and a next step; Try again goes back to idle", () => {

@@ -60,6 +60,8 @@ export function reduce(current, event) {
     case "COMPLETE": return st === "ready" || st === "loading" ? { state: "confirming", attempt: 0 } : current;
     case "RETURNED": return st === "confirmed" ? current : { state: "confirming", attempt: 0 };
     case "STILL_WAITING": {
+      // a pending wait looks again once a minute: a new object re-arms the page's timer (review round 4)
+      if (st === "pending") return { ...current };
       if (st !== "confirming") return current;
       const attempt = (current.attempt ?? 0) + 1;
       return attempt >= CONFIRM_DELAYS_MS.length ? { state: "pending" } : { state: "confirming", attempt };
@@ -73,7 +75,8 @@ export function reduce(current, event) {
       // a lost connection while confirming isn't a failed payment: keep waiting calmly; a definite refusal from our server
       // (not the owner's, not found, can't be paid, misconfigured) ends the wait with its words (review 6)
       if (st === "confirming" || st === "pending") {
-        if (event.kind === "network") return current;
+        // the same attempt and state, as a new object so the next look is scheduled again (review round 4)
+        if (event.kind === "network") return { ...current };
         return DEFINITE.includes(event.kind) ? { state: "error", kind: event.kind, ...(event.words ? { words: String(event.words) } : {}) } : { state: "pending" };
       }
       return { state: "error", kind: ERROR_KINDS.includes(event.kind) ? event.kind : "server", ...(event.words ? { words: String(event.words) } : {}) };

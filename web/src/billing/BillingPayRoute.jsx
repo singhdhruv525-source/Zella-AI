@@ -114,18 +114,20 @@ function BuyPack({ api, workspace, code, onTitle, onDone, returned }) {
   if (!validCode) return <NotFound what="pack" />;
   if (state.status === "loading") return <p className="zpay-loading" role="status">Loading…</p>;
   if (state.status === "missing") return <NotFound what="pack" />;
-  if (state.status === "card_error") {
-    return (
-      <div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div>
-        <strong>We couldn't load your saved card</strong>
-        <p>You weren't charged. Please try again.</p>
-        <button type="button" className="ba-btn sm" onClick={() => { setState({ status: "loading" }); setAttempt((n) => n + 1); }}>Try again</button>
-      </div></div>
-    );
-  }
+  // the card lookup failed: said so with Try again, never as a payment outcome (review round 4). A purchase already
+  // named in the address still opens, so its status comes from the server; a new one waits for the card
+  const cardError = state.status === "card_error" && (
+    <div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div>
+      <strong>We couldn't load your saved card</strong>
+      <p>Please try again.</p>
+      <button type="button" className="ba-btn sm" onClick={() => { setState({ status: "loading" }); setAttempt((n) => n + 1); }}>Try again</button>
+    </div></div>
+  );
+  if (cardError && !purchaseId) return cardError;
   return (
     <>
-      <PackCheckout api={api} businessId={workspace.id} pack={state.pack} card={state.card} onUpdateCard={update.run} onSettled={() => setDone(true)}
+      {cardError}
+      <PackCheckout api={api} businessId={workspace.id} pack={state.pack} card={state.card ?? null} onUpdateCard={update.run} onSettled={() => setDone(true)}
         purchaseId={purchaseId} onPurchase={namePurchase} returned={returned || Boolean(purchaseId)} />
       {update.error && <p className="ba-error" role="alert">{update.error}</p>}
       {done && <DoneLink onDone={onDone} />}

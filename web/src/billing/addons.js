@@ -21,20 +21,22 @@ export const addonName = (a) => `${Number(a?.quantity).toLocaleString("en-US")} 
 export const addonShort = (a) => `${Number(a?.quantity).toLocaleString("en-US")} ${SHORT[a?.resource] ?? a?.resource ?? ""}`.trim();
 export const addonAbout = (a) => ABOUT[a?.resource] ?? "";
 
-// The server's catalogue, cleaned: known resources, whole positive prices, valid codes, grouped minutes, texts, emails
+// The server's catalogue, cleaned: known resources, whole positive prices, valid codes, grouped minutes, texts, emails.
+// Anything but a list is not a catalogue (review round 4): null, which the pages show as "not available right now",
+// never as an empty offer; an empty list is an empty catalogue.
 export function offerFrom(catalog) {
-  const list = Array.isArray(catalog) ? catalog : [];
-  return list.filter((a) => a && CODE.test(String(a.code)) && UNIT[a.resource] && Number.isInteger(Number(a.price_cents)) && Number(a.price_cents) > 0
+  if (!Array.isArray(catalog)) return null;
+  return catalog.filter((a) => a && CODE.test(String(a.code)) && UNIT[a.resource] && Number.isInteger(Number(a.price_cents)) && Number(a.price_cents) > 0
     && Number.isInteger(Number(a.quantity)) && Number(a.quantity) > 0)
     .map((a) => ({ code: a.code, resource: a.resource, quantity: Number(a.quantity), price_cents: Number(a.price_cents) }));
 }
 export function groupOffer(offer) {
-  return GROUPS.map(([resource, title]) => ({ resource, title, items: offer.filter((a) => a.resource === resource).sort((x, y) => x.quantity - y.quantity) }))
+  return GROUPS.map(([resource, title]) => ({ resource, title, items: (offer ?? []).filter((a) => a.resource === resource).sort((x, y) => x.quantity - y.quantity) }))
     .filter((g) => g.items.length > 0);
 }
 
 // The ticked packs in the offer, in the offer's order (codes not on offer are dropped)
-export const chosen = (offer, codes) => offer.filter((a) => (codes ?? []).includes(a.code));
+export const chosen = (offer, codes) => (offer ?? []).filter((a) => (codes ?? []).includes(a.code));
 export const addonsTotal = (offer, codes) => chosen(offer, codes).reduce((s, a) => s + a.price_cents, 0);
 export const toggle = (codes, code, on) => (on ? [...new Set([...(codes ?? []), code])] : (codes ?? []).filter((c) => c !== code)).sort();
 // a stable key for a selection: the onboarding session must be made again when it changes

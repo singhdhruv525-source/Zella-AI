@@ -47,7 +47,11 @@ test("add ons: the server's catalogue only, grouped minutes, texts, emails; name
   assert.deepEqual(chosen(offer, sel).map((a) => a.code), ["texts_500", "minutes_100"]);
   assert.equal(selectionKey(["texts_500", "minutes_100", "texts_500"]), "minutes_100,texts_500");
   assert.deepEqual(toggle(sel, "texts_500", false), ["minutes_100"]);
-  assert.equal(offerFrom(null).length, 0);
+  // review round 4: anything but a list is "not available" (null), never an empty offer; an empty list is empty
+  assert.equal(offerFrom(null), null);
+  assert.equal(offerFrom({ error: "x" }), null);
+  assert.deepEqual(offerFrom([]), []);
+  assert.deepEqual([groupOffer(null), chosen(null, ["minutes_100"]), addonsTotal(null, ["minutes_100"])], [[], [], 0], "a missing catalogue prices nothing");
 });
 
 test("add on keys: made when Pay is pressed, kept on retry and reload, a new one only for a newly ticked pack", () => {
@@ -321,6 +325,20 @@ test("review round 3: a cancelled pack purchase is final: its own words and Try 
   await api.packStatus(FAKE_BUSINESS, second.purchase_id);
   assert.equal((await api.packStatus(FAKE_BUSINESS, second.purchase_id)).purchase.status, "granted", "a new key: a new purchase, confirmed by the server");
   delete globalThis.sessionStorage;
+});
+
+test("review round 4: server answers are checked: a missing purchase is an error, a card answer without card is an error, Stripe's page only at a real address", async () => {
+  const { packAnswer } = await import("../src/billing/payState.js");
+  assert.throws(() => packAnswer(undefined), { code: "BAD_RESPONSE" });
+  assert.throws(() => packAnswer({ status: "weird" }), { code: "BAD_RESPONSE" });
+  assert.equal(packAnswer({ status: "pending" }).payment.reason, "processing", "a pending purchase is still processing");
+  const { cardSummaryFrom, portalUrlFrom } = await import("../src/billing/payState.js");
+  assert.equal(cardSummaryFrom({ card: null }), null, "an explicit no card");
+  assert.deepEqual(cardSummaryFrom({ card: { brand: "visa", last4: "4242" } }), { brand: "visa", last4: "4242" });
+  for (const bad of [null, undefined, {}, "x"]) assert.throws(() => cardSummaryFrom(bad), { code: "BAD_RESPONSE" });
+  assert.equal(portalUrlFrom({ url: "https://billing.stripe.com/p/session/x" }), "https://billing.stripe.com/p/session/x");
+  assert.equal(portalUrlFrom({ url: "/app/settings/billing/invoices?card=updated" }), "/app/settings/billing/invoices?card=updated");
+  for (const bad of [null, {}, { url: "" }, { url: "//evil.example" }, { url: "javascript:alert(1)" }, { url: "http://x" }]) assert.throws(() => portalUrlFrom(bad), { code: "BAD_RESPONSE" });
 });
 
 test("review round 3: the server's granted wins over a local failure; Auto pay unknown shows only the amount and date", async () => {

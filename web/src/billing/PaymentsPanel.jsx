@@ -227,30 +227,45 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
   const apSent = useRef(null);   // the last Auto pay value the server has from this page: from the loaded status, then each change sent (review)
   const businessOf = inv.status === "ok" ? inv.invoice?.business_id : null;
   const [plan, setPlan] = useState(null);
-  const [offer, setOffer] = useState([]);
+  const [offer, setOffer] = useState([]);   // [] while loading or empty; null when the catalogue couldn't be loaded
   const [selected, setSelected] = useState([]);
+  const [catalogTry, setCatalogTry] = useState(0);
   useEffect(() => {
     if (!businessOf || !api.overview) return undefined;
     let alive = true;
     api.overview(businessOf).then((o) => { if (alive) setPlan(o?.plan ?? null); }, () => {});
-    if (api.addonCatalog) api.addonCatalog(businessOf).then((c) => { if (alive) setOffer(offerFrom(c)); }, () => {});
     return () => { alive = false; };
   }, [api, businessOf]);
   useEffect(() => {
+    if (!businessOf || !api.addonCatalog) return undefined;
+    let alive = true;
+    // a failed or malformed answer is "not available right now", never an empty catalogue (review round 4)
+    api.addonCatalog(businessOf).then((c) => { if (alive) setOffer(offerFrom(c)); }, () => { if (alive) setOffer(null); });
+    return () => { alive = false; };
+  }, [api, businessOf, catalogTry]);
+  // the saved Auto pay choice must be known before Pay (review round 4): until then no agreement is shown and nothing
+  // can start, so a stale local value never words the agreement or reaches the server
+  const [apState, setApState] = useState(api.autopayStatus ? "loading" : "none");
+  const [apTry, setApTry] = useState(0);
+  useEffect(() => {
     if (!businessOf || !api.autopayStatus) return undefined;
     let alive = true;
-    api.autopayStatus(businessOf).then((a) => { if (alive && a && typeof a.on === "boolean") { setAp(a); setApOn(a.on); apSent.current = a.on; } }, () => {});
+    api.autopayStatus(businessOf).then((a) => {
+      if (!alive) return;
+      if (a && typeof a.on === "boolean") { setAp(a); setApOn(a.on); apSent.current = a.on; setApState("ok"); } else setApState("error");
+    }, () => { if (alive) setApState("error"); });
     return () => { alive = false; };
-  }, [api, businessOf]);
+  }, [api, businessOf, apTry]);
   // ---- the add ons after the plan payment ----
   const [items, setItems] = useState([]);
   const [buying, setBuying] = useState(false);
+  const [settleError, setSettleError] = useState("");   // the add ons couldn't be checked (shown even with no rows yet; review round 4)
   const run = useRef(false);   // one run at a time (a double click on Try again, a reload's resume and the confirmation together)
   const consentFor = useRef(null);
   const fromList = addonRows;   // the server's "granted" wins over a local failure (review round 3)
   async function settleAddons(only = null) {
     if (run.current) return;
-    run.current = true; setBuying(true);
+    run.current = true; setBuying(true); setSettleError("");
     const local = {};
     try {
       let fresh = await api.invoiceStatus(invoiceId);
@@ -282,7 +297,10 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
       }
       fresh = await api.invoiceStatus(invoiceId);
       setItems(fromList(fresh?.addons, local));
-    } catch (err) { setItems((cur) => cur.map((a) => (a.step === "added" ? a : { ...a, step: "failed", words: words(err) }))); }
+    } catch (err) {
+      setItems((cur) => cur.map((a) => (a.step === "added" ? a : { ...a, step: "failed", words: words(err) })));
+      setSettleError(words(err));
+    }
     finally { run.current = false; setBuying(false); }
   }
   function retryAddon(a) {
@@ -329,6 +347,13 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
   if (inv.status === "error") return <>{back}<div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div><strong>We couldn't open this invoice</strong><p>{words(inv.error)}</p></div></div></>;
   const i = inv.invoice;
   const cannot = !i.payable && i.status !== "paid";
+  if (i.payable && i.status !== "paid" && apState === "loading") return <>{back}<p className="zpay-loading" role="status">Loading…</p></>;
+  if (i.payable && i.status !== "paid" && apState === "error") {
+    return <>{back}<div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div>
+      <strong>We couldn't load your Auto pay setting</strong><p>Please try again before you pay.</p>
+      <button type="button" className="ba-btn sm" onClick={() => { setApState("loading"); setApTry((n) => n + 1); }}>Try again</button>
+    </div></div></>;
+  }
   // a simple summary (owner, 27 Nov 2026): the plan and what the payment covers; the invoice number and details stay in the PDF
   const span = i.period_start ? `${shortDay(i.period_start)} to ${shortDay(i.period_end)}` : day(i.created_at);
   const summary = {
@@ -348,7 +373,8 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
       <GlassCheckout summary={summary} payment={payment} words={over} payLabel={(a) => `Pay ${a}`} onUpdateCard={onUpdateCard} returned={returned}
         fallbackUrl={i.status !== "paid" ? safeUrl(i.hosted_invoice_url) : null} onPayment={onPayment}
         autopay={ap && !paidBefore ? { on: apOn, onChange: setApOn, ...autopayWords(ap.email_live === true, "your saved card") } : null}
-        addons={!paidBefore && i.payable ? { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)), note: ADDON_NOTE } : null}
+        addons={!paidBefore && i.payable ? { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)), note: ADDON_NOTE,
+          onRetry: () => { setOffer([]); setCatalogTry((n) => n + 1); } } : null}
         consentText={consent}
         start={() => startPay(false)} beforeSubmit={() => startPay(true)}
         confirm={async () => {
@@ -358,7 +384,7 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
           return { payment: p, card: r.card, ...(fromServer(p).state === "idle" ? { stopped: "not_taken" } : {}) };
         }}
         kind="intent" saveNote="This card is used for this payment only."
-        after={<AddonProgress items={items} onRetry={retryAddon} busy={buying} />}
+        after={<AddonProgress items={items} onRetry={retryAddon} busy={buying} error={settleError} onRetryAll={() => settleAddons()} />}
         mount={(slots, opts) => (api.mountPayment ? api.mountPayment(slots, { ...opts, invoiceId }) : mountCardFields(slots, opts))} />
       {apNote && <p className="zob-muted zpay-apnote" role="status">{apNote}</p>}
       {safeUrl(i.invoice_pdf) && (

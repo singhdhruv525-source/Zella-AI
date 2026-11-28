@@ -153,6 +153,11 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   lookup failure is its own state; Checkout's `paymentFailed` mapped to the decline words. `tests/stripe_e2e/journey_test.ts`
   now sends the agreement but was not run here (it needs the `zprod3` production schema copy, not on the build server):
   run it before merge.
+  **CodeRabbit round 4 (28 Nov 2026):** enforced attribution (owner instruction via the coordinator): the Pay press
+  records the PaymentIntent, and a paid invoice's add ons come only from the agreement submitted with the intent that
+  paid it; the invoice is rechecked under its lock; expired or repriced checkouts are never reused; Pay now waits for
+  the saved Auto pay choice; the reviewer config states the card fields rule above. The `_shared/stripe.ts`
+  cardSummary issuer finding was not applied: the owner decided the issuer is shown when Stripe provides it.
 - **Card problems (owner question, 27 Nov 2026):** no screen of ours for the bank's code: live, Stripe.js opens the
   bank's own check in Stripe's overlay; the page waits ("Waiting for your bank to confirm") and shows the outcome. Wrong
   details inline, declines by Stripe's `decline_code` (lost and stolen read as generic), Try another card on the same
@@ -346,6 +351,7 @@ most often needed:
   change). The admin phone items (A27 to A30, A32, A53) wait for the phone navigation pull request (#122). Details in
   `docs/DESIGN_SYSTEM.md` "Admin pages polish"; architecture §23.1d.
 
+- **Card fields (owner decision, 27 Nov 2026):** the only card fields Zella Voice may store are the brand and last 4 digits that Stripe returns. On screen during a payment it may also show the expiry from Stripe's preview, the cardholder name the owner typed (in the browser's memory only), and the issuing bank's name when Stripe provides it; it never stores those. Never a full card number, a security code, or card details spoken on a call (`NN-9`).
 - **Card details in billing notices (owner, 27 Nov 2026, R59):** "brand and last 4". Billing emails may show the card
   brand and last 4 digits, read from Stripe ("your Visa ending 4242"), so Zella Voice keeps those
   limited details in its billing records and email log; never a full card number or security code (`NN-9`), and Stripe

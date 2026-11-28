@@ -16,6 +16,20 @@ export function nextPaymentLine({ amount, date, apKnown, apOn, due }) {
   return apOn ? `${head} Auto pay is on.` : `${head} Auto pay is off, so you'll pay it here by ${due}.`;
 }
 
+// billing-api's card_summary answer (review round 4): { card: null } is "no card"; a missing answer, or one without
+// card, is an error the page shows (never read as "no card" or "your saved card").
+export function cardSummaryFrom(r) {
+  if (!r || typeof r !== "object" || !("card" in r)) throw Object.assign(new Error("We couldn't load your saved card."), { code: "BAD_RESPONSE" });
+  return r.card ?? null;
+}
+
+// The address of Stripe's card page from card_update_start (review round 4): an https address (Stripe's page) or a
+// path on this site (the local stand in); anything else is an error, so the button comes back with a message.
+export function portalUrlFrom(r) {
+  if (typeof r?.url !== "string" || !/^(https:\/\/|\/(?!\/))[^\s"'<>]+$/.test(r.url)) throw Object.assign(new Error("We couldn't open Stripe's card page. Please try again."), { code: "BAD_RESPONSE" });
+  return r.url;
+}
+
 export function invoiceAsPayment(inv) {
   if (inv?.status === "paid") return { status: "confirmed" };
   // Stripe already has a payment for it (a reload, another tab, Auto pay at the same moment): confirming, never Pay again
@@ -39,5 +53,8 @@ export function packAnswer(purchase) {
   }
   // cancelled: a final answer, never "processing" (review round 3); Try again buys it again as a new purchase
   if (purchase?.status === "cancelled") return { payment: { status: "waiting" }, stopped: "pack_cancelled" };
-  return { payment: { status: "waiting", reason: "processing" } };
+  // only a pending purchase is still being paid; a missing or unknown answer is an error for the page to show (review
+  // round 4), never "processing"
+  if (purchase?.status === "pending") return { payment: { status: "waiting", reason: "processing" } };
+  throw Object.assign(new Error("The server's answer about this purchase was missing."), { code: "BAD_RESPONSE" });
 }
