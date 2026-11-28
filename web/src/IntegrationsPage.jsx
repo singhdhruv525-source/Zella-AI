@@ -49,7 +49,7 @@ export default function IntegrationsPage({ onOpenBusiness }) {
         <div>
           <div className="owner-eyebrow">Operations</div>
           <h1>Integrations</h1>
-          <p>What each client asked for during setup, and which services are actually connected.</p>
+          <p>What each business asked for during setup, and which services are actually connected.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />

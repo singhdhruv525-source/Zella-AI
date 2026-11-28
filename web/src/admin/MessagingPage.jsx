@@ -129,7 +129,7 @@ function Messages({ channel, me, options, failedOnly, say, onOpenBusiness }) {
   return (
     <Panel>
       <Filters>
-        <Search label={email ? "Email address, subject or provider id" : "Phone number or provider id"} value={f.q} onChange={setQ} placeholder={email ? "Full address" : "At least 4 digits"} />
+        <Search label={email ? "Email address, subject or provider ID" : "Phone number or provider ID"} value={f.q} onChange={setQ} placeholder={email ? "Full address" : "At least 4 digits"} />
         <Select label="Period" value={String(f.days)} any={null} onChange={(v) => set("days")(Number(v))} options={PERIODS.map(([d, l]) => [String(d), l])} />
         <Select label="Business" value={f.business} onChange={set("business")} options={(options?.businesses ?? []).map((b) => [b.id, b.name])} />
         <Select label="Status" value={f.status} onChange={set("status")} options={STATUSES.map((s) => [s, STATUS_LABEL[s] ?? words(s)])} />
@@ -166,7 +166,7 @@ function MessageDrawer({ channel, id, me, onClose, onOpenBusiness, onRetried }) 
         <>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(m.business_id)}>{m.business_name}</button>],
             ["Direction", m.direction === "inbound" ? "Received" : "Sent"], ["To", m.to], ["From", m.from], m.subject ? ["Subject", m.subject] : null,
-            ["Status", statusPill(m.status)], ["Provider id", m.provider_id ? <code key="p">{m.provider_id}</code> : null],
+            ["Status", statusPill(m.status)], ["Provider ID", m.provider_id ? <code key="p">{m.provider_id}</code> : null],
             m.meta?.error || m.meta?.failure_reason ? ["Error", m.meta.error ?? m.meta.failure_reason] : null,
             m.meta?.reminder_id ? ["Sent for", "Appointment reminder"] : m.meta?.task_id ? ["Sent for", "Follow up"] : null]} />
           <h3 className="ao-h3">Timeline</h3>
@@ -298,7 +298,7 @@ function Providers({ me }) {
         {o && <Facts rows={[["Texts", <span key="s" title={switchHint("sms_live")}>{o.live.sms ? <Pill tone="success">Live</Pill> : <Pill tone="warning">Test mode, nothing is sent</Pill>}</span>],
           ["Text sender number", o.live.sms_sender_set ? "Set" : "Not set"], ["Emails", <span key="e" title={switchHint("email_live")}>{o.live.email ? <Pill tone="success">Live</Pill> : <Pill tone="warning">Test mode, nothing is sent</Pill>}</span>],
           ["Email sender address", o.live.email_sender_set ? "Set" : "Not set"], ["Marketing texts", o.live.marketing_texts ? "Allowed" : "Off (transactional only)"]]} />}
-        <p className="op-muted">The live switches can't be changed from the app on purpose, so one click can't start messaging customers. They are switched on in the database, on the server side, when Zella Voice is ready to go live.</p>
+        <p className="op-muted">The live switches can't be changed from the app on purpose, so a single mistake can't start messaging customers. They are switched on in the database, on the server side, when Zella Voice is ready to go live.</p>
         <p className="op-muted">Every go live step is on one list: <button type="button" className="ao-link" onClick={() => navigate("/operations?view=go-live")}>open the go live checklist</button>.</p>
       </Panel>
       <Panel title="Connection checks">

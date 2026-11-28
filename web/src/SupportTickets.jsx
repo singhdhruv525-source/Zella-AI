@@ -204,7 +204,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
         <div>
           <div className="owner-eyebrow">Operations</div>
           <h1>Support tickets</h1>
-          <p>Issues raised for client businesses, who's handling them and where they stand.</p>
+          <p>Issues raised by businesses, who's handling them and where they stand.</p>
         </div>
         <div className="op-heading-actions">
           <button type="button" className="owner-secondary-button" onClick={load} disabled={loading}>
@@ -358,7 +358,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
             {selected.description && <p className="st-description">{selected.description}</p>}
             <p className="op-muted st-response">
               {!timesKnown
-                ? "Reply times aren't available yet (they need the latest database update)."
+                ? "Reply times aren't available yet (they need the latest Zella Voice update)."
                 : selected.firstResponseHours !== null && selected.firstResponseHours !== undefined
                 ? firstReplyText(selected.firstResponseHours)
                 : `No reply yet: open for ${businessHoursText(selected.ageHours) || "under a business hour"}${selected.overdue === true ? `, past the ${data?.supportHours?.first_response_hours ?? 4} business hour goal` : ""}.`}
@@ -389,7 +389,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
             <div className="st-notes">
               <h4>Conversation with the business</h4>
               {data?.conversations !== true ? (
-                <p className="op-muted">Conversations with businesses aren't available yet: they need the latest database update (sql/zella_support_replies.sql).</p>
+                <p className="op-muted">Conversations with businesses aren't available yet: they need the latest Zella Voice update.</p>
               ) : selected.messages?.length ? (
                 <ul>
                   {selected.messages.map((m, i) => (

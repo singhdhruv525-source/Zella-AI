@@ -53,7 +53,7 @@ const when = (v) => (v ? new Date(v).toLocaleString(undefined, { dateStyle: "med
 
 function NotSetUp() {
   return (
-    <div className="wiz-note op-gap" title="Needs sql/zella_spam_protection.sql applied, after a backup">
+    <div className="wiz-note op-gap" title="Needs the latest Zella Voice update">
       Spam protection isn't switched on yet. Ask the Zella Voice team to turn it on.
     </div>
   );
@@ -550,7 +550,7 @@ function Automation({ info, canSave, onSaved }) {
   const [confirmLive, setConfirmLive] = useState(false);
   const [reason, setReason] = useState("");
   if (!info?.available) {
-    return <section className="owner-panel sa-panel"><p className="op-muted" title="Needs the current sql/zella_spam_protection.sql, applied after a backup">The spam automation queue isn't switched on for Zella Voice yet.</p></section>;
+    return <section className="owner-panel sa-panel"><p className="op-muted" title="Needs the latest Zella Voice update">The spam automation queue isn't switched on for Zella Voice yet.</p></section>;
   }
   async function save(patch, message) {
     setBusy(true);

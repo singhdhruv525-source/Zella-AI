@@ -86,7 +86,7 @@ function Overview({ onTab, onOpenCalls }) {
             <NotAvailable title="No phone numbers yet">Numbers bought in Telnyx or Vapi are assigned to a business with "Assign a number". Until then no calls can reach Zella Voice.</NotAvailable>
           )}
           {o.numbers_without_vapi > 0 && (
-            <NotAvailable title={`${o.numbers_without_vapi} active number${o.numbers_without_vapi === 1 ? "" : "s"} not linked to Vapi`}>Add the Vapi phone number id under Numbers so calls are matched to the business.</NotAvailable>
+            <NotAvailable title={`${o.numbers_without_vapi} active number${o.numbers_without_vapi === 1 ? "" : "s"} not linked to Vapi`}>Add the Vapi phone number ID under Numbers so calls are matched to the business.</NotAvailable>
           )}
         </>
       )}
@@ -162,7 +162,7 @@ function Numbers({ me, options, onAssign, onOpenCalls, say, onOpenBusiness }) {
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(open.business_id)}>{open.business_name}</button>],
             ["Business state", words(open.business_state)], ["Label", open.label], ["Country code", open.country_code], ["Status", <Pill key="s" tone={statusTone(open.status)}>{words(open.status)}</Pill>],
             ["AI receptionist", open.agent ? `${open.agent.name} (${words(open.agent.status)})` : "None. Calls can't be answered"],
-            ["Vapi phone number id", open.vapi_phone_number_id ? <code key="v">{open.vapi_phone_number_id}</code> : "Not linked"],
+            ["Vapi phone number ID", open.vapi_phone_number_id ? <code key="v">{open.vapi_phone_number_id}</code> : "Not linked"],
             ["Calls, last 30 days", num(open.calls_30d)], ["Last call", when(open.last_call_at, "No calls yet")], ["Added", when(open.created_at, "Not recorded")]]} />
           <NotAvailable title="Carrier details aren't shown yet" tip="Needs the Telnyx API from a server action, which isn't built">Number type and carrier status are in the Telnyx dashboard. Buying and releasing numbers at the carrier is done in the Telnyx or Vapi dashboard.</NotAvailable>
           <div className="ao-drawer-actions">
@@ -217,7 +217,7 @@ function AssignDialog({ edit: initial, options, onClose, onDone }) {
             {(options?.businesses ?? []).filter((b) => b.state !== "cancelled").map((b) => <option key={b.id} value={b.id}>{b.name}{b.state !== "active" ? ` (${words(b.state)})` : ""}</option>)}
           </select>
         </label>
-        <label className="owner-field"><span>Vapi phone number id</span><input value={edit.vapiPhoneNumberId} onChange={field("vapiPhoneNumberId")} placeholder="From the Vapi dashboard" /></label>
+        <label className="owner-field"><span>Vapi phone number ID</span><input value={edit.vapiPhoneNumberId} onChange={field("vapiPhoneNumberId")} placeholder="From the Vapi dashboard" /></label>
         <label className="owner-field"><span>Label</span><input value={edit.label} onChange={field("label")} placeholder="Main line" /></label>
       </div>
       <p className="op-muted">The number must already be bought in Telnyx or Vapi; Zella Voice doesn't buy numbers.{initial.id ? " Calls reach the new business's AI receptionist once Vapi points at it." : ""}</p>
@@ -283,7 +283,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
             ["Handled by", c.ai_handled ? "AI receptionist" : "Team"], ["Outcome", c.outcome ? words(c.outcome) : "Not recorded"], ["Outcome note", c.outcome_note],
             ["Transfer", c.transfer_status ? words(c.transfer_status) : null], ["Length", duration(c.duration_seconds, "Not recorded")],
             c.needs_human ? ["Needs a person", c.escalation_reason ?? "Yes"] : null, c.escalation_resolved_at ? ["Resolved", when(c.escalation_resolved_at)] : null,
-            c.failure_reason ? ["Error", c.failure_reason] : null, ["Provider call id", c.provider_call_id ? <code key="p">{c.provider_call_id}</code> : null]]} />
+            c.failure_reason ? ["Error", c.failure_reason] : null, ["Provider call ID", c.provider_call_id ? <code key="p">{c.provider_call_id}</code> : null]]} />
           <h3 className="ao-h3">Timeline</h3>
           <ol className="ao-timeline">
             {[["Created", c.created_at], ["Started", c.started_at], ["Answered", c.answered_at], ["Escalated", c.escalated_at], ["Ended", c.ended_at]]

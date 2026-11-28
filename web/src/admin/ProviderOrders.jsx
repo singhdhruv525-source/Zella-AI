@@ -60,7 +60,7 @@ export default function ProviderOrders({ me, say = () => {} }) {
           <p>Asked by {dialog.decide.requested_by_email ?? "another admin"}: {dialog.decide.request_reason}</p>
           {dialog.approve && (dialog.decide.kind === "purchase"
             ? <p>Telnyx is asked to buy this number now, which costs money every month until it is released. It is then added to Vapi. Assign it to a business on Numbers afterwards.</p>
-            : <p>The number is removed from Vapi and released at Telnyx. It can't be got back.</p>)}
+            : <p>The number is removed from Vapi and released at Telnyx. This can't be undone.</p>)}
         </ReasonDialog>
       )}
       {dialog?.resolve && <ResolveDialog order={dialog.resolve} onClose={() => setDialog(null)} onDone={done} />}
@@ -90,10 +90,10 @@ function ResolveDialog({ order, onClose, onDone }) {
         <label className="owner-field"><span>What the provider shows</span>
           <select value={f.outcome} onChange={set("outcome")}><option value="">Choose…</option>
             <option value="completed">{order.kind === "purchase" ? "The number was bought" : "The number was released"}</option>
-            <option value="failed">{order.kind === "purchase" ? "The number was not bought" : "The number was not released"}</option></select></label>
+            <option value="failed">{order.kind === "purchase" ? "The number wasn't bought" : "The number wasn't released"}</option></select></label>
         {order.kind === "purchase" && <>
-          <label className="owner-field"><span>Telnyx number id (optional)</span><input value={f.numberId} onChange={set("numberId")} /></label>
-          <label className="owner-field"><span>Vapi phone number id (optional)</span><input value={f.vapiPhoneNumberId} onChange={set("vapiPhoneNumberId")} /></label>
+          <label className="owner-field"><span>Telnyx number ID (optional)</span><input value={f.numberId} onChange={set("numberId")} /></label>
+          <label className="owner-field"><span>Vapi phone number ID (optional)</span><input value={f.vapiPhoneNumberId} onChange={set("vapiPhoneNumberId")} /></label>
         </>}
       </div>
     </ReasonDialog>
@@ -138,7 +138,7 @@ function OrderDialog({ dialog, onClose, onDone }) {
         ) : (
           <>
             <label className="owner-field"><span>Number</span><input value={f.e164} onChange={set("e164")} placeholder="+15551234567" /></label>
-            <label className="owner-field"><span>Vapi phone number id (if it is in Vapi)</span><input value={f.vapiPhoneNumberId} onChange={set("vapiPhoneNumberId")} /></label>
+            <label className="owner-field"><span>Vapi phone number ID (if it's in Vapi)</span><input value={f.vapiPhoneNumberId} onChange={set("vapiPhoneNumberId")} /></label>
             <p className="op-muted">Release it from Zella Voice on Numbers first. A number still assigned to a business is refused.</p>
           </>
         )}

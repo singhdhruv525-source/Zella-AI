@@ -8,7 +8,7 @@ const cap = (word) => String(word ?? "").replace(/^./, (c) => c.toUpperCase());
 // [type, title(appointmentWord), description(appointmentWord)]
 export const CATALOG = [
   ["appointment_reminder", (a) => `${cap(a)} reminders`, (a) => `Remind customers before their ${a}.`],
-  ["appointment_confirmation", () => "Confirmation & check in", (a) => `Ask customers to confirm their ${a}.`],
+  ["appointment_confirmation", () => "Confirmation and check in", (a) => `Ask customers to confirm their ${a}.`],
   ["no_show_follow_up", () => "No show follow up", (a) => `Reach out when someone misses their ${a} and offer to rebook.`],
   ["missed_call_follow_up", () => "Missed call recovery", () => "Call back anyone whose call was missed."],
   ["new_lead_callback", () => "New lead callback", () => "Call new leads from Meta, the website and other sources."],

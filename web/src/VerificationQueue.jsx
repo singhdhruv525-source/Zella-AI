@@ -142,7 +142,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
       </div>
 
       {data && !data.available && (
-        <div className="wiz-note op-gap" title="Needs sql/zella_onboarding.sql applied">
+        <div className="wiz-note op-gap" title="Needs the latest Zella Voice update">
           Document review isn't switched on yet. Documents uploaded during setup appear here once it is.
         </div>
       )}

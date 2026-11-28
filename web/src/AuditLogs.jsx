@@ -148,7 +148,7 @@ export default function AuditLogs({ onOpenBusiness }) {
         <div>
           <div className="owner-eyebrow">Administration</div>
           <h1>Audit logs</h1>
-          <p>Every admin action on client businesses: who did it, what changed and when.</p>
+          <p>Every admin action on businesses: who did it, what changed and when.</p>
         </div>
         <div className="ic-actions">
           {canExport && (
@@ -202,8 +202,8 @@ export default function AuditLogs({ onOpenBusiness }) {
             <input value={filters.entityType} onChange={set("entityType")} placeholder="for example platform_admin" />
           </label>
           <label className="owner-field al-f-text">
-            <span>Record id</span>
-            <input value={filters.entityId} onChange={set("entityId")} placeholder="The record's id" />
+            <span>Record ID</span>
+            <input value={filters.entityId} onChange={set("entityId")} placeholder="The record's ID" />
           </label>
           {filtered && (
             <button type="button" className="al-text-button" onClick={() => setFilters(EMPTY)}>Clear filters</button>

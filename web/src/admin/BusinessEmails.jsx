@@ -88,7 +88,7 @@ function Outbox({ onOpenBusiness }) {
   const missing = log.errorCode === "PGRST202";   // the function isn't there: the outbox migration isn't applied yet
   return (
     <Panel title="Sent to businesses" description="The platform outbox, once it is installed. No sender is connected yet, so nothing leaves; while email sending is off, queued emails are marked test mode. Once a sender is connected, each email is sent at most once and one that keeps failing is held for a person, who can release it to try again or discard it.">
-      {missing ? <p className="op-muted" title="Needs sql/zella_platform_emails.sql applied">The email outbox isn't switched on yet.</p> : (
+      {missing ? <p className="op-muted" title="Needs the latest Zella Voice update">The email outbox isn't switched on yet.</p> : (
         <>
           <Filters>
             <Select label="Business" value={f.business} onChange={set("business")} disabled={!options.data}

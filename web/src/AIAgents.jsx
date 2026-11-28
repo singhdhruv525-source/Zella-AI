@@ -107,7 +107,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         <div>
           <div className="owner-eyebrow">AI & communications</div>
           <h1>AI receptionists</h1>
-          <p>Every client's AI receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
+          <p>Every business's AI receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />

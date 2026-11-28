@@ -231,7 +231,7 @@ function RunDrawer({ row, me, onClose, onOpenBusiness, onChanged }) {
             ["Started", when(r.started_at, "Not started")], ["Finished", when(r.finished_at, "Not finished")], ["Tries", r.attempts ?? 0],
             r.current_step ? ["Step", String(r.current_step)] : null, r.error_category ? ["Error type", words(r.error_category)] : null, r.error ? ["Error", r.error] : null,
             r.next_run_at ? ["Next try", when(r.next_run_at)] : null, r.providers_called?.length ? ["Providers called", r.providers_called.join(", ")] : null,
-            r.correlation_id ? ["Correlation id", <code key="c">{r.correlation_id}</code>] : null]} />
+            r.correlation_id ? ["Correlation ID", <code key="c">{r.correlation_id}</code>] : null]} />
           <h3 className="ao-h3">Steps</h3>
           {d.data.steps.length ? (
             <ol className="ao-timeline">{d.data.steps.map((s, i) => <li key={i}><strong><Pill tone={tone(s.status === "done" || s.status === "ok" ? "succeeded" : s.status)}>{s.status ? words(s.status) : "No status"}</Pill> {s.name ?? `Step ${i + 1}`}</strong><span>{[s.at && whenText(s.at), s.error].filter(Boolean).join(". ")}</span></li>)}</ol>

@@ -43,7 +43,7 @@ export default function BusinessExport({ me }) {
     <Card title="Whole business export" sub="Everything a business has, as one file per table plus its stored files. An admin asks for it, a Zella Voice owner other than the person who asked approves it, and it can be downloaded for 7 days. Secret keys, recording links and, in sensitive industries, call transcripts are never included.">
       <Banner tone="success">{notice.text}</Banner>
       <Banner tone="error">{notice.error}</Banner>
-      <LoadState state={state}>{(s) => !s.available ? <p className="zs-muted">Business exports aren't installed on this database yet.</p> : (
+      <LoadState state={state}>{(s) => !s.available ? <p className="zs-muted">Business exports need the latest Zella Voice update.</p> : (
         <>
           {manage && (<>
             <div className="zs-grid">

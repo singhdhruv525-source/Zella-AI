@@ -552,7 +552,7 @@ function OwnerStep({ value, onChange, invitation, showErrors }) {
         <Field label="Owner full name" required>
           <input value={value.name} onChange={set("name")} placeholder="Full name" />
         </Field>
-        <Field label="Owner email / login" required bare hint={sent ? "Already invited, so the email can't be changed here." : undefined}>
+        <Field label="Owner email (used to sign in)" required bare hint={sent ? "Already invited, so the email can't be changed here." : undefined}>
           <EmailField label="Owner email" value={value.email} onChange={(email) => onChange({ ...value, email })} placeholder="owner@business.com" disabled={sent} required showErrors={showErrors} />
         </Field>
         <Field label="Owner phone" bare>
@@ -983,7 +983,7 @@ function IntegrationsStep({ value, onChange, showErrors }) {
         <ConnectionRow name="Meta lead ads" detail="Facebook and Instagram lead forms">
           <Toggle checked={value.leadSources.meta} label="Meta lead ads" onChange={(on) => setLead("meta", on)} />
         </ConnectionRow>
-        <ConnectionRow name="Website form" detail="Enquiries from the business's website">
+        <ConnectionRow name="Website form" detail="Inquiries from the business's website">
           <Toggle checked={value.leadSources.website} label="Website form" onChange={(on) => setLead("website", on)} />
         </ConnectionRow>
         <ConnectionRow name="Google" detail="Google Ads lead forms and Business Profile">
@@ -1130,7 +1130,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "appointment_confirmation",
-      title: "Confirmation & check in",
+      title: "Confirmation and check in",
       description: `Ask customers to confirm their ${appt}.`,
       body: (
         <label className="wiz-inline">
@@ -1140,7 +1140,7 @@ function AutomationsStep({ value, onChange, terminology, industryName }) {
     },
     {
       type: "no_show_follow_up",
-      title: "no show follow up",
+      title: "No show follow up",
       description: `Reach out when someone misses their ${appt} and offer to rebook.`,
       body: (
         <label className="wiz-inline">
@@ -1667,7 +1667,7 @@ function SpamSection({ value, onChange, modules, config, available }) {
   if (!available) {
     return (
       <Section title="Spam protection" description="Screens spam calls, texts, emails and fake bookings.">
-        <div className="wiz-note" title="Needs sql/zella_spam_protection.sql">Spam protection isn't switched on for Zella Voice yet. Zella Voice's platform limits still apply.</div>
+        <div className="wiz-note" title="Needs the latest Zella Voice update">Spam protection isn't switched on for Zella Voice yet. Zella Voice's platform limits still apply.</div>
       </Section>
     );
   }
@@ -1746,7 +1746,7 @@ function reviewRows(setup, industries, config, docsReady, voice) {
     { key: "owner", title: "Owner", ok: Boolean(setup.owner.name && setup.owner.email), required: true,
       detail: setup.owner.email ? `${setup.owner.name}, ${setup.owner.email}` : "Not added" },
     { key: "owner", title: "Verification documents", ok: docsReady, required: setup.documentsAvailable,
-      detail: !setup.documentsAvailable ? "Document storage not set up yet (apply sql/zella_onboarding.sql)"
+      detail: !setup.documentsAvailable ? "Document storage needs the latest Zella Voice update"
         : docs.map((d) => `${d.label}: ${d.doc ? ({ pending_review: "waiting for review", verified: "verified", rejected: "rejected" })[d.doc.status] : "missing"}`).join(", ") },
     { key: "operations", title: "Hours & services", ok: openDays > 0 && missing.length === 0, required: true,
       detail: `${openDays} open day${openDays === 1 ? "" : "s"}, ${o.services.length} ${termFor(setup.terminology, o.services.length === 1 ? "service" : "services").toLowerCase()}${missing.length ? `, missing ${missing.join(", ")}` : ""}` },
@@ -2260,7 +2260,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           <h2>{completed ? `${setup.business.name} is set up` : `${setup.business.name} isn't finished yet`}</h2>
           <p>{completed
             ? "The workspace is active. The AI receptionist stays off until its phone number and voice provider are connected."
-            : "The owner's invitation couldn't be sent, so the workspace was not activated. Everything you entered is saved. Fix the problem below and choose Try again."}</p>
+            : "The owner's invitation couldn't be sent, so the workspace wasn't activated. Everything you entered is saved. Fix the problem below and choose Try again."}</p>
           <div className="wiz-done-grid">
             <div><span>Workspace</span><Badge tone={completed ? "success" : "neutral"}>{completed ? "Active" : "Not active yet"}</Badge></div>
             <div><span>Owner invitation</span><Badge tone={sent ? "success" : "danger"}>{INVITATION_WORDS[result.invitationStatus] ?? "Not sent"}</Badge></div>
@@ -2299,7 +2299,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
         <div>
           <div className="owner-eyebrow">{businessId ? "Business setup" : "New business"}</div>
           <h1>{setup.business.name || "Create a business"}</h1>
-          <p>Set up the CRM, AI receptionist, integrations and automations for this client.</p>
+          <p>Set up the CRM, AI receptionist, integrations and automations for this business.</p>
         </div>
         <button type="button" className="owner-secondary-button" onClick={() => request("close")} disabled={saving}>
           Close
@@ -2420,7 +2420,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
               onClick={finish}
               disabled={saving || !persisted.owner.email || !docsReady || dirty || !(planStatus?.state === "ok" && planStatus.saved)}
             >
-              {saving ? "Finishing…" : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish & send invitation"}
+              {saving ? "Finishing…" : setup.invitation?.status === "sent" || setup.invitation?.status === "accepted" ? "Save & finish" : "Finish and send invitation"}
             </button>
           ) : (
             <button type="button" className="owner-primary-button" disabled={saving} onClick={() => run(() => setStep(step + 1))}>

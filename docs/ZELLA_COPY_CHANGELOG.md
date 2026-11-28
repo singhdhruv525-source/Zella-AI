@@ -1,5 +1,29 @@
 # Zella Voice: copy changelog
 
+## 28 November 2026: admin dashboard, line by line
+
+Words only. Every sentence in the admin settings registry, the create business wizard, offers, voice and numbers,
+security and abuse, automations, messaging, industry configuration, number orders, support, alert rules, data
+retention, audit logs, verification, integrations and the other admin panels was read against
+`docs/ZELLA_PRODUCT_VOICE.md` (closes the admin half of R-1 in `docs/ZELLA_UX_COPY_AUDIT.md`).
+
+| Where | Was | Now | Why |
+|---|---|---|---|
+| Signposts in admin and CRM settings | Voice, telephony & usage; Webhook management; Voice & numbers > Providers; Plans, subscriptions & entitlements; Legal, policy & platform documents; Security & privacy > Data retention; My account; Restaurant operations; Business profile > Business hours | The names the menus show now: Voice and numbers; Integrations, then Webhooks; Telephony providers; Plans and limits; Legal documents; Security and privacy; My profile; the Tables page; Business profile, Business hours | Several pointed at pages that no longer have that name |
+| Admin pages that serve Zella Voice's customers | client businesses, every client's | businesses, every business's | "Client" is also an industry's word for a business's own customers |
+| Features waiting for a database file | Needs sql/zella_...sql applied (after a backup); not installed on this database | Needs the latest Zella Voice update | One phrase for one state, no file names |
+| AI receptionists list | No agents yet; Agent | No AI receptionists yet; AI receptionist | The product's word |
+| IDs | Provider id, Correlation id, Record id, Vapi phone number id, Telnyx number id | ... ID | Acronyms in capitals |
+| AI guardrails and evaluation | (ai_tool_calls), (ai_eval_cases), (zella_brain_run_evals) | Plain sentences | No table or function names in sentences |
+| Wizard | Owner email / login; Enquiries; Confirmation & check in; no show follow up; Finish & send invitation; for this client; was not activated | Owner email (used to sign in); Inquiries; Confirmation and check in; No show follow up; Finish and send invitation; for this business; wasn't activated | Plain words, American spelling, sentence case |
+| Offers | Total claims (empty = no limit); paid claim(s) | Total claims (leave empty for no limit); paid claim or claims by count | Plain words, real plurals |
+| Number orders | It can't be got back; was not bought | This can't be undone; wasn't bought | Plain words, contractions |
+| Messaging switches | so one click can't start messaging customers | so a single mistake can't start messaging customers | Works for any input |
+
+Kept on purpose: "e.g." in input placeholders (one consistent, short pattern; "For example," overflows narrow inputs on
+phones), setting and secret names an admin has to type (STRIPE_WEBHOOK_SECRET, vapi_auth_mode), and "&" in menu
+names.
+
 ## 28 November 2026: quick fixes from the full app scan (both apps and the public pages)
 
 Words only; nothing a screen does changed. Found by a scan of every string in `web/src` against

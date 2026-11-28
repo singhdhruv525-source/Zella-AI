@@ -488,7 +488,7 @@ function OfferEditor({ offerId, caps, lookups, onClose, onSaved }) {
           <legend>Limits and code</legend>
           <div className="owner-form-grid">
             <label className="owner-field">
-              <span>Total claims (empty = no limit)</span>
+              <span>Total claims (leave empty for no limit)</span>
               <input inputMode="numeric" value={f.max_redemptions} onChange={(e) => set({ max_redemptions: e.target.value })} />
             </label>
             <label className="owner-field">
@@ -1128,7 +1128,7 @@ export function ReportsTab() {
             <Stat label="Claims" value={t.claims} note={`${t.pending} waiting for payment`} />
             <Stat label="Paid" value={t.paid} note={`Claim to paid: ${rate}`} />
             <Stat label="Gross paid" value={money(t.gross_paid_cents)} note={t.refunded_cents ? `${money(t.refunded_cents)} refunded` : "Payments that confirmed a claim"} />
-            <Stat label="Discount given" value={money(t.discount_cents)} note={t.discount_unknown ? `${t.discount_unknown} paid claim(s) without a known plan price` : "On paid claims"} />
+            <Stat label="Discount given" value={money(t.discount_cents)} note={t.discount_unknown ? `${t.discount_unknown} paid claim${t.discount_unknown === 1 ? "" : "s"} without a known plan price` : "On paid claims"} />
           </div>
           <p className="op-muted op-gap of-small">
             Claims are counted by the day they were made. "Paid" means a verified payment from the payment provider confirmed the claim.
