@@ -664,7 +664,7 @@ secrets, never in tables, code, logs or chat (`NN-2`).
 
 | Feature | Status |
 |---|---|
-| In-app notifications with plain wording and icons | Built |
+| In-app notifications with plain wording and icons: one plain headline per kind with the names and numbers the server sent, no jokes, no exclamation marks, no random variants (owner, 27 Nov 2026) | Built |
 | Live pop-ups for urgent events | Built |
 | No notification preferences page (owner, 28 Oct 2026): pop ups, desktop notifications and urgent texts are built and on by default; the one personal switch is Notification sound (Settings, Appearance). Urgent texts are always on for team members: a member can't switch them off, only the business owner changes who receives them (owner, 25 Nov 2026) | Built; the owner's choice of who receives urgent texts is not built yet |
 | Celebrations for milestones (first call answered, first booking) | Built |

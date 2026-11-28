@@ -296,8 +296,23 @@ most often needed:
 - **Privacy decisions (owner, 18 Nov 2026, security audit):** recordings and transcripts 90 days, deleted automatically;
   AI disclosure always in the greeting, recording line only while recording is on (off); account deletion: owner asks,
   admin confirms, frozen, purged after 30 days. Built on `claude/security-fixes-g` (on lane G), not applied.
+- **Plain wording everywhere (owner, 27 Nov 2026; replaces "creative but professional" of 14 Nov 2026):**
+  1. Tone is plain and calm in every screen, toast, notification and email: no jokes, no exclamation marks; money,
+     service, error and alert messages are always serious; success toasts are short and factual ("Saved.",
+     "Booking added."). The random "warm" variants are gone from `web/src/zellaVoice.js` (`warm()` is now
+     `plainNotice()`, which only puts the business's own words in); each notification kind has one plain headline
+     that keeps the server's names and numbers, and an urgent one shows the server's own title. No surveillance
+     phrasing ("was listening", "taught us").
+  2. One name: **"AI receptionist"** everywhere, never assistant, voice assistant, phone assistant, voice agent,
+     "AI Agents", "the AI" or "she". The business's own name for it (for example "Ava") stays. The admin menu item
+     "AI Agents" is "AI receptionists" (its page key too).
+  Also: US spelling and one term per concept (canceled, inquiry, on call schedule), sentence case for headings and
+  buttons, no hyphens (the dash checker now also catches "6-digit" and JSX text on lines of its own), commas
+  instead of middle dots in lines joining facts, one plain line for "not available yet" notices, and no raw server
+  errors on screen. The rules are the Writing guide in `docs/DESIGN_SYSTEM.md`. Built in the
+  `claude/app-wording-cleanup` pull request, frontend and email catalogue wording only; not deployed.
 - **Writing and notifications (owner, 14 Nov 2026):** no dashes or hyphens anywhere people read text (screens,
-  emails, texts, notifications, the AI receptionist); notifications are creative but professional and use each
+  emails, texts, notifications, the AI receptionist); notifications were creative but professional (replaced by plain wording, 27 Nov 2026, above) and use each
   business's own words. Rules in `docs/DESIGN_SYSTEM.md` (Writing; Notifications); checked by `npm run lint`.
   Part 2 (15 Nov 2026): the database (`sql/zella_writing_cleanup.sql`, applied 15 Nov 2026) and the edge function
   labels (`staff-invite` deployed 15 Nov 2026; `owner-provision-business` deployed 16 Nov 2026). Left on purpose: n8n
