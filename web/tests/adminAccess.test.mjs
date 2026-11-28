@@ -20,7 +20,9 @@ test("refusalReason puts each refusal in words", () => {
   assert.equal(refusalReason({ code: "NOT_ADMIN" }), "Not a Zella Voice admin");
   assert.equal(refusalReason({ code: "MFA_REQUIRED" }), "Two step sign in code not entered");
   assert.equal(refusalReason({ code: "MFA_SETUP_REQUIRED" }), "Two step sign in not set up");
-  assert.equal(refusalReason({ code: "NOT_PERMITTED", permission: "admins.manage" }), "Their role doesn't allow it (admins.manage)");
+  assert.equal(refusalReason({ code: "NOT_PERMITTED", permission: "audit.view" }, { "audit.view": "Read the audit log" }), "Their role doesn't allow it: read the audit log");
+  // no words for the permission: the code is never shown
+  assert.equal(refusalReason({ code: "NOT_PERMITTED", permission: "x.unknown" }, {}), "Their role doesn't allow it");
   assert.equal(refusalReason({ code: "OTHER" }), "Refused");
   assert.equal(refusalReason(null), "Refused");
 });

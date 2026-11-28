@@ -3,6 +3,8 @@ import { callOwnerFunction } from "../../CreateBusinessWizard";
 import { friendlyError } from "../../admin/adminOps";
 import { timeAgo } from "../../ownerFormat";
 import { refusalReason } from "../../adminAccess";
+import catalog from "../../../supabase/functions/_shared/catalog.json";
+import { humanize } from "../../copy/labels.js";
 
 // ACC-15: refused calls to the admin function in the last 24 hours (security.admin_refused), so an owner can see
 // someone trying pages or changes their role doesn't allow. Shown on Users & access to anyone with security.view.
@@ -42,8 +44,8 @@ export default function SecurityRefusals() {
               <tr key={`${r.at}-${i}`}>
                 <td>{timeAgo(r.at)}</td>
                 <td>{r.email ?? "Unknown person"}</td>
-                <td>{refusalReason(r)}</td>
-                <td>{r.request ?? "Not known"}</td>
+                <td>{refusalReason(r, catalog.permissions)}</td>
+                <td>{r.request ? humanize(r.request) : "Not known"}</td>
                 <td>{r.ip ?? "Unknown address"}</td>
               </tr>
             ))}

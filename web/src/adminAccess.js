@@ -23,9 +23,12 @@ const REFUSAL_REASONS = {
   MFA_SETUP_REQUIRED: "Two step sign in not set up",
   NOT_PERMITTED: "Their role doesn't allow it",
 };
-export function refusalReason(r) {
+// permissionLabels: the catalog's words for each permission ("Read the audit log"); a permission without words is left
+// out rather than shown as its code
+export function refusalReason(r, permissionLabels = {}) {
   const base = REFUSAL_REASONS[r?.code] ?? "Refused";
-  return r?.code === "NOT_PERMITTED" && r.permission ? `${base} (${r.permission})` : base;
+  const label = r?.code === "NOT_PERMITTED" && r.permission ? permissionLabels[r.permission] : null;
+  return label ? `${base}: ${label.charAt(0).toLowerCase()}${label.slice(1)}` : base;
 }
 
 // ACC-12: the Action filter lists every audit action in the shared list (web/supabase/functions/_shared/catalog.json),

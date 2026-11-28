@@ -799,7 +799,7 @@ export function TelephonyProviders() {
               ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's AI receptionist"]]} />
           </Card>
           <Needs title="Buying numbers and provider error logs are off until the keys are added" have="Settings, Voice and numbers, Telephony providers: an admin asks, a Zella Voice owner approves, then Telnyx and Vapi are called. Numbers are assigned to businesses under Numbers.">
-            Both keys, and number_orders_enabled switched on by a Zella Voice owner, are needed before anything is bought or released.
+            Both keys are needed, and a Zella Voice owner must switch number ordering on, before anything is bought or released.
           </Needs>
         </>
       );

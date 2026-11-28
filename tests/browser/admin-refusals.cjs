@@ -46,7 +46,7 @@ const rows = (email, code) => Number(k.sql(`select count(*) from public.audit_lo
     await k.signIn(p, OWNER);
     await p.goto(k.APP + "/users");
     await p.waitForSelector("text=Refused admin requests");
-    await p.waitForSelector("text=Their role doesn't allow it (admins.manage)");
+    await p.waitForSelector("text=Their role doesn't allow it: add, change and remove platform admins (Zella Voice owner only)");
     k.check(`${tag}: Users & access lists the refused requests in words`, await p.isVisible("text=Two step sign in not set up") && await p.isVisible("text=Not a Zella Voice admin"));
     k.check(`${tag}: with the count for 24 hours`, await p.isVisible("text=7 in the last 24 hours"));
     await p.locator("#refusals-title").scrollIntoViewIfNeeded();

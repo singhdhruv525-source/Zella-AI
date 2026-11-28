@@ -15,10 +15,14 @@ lines of text. Pop ups that only open after a choice inside another dialog weren
 | "could not", "was not", "do not" in three alert names | Contractions |
 | A page that failed to load said "The change could not be saved. Please try again." (owner-provision-business's catch all) | "That didn't work. Try again, or contact Zella Voice support if it keeps happening." (needs a deploy of owner-provision-business with the owner's approval) |
 | Communication templates listed by code name (appointment_confirmation) | Listed by name (Appointment confirmation) |
+| Refused admin requests: "Their role doesn't allow it (businesses.view)" and the request as a function name (audit_export) | "Their role doesn't allow it: read the audit log" (the catalog's words for the permission) and "Audit export" |
+| A business's Activity tab and the audit log listed record IDs ("User ID: not set → a0000000-...") | The ID reads "set" |
+| Number orders: "Both keys, and number_orders_enabled switched on ..." | "Both keys are needed, and a Zella Voice owner must switch number ordering on ..." |
 
 Checked and kept: Title Case findings were names (businesses, industries, modules, countries, time zones); "raw value"
 findings were icon names drawn by the icon font, test data (provider ids), and setting and job names that admins need to
-look up (calls_live, zella_dispatch, the audit filter's record type).
+look up when going live: the setting and job names in hover tips on the go live checklist and Voice and numbers
+(calls_live, zella_dispatch), and the audit filter's record type, which has to be typed as its code.
 
 ## 28 November 2026: business app (CRM), onboarding and public pages, line by line
 

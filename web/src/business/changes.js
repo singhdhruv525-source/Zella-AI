@@ -3,6 +3,8 @@ import { humanize } from "../copy/labels.js";
 
 const short = (v) => {
   if (v === null || v === undefined || v === "") return "not set";
+  // a record's ID means nothing to a person reading the history; say it was set
+  if (typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return "set";
   const text = typeof v === "object" ? (Array.isArray(v) ? v.map(String).join(", ") || "none" : JSON.stringify(v)) : String(v);
   return text.length > 60 ? `${text.slice(0, 57)}…` : text;
 };
