@@ -43,8 +43,8 @@ export const todayConfig = (industrySlug) => TODAY_BY_INDUSTRY[industrySlug] ?? 
 
 // What each "connect" card says. Shown instead of made-up numbers.
 export const CONNECT = {
-  orders: { icon: "receipt_long", title: "Orders", text: "Dine in, takeout and delivery orders appear here once your ordering or till system is connected." },
-  revenue: { icon: "payments", title: "Revenue", text: "Today's takings appear here once payments are connected." },
+  orders: { icon: "receipt_long", title: "Orders", text: "Dine in, takeout and delivery orders appear here once your ordering or point of sale system is connected." },
+  revenue: { icon: "payments", title: "Revenue", text: "Today's sales appear here once payments are connected." },
   tables: { icon: "table_restaurant", title: "Table layout", text: "A live floor plan needs your table positions and seating status. Your tables are listed on the Tables page." },
   reviews: { icon: "reviews", title: "Reviews and feedback", text: "Your rating and latest reviews appear here once Google reviews are connected. You can already send your review link." },
 };

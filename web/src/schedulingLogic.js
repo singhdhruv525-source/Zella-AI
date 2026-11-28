@@ -90,7 +90,7 @@ const ERRORS = [
   [/NOT_ASSIGNED/, () => "Assign the job to someone first."],
   [/NOT_OPEN/, () => "This job is already finished or canceled."],
   [/BAD_DATE/, () => "Pick a time that hasn't passed."],
-  [/TENANT_MISMATCH/, () => "One of those people or resources isn't part of this business any more. Refresh and pick again."],
+  [/TENANT_MISMATCH/, () => "One of those people or resources isn't part of this business anymore. Refresh and pick again."],
   [/resources_one_name/, () => "There's already a resource with that name."],
   [/resource_needs_one/, () => "Each service and kind can be listed once. Remove the repeated row."],
   [/23505|duplicate key/, () => "That already exists. Refresh and try again."],
@@ -105,7 +105,7 @@ const ERRORS = [
   [/NOT_FOUND/, () => "That item has changed or was removed. Refresh and try again."],
   [/NOT_ALLOWED|permission denied|42501/, () => "You don't have permission to do that here."],
   [/MFA_REQUIRED/, () => "Enter the code from your authenticator app first: sign out and sign in again."],
-  [/failed to fetch|network|load failed/i, () => "Couldn't reach Zella Voice. Nothing was changed; try again."],
+  [/failed to fetch|network|load failed/i, () => "Couldn't reach Zella Voice, so this may not have been saved. Check your connection, refresh and try again."],
   [/zella_dispatch|zella_resource|zella_recurring|schema cache|Could not find the function/, () => "This isn't available on this workspace yet. Ask the Zella Voice team."],
 ];
 export function scheduleError(error) {

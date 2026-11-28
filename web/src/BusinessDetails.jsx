@@ -151,7 +151,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
         // emailSent: the email workflow accepted the request (the send itself happens there)
         (r.emailSent
           ? `The "continue my plan" email was handed to the email service for ${invitation?.email ?? "the owner"}.`
-          : `The owner was not emailed: ${r.emailError}.`)
+          : `The owner wasn't emailed: ${r.emailError}.`)
       ),
     },
     undo: {

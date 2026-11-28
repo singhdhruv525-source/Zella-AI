@@ -21,7 +21,7 @@ const CODES = {
   INVALID_RATING: "Pick 1 to 5 stars.",
   REVIEW_TOO_LONG: "That review is longer than 5,000 characters.",
   TOO_MANY_REVIEWS: "That's 50 reviews added today. Try again tomorrow.",
-  INVALID_GOOGLE_IDS: "The account and location ids are the numbers from Google Business Profile.",
+  INVALID_GOOGLE_IDS: "The account and location IDs are the numbers from Google Business Profile.",
 };
 const say = (error) => CODES[error?.message?.trim()] ?? friendly(error);
 const missing = (e) => e && (e.code === "PGRST202" || /could not find|does not exist/i.test(e.message ?? ""));
@@ -90,8 +90,8 @@ function GoogleSetup({ workspace, source, onClose, onSaved }) {
       description="First add Zella Voice's Google account as a manager of your Google Business Profile (the Zella Voice team sends you the address). Then enter the two numbers from your profile.">
       <form className="ba-form-grid ba-modal-body" onSubmit={save}>
         {error && <div className="ba-banner error full">{error}</div>}
-        <Field label="Account id"><input inputMode="numeric" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} required /></Field>
-        <Field label="Location id"><input inputMode="numeric" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} required /></Field>
+        <Field label="Account ID"><input inputMode="numeric" value={form.account} onChange={(e) => setForm({ ...form, account: e.target.value })} required /></Field>
+        <Field label="Location ID"><input inputMode="numeric" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} required /></Field>
         <div className="full ba-form-actions">
           {source && <button type="button" className="ba-btn danger-outline" onClick={() => save(null, true)} disabled={busy}>Disconnect</button>}
           <button type="button" className="ba-btn" onClick={onClose} disabled={busy}>Cancel</button>
@@ -178,7 +178,7 @@ export default function ReviewsPage({ workspace, onNotice }) {
     </PageHead>
   );
   if (data?.missing) {
-    return <>{head}<Empty icon="rate_review" title="Reviews aren't set up yet">The Zella Voice team needs to apply its latest database update.</Empty></>;
+    return <>{head}<Empty icon="rate_review" title="Reviews aren't set up yet">This needs the latest Zella Voice update.</Empty></>;
   }
   const counts = data?.counts ?? {};
   // a figure that didn't load: small words with Try again, never a big "Not available" in number type

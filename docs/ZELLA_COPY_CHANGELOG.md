@@ -1,5 +1,26 @@
 # Zella Voice: copy changelog
 
+## 28 November 2026: business app (CRM), onboarding and public pages, line by line
+
+Words only, plus two raw errors replaced. Every sentence of eight words or more in the CRM, the owner onboarding
+screens and the public pages (1,378 in all) was read against `docs/ZELLA_PRODUCT_VOICE.md`, and every shorter label
+was checked by pattern (closes the CRM half of R-1 in `docs/ZELLA_UX_COPY_AUDIT.md`). The notification and celebration
+lines in `src/zellaVoice.js` were left as the owner chose them on 28 Nov 2026.
+
+| Where | Was | Now | Why |
+|---|---|---|---|
+| Network failures (people, scheduling, workflows) | Couldn't reach Zella Voice. Nothing was changed; try again. | Couldn't reach Zella Voice, so this may not have been saved. Check your connection, refresh and try again. | A request can reach the server before the connection drops; the old words claimed what the app can't know (UX-2, NN-11) |
+| Dispatch board and resource day | zella_dispatch_board / zella_resource_day returned an unexpected shape | The dispatch board (this day's resources) couldn't be read. Try again, or contact Zella Voice support if it keeps happening. | A function name was shown to business users |
+| Settings group | SMS, email and messages | Texts, email and messages | "Text", not "SMS" |
+| Signposts | Settings &gt; Team; Settings → Tables and seating; under Personal profile; Settings > Users, roles & access > Platform roles; Plan & pricing | Settings, Team and access; Settings, Tables and seating; My profile; Settings, Admins and roles, Platform roles; setup under Plan & pricing | The names the menus show |
+| Suggested messages empty state | for a family, patient or client | for someone | No industry words hard coded (BIZ-10) |
+| Callbacks, handovers, profile | or you escalate one; Handled handoffs; Flagged for a human | or you hand one over; Handled handovers; Flagged: needs a person | The voice guide's words |
+| Admin pages | every client business; Things that block clients | every business; Things that block businesses | "Client" is an industry's word for customers |
+| British words | lettings, takings, till system | rentals, sales, point of sale system | American English |
+| Contractions and plain words | is not, was not, could not, will no longer, They will, any more, reemailed, billing.manage | isn't, wasn't, couldn't, won't ... anymore, They'll, anymore, sent again, the billing permission | Plain, consistent voice |
+| Reviews and spam | ...needs to apply its latest database update; location ids | This needs the latest Zella Voice update; IDs | One phrase for one state |
+| Errors | ...Please ask the Zella Voice team | ...Ask the Zella Voice team | "Please" kept for real requests only |
+
 ## 28 November 2026: admin dashboard, line by line
 
 Words only. Every sentence in the admin settings registry, the create business wizard, offers, voice and numbers,

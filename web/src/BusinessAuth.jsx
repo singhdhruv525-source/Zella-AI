@@ -419,7 +419,7 @@ export function Welcome() {
   return (
     <AuthCard
       title="Choose your password"
-      description={email ? `You'll use ${email} and this password to sign in.` : "Choose a password and you are ready to go."}
+      description={email ? `You'll use ${email} and this password to sign in.` : "Choose a password and you're ready to go."}
     >
       <form className="ba-form" onSubmit={save}>
         <div className="ba-field">

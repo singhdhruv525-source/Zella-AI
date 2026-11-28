@@ -65,7 +65,7 @@ const CODES = {
 };
 export function languageError(error, plan) {
   const message = error?.message?.trim() ?? String(error ?? "");
-  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Languages need the latest Zella Voice update. Please ask the Zella Voice team.";
+  if (/does not exist|schema cache|Could not find the/i.test(message)) return "Languages need the latest Zella Voice update. Ask the Zella Voice team.";
   if (message === "PLAN_LANGUAGES") return planMessage(plan);
   return CODES[message] ?? message;
 }

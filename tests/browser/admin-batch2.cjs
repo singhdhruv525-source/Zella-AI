@@ -256,7 +256,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
       admin_invite: (body) => ({ json: { invited: true, email: body.email } }) });
     await p.goto(BASE + "/users"); await p.click("text=Add admin"); await p.waitForSelector("[data-role-explanation]");
     const ex = () => txt(p, "[data-role-explanation]");
-    check(!/full access to every client business\. If/.test(await txt(p, ".wiz-section")), "B2-07 the blanket 'full access' sentence is gone");
+    check(!/full access to every (client )?business\. If/.test(await txt(p, ".wiz-section")), "B2-07 the blanket 'full access' sentence is gone");
     check(/except adding or removing admins/.test(await ex()), "B2-07 super admin: accurate explanation");
     await p.selectOption(".wiz-section select", "zella_owner");
     check(/add, change and remove platform admins/.test(await ex()), "B2-07 owner: accurate explanation; switching updates it");
@@ -286,7 +286,7 @@ const AUTO = (dispatchEnabled) => ({ json: { workflows: [], deadLetters: 0, disp
     await p.click(".wiz-section button[type=submit]");
     await p.waitForSelector(".ic-notice");
     const notice = await txt(p, ".ic-notice");
-    check(/reemailed/.test(notice) && /existing role was not changed/.test(notice) && !/as Super admin/.test(notice), "B2-07 resend notice preserves existing role");
+    check(/sent again/.test(notice) && /existing role wasn't changed/.test(notice) && !/as Super admin/.test(notice), "B2-07 resend notice preserves existing role");
     await ctx.close(); }
 
   // ---------------- B2-08 Businesses ----------------

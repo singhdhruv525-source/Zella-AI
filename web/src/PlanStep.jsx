@@ -191,7 +191,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
             </div>
           </div>
         </section>
-        {readOnly && <div className="wiz-note">You can see this plan but not change it: changing a plan needs billing.manage.</div>}
+        {readOnly && <div className="wiz-note">You can see this plan but not change it: changing a plan needs the billing permission.</div>}
       </fieldset>
 
       <aside className="bp-card bp-summary" aria-label="Plan summary">

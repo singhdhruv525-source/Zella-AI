@@ -58,7 +58,7 @@ export default function SpamPage({ workspace, onNotice, onOpenPerson }) {
     return (
       <>
         <PageHead crumb="Calls and messages / Spam protection" title="Spam protection" />
-        <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">The Zella Voice team needs to apply its latest database update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
+        <Empty icon="gpp_maybe" title="Spam protection isn't set up yet">This needs the latest Zella Voice update. Nothing is being missed: until then, calls, texts and emails work as usual.</Empty>
       </>
     );
   }

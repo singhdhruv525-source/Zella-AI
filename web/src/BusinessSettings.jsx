@@ -50,7 +50,7 @@ const SAY = {
   BAD_COUNTRY: "Choose a country.", BAD_TIMEZONE: "Choose a time zone from the list.", SUBJECT_REQUIRED: "Write a short subject.",
   SPEND_LIMIT_REQUIRED: "Set a spending limit to allow paid usage.", BAD_LOGO_URL: "Upload the logo here so it's stored with your workspace.",
   BAD_INPUT: "Something in the form isn't valid.", HOUR_REQUIRED: "Choose the time the report is sent.",
-  BAD_HOUR: "Choose a time between midnight and 11 pm.", BAD_RECIPIENTS: "Choose who receives the report.", BAD_PERIOD: "Choose the period the report covers.", NO_PHONE: "Add your mobile number under Personal profile first.",
+  BAD_HOUR: "Choose a time between midnight and 11 pm.", BAD_RECIPIENTS: "Choose who receives the report.", BAD_PERIOD: "Choose the period the report covers.", NO_PHONE: "Add your mobile number in My profile first.",
   BAD_DURATION: "Service length must be between 5 and 480 minutes.", NO_RECEPTIONIST: "This business has no AI receptionist yet, so services can't be saved.",
 };
 const say = (e) => { const m = e?.message ?? String(e); const k = Object.keys(SAY).find((c) => m.includes(c)); return k ? SAY[k] : friendly(e); };
@@ -66,7 +66,7 @@ const noRole = (who = "an owner or admin") => <Banner tone="warn">Only {who} can
 /* ---------- Daily report schedule (sql/zella_report_schedules.sql) ---------- */
 
 const HOURS_OF_DAY = Array.from({ length: 24 }, (_, h) => [h, new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: "numeric" })]);
-const REPORT_STATUS = { sent: "Sent", nothing_to_report: "Nothing to report", failed: "Failed", missed: "Missed (Zella Voice was not running at that time)" };
+const REPORT_STATUS = { sent: "Sent", nothing_to_report: "Nothing to report", failed: "Failed", missed: "Missed (Zella Voice wasn't running at that time)" };
 
 function ReportSchedule({ w }) {
   // the server shows the schedule to owners, admins and managers (only owners and admins change it); staff and
@@ -488,7 +488,7 @@ function CurrentPlan({ w, onReload }) {
       {w.cancel_at && !w.cancelled_at && (
         <Card title="Your plan is scheduled to end" sub={`It ends ${when(w.cancel_at)}.`}>
           {w.role === "owner" && <button type="button" className="zs-btn primary" disabled={busy}
-            onClick={async () => { setBusy(true); setKeepError(""); try { const kept = await rpc("zella_owner_continue_plan", { p_business_id: w.id }); if (kept === false) setKeepError("Your plan could not be continued. Please try again."); onReload?.(); } catch (err) { setKeepError(say(err)); } finally { setBusy(false); } }}>Keep my plan</button>}
+            onClick={async () => { setBusy(true); setKeepError(""); try { const kept = await rpc("zella_owner_continue_plan", { p_business_id: w.id }); if (kept === false) setKeepError("Your plan couldn't be continued. Try again."); onReload?.(); } catch (err) { setKeepError(say(err)); } finally { setBusy(false); } }}>Keep my plan</button>}
           <Banner tone="error">{keepError}</Banner>
         </Card>
       )}
@@ -741,7 +741,7 @@ function DataExport({ w }) {
       const blob = new Blob([toCsv(rows, cols.split(", "))], { type: "text/csv" });
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${w.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${table.replace("_view", "")}-${new Date().toISOString().slice(0, 10)}.csv` });
       document.body.appendChild(a); a.click(); a.remove();
-      setMsg({ text: `${rows.length} ${EXPORTS[table][0].toLowerCase()} exported${capped ? " (the first 50,000 only: this file is not complete; ask Zella Voice support for the rest)" : ""}. Keep the file safe; it has customers' contact details.`, error: "" });
+      setMsg({ text: `${rows.length} ${EXPORTS[table][0].toLowerCase()} exported${capped ? " (the first 50,000 only: this file isn't complete; ask Zella Voice support for the rest)" : ""}. Keep the file safe; it has customers' contact details.`, error: "" });
     } catch (err) { setMsg({ text: "", error: say(err) }); } finally { setBusy(""); }
   }
   return (
@@ -1047,7 +1047,7 @@ function registry(w) {
       page("calendar", "Calendar accounts", () => <CalendarConnections w={w} />, "calendar"),
       page("health", "Integration health", () => <PhoneTroubleshooting w={w} />, "errors sync"),
     ] },
-    { key: "messages", label: "SMS, email and messages", icon: "forum", items: [
+    { key: "messages", label: "Texts, email and messages", icon: "forum", items: [
       page("config", "Messaging setup", () => <MessagingSetup w={w} />, "provider sender"),
       page("templates", "Message templates", () => <Templates w={w} />, "sms email templates"),
       page("rules", "Communication rules", () => <Card title="Rules every message follows"><Facts rows={[["Consent", "Checked before every text and email"], ["Opt out", "STOP, unsubscribe links"], ["Quiet hours", "No texts late at night, business time"], ["Duplicates", "The same message isn't sent twice"]]} /></Card>, "consent quiet hours"),

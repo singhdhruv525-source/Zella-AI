@@ -143,7 +143,7 @@ const PROPERTY = {
   kind: "property",
   team: "recommended",
   teamHint: "Add the agents or managers who show properties.",
-  servicesHint: "What the business offers: sales, lettings, valuations, management.",
+  servicesHint: "What the business offers: sales, rentals, valuations, management.",
   defaultLength: 45,
   details: [
     f("areas_covered", "Areas covered", "list", { required: true, placeholder: "e.g. Downtown, Riverside, Eastwood" }),

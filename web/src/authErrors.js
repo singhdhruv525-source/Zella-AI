@@ -42,7 +42,7 @@ export function readEmailLink() {
     error: code
       ? code === "otp_expired"
         ? "This link has expired or was already used. Email links work only once, and some mail apps open links early to scan them."
-        : code === "access_denied" ? "Access to this link was denied." : "This link could not be used."
+        : code === "access_denied" ? "Access to this link was denied." : "This link couldn't be used."
       : "",
   };
 }

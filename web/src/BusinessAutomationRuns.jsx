@@ -46,7 +46,7 @@ function describeIndustry(type, cfg) {
     return { trigger: `${hoursText((cfg.after_days ?? 1) * 24)} after a completed visit`, conditions: noOptOut, actions: ruleActions(cfg.rule) };
   }
   if (type === "service_due") {
-    return { trigger: `A customer has not visited for ${cfg.days ?? 180} days`, conditions: `They have no upcoming visit. ${noOptOut}`, actions: "Send a short check in message." };
+    return { trigger: `A customer hasn't visited for ${cfg.days ?? 180} days`, conditions: `They have no upcoming visit. ${noOptOut}`, actions: "Send a short check in message." };
   }
   if (type === "seasonal_reminder") {
     return { trigger: "The first week of the chosen months", conditions: `They visited in the last 2 years and have nothing booked. ${noOptOut}`, actions: "Send a short check in message." };

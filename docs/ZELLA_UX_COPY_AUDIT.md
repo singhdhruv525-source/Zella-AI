@@ -88,9 +88,9 @@ sent.
 
 ## Open items
 
-- **R-1:** sentence-by-sentence pass of the admin settings registry, the create-business wizard, offers, onboarding
-  hints and the legal pages.
-- **R-2:** give admin navigation items stable keys, then switch their labels to sentence case.
+- **R-1:** done on 28 Nov 2026 for the admin dashboard, the business app, onboarding and the public pages (see
+  `docs/ZELLA_COPY_CHANGELOG.md`). The legal pages stay with the owner and counsel.
+- **R-2:** done: the admin navigation labels are in sentence case (checked 28 Nov 2026).
 - **R-3:** show text and email delivery (`sent` vs `delivered`) to owners where a message is listed.
 - **R-4:** store and show why a message was `blocked`.
 - **R-5:** store a provider error reason with integration `error` states.

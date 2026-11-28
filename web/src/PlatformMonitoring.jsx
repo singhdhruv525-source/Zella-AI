@@ -80,7 +80,7 @@ export function HealthPanel() {
             <Pill tone={p.ok ? "success" : "danger"}>{p.ok ? "OK" : "Failing"}</Pill>
           </li>
         ))}
-        {data && !(data.providers ?? []).length && <li><div><strong>Provider checks</strong><span>No results yet. They run once provider_checks_live is on.</span></div><Pill tone="neutral">Not checked</Pill></li>}
+        {data && !(data.providers ?? []).length && <li><div><strong>Provider checks</strong><span>No results yet. They run once provider checks are switched on.</span></div><Pill tone="neutral">Not checked</Pill></li>}
       </ul>
     </section>
   );
@@ -182,7 +182,7 @@ function IncidentTimeline({ incident, busy, post, onDraft, onPost }) {
     if (mineNewest !== newest.current.n) return;          // a newer newest page is on its way: it decides
     if (before && mineOlder !== older.current) return;     // a later older page replaced this one
     if (!before) { newest.current.pending = false; setNewestPending(false); }
-    if (e) { setReadError(missingFn(e) || /platform_incident_updates/.test(e.message) ? "Incident updates need the latest database update (sql/zella_incident_updates.sql)." : say(e)); if (!before) setRows([]); return; }
+    if (e) { setReadError(missingFn(e) || /platform_incident_updates/.test(e.message) ? "Incident updates need the latest Zella Voice update." : say(e)); if (!before) setRows([]); return; }
     setReadError("");   // a read clears only its own error, never a failed post's
     const page = [...(data ?? [])].reverse();
     setRows((current) => (before ? [...page, ...(current ?? [])] : page));

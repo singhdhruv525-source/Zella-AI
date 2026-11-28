@@ -146,7 +146,7 @@ function TableLayoutCard({ workspace, tz, refresh, onGo }) {
       ) : null}>
       {state.error ? <Empty title="Couldn't load the tables">{state.error}</Empty>
         : !state.data ? <Empty title="Loading…" />
-        : !tables.length ? <Empty title="No tables yet">Add them in Settings → Tables and seating.</Empty>
+        : !tables.length ? <Empty title="No tables yet">Add them in Settings, Tables and seating.</Empty>
         : <FloorPlan compact tables={tables.filter((t) => t.section === show)} onSelect={() => onGo("tables")} label={`${show} floor plan`} tz={tz} formatTime={formatTime} />}
     </Card>
   );

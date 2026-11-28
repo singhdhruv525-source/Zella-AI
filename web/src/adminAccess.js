@@ -9,7 +9,7 @@ export function signedOutText(result) {
   return `They were signed out on ${n === 1 ? "1 device" : `${n} devices`}.`;
 }
 
-export const SIGNED_OUT_EVERYWHERE = "They will be signed out on every device.";
+export const SIGNED_OUT_EVERYWHERE = "They'll be signed out on every device.";
 
 // ACC-19: granting or changing admin access needs an authenticator code entered in the last 5 minutes. The server
 // answers FRESH_CODE_REQUIRED; Users & access asks for a new code (verifyMfaCode in mfa.js issues a session with a

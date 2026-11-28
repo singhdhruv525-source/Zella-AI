@@ -94,7 +94,7 @@ export default function PlatformOperations({ onNavigate, onOpenBusiness }) {
       </div>
 
       <section className="owner-panel op-card">
-        <div className="owner-panel-heading"><div><h2>Problems</h2><p>Things that block clients or need a person.</p></div></div>
+        <div className="owner-panel-heading"><div><h2>Problems</h2><p>Things that block businesses or need a person.</p></div></div>
         <ul className="op-list po-problems">
           {rows.map(([title, count, page, detail]) => (
             <li key={title}>

@@ -50,7 +50,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
       <Notice error={error} onRetry={reload} />
       {loading && !data ? <p className="ba-muted">Loading…</p> : !rows.length ? (
         <Empty title={filter === "open" ? "All clear" : "No handled handoffs yet"}>
-          {filter === "open" ? "When a caller asks for a person, or your AI receptionist can't help, it appears here with the full transcript." : "Handled handoffs are kept here for your records."}
+          {filter === "open" ? "When a caller asks for a person, or your AI receptionist can't help, it appears here with the full transcript." : "Handled handovers are kept here for your records."}
         </Empty>
       ) : (
         <div className="ba-stack">

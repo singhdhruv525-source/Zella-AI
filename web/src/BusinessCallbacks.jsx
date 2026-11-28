@@ -245,7 +245,7 @@ export function CallbacksPage({ workspace, refreshKey, onNotice, onOpenPerson, o
         // no successful read yet (the first one failed): only the error and its Try again above, never "Nothing here"
         : !data ? null : !shown.length ? (
         <Empty title={active === "done" ? "Nothing finished yet" : "Nothing here"}>
-          {active === "person" ? "When Zella Voice can't reach someone after its tries, or you escalate one, it shows up here."
+          {active === "person" ? "When Zella Voice can't reach someone after its tries, or you hand one over, it shows up here."
             : active === "done" ? "Finished callbacks are kept here, with what happened."
             : "Missed calls, requests for a call back and failed transfers appear here with a time to call."}
         </Empty>

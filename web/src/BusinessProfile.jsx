@@ -53,7 +53,7 @@ export function EscalationControls({ call, onChanged, onNotice, compact }) {
 
   const resolve = () => save(false, "handoff marked as handled.");
 
-  const flag = () => save(true, "Flagged for a human.");
+  const flag = () => save(true, "Flagged: needs a person.");
 
   return (
     <div className={`ba-escalate ${compact ? "compact" : ""}`}>
@@ -174,7 +174,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
       supabase.from("conversations").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("last_message_at", { ascending: false, nullsFirst: false }).limit(50),
     ]);
     const row = orThrow(person)[0];
-    if (!row) throw new Error("This person could not be found.");
+    if (!row) throw new Error("This person couldn't be found.");
     // Follow-up calls are optional: workspaces without the latest update just show none.
     const followRes = await supabase.from("followup_tasks").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("created_at", { ascending: false }).limit(20);
     const cbRes = await supabase.from("callbacks").select("*").eq("business_id", workspace.id).eq("customer_id", personId).order("created_at", { ascending: false }).limit(30);

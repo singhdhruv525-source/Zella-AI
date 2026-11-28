@@ -367,7 +367,7 @@ export function BookAppointmentModal({ workspace, term, onClose, onSaved, initia
               </select>
             </Field>
           )}
-          {resourceError && <p role="alert" className="ba-muted">Resources could not be loaded. Check availability before saving this booking.</p>}
+          {resourceError && <p role="alert" className="ba-muted">Resources couldn't be loaded. Check availability before saving this booking.</p>}
           {resources.length > 0 && (
             <fieldset className="ba-prefs" aria-label="Uses">
               <legend>Uses (optional)</legend>

@@ -32,7 +32,7 @@ const count = (uid) => Number(k.sql(`select count(*) from auth.sessions where us
         const select = p.locator(`select[aria-label="Role for ${TARGET}"]`);
         await select.waitFor();
         await select.selectOption("support_admin");
-        await p.waitForSelector("text=They will be signed out on every device.");
+        await p.waitForSelector("text=They'll be signed out on every device.");
         k.check(`${tag}: changing a role warns they will be signed out on every device`, true);
         await p.waitForTimeout(800); await p.screenshot({ path: path.join(SHOTS, `users-confirm-${tag}.png`), fullPage: false });
         // this run's audit entry is the first one after this moment

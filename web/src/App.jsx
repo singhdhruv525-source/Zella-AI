@@ -307,7 +307,7 @@ function AdminApp() {
       if (!access) {
         await supabase.auth.signOut();
         setMode("signin");
-        throw new Error("Your password is saved, but this account is not an authorized Zella Voice admin yet.");
+        throw new Error("Your password is saved, but this account isn't an authorized Zella Voice admin yet.");
       }
       setPassword("");
       setConfirmPassword("");

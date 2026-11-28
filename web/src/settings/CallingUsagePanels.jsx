@@ -121,7 +121,7 @@ export function AdminCallingUsage() {
   return (
     <>
       {notice && <Banner tone="success">{notice}</Banner>}
-      <Card title="Calling usage" sub="The usage ledger for every business. Read only unless your role has billing.manage.">
+      <Card title="Calling usage" sub="The usage ledger for every business. Read only unless your role can manage billing.">
         {r.picker}
         <Field label="Business"><select value={biz} onChange={(e) => { setBiz(e.target.value); setPage(0); }}>
           <option value="">All businesses</option>{businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
@@ -134,7 +134,7 @@ export function AdminCallingUsage() {
               ["Provider call", (x) => <code>{x.provider_call_id}</code>], ["Recorded by", (x) => words(x.processed_by)]]} />
             <Pager page={page} total={(page + 1) * PAGE + (d.records.length === PAGE ? 1 : 0)} onPage={setPage} />
           </Card>
-          <Card title="Processing issues and discrepancies" sub="Missing or implausible durations, failures and ledger mismatches. Nothing is estimated: these calls are not counted until fixed.">
+          <Card title="Processing issues and discrepancies" sub="Missing or implausible durations, failures and ledger mismatches. Nothing is estimated: these calls aren't counted until fixed.">
             <Table rows={d.issues} empty="No open issues." columns={[["Since", (x) => when(x.created_at)], ["Business", (x) => x.business ?? "None"], ["Issue", (x) => words(x.kind)],
               ["Status", (x) => <Pill tone={x.status === "escalated" ? "warning" : ""}>{words(x.status)}</Pill>], ["Attempts", (x) => x.attempts], ["Detail", (x) => x.last_error ?? "None"],
               ["", (x) => (d.can_retry ? <button type="button" className="zs-btn" onClick={() => setRetry(x)}>Retry</button> : null)]]} />

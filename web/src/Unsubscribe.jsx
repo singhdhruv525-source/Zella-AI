@@ -44,13 +44,13 @@ export default function Unsubscribe() {
         {(state === "ready" || state === "working") && (
           <>
             <h1>Stop marketing emails?</h1>
-            <p>{business ? `You will no longer get marketing emails from ${business}.` : "You will no longer get marketing emails."} Messages about your own bookings can still reach you.</p>
+            <p>{business ? `You won't get marketing emails from ${business} anymore.` : "You won't get marketing emails anymore."} Messages about your own bookings can still reach you.</p>
             <button type="button" className="owner-primary-button cp-button" disabled={state === "working"} onClick={confirm}>
               {state === "working" ? "Saving…" : "Unsubscribe"}
             </button>
           </>
         )}
-        {state === "done" && (<><div className="cp-icon ok">✓</div><h1>You're unsubscribed</h1><p>{business || "The business"} won't send you marketing emails any more.</p></>)}
+        {state === "done" && (<><div className="cp-icon ok">✓</div><h1>You're unsubscribed</h1><p>{business || "The business"} won't send you marketing emails anymore.</p></>)}
       </section>
     </main>
   );

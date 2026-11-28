@@ -54,7 +54,7 @@ export function DispatchPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
   const board = useLoad(async () => {
     const { data, error } = await supabase.rpc("zella_dispatch_board", { p_business_id: workspace.id, p_day: day });
     if (error) throw error;
-    if (!data || !Array.isArray(data.jobs) || !Array.isArray(data.technicians)) throw new Error("zella_dispatch_board returned an unexpected shape");
+    if (!data || !Array.isArray(data.jobs) || !Array.isArray(data.technicians)) throw new Error("The dispatch board couldn't be read. Try again, or contact Zella Voice support if it keeps happening.");
     return data;
   }, [workspace.id, day, refreshKey]);
   const { busy, problem, run } = useRun(onNotice, board.reload);
@@ -120,7 +120,7 @@ export function DispatchPage({ workspace, refreshKey, onNotice, onOpenPerson }) 
           <div data-dispatch="ready">
             <h2 className="ba-h3">{dayLabel(day)}</h2>
             {!b.can_work && <p className="ba-muted">You can view the board. Changes need a staff member or above.</p>}
-            {!b.technicians.length && <Empty title="No technicians yet" icon="engineering">Add the people jobs are assigned to in Settings &gt; Team.</Empty>}
+            {!b.technicians.length && <Empty title="No technicians yet" icon="engineering">Add the people jobs are assigned to in Settings, Team and access.</Empty>}
             <section className="ba-panel" aria-label="Unassigned jobs">
               <div className="ba-panel-body">
                 <h3 className="ba-h3">Unassigned ({unassigned.length})</h3>
@@ -255,7 +255,7 @@ export function ResourcesPage({ workspace, refreshKey, onNotice }) {
   const schedule = useLoad(async () => {
     const { data, error } = await supabase.rpc("zella_resource_day", { p_business_id: workspace.id, p_day: day });
     if (error) throw error;
-    if (!Array.isArray(data)) throw new Error("zella_resource_day returned an unexpected shape");
+    if (!Array.isArray(data)) throw new Error("This day's resources couldn't be read. Try again, or contact Zella Voice support if it keeps happening.");
     return data;
   }, [workspace.id, day, refreshKey]);
   const reloadBoth = () => { list.reload(); schedule.reload(); };

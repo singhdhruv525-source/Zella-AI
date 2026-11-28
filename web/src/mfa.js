@@ -142,7 +142,7 @@ async function recordAdminMfaAdded(factorId, owner) {
     dropPending(owner, factorId);
     return true;
   } catch (err) {
-    console.warn("Recording the new authenticator failed; it is tried again later", err?.message);
+    console.warn("Recording the new authenticator failed; it's tried again later", err?.message);
     if (owner && !pending().some((p) => p.factorId === factorId && p.userId === owner)) keepPending(owner, factorId);
     return false;
   }

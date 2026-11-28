@@ -71,7 +71,7 @@ export function BusinessModulesPanel({ w, onGo }) {
           </Card>
           <Needs title="Switching shared modules here isn't available yet." have="Ask the Zella Voice team (Help and support) and they'll change it for your plan." />
           <Card title="Coming soon" sub="Not shown in your menu until they work.">
-            <Facts rows={[["Voicemails", "Calls with a recording are in Calls"], ["Reviews inbox", "Send your review link from SMS, email and messages"],
+            <Facts rows={[["Voicemails", "Calls with a recording are in Calls"], ["Reviews inbox", "Send your review link from Texts, email and messages"],
               ["Marketing campaigns", "Lead sources shows where leads come from"], ["More AI tools beyond the AI receptionist", "None"]]} />
           </Card>
         </>

@@ -86,7 +86,7 @@ const ERRORS = [
   [/NOT_FOUND/, () => "That item has changed or was removed. Refresh and try again."],
   [/NOT_ALLOWED|permission denied|42501/, () => "You don't have permission to do that here."],
   [/MFA_REQUIRED/, () => "Enter the code from your authenticator app first: sign out and sign in again."],
-  [/failed to fetch|network|load failed/i, () => "Couldn't reach Zella Voice. Nothing was changed; try again."],
+  [/failed to fetch|network|load failed/i, () => "Couldn't reach Zella Voice, so this may not have been saved. Check your connection, refresh and try again."],
   [/zella_approval|zella_milestone|zella_inspection|zella_exception|zella_credit|zella_workflow|record_approvals|record_milestones|schema cache|Could not find the function/,
     () => "This isn't available on this workspace yet. Ask the Zella Voice team."],
 ];

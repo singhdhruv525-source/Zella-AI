@@ -50,7 +50,7 @@ export function PlanCard({ plan }) {
   if (!plan.available) return <Card title="Plan"><Empty>{NOT_AVAILABLE}</Empty></Card>;
   const p = plan.plan;
   return (
-    <Card title="Plan" description="This business's own plan, saved in Plan & pricing.">
+    <Card title="Plan" description="This business's own plan, saved in setup under Plan & pricing.">
       {p ? (
         <dl className="op-facts">
           <div><dt>Plan</dt><dd>{humanize(p.tier)}, {humanize(p.billing_interval)}, version {p.version}</dd></div>
@@ -59,7 +59,7 @@ export function PlanCard({ plan }) {
           <div><dt>Seats and numbers</dt><dd>{p.team_seats} seats, {p.phone_numbers} numbers, {p.locations} locations</dd></div>
           {!plan.pricesShown && <div><dt>Price</dt><dd className="op-muted">Shown to admins who can see billing</dd></div>}
         </dl>
-      ) : <Empty>No plan saved yet. A billing admin saves one in Plan & pricing.</Empty>}
+      ) : <Empty>No plan saved yet. A billing admin saves one in setup under Plan & pricing.</Empty>}
     </Card>
   );
 }

@@ -160,7 +160,7 @@ function MaintenanceForm({ initial, allowed, reload }) {
         <Facts rows={[["Maintenance notice", now ? <Pill tone="warning">Showing now</Pill> : active ? <Pill tone="accent">Scheduled</Pill> : <Pill>Off</Pill>],
           ["Message", initial.message], ["Starts", when(initial.starts_at)], ["Ends", when(initial.ends_at)], ["Last changed", when(initial.set_at)]]} />
       </Card>
-      <Card title="Announce maintenance" sub="Shows a notice on every sign in page, in the admin dashboard and in every business's workspace. It does not stop the app or block saving.">
+      <Card title="Announce maintenance" sub="Shows a notice on every sign in page, in the admin dashboard and in every business's workspace. It doesn't stop the app or block saving.">
         {!allowed && <Banner tone="warn">Only a Zella Voice owner or super admin can change maintenance.</Banner>}
         <fieldset disabled={!allowed} style={{ border: 0, padding: 0, margin: 0 }}>
           <div className="zs-grid">
@@ -1156,7 +1156,7 @@ export function Secrets() {
         <Card title="Server secrets" sub="Set with supabase secrets set NAME=value. Only whether each is set is shown, never the value.">
           <Table rowKey={(c) => c.key} rows={p.configuration ?? []} columns={[["Secret", (c) => <code>{c.key}</code>], ["Used for", (c) => c.label], ["Status", (c) => <Pill tone={c.set ? "success" : c.required ? "danger" : ""}>{c.set ? "Set" : "Not set"}</Pill>]]} />
         </Card>
-        <Card title="Business credentials"><Facts rows={[["Stored integration credentials", s.integrationSecrets], ["Where", "Database vault and integration_secrets, readable only by the server"]]} /></Card>
+        <Card title="Business credentials"><Facts rows={[["Stored integration credentials", s.integrationSecrets], ["Where", "Database vault and stored integration secrets, readable only by the server"]]} /></Card>
         <Needs title="Rotation dates and expiry alerts aren't tracked" have="Provider connection checks raise alerts when a key stops working.">Tracking rotation needs a record of when each secret was last changed; Supabase doesn't expose that.</Needs>
       </>
     )}</LoadState>

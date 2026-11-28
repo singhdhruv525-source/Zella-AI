@@ -22,10 +22,10 @@ const RESTRICTED = ["platform_operations", "billing_admin", "support_admin", "se
 // What a role may do, in words, from the server's own role definitions (roles_get: the permission catalog and each
 // restricted role's permissions). The owner and super admin rules match the server's check in owner-provision-business.
 function roleExplanation(role, roles) {
-  if (role === "zella_owner") return "Full access to every client business and every admin page, and can add, change and remove platform admins and edit what restricted roles may do.";
-  if (role === "super_admin") return "Full access to every client business and every admin page, except adding or removing admins and changing roles.";
+  if (role === "zella_owner") return "Full access to every business and every admin page, and can add, change and remove platform admins and edit what restricted roles may do.";
+  if (role === "super_admin") return "Full access to every business and every admin page, except adding or removing admins and changing roles.";
   const def = roles?.roles?.find((r) => r.key === role);
-  if (!def) return "Only the permissions set for this role in Settings > Users, roles & access > Platform roles. (They couldn't be loaded just now.)";
+  if (!def) return "Only the permissions set for this role in Settings, Admins and roles, Platform roles. (They couldn't be loaded just now.)";
   const words = new Map((roles.catalog ?? []).map(([key, text]) => [key, text]));
   const list = (def.permissions ?? []).map((p) => words.get(p) ?? p);
   if (!list.length) return "No permissions yet: they can sign in, but see only Settings until a Zella Voice owner gives this role permissions.";
@@ -104,7 +104,7 @@ export default function UsersAccess() {
     const label = ROLE_LABELS[invite.role] ?? invite.role;
     await run("admin_invite", { ...invite, email: invite.email.trim() }, (r) =>
       r.resent
-        ? `Invitation reemailed to ${r.email}. Their existing role was not changed.`
+        ? `Invitation sent again to ${r.email}. Their existing role wasn't changed.`
         : r.invited
         ? `Invitation emailed to ${r.email} as ${label}.`
         : `${r.email} already had a Zella Voice login and can now use the admin dashboard as ${label}.`,
