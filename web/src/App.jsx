@@ -116,7 +116,7 @@ async function hasAdminAccess() {
 // closed): the error reaches the caller's catch, which leaves the admin page locked and says why.
 async function needsMfaCode() {
   const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (error || !data) throw new Error("We couldn't check your two step sign in. Please try again.");
+  if (error || !data) throw new Error("We couldn't check your two step sign in. Try again.");
   return data.nextLevel === "aal2" && data.currentLevel !== "aal2";
 }
 
@@ -152,7 +152,7 @@ function AdminApp() {
         // invitation's password step the expired-link guidance below already covers it
         if (sessionError && !LANDING.setup) {
           if (/refresh[ _-]?token/i.test(`${sessionError.code ?? ""} ${sessionError.message ?? sessionError}`)) {
-            throw new Error("Your saved session couldn't be restored. Please sign in again.");
+            throw new Error("Your saved session couldn't be restored. Sign in again.");
           }
           throw sessionError;
         }
@@ -180,7 +180,7 @@ function AdminApp() {
           await beginMfaSetup();
         } else if (isOwner === "unavailable") {
           setMessageType("error");
-          setMessage("Admin access couldn't be checked. Please try signing in again.");
+          setMessage("Admin access couldn't be checked. Try signing in again.");
         } else if (isOwner) {
           setIsAuthorized(true);
         } else {
@@ -232,7 +232,7 @@ function AdminApp() {
       await finishMfaEnrollment(mfaSetup.factorId, code);
       const access = await hasAdminAccess();
       if (mine !== flow.current) return;   // signed out or switched account meanwhile
-      if (access !== true) throw new Error("Two step sign in is set up, but admin access couldn't be checked. Please sign in again.");
+      if (access !== true) throw new Error("Two step sign in is set up, but admin access couldn't be checked. Sign in again.");
       setMfaSetup(null);
       setCode("");
       setIsAuthorized(true);
@@ -303,7 +303,7 @@ function AdminApp() {
       setPassword("");
       setConfirmPassword("");
       const access = await hasAdminAccess();
-      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Please try again.");
+      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Try again.");
       if (!access) {
         await supabase.auth.signOut();
         setMode("signin");
@@ -331,10 +331,10 @@ function AdminApp() {
         setCode("");
       } else if (await needsMfaCode()) {
         setMfaVerified(false);
-        throw new Error("Please enter a new authenticator code.");
+        throw new Error("Enter a new authenticator code.");
       }
       const access = await hasAdminAccess();
-      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Please try again.");
+      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Try again.");
       if (access === "setup") { await beginMfaSetup(); return; }
       if (!access) {
         await supabase.auth.signOut();
@@ -390,7 +390,7 @@ function AdminApp() {
         return;
       }
       const access = await hasAdminAccess();
-      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Please try again.");
+      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Try again.");
       if (access === "setup") { setPassword(""); await beginMfaSetup(); return; }
       if (!access) {
         await supabase.auth.signOut();

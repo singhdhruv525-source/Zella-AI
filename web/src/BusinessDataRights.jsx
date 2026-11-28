@@ -186,7 +186,7 @@ export function DataRightsList({ workspace, onOpenPerson, onNotice }) {
   }, [workspace.id, show]);
   return (
     <section className="ba-panel">
-      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Privacy requests</h2><p>Customers asking for a copy of their information, a correction, or erasure. Reply within 30 days.</p></div></div>
+      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>Privacy requests</h2><p>Customers asking for a copy of their information, a correction or erasure. Reply within 30 days.</p></div></div>
         <select value={show} onChange={(e) => setShow(e.target.value)} aria-label="Show"><option value="open">Open</option><option value="all">All</option></select>
       </div>
       <div className="ba-panel-body">

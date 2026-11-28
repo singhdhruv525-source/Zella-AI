@@ -10,9 +10,9 @@ import { supabase } from "./supabase";
 async function call(token, action) {
   const { data, error } = await supabase.functions.invoke("reschedule-appointment", { body: { token, action } });
   if (error) {
-    if (error.context?.status === 429) throw new Error("Too many tries. Please wait a minute and try again.");
+    if (error.context?.status === 429) throw new Error("Too many tries. Wait a minute and try again.");
     const body = await error.context?.json?.().catch(() => null);
-    throw new Error(typeof body?.error === "string" && body.error.length < 200 ? body.error : "Something went wrong. Please try again.");
+    throw new Error(typeof body?.error === "string" && body.error.length < 200 ? body.error : "That didn't work. Try again in a minute, or contact the business.");
   }
   return data;
 }
@@ -77,7 +77,7 @@ export default function WaitlistOffer() {
         {!info && !stop && !error && <p className="op-muted">Checking your link…</p>}
         {error && !info?.offer && (
           <>
-            <h1>Something went wrong</h1>
+            <h1>We couldn't do that right now</h1>
             <p>{error}</p>
           </>
         )}

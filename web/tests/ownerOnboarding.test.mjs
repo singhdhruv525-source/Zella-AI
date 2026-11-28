@@ -136,7 +136,7 @@ test("error codes become the contract's words; raw codes never show", () => {
   assert.equal(errorWords(Object.assign(new Error("STEP_LOCKED"), { code: "STEP_LOCKED" })), "Finish the earlier steps first.");
   assert.equal(errorWords({ code: "UPLOAD_NOT_ALLOWED", message: "We already have your documents." }), "We already have your documents.");
   assert.equal(errorWords({ code: "NOTE_REQUIRED", message: "NOTE_REQUIRED", details: "too_long" }), "Keep the note under 1000 characters.");
-  assert.equal(errorWords({ message: "SOME_NEW_CODE" }), "Something went wrong. Please try again.");
+  assert.equal(errorWords({ message: "SOME_NEW_CODE" }), "That didn't work. Try again, or contact the Zella Voice team if it keeps happening.");
   assert.equal(errorWords({ message: "Failed to fetch" }), "We couldn't reach Zella Voice. Check your connection and try again.");
   assert.equal(errorCode({ message: "PLAN_CHANGED" }), "PLAN_CHANGED");
   for (const w of Object.values(ERROR_WORDS)) assert.doesNotMatch(w, DASH);
@@ -343,13 +343,13 @@ test("a newer plan after acceptance: the journey shows the plan again", () => {
 test("database errors: contract codes kept, raw text replaced, an ended session asks to sign in", () => {
   const known = rpcError({ code: "P0001", message: "DETAILS_CHANGED", details: null });
   assert.equal(errorCode(known), "DETAILS_CHANGED");
-  assert.equal(errorWords(known), "These details were just updated. Please check them again.");
+  assert.equal(errorWords(known), "These details were just updated. Check them again.");
   const raw = rpcError({ code: "42501", message: "permission denied for function zella_owner_onboarding_get" });
-  assert.equal(raw.message, "Something went wrong. Please try again.");
+  assert.equal(raw.message, "That didn't work. Try again, or contact the Zella Voice team if it keeps happening.");
   assert.equal(raw.rawMessage, "permission denied for function zella_owner_onboarding_get");
   assert.doesNotMatch(errorWords(raw), /zella|permission/);
   const ended = rpcError({ code: "PGRST301", message: "JWT expired" });
-  assert.equal(errorWords(ended), "Please sign in again.");
+  assert.equal(errorWords(ended), "Your session ended. Sign in again.");
   assert.equal(isNotReady(rpcError({ code: "PGRST202", message: "Could not find the function public.x" })), true);
   assert.match(errorWords(rpcError({ message: "TypeError: Failed to fetch" })), /couldn't reach Zella Voice/);
   assert.equal(errorCode(rpcError({ code: "42501", message: "MFA_REQUIRED" })), "MFA_REQUIRED");

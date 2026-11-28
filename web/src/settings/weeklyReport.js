@@ -61,7 +61,7 @@ export function scheduleFacts(schedule, when) {
 export function reportError(message) {
   return /NOT_ALLOWED/.test(String(message ?? ""))
     ? "Your admin role can't read the weekly platform report. The Zella Voice owner can give it the Weekly platform report permission in Platform roles."
-    : String(message ?? "Something went wrong.");
+    : String(message ?? "The weekly report couldn't load. Try again.");
 }
 
 // The zella_admin_weekly_reports answer, checked. Returns null when the server sent no answer, or no report list, so

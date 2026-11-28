@@ -33,7 +33,7 @@ export function livePill(row, available = true) {
   if (row?.status === "paused") return ["warning", "Paused"];
   if (row?.status === "disabled") return ["neutral", "Off"];
   if (row?.businessState === "suspended") return ["warning", "Business suspended"];
-  if (row?.businessState === "cancelled") return ["neutral", "Business cancelled"];
+  if (row?.businessState === "cancelled") return ["neutral", "Business canceled"];
   if (row?.status === "active") return ["neutral", "Not live"];
   return ["neutral", "Unknown"];
 }

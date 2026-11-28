@@ -232,7 +232,7 @@ async function journey(browser, variant) {
     await page.click("button:has-text('Open my CRM')");
     await waitHeading(page, "Your plan");
     check("7 Done: a new plan version shows the plan again, with why, and doesn't open the CRM",
-      (await heading(page)) === "Your plan" && await page.isVisible("text=Your plan was just updated. Please review it again.") && !went.some((u) => /\/app/.test(u)), went.join(", "));
+      (await heading(page)) === "Your plan" && await page.isVisible("text=Your plan was just updated. Review it again.") && !went.some((u) => /\/app/.test(u)), went.join(", "));
     await page.click("button:has-text('Accept plan and continue')");
     await waitHeading(page, "Setup complete");
     await page.click("button:has-text('Open my CRM')");

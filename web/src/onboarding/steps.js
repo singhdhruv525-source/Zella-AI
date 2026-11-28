@@ -143,7 +143,7 @@ export function isNotReady(error) {
 
 // The server's error codes (contract §4), in words. The raw code is never shown.
 export const ERROR_WORDS = {
-  NOT_SIGNED_IN: "Please sign in again.",
+  NOT_SIGNED_IN: "Your session ended. Sign in again.",
   NOT_ALLOWED: "Only the business owner can do this.",
   NOT_FOUND: "We couldn't find that business.",
   MFA_REQUIRED: "Enter the code from your authenticator app to continue.",
@@ -157,14 +157,14 @@ export const ERROR_WORDS = {
   IDENTITY_NOT_VERIFIED: "We're still checking your identity.",
   UPLOAD_NOT_ALLOWED: "We already have your documents.",
   PLAN_MISSING: "Your plan isn't ready yet. Zella Voice will be in touch.",
-  PLAN_CHANGED: "Your plan was just updated. Please review it again.",
-  DETAILS_CHANGED: "These details were just updated. Please check them again.",
+  PLAN_CHANGED: "Your plan was just updated. Review it again.",
+  DETAILS_CHANGED: "These details were just updated. Check them again.",
   PAYMENT_NOT_CONFIRMED: "We haven't received a payment yet.",
   PAYMENTS_NOT_LIVE: "Payments aren't switched on yet. Nothing has been charged.",
   ALREADY_PAID: "Your payment is already confirmed.",
-  CHECKOUT_NOT_READY: "We couldn't open the payment page. Please try again in a minute.",
+  CHECKOUT_NOT_READY: "We couldn't open the payment page. Try again in a minute.",
   rate_limited: "Too many attempts. Wait a minute and try again.",
-  SERVER_ERROR: "Something went wrong on our side. Please try again.",
+  SERVER_ERROR: "We had a problem on our side. Try again in a minute.",
 };
 // The code a server error carries: a database function raises it as the message, the edge function sends it as code.
 export function errorCode(error) {
@@ -230,7 +230,7 @@ export function rpcError(error) {
   const fromMessage = /^[A-Z_]{3,40}$/.test(raw) ? raw : null;
   const code = fromMessage ?? (SESSION_ENDED.has(error?.code) ? "NOT_SIGNED_IN" : error?.code);
   const keep = fromMessage || code === "PGRST202" || /fetch|network|failed to load|load failed/i.test(raw);
-  const message = code === "NOT_SIGNED_IN" && !fromMessage ? "NOT_SIGNED_IN" : keep ? raw : "Something went wrong. Please try again.";
+  const message = code === "NOT_SIGNED_IN" && !fromMessage ? "NOT_SIGNED_IN" : keep ? raw : "That didn't work. Try again, or contact the Zella Voice team if it keeps happening.";
   return Object.assign(new Error(message), { code, details: error?.details ?? null, status: error?.status, rawMessage: raw });
 }
 
@@ -243,7 +243,7 @@ export function errorWords(error) {
   if (isNotReady(error)) return "This step isn't ready yet. Choose Finish later and come back soon.";
   const m = String(error?.message ?? error ?? "");
   if (/fetch|network|failed to load|load failed/i.test(m)) return "We couldn't reach Zella Voice. Check your connection and try again.";
-  if (!m || /^[A-Z_]+$|^\s*\{|\bat \w+ \(|TypeError|ReferenceError|P0001|PGRST/.test(m)) return "Something went wrong. Please try again.";
+  if (!m || /^[A-Z_]+$|^\s*\{|\bat \w+ \(|TypeError|ReferenceError|P0001|PGRST/.test(m)) return "That didn't work. Try again, or contact the Zella Voice team if it keeps happening.";
   return m;
 }
 

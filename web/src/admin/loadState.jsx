@@ -15,7 +15,7 @@ export function useRefreshable(loader) {
       const data = await loader();
       if (mine === attempt.current) setState({ data: data ?? {}, error: "", loading: false, lastOk: new Date() });
     } catch (err) {
-      if (mine === attempt.current) setState((s) => ({ ...s, error: friendlyError(err) || "Something went wrong.", loading: false }));
+      if (mine === attempt.current) setState((s) => ({ ...s, error: friendlyError(err) || "This couldn't load. Try again.", loading: false }));
     }
   }, [loader]);
   useEffect(() => {

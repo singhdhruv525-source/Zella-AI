@@ -115,7 +115,7 @@ async function inspect(page, vw) {
     const raw = (main.innerText.match(/\b(undefined|NaN|null|\[object Object\]|Invalid Date)\b/g) ?? []);
     return {
       title: (document.querySelector("h1")?.innerText ?? "").slice(0, 80),
-      crashed: /Something went wrong/i.test(text),
+      crashed: /This page stopped working/i.test(text),
       notFound: /Page not found/i.test(text),
       notAvailable: /isn't available|not available to your role|don't have access|Platform admin access required|no permission/i.test(text),
       signIn: Boolean(document.querySelector('input[type="password"]') && document.querySelector('input[type="email"]') && !document.querySelector('nav, .ba-sidebar, .owner-sidebar')),

@@ -158,7 +158,7 @@ export function TimeGrid({
               ref={(el) => { bodies.current[index] = el; }}
               className={`ba-tg-col ${c.today ? "today" : ""}`}
               onClick={(e) => clickBody(e, index)}
-              title={onBook ? "Click an empty time to book" : undefined}
+              title={onBook ? "Select an empty time to book" : undefined}
               style={{ backgroundSize: `100% ${PX_PER_HOUR}px`, backgroundPosition: `0 ${-((startMin % 60) * scale)}px` }}
             >
               {c.blocks.map((b) => {
@@ -215,7 +215,7 @@ export function TimeGrid({
           ))}
         </div>
       </div>
-      {term && <p className="ba-muted ba-tg-hint">Click an empty time to book. Drag a {term.toLowerCase()} to move it.</p>}
+      {term && <p className="ba-muted ba-tg-hint">Select an empty time to book. Drag a {term.toLowerCase()} to move it.</p>}
     </div>
   );
 }

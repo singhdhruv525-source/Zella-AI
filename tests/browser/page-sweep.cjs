@@ -66,7 +66,7 @@ async function visit(p, errors, url, { inApp = true } = {}) {
   return {
     url,
     crash: errors.length ? errors.join(" | ") : null,
-    boundary: /Something went wrong/.test(main),
+    boundary: /This page stopped working/.test(main),
     unavailable: /isn't available|Not available|don't have access|no permission/i.test(main),
     notFound: /Page not found/.test(main),
     errorShown: ERRORISH.test(main),

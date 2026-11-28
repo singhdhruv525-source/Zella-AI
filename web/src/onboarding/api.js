@@ -29,9 +29,9 @@ async function edge(action, payload) {
     try { body = await error.context?.json(); } catch { /* not JSON */ }
     // our function always answers { error, code }; a 404 without it is the platform saying it isn't deployed yet
     if (status === 404 && !body?.error) throw Object.assign(new Error("Requested function was not found"), { status, notReady: true });
-    throw Object.assign(new Error(body?.error || "Something went wrong. Please try again."), { status, code: typeof body?.code === "string" ? body.code : undefined, words: typeof body?.error === "string" ? body.error : undefined });
+    throw Object.assign(new Error(body?.error || "That didn't work. Try again, or contact the Zella Voice team if it keeps happening."), { status, code: typeof body?.code === "string" ? body.code : undefined, words: typeof body?.error === "string" ? body.error : undefined });
   }
-  if (!data || data.error) throw Object.assign(new Error(data?.error || "Something went wrong. Please try again."), { code: data?.code });
+  if (!data || data.error) throw Object.assign(new Error(data?.error || "That didn't work. Try again, or contact the Zella Voice team if it keeps happening."), { code: data?.code });
   return data;
 }
 
@@ -89,7 +89,7 @@ async function billing(action, payload) {
     let body = null;
     try { body = await error.context?.json(); } catch { /* not JSON */ }
     if (status === 404 && !body?.error) throw Object.assign(new Error("Requested function was not found"), { status, notReady: true });
-    throw Object.assign(new Error(body?.error || "Something went wrong. Please try again."), { status, code: typeof body?.code === "string" ? body.code : undefined, words: typeof body?.error === "string" ? body.error : undefined });
+    throw Object.assign(new Error(body?.error || "That didn't work. Try again, or contact the Zella Voice team if it keeps happening."), { status, code: typeof body?.code === "string" ? body.code : undefined, words: typeof body?.error === "string" ? body.error : undefined });
   }
   return data;
 }

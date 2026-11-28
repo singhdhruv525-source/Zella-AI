@@ -113,7 +113,7 @@ async function main() {
           opened: Boolean(dlg),
           offscreen: r ? (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 40) : false,
           dialogOverflowX: dlg ? dlg.scrollWidth - dlg.clientWidth : 0,
-          crashed: /Something went wrong/i.test(document.body.innerText),
+          crashed: /This page stopped working/i.test(document.body.innerText),
           raw: (dlg?.innerText.match(/\b(undefined|NaN|\[object Object\]|Invalid Date)\b/g) ?? []).join(","),
           focusInside: dlg ? dlg.contains(document.activeElement) : null,
         };

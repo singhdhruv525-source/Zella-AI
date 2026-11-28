@@ -149,7 +149,7 @@ const NEEDS_UPDATE = "This isn't switched on for your workspace yet. Ask the Zel
 // Short codes raised by the database functions, in plain words.
 const CODES = {
   NOT_ALLOWED: "You don't have permission to do that in this workspace.",
-  NOT_SIGNED_IN: "Your session has ended. Please sign in again.",
+  NOT_SIGNED_IN: "Your session has ended. Sign in again.",
   REASON_REQUIRED: "Pick a reason first.",
   BAD_INPUT: "Something in the form isn't valid. Check it and try again.",
   APPROVAL_REQUIRED: "A second owner or admin must approve this first. A request has been sent to them.",

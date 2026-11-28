@@ -54,7 +54,7 @@ export function PlanScreen({ api, state, onState, onReload, onComplete }) {
         {Number(p.overage_cents_per_minute) > 0 && <p className="zob-muted">Extra minutes beyond your plan cost {money(p.overage_cents_per_minute, p.currency)} each.</p>}
       </section>
       {plan.accepted && plan.accepted_version === p.version && <div className="zob-done-note" role="status"><Icon name="task_alt" /><span>You accepted this plan.</span></div>}
-      {!plan.accepted && plan.accepted_version != null && <p className="zob-muted" role="status">Your plan was just updated. Please review it again.</p>}
+      {!plan.accepted && plan.accepted_version != null && <p className="zob-muted" role="status">Your plan was just updated. Review it again.</p>}
       <ErrorText>{action.error}</ErrorText>
       <Actions>
         <button type="button" className="ba-btn primary" disabled={action.busy} onClick={accept}>
@@ -95,7 +95,7 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
     let r;
     try { r = await api.startCheckout(state.business_id, key); }
     catch (err) { setKey(newKey()); throw err; }
-    if (typeof r?.url !== "string") { setKey(newKey()); throw new Error("We couldn't open the payment page. Please try again in a minute."); }
+    if (typeof r?.url !== "string") { setKey(newKey()); throw new Error("We couldn't open the payment page. Try again in a minute."); }
     window.location.assign(r.url);
   }
   // back from Stripe: ask the server to look again (it applies the verified events), then tidy the address bar

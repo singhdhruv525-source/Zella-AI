@@ -44,7 +44,7 @@ function initialState(scenario) {
         name: "Maple Street Salon", legal_name: "Maple Street Salon LLC", industry: "Beauty and Salon", phone: "+15550102040",
         email: "hello@maplestreet.example.test", website: "https://maplestreet.example.test",
         address: { line_1: "12 Maple Street", line_2: null, city: "Springfield", state: "IL", postal_code: "62701", country: "US" },
-        timezone: "America/Chicago", description: "Haircuts, colour and styling." } },
+        timezone: "America/Chicago", description: "Haircuts, color and styling." } },
       hours_services: { status: "to_review", note: null, admin_note: null, data: {
         hours: [1, 2, 3, 4, 5].map((weekday) => ({ weekday, opens: "09:00", closes: "17:00" })).concat([{ weekday: 6, opens: "10:00", closes: "14:00" }]),
         services: [{ name: "Haircut", duration: "45 min", price: "$40" }, { name: "Colour", duration: "90 min", price: "$95" }],

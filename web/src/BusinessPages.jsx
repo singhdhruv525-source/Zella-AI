@@ -613,7 +613,7 @@ export function CalendarPage({ workspace, industry, refreshKey, onNotice, onOpen
         />
       )}
       {!loading && data && total === 0 && !blocks.length && view !== "agenda" && (
-        <Empty title={`No ${term("appointments").toLowerCase()} here`}>Click an empty time to book one, or let your AI receptionist fill the calendar.</Empty>
+        <Empty title={`No ${term("appointments").toLowerCase()} here`}>Select an empty time to book one, or let your AI receptionist fill the calendar.</Empty>
       )}
 
       {open && (

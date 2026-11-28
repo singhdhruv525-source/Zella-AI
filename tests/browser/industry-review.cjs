@@ -71,7 +71,7 @@ const [worker = 0, workers = 1] = process.argv.slice(2).map(Number);
           buttons: [...main.querySelectorAll("button")].map((b) => (b.getAttribute("aria-label") || b.innerText).replace(/\s+/g, " ").trim()).filter((x) => x && x.length < 40).slice(0, 18),
           empty: [...main.querySelectorAll(".ba-empty, .zs-empty, .owner-empty-state, .bp-empty")].map((e) => e.innerText.replace(/\s+/g, " ").trim()).slice(0, 4),
           columns: [...main.querySelectorAll("th")].map((th) => th.innerText.trim()).filter(Boolean).slice(0, 14),
-          crashed: /Something went wrong on this page/.test(t), notAvailable: /isn't available/.test(t), notFound: /Page not found/.test(t),
+          crashed: /This page stopped working/.test(t), notAvailable: /isn't available/.test(t), notFound: /Page not found/.test(t),
           words: t.slice(0, 1500),
         };
       });

@@ -519,7 +519,7 @@ function StoreCard({ workspace, onNotice }) {
           <button type="submit" className="ba-btn sm" disabled={busy}>{busy ? "Checking with Shopify…" : "Connect"}</button>
         </form>
       )}
-      {canManage && !st && <small className="ba-muted">In Shopify: Settings, Apps and sales channels, Develop apps, create an app with read_orders and read_customers, install it, and copy its Admin API access token.</small>}
+      {canManage && !st && <small className="ba-muted">In Shopify, go to Settings, then Apps and sales channels, then Develop apps. Create an app with read_orders and read_customers, install it and copy its Admin API access token.</small>}
       {canManage && st && <button type="button" className="ba-btn ghost sm" onClick={disconnect}>Disconnect</button>}
     </section>
   );
@@ -596,7 +596,7 @@ export function IntegrationsPage({ workspace, refreshKey, onNotice }) {
   return (
     <>
       <PageHead crumb="Management / Integrations" title="Integrations"
-        sub={canManage ? "Turn any connected service off, back on, or remove it." : "The services connected to your workspace."} />
+        sub={canManage ? "Turn any connected service off, back on or remove it." : "The services connected to your workspace."} />
       <Notice error={error} onRetry={reload} />
       <div className="ba-grid-2">
         <StoreCard workspace={workspace} onNotice={onNotice} />

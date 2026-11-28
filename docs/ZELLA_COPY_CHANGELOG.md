@@ -1,5 +1,28 @@
 # Zella Voice: copy changelog
 
+## 28 November 2026: quick fixes from the full app scan (both apps and the public pages)
+
+Words only; nothing a screen does changed. Found by a scan of every string in `web/src` against
+`docs/ZELLA_PRODUCT_VOICE.md` (owner's go ahead, 28 Nov 2026). Errors now say what happened and what to do next; none
+claims something was or wasn't saved unless the code knows.
+
+| Where | Was | Now | Why |
+|---|---|---|---|
+| Page error panel (CRM, admin and the whole app) | Something went wrong (on this page) | This page stopped working | Says what happened (UX-10) |
+| Unsubscribe page, after a failed confirm | Something went wrong. Please try again, ... | We couldn't confirm that you're unsubscribed. Try again, ... | The person learns the one thing that matters |
+| Reschedule and waitlist links | Something went wrong. Please try again. | That didn't work. Try again in a minute, or contact the business. (heading: We couldn't do that right now) | A next step for customers |
+| Continue plan link, setup and onboarding fallbacks | Something went wrong. Please try again. | That didn't work. Try again (in a minute), or contact the Zella Voice team (if it keeps happening). | Same |
+| Onboarding server error | Something went wrong on our side. Please try again. | We had a problem on our side. Try again in a minute. | Same |
+| Admin lists that fail to load | Something went wrong. | This couldn't load. Try again. | Same |
+| Weekly report fallback | Something went wrong. | The weekly report couldn't load. Try again. | Same |
+| Website contact form (the business's own site) | Something went wrong. Please call us. | We couldn't send your message. Please call us instead. | Same |
+| Owner and admin errors (sign in, session, voices, invitations, plan) | ... Please try again / Please sign in again / Please review it again | ... Try again / Sign in again / Review it again | "Please" kept only where we ask someone to do something inconvenient (contact the business or support) |
+| Calendar | Click an empty time to book | Select an empty time to book | Works for touch and keyboard too |
+| Connection state | Business cancelled | Business canceled | American English |
+| Offers history | Could not go live; Error while going live | Couldn't go live; Couldn't go live (system problem) | Plain words, contractions |
+| Six sentences with a serial comma (data requests, connections, offers, controls, capabilities, onboarding) | a, b, and c | a, b and c | House voice: no serial comma |
+| Shopify connection hint | In Shopify: Settings, Apps and sales channels, Develop apps, create an app ... | In Shopify, go to Settings, then Apps and sales channels, then Develop apps. Create an app ... | A path, then the steps |
+
 ## 25 November 2026: phone navigation (both apps)
 
 New words on phones (under 768 wide), except the "Needs you now" notes in the notification bell, which show on phones

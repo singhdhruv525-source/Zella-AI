@@ -11,7 +11,7 @@ async function callContinue(token, action) {
     body: { token, action },
   });
   if (error) {
-    let message = "Something went wrong. Please try again.";
+    let message = "That didn't work. Try again in a minute, or contact the Zella Voice team.";
     try {
       const body = await error.context?.json();
       if (body?.error) message = body.error;

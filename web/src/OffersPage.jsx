@@ -201,7 +201,7 @@ export default function OffersPage({ onOpenBusiness }) {
         <div>
           <div className="owner-eyebrow">Configuration</div>
           <h1>Offers & promotions</h1>
-          <p>Create offers for Small, Medium and Large businesses, schedule them, and see who claimed what.</p>
+          <p>Create offers for Small, Medium and Large businesses, schedule them and see who claimed what.</p>
         </div>
         {tab === "Offers" && (
           <button type="button" className="owner-primary-button" onClick={() => setEditing({})}><Icon name="add" size="sm" />New offer</button>
@@ -609,7 +609,7 @@ function EligibilityEditor({ match, rules, lookups, onChange }) {
 const EVENT_TEXT = {
   created: "Created", edited: "Edited", submit: "Submitted", approve: "Approved", reject: "Sent back to draft",
   pause: "Paused", resume: "Resumed", back_to_draft: "Moved back to draft", archive: "Archived", end_now: "Ended early",
-  activated: "Went live", expired: "Ended", activation_failed: "Could not go live", activation_error: "Error while going live",
+  activated: "Went live", expired: "Ended", activation_failed: "Couldn't go live", activation_error: "Couldn't go live (system problem)",
   expiry_warning: "Ending soon alert sent", claimed: "Claimed", claim_rejected: "Claim refused", claim_confirmed: "Paid",
   claim_reversed: "Refunded or disputed", claim_cancelled: "Claim canceled", claim_lapsed: "Claim released (not paid in time)",
   code_rejected: "Code refused",

@@ -33,7 +33,7 @@ test('saved password with unavailable access leaves recovery and preserves its e
   assert.equal(s.saves, 1);
   assert.equal(s.checks, 1);
   assert.equal(s.authorized, false);
-  assert.equal(s.message, "Admin access couldn't be checked. Please try again.");
+  assert.equal(s.message, "Admin access couldn't be checked. Try again.");
   assert.equal(s.messageType, 'error');
   assert.equal(s.loading, false);
 });

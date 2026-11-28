@@ -21,7 +21,7 @@ export default function LegalPage({ kind }) {
         <div className="cp-brand"><span>Zella <span className="cp-ai">Voice</span></span></div>
         <h1 className="stp-h2">{d?.title ?? NAMES[kind]}</h1>
         {state.loading && <p>Loading…</p>}
-        {state.error && <p>This page can't be loaded right now. Please try again in a minute.</p>}
+        {state.error && <p>This page can't be loaded right now. Try again in a minute.</p>}
         {!state.loading && !state.error && !d && <p>The {NAMES[kind].toLowerCase()} isn't available yet.</p>}
         {d?.draft && <p className="cp-small" role="note"><strong>Draft.</strong> This version is still being reviewed and is not in effect yet.</p>}
         {d && <div className="legal-body">{d.body}</div>}

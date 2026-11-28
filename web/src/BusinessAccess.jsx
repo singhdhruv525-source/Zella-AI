@@ -32,7 +32,7 @@ const say = (error) => {
 async function sendInvitationEmail(invitationId) {
   const { data, error } = await supabase.functions.invoke("staff-invite", { body: { invitationId } });
   if (error) {
-    let message = "The invitation email could not be sent. Please try again.";
+    let message = "The invitation email couldn't be sent. Try again.";
     try { message = (await error.context?.json())?.error ?? message; } catch { /* keep the general message */ }
     throw new Error(message);
   }

@@ -139,7 +139,7 @@ export class ErrorBoundary extends Component {
     return (
       <section className="ba-panel" role="alert" style={{ margin: 16 }}>
         <div className="ba-panel-body">
-          <h2>Something went wrong on this page</h2>
+          <h2>This page stopped working</h2>
           <p className="ba-muted">Nothing you saved was lost. Try again, or go to another page.</p>
           <button type="button" className="ba-btn primary" onClick={() => this.setState({ error: null })}>Try again</button>{" "}
           <button type="button" className="ba-btn" onClick={() => window.location.reload()}>Reload</button>

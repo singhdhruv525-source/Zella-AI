@@ -14,9 +14,9 @@ async function call(token, action, extra = {}) {
     // Too many tries in a minute (the link's rate limit) gets its own plain message; otherwise the function's own
     // customer-facing message when it sent one (for example "This link can't be used right now").
     const status = error.context?.status;
-    if (status === 429) throw new Error("Too many tries. Please wait a minute and try again.");
+    if (status === 429) throw new Error("Too many tries. Wait a minute and try again.");
     const body = await error.context?.json?.().catch(() => null);
-    throw new Error(typeof body?.error === "string" && body.error.length < 200 ? body.error : "Something went wrong. Please try again.");
+    throw new Error(typeof body?.error === "string" && body.error.length < 200 ? body.error : "That didn't work. Try again in a minute, or contact the business.");
   }
   return data;
 }
@@ -137,7 +137,7 @@ export default function Reschedule() {
         {!info && !stop && !error && <p className="op-muted">Checking your link…</p>}
         {error && !info && !stop && (
           <>
-            <h1>Something went wrong</h1>
+            <h1>We couldn't do that right now</h1>
             <p>{error}</p>
           </>
         )}

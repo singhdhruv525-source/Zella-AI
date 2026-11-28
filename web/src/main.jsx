@@ -29,7 +29,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary fallback={() => (
       <main style={{ maxWidth: 520, margin: '15vh auto', padding: 24, fontFamily: 'system-ui, sans-serif', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 22 }}>Something went wrong</h1>
+        <h1 style={{ fontSize: 22 }}>This page stopped working</h1>
         <p>Zella Voice couldn't show this page. Nothing you saved was lost.</p>
         <p><button type="button" onClick={() => window.location.reload()}>Reload</button>{' '}<a href="/">Go to the start</a></p>
       </main>

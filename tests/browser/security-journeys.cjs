@@ -67,7 +67,7 @@ const owner = { workspaces: [ws(B1, "Glow Salon", "owner"), ws(B2, "Glow Downtow
       await p.evaluate((to) => { history.pushState(null, "", to); dispatchEvent(new PopStateEvent("popstate")); }, path);
       await p.waitForTimeout(700);
       const text = await p.locator("main").innerText().catch(() => "");
-      check(`address ${path} shows a page, not a crash`, errors.length === 0 && /Page not found|isn't available|Settings/i.test(text) && !/Something went wrong/.test(text), (errors.join("; ") || text.slice(0, 80)).replace(/\n/g, " | "));
+      check(`address ${path} shows a page, not a crash`, errors.length === 0 && /Page not found|isn't available|Settings/i.test(text) && !/This page stopped working/.test(text), (errors.join("; ") || text.slice(0, 80)).replace(/\n/g, " | "));
       errors.length = 0;
     }
     await p.goto(BASE + "/%"); await p.waitForTimeout(1200);
@@ -91,7 +91,7 @@ const owner = { workspaces: [ws(B1, "Glow Salon", "owner"), ws(B2, "Glow Downtow
     await p.goForward(); await p.waitForTimeout(900);
     const fwdUrl = new URL(p.url()).pathname;
     await p.reload(); await p.waitForTimeout(1500);
-    check("settings pages render (no error panel)", !/Something went wrong/.test(await p.locator("main").innerText()));
+    check("settings pages render (no error panel)", !/This page stopped working/.test(await p.locator("main").innerText()));
     check("settings: direct link, Back, Forward, refresh", backUrl === "/app/settings/profile/info" && fwdUrl === "/app/settings/profile/hours" && new URL(p.url()).pathname === fwdUrl && errors.length === 0, `${backUrl} ${fwdUrl} ${errors.join("; ")}`);
     // in-app navigation then Back
     await p.goto(BASE + "/app"); await p.waitForTimeout(1500);
@@ -112,7 +112,7 @@ const owner = { workspaces: [ws(B1, "Glow Salon", "owner"), ws(B2, "Glow Downtow
     const staffSees = await p.locator("main").innerText();
     await p.click(".ba-switcher-btn"); await p.click('.ba-menu-item:has-text("Glow Downtown")'); await p.waitForTimeout(1500);
     const ownerSees = await p.locator("main").innerText();
-    check("switching business re-checks the role (staff: not available, owner: Team access)", /isn't available/i.test(staffSees) && !/isn't available/i.test(ownerSees) && !/Something went wrong/.test(ownerSees), ownerSees.slice(0, 80).replace(/\n/g, " | "));
+    check("switching business re-checks the role (staff: not available, owner: Team access)", /isn't available/i.test(staffSees) && !/isn't available/i.test(ownerSees) && !/This page stopped working/.test(ownerSees), ownerSees.slice(0, 80).replace(/\n/g, " | "));
     await p.goto(BASE + "/app/settings/profile/info"); await p.waitForTimeout(1500);
     const input = p.locator(".zs-page input").first();
     await input.fill("Changed name");
@@ -131,9 +131,9 @@ const owner = { workspaces: [ws(B1, "Glow Salon", "owner"), ws(B2, "Glow Downtow
     await p.goto(BASE + "/app/settings/profile/info"); await p.waitForTimeout(1500);
     const t = await p.locator("main").innerText();
     const sidebar = await p.locator("nav >> text=Calendar").count();
-    check("a crashing page shows the error panel inside the app, menu still there", /Something went wrong on this page/.test(t) && sidebar > 0 && errors.length === 0, t.slice(0, 80).replace(/\n/g, " | "));
+    check("a crashing page shows the error panel inside the app, menu still there", /This page stopped working/.test(t) && sidebar > 0 && errors.length === 0, t.slice(0, 80).replace(/\n/g, " | "));
     await p.locator("nav >> text=Calendar").first().click(); await p.waitForTimeout(1000);
-    check("moving to another page clears the error panel", !/Something went wrong/.test(await p.locator("main").innerText()) && new URL(p.url()).pathname === "/app/calendar");
+    check("moving to another page clears the error panel", !/This page stopped working/.test(await p.locator("main").innerText()) && new URL(p.url()).pathname === "/app/calendar");
     await ctx.close();
   }
 

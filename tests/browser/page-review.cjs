@@ -110,7 +110,7 @@ async function review(browser, name) {
       const iconWords = [...document.querySelectorAll(".ba-icon")].filter((e) => getComputedStyle(e).color !== "rgba(0, 0, 0, 0)" && document.documentElement.dataset.zellaIcons !== "ready").length;
       return {
         title: (document.querySelector("h1")?.innerText ?? "").slice(0, 80),
-        crashed: /Something went wrong on this page/i.test(text),
+        crashed: /This page stopped working/i.test(text),
         notFound: /Page not found/i.test(text),
         notAvailable: /isn't available|not available to your role|don't have access|Platform admin access required/i.test(text),
         signIn: Boolean(document.querySelector('input[type="password"]')),

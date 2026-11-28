@@ -286,7 +286,7 @@ export const ARRIVAL_WINDOW_OPTIONS = [[0, "An exact time"], [60, "A 1 hour arri
 // Documents an admin collects to verify the business and the person registering it.
 export const DOCUMENT_KINDS = [
   { kind: "business_registration", label: "Business registration", required: true,
-    hint: "Certificate of incorporation, business license, or another official record showing the business exists." },
+    hint: "Certificate of incorporation, business license or another official record showing the business exists." },
   { kind: "owner_identity", label: "Owner's photo ID", required: true,
     hint: "Passport, driver's license or national ID of the person registering the business." },
   { kind: "tax_registration", label: "Tax registration", required: false, hint: "EIN letter, VAT or GST certificate. Optional." },

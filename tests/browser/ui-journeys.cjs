@@ -127,7 +127,7 @@ async function open(browser, email, { business, block = [], fail = () => false }
     check("automations data has a confirmation saved as a single number", sql(`select jsonb_typeof(trigger_config->'hours_before') from automations where business_id = '${B1}' and trigger_type = 'appointment_confirmation' limit 1`) === "number");
     await page.goto(APP + "/app/automations"); await page.waitForTimeout(2500);
     const text = await page.locator("main").innerText().catch(() => "");
-    check("automations page opens (no error screen)", !/Something went wrong on this page/.test(text) && errors.length === 0, errors.join("; ").slice(0, 160));
+    check("automations page opens (no error screen)", !/This page stopped working/.test(text) && errors.length === 0, errors.join("; ").slice(0, 160));
     check("and describes the confirmation timing", /1 day before|24 hours before/i.test(text));
     await ctx.close();
   }
