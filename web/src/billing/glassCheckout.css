@@ -583,3 +583,18 @@ html[data-zella-theme="glass"]:has(.ba-root) .zgc-panel::before { opacity: 0.06;
 .zgc-bank-preview-box h2 { margin: 0; font-size: var(--zella-text-lg); }
 .zgc-bank-preview-box p { margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); }
 .zgc-bank-preview-actions { display: flex; flex-wrap: wrap; gap: var(--zella-space-2); }
+.zgc-summary-sub { margin: 0; color: var(--zella-text-2); }
+
+/* ---- Type on the payment pages (owner, 27 Nov 2026): reading text 15px, labels 14px, helper and footnote text no
+   smaller than 13px, panel headings 18px, generous line height; Due today stays at page heading size ---- */
+.zgc { font-size: var(--zella-text-md); line-height: var(--zella-leading-loose); }
+.zgc .zgc-status h2, .zgc-pay-head h3, .zgc-summary h3, .zgc-addon-progress h3 { font-size: var(--zella-text-xl); line-height: var(--zella-leading-tight); }
+.zgc .zgc-status p, .zgc-form p, .zgc-decline p, .zgc-autopay-note, .zgc-consent label, .zgc-details-note, .zgc-summary-sub, .zgc .zob-muted {
+  font-size: var(--zella-text-md); line-height: var(--zella-leading-loose); }
+.zgc-label, .zgc-autopay-label, .zgc-addon-name, .zgc-lines dt, .zgc-lines dd, .zgc-addon-price, .zgc-decline strong, .zgc-addon-step strong, .zgc-addons h4,
+.zgc-total span, .zgc-pay-btn { font-size: var(--zella-text-base); }
+.zgc-addons h4 { font-size: var(--zella-text-lg); }
+.zgc-cardcol-note, .zgc-trust, .zgc-addons-note, .zgc-addon-about, .zgc-addon-onetime, .zgc-field-error, .zgc-save-note, .zgc-addr-label, .zgc-addon-group legend,
+.zgc .zob-hint, .zgc-mock-badge, .zgc-consent-error, .zgc-fallback, .zgc-stage-caption { font-size: var(--zella-text-sm); line-height: var(--zella-leading); }
+.zgc-total strong { font-size: var(--zella-text-page); }
+.zgc-consent label { max-width: 60ch; }

@@ -60,11 +60,13 @@
   --zella-text-xs: 12px;          /* secondary text, badges, table heads */
   --zella-text-sm: 13px;          /* form labels, dense rows */
   --zella-text-base: 14px;        /* body, navigation */
+  --zella-text-md: 15px;          /* reading text on the payment pages (owner, 27 Nov 2026) */
   --zella-text-lg: 16px;          /* section headings */
   --zella-text-xl: 18px;          /* modal and large section headings */
   --zella-text-page: 28px;        /* page headings */
   --zella-text-kpi: 32px;         /* KPI values */
   --zella-leading: 1.5;
+  --zella-leading-loose: 1.6;     /* paragraphs in narrow panels (payment pages) */
   --zella-leading-tight: 1.25;
 
   /* Spacing (4px grid) */

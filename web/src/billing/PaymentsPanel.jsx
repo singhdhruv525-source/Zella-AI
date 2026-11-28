@@ -5,7 +5,7 @@ import GlassCheckout from "./GlassCheckout";
 import { cardWords, formatMoney, keyIsSpent } from "./checkoutMachine";
 import { autopayWords, invoiceAsPayment, packAnswer } from "./payState.js";
 import { mountCardFields } from "./stripeEmbedded";
-import { addonKeys, addonStep, addonsTotal, consentHash, offerFrom, packConsent, planConsent, toggle } from "./addons.js";
+import { addonKeys, addonStep, addonsTotal, consentHash, invoiceConsent, offerFrom, packConsent, toggle } from "./addons.js";
 import { AddonProgress } from "./ReceiptExtras";
 import { fromServer } from "./checkoutMachine";
 import "./payments.css";
@@ -108,7 +108,7 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
   const openInvoices = invoices.filter((i) => i.payable);
   const nextAmount = overview?.plan?.price_cents;
   const nextLine = active && !openInvoices.length && Number.isFinite(Number(nextAmount))
-    ? `Next payment: ${formatMoney(nextAmount, overview?.plan?.currency ?? "usd")} on ${day(sub.current_period_end)}. ${apOn ? "Auto pay is on: Stripe charges your saved card that day." : `Auto pay is off: the invoice is due ${due}; pay it with Pay now when it appears here.`}`
+    ? `Next payment: ${formatMoney(nextAmount, overview?.plan?.currency ?? "usd")} on ${day(sub.current_period_end)}. ${apOn ? "Auto pay is on." : `Auto pay is off, so you'll pay it here by ${due}.`}`
     : null;
   return (
     <div className="zpay">
@@ -122,8 +122,8 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
           <div className="zpay-autopay-text">
             <strong id="zpay-autopay-label">Auto pay</strong>
             <span className="zob-hint">{!apKnown ? "We couldn't load your Auto pay setting just now."
-              : apOn ? "On: Stripe charges your saved card on each renewal date. If a payment doesn't go through, Stripe tries again a few days later, and you can pay the open invoice below at any time."
-              : `Off: ${autopayWords(autopay?.email_live === true).offText}`}</span>
+              : apOn ? "On. We'll charge your saved card on each renewal date."
+              : `Off. ${autopayWords(autopay?.email_live === true).offText}`}</span>
           </div>
           {!apKnown && <button type="button" className="ba-btn sm" disabled={apBusy} onClick={refreshAutopay}>Check again</button>}
           {canSwitch && (
@@ -131,15 +131,15 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
               disabled={apBusy || autopay?.pending} onClick={() => { setApError(""); setAsk({ on: !(autopay?.desired ?? apOn) }); }}><span /></button>
           )}
         </div>
-        {autopay?.pending && <p className="zpay-note" role="status"><Icon name="hourglass_top" size="sm" /> {autopay.desired ? "Turning Auto pay on" : "Turning Auto pay off"}: waiting for Stripe to confirm the change.
+        {autopay?.pending && <p className="zpay-note" role="status"><Icon name="hourglass_top" size="sm" /> {autopay.desired ? "Turning Auto pay on…" : "Turning Auto pay off…"}
           {apStale && <> <button type="button" className="ba-link" disabled={apBusy} onClick={refreshAutopay}>Check again</button></>}</p>}
         {apError && !ask && <p className="ba-error" role="alert">{apError}</p>}
         {nextLine && <p className="zpay-next" role="note"><Icon name="event" size="sm" /> {nextLine}</p>}
-        {sub?.status === "past_due" && <p className="zpay-alert" role="status"><Icon name="warning" size="sm" /> A payment didn't go through. Pay the open invoice below, or update your card: Stripe's next try uses your saved card.</p>}
-        {cardReturned && <p className="zpay-note" role="status"><Icon name="task_alt" size="sm" /> You're back from Stripe. The card shown is the one Stripe has saved now.</p>}
+        {sub?.status === "past_due" && <p className="zpay-alert" role="status"><Icon name="warning" size="sm" /> A payment didn't go through. Pay it below, or update your card.</p>}
+        {cardReturned && <p className="zpay-note" role="status"><Icon name="task_alt" size="sm" /> Your card is updated.</p>}
         <div className="zpay-actions">
           <button type="button" className="ba-btn" disabled={update.busy} onClick={update.run}><Icon name="credit_card" size="sm" /> {update.busy ? "Opening Stripe…" : "Update card"}</button>
-          <span className="zob-hint">Opens Stripe's secure page. Your card details never reach Zella Voice.</span>
+          <span className="zob-hint">Opens Stripe's secure page.</span>
         </div>
         {update.error && <p className="ba-error" role="alert">{update.error}</p>}
       </section>
@@ -154,8 +154,8 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
           </>}>
           <div className="zpay-dialog">
             {ask.on
-              ? <p>{needCard ? "Auto pay needs a working saved card. Update your card on Stripe's secure page first, then turn Auto pay on." : `Stripe will charge ${which ? `your ${which}` : "your saved card"} on each renewal date.`}</p>
-              : <p>Stripe will stop charging your card automatically. {autopayWords(autopay?.email_live === true).offText} An unpaid invoice pauses your receptionist 5 days after it's due.</p>}
+              ? <p>{needCard ? "Auto pay needs a saved card that works. Update your card first." : `We'll charge ${which ? `your ${which}` : "your saved card"} on each renewal date.`}</p>
+              : <><p>{autopayWords(autopay?.email_live === true).offText}</p><p>An unpaid bill pauses your receptionist 5 days after it's due.</p></>}
             {apError && <p className="ba-error" role="alert">{apError}</p>}
           </div>
         </Modal>
@@ -163,7 +163,7 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
 
       <section className="zpay-card" aria-labelledby="zpay-invoices">
         <h3 id="zpay-invoices">Invoices</h3>
-        {invoices.length === 0 ? <p className="zob-muted">No invoices yet. Your first one appears after your first payment.</p> : (
+        {invoices.length === 0 ? <p className="zob-muted">No invoices yet.</p> : (
           <ul className="zpay-list">
             {invoices.map((i) => {
               const [tone, label] = STATUS[i.status] ?? ["info", i.status];
@@ -189,8 +189,8 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
 
       {Array.isArray(overview?.packs) && overview.packs.length > 0 && (
         <section className="zpay-card" aria-labelledby="zpay-packs">
-          <h3 id="zpay-packs">Add on packs</h3>
-          <p className="zob-muted">Charged to your saved card. A pack lasts until the end of the month you buy it in.</p>
+          <h3 id="zpay-packs">Add ons</h3>
+          <p className="zob-muted">One time, for this month. Charged to your saved card.</p>
           <ul className="zpay-list">
             {overview.packs.map((p) => (
               <li key={p.code} className="zpay-row">
@@ -214,7 +214,7 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
 // bought through the pack path with its own key (made when Pay is pressed, kept on retry and reload). The invoice is
 // never charged again; a pack that fails says "Plan paid. 100 minutes not added", with Try again for that pack only.
 const safeUrl = (u) => (typeof u === "string" && /^https:\/\/[^\s"'<>]+$/.test(u) ? u : null);
-const ADDON_NOTE = "Add ons are charged separately right after your plan payment";
+const ADDON_NOTE = "Add ons are charged right after your plan";
 export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabel = "All invoices", businessId = null, onInvoice, onSettled, returned = false, onOpenPack }) {
   const [inv, setInv] = useState({ status: "loading" });
   const [paidBefore, setPaidBefore] = useState(false);
@@ -291,12 +291,14 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
   const due = inv.status === "ok" ? Number(inv.invoice?.amount_due_minor) : 0;
   const addonMinor = addonsTotal(offer, selected);
   const renewal = inv.status === "ok" ? inv.invoice?.renewal_minor ?? plan?.price_cents : null;
-  const consent = inv.status === "ok" ? planConsent({ todayMinor: due + addonMinor, autopay: apOn, renewalMinor: renewal, addons: selected.length }) : null;
-  async function startPay() {
+  // the plan on this card, the add ons on the saved card right after (owner, 27 Nov 2026: the words say which card)
+  const consent = inv.status === "ok" ? invoiceConsent({ planMinor: due, addonsMinor: addonMinor, autopay: apOn, renewalMinor: renewal }) : null;
+  // submit: the Pay press, right before Stripe takes the payment (the add ons bought after it are this agreement's)
+  async function startPay(submit = false) {
     const keys = addonKeys(`zella.addonkeys.${invoiceId}`, selected);
     const changed = ap && apSent.current !== null && apOn !== apSent.current;
     const r = await api.invoiceStart(invoiceId, { autopay: apOn, ...(changed ? { autopayKey: `${apKey.current}${apOn ? "on" : "off"}` } : {}),   // one key per value
-      addons: selected.map((code) => ({ code, key: keys[code] })), consentHash: await consentHash(consent) });
+      addons: selected.map((code) => ({ code, key: keys[code] })), consentHash: await consentHash(consent), submit });
     if (changed) {
       if (!r?.autopay_error) apSent.current = apOn;
       setApNote(r?.autopay_error ? `Auto pay wasn't changed. ${r.autopay_error === "NO_SAVED_CARD" ? "It needs a working saved card: update your card first." : "Please try again in Payments."}`
@@ -325,37 +327,33 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
   const cannot = !i.payable && i.status !== "paid";
   // a simple summary (owner, 27 Nov 2026): the plan and what the payment covers; the invoice number and details stay in the PDF
   const span = i.period_start ? `${shortDay(i.period_start)} to ${shortDay(i.period_end)}` : day(i.created_at);
-  const interval = plan?.billing_interval === "yearly" ? "Yearly plan" : plan?.billing_interval === "monthly" ? "Monthly plan" : "Plan";
   const summary = {
-    kicker: "Summary", title: plan?.tier ? `Your ${planName(plan.tier)} plan` : "Your plan",
-    lines: [["Covers", `${interval}, ${span}`, "event"],
-      ...(i.status !== "paid" ? [["Plan payment", formatMoney(i.amount_due_minor, i.currency), "workspace_premium"]] : []),
-      ...(Number(i.amount_paid_minor) > 0 ? [["Already paid", formatMoney(i.amount_paid_minor, i.currency), "task_alt"]] : [])],
+    title: plan?.tier ? `Your ${planName(plan.tier)} plan` : "Your plan", subtitle: span,
+    lines: [...(i.status !== "paid" ? [["Plan", formatMoney(i.amount_due_minor, i.currency), "workspace_premium"]] : []),
+      ...(Number(i.amount_paid_minor) > 0 ? [["Paid", formatMoney(i.amount_paid_minor, i.currency), "task_alt"]] : [])],
     totalLabel: i.status === "paid" ? "Due now" : "Due today", amountMinor: i.status === "paid" ? i.amount_due_minor : due + addonMinor, currency: i.currency,
-    intro: <>You'll pay <strong>{formatMoney(due + addonMinor, i.currency)}</strong>: your plan's <strong>{formatMoney(i.amount_due_minor, i.currency)}</strong> in Stripe's secure form right here{selected.length ? <>, then your add ons separately right after</> : null}. The plan payment is this invoice's one charge, so it can never be paid twice.</>,
-    footnote: "Stripe processes this payment for Zella Voice.",
   };
   const over = {
     ...(paidBefore ? { confirmed: { label: "This is paid", body: `Paid on ${day(i.paid_at)}. Nothing more is due.` } } : {}),
-    off: cannot && i.payments_live !== false ? { label: "This can't be paid online", body: "Nothing is due here online. If you think this is wrong, contact Zella Voice support." }
-      : { label: "Paying online isn't switched on yet", body: "Nothing is charged here. Your saved card is charged automatically on the renewal date." },
+    off: cannot && i.payments_live !== false ? { label: "This can't be paid online", body: "Contact Zella Voice support if this looks wrong." }
+      : { label: "Paying online isn't on yet", body: "Your saved card is charged on the renewal date." },
   };
   return (
     <div className="zpay-checkout">
       {back}
-      <GlassCheckout summary={summary} payment={payment} words={over} payLabel={(a) => `Continue to pay ${a}`} onUpdateCard={onUpdateCard} returned={returned}
+      <GlassCheckout summary={summary} payment={payment} words={over} payLabel={(a) => `Pay ${a}`} onUpdateCard={onUpdateCard} returned={returned}
         fallbackUrl={i.status !== "paid" ? safeUrl(i.hosted_invoice_url) : null} onPayment={onPayment}
         autopay={ap && !paidBefore ? { on: apOn, onChange: setApOn, ...autopayWords(ap.email_live === true, "your saved card") } : null}
         addons={!paidBefore && i.payable ? { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)), note: ADDON_NOTE } : null}
         consentText={consent}
-        start={startPay} beforeSubmit={startPay}
+        start={() => startPay(false)} beforeSubmit={() => startPay(true)}
         confirm={async () => {
           const r = await api.invoiceReturn(invoiceId);
           const p = invoiceAsPayment(r.invoice);
           // still payable and Stripe has no payment for it: say so, and let the owner pay again without a reload (review)
           return { payment: p, card: r.card, ...(fromServer(p).state === "idle" ? { stopped: "not_taken" } : {}) };
         }}
-        kind="intent" saveNote="Stripe uses this card for this invoice only. Your saved card stays as it is."
+        kind="intent" saveNote="This card is used for this payment only."
         after={<AddonProgress items={items} onRetry={retryAddon} busy={buying} />}
         mount={(slots, opts) => (api.mountPayment ? api.mountPayment(slots, { ...opts, invoiceId }) : mountCardFields(slots, opts))} />
       {apNote && <p className="zob-muted zpay-apnote" role="status">{apNote}</p>}
@@ -380,20 +378,18 @@ export function PackCheckout({ api, businessId, pack, card, onBack, onUpdateCard
   const label = `${Number(pack.quantity).toLocaleString("en-US")} ${RES[pack.resource] ?? pack.resource}`;
   const consent = packConsent(pack.price_cents);
   const summary = {
-    kicker: "Summary", title: label,
-    lines: [[label, formatMoney(pack.price_cents, "usd"), "inventory_2"], ["Lasts until", "the end of this month", "event"], ["Charged to", which ?? "your saved card", "credit_card"]],
+    title: label, subtitle: "One time, for this month.",
+    lines: [[label, formatMoney(pack.price_cents, "usd"), "inventory_2"], ["Charged to", which ?? "your saved card", "credit_card"]],
     totalLabel: "Due today", amountMinor: pack.price_cents, currency: "usd",
-    intro: <>You'll pay <strong>{formatMoney(pack.price_cents, "usd")}</strong> today for {label}. Add ons are one time and never renew.</>,
-    footnote: "Stripe processes this payment for Zella Voice. The price comes from your plan's pack list.",
   };
   return (
     <div className="zpay-checkout">
       {onBack && <button type="button" className="ba-link zob-back" onClick={onBack}><Icon name="arrow_back" size="sm" /> Back to payments</button>}
       <GlassCheckout summary={summary} payment={payment} payLabel={`Pay ${formatMoney(pack.price_cents, "usd")}`} consentText={consent}
-        detailsNote={which ? `Charged to your ${which}, saved with Stripe. No form needed.` : "Charged to the card you saved with Stripe. No form needed."}
-        words={{ confirmed: { label: "Pack added", body: "Thank you. Your pack is confirmed and ready to use." },
-          // the purchase may have reached Stripe before the connection dropped: its state is unknown, never "nothing was charged" (review)
-          network: { label: "We couldn't confirm this payment", body: "The connection dropped, so we can't tell yet whether it went through. Check Billing and subscription before you try again. Try again uses the same payment, never a second charge.", action: "Try again" } }}
+        detailsNote={which ? `We'll charge your saved ${which}.` : "We'll charge your saved card."}
+        words={{ confirmed: { label: `${label} added`, body: "Thank you. It's ready to use." },
+          // the purchase may have reached Stripe before the connection dropped: its state is unknown, never "you weren't charged" (review)
+          network: { label: "We couldn't confirm your payment yet", body: "Please don't pay again; check Billing and subscription in a moment.", action: "Try again" } }}
         onUpdateCard={onUpdateCard}
         start={async () => {
           // a lost reply or a 5xx keeps the key: Try again asks for the SAME purchase, never a second charge (M1)
@@ -403,7 +399,7 @@ export function PackCheckout({ api, businessId, pack, card, onBack, onUpdateCard
         actStart={async () => api.packActStart(businessId, purchase.current, { consentHash: await consentHash(consent) })}
         confirm={async () => { const r = await api.packStatus(businessId, purchase.current); return { ...packAnswer(r.purchase), card: r.card }; }}
         onPayment={(p) => { if (p?.status === "confirmed") onSettled?.(); }} returned={returned}
-        kind="intent" saveNote="Stripe uses this card for this pack only."
+        kind="intent" saveNote="This card is used for this add on only."
         mount={(slots, opts) => (api.mountPayment ? api.mountPayment(slots, { ...opts, purchaseId: purchase.current }) : mountCardFields(slots, opts))} />
     </div>
   );

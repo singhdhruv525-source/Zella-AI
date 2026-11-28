@@ -65,9 +65,9 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
   const RENEWAL = 24900;
   // the agreement, as the server checks it: the words rebuilt from these figures, their sha256 compared
   async function agreed(hash, figures) {
-    if (!/^[0-9a-f]{64}$/.test(String(hash ?? ""))) throw refuse("CONSENT_REQUIRED", "Tick the box to agree before you pay. Nothing was charged.");
+    if (!/^[0-9a-f]{64}$/.test(String(hash ?? ""))) throw refuse("CONSENT_REQUIRED", "Please tick the box to continue.");
     const text = consentText(figures);
-    if (!text || (await consentHash(text)) !== hash) throw refuse("CONSENT_MISMATCH", "The amounts changed. Check them, tick the box again, then pay. Nothing was charged.");
+    if (!text || (await consentHash(text)) !== hash) throw refuse("CONSENT_MISMATCH", "The total changed. Please tick the box again.");
     st.consents.push({ text, hash });
   }
   // an invoice Stripe already took in this tab or an earlier one (sessionStorage survives a reload; review)
@@ -99,7 +99,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
     autopayStatus: async (id) => { await wait(delay); owner(id); return autopayOut(); },
     autopaySet: async (id, on, key) => {
       await wait(delay); owner(id);
-      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. Nothing has been charged.");
+      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. You weren't charged.");
       if (typeof on !== "boolean" || !/^[A-Za-z0-9_-]{8,100}$/.test(String(key))) throw refuse("INVALID_INPUT");
       if (st.autopay.keys.has(key) || (st.autopay.desired ?? st.autopay.on) === on) return autopayOut();
       if (on && scenario === "nocard") throw refuse("NO_SAVED_CARD", "Add a card in Settings, Billing first.");
@@ -111,7 +111,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
     cardSummary: async (id) => { await wait(delay); owner(id); return scenario === "nocard" ? null : CARD; },
     cardUpdateStart: async (id) => {
       await wait(delay); owner(id);
-      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. Nothing has been charged.");
+      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. You weren't charged.");
       if (scenario === "nocard") throw refuse("NO_CUSTOMER", "Your card is added with your first payment. There's nothing to update yet.");
       // Stripe's Customer Portal is a page of Stripe's; the stand in comes straight back as the portal would
       const back = new URLSearchParams(); back.set("scenario", scenario); back.set("card", "updated");
@@ -132,13 +132,20 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
         if (opts.autopay && scenario === "nocard") { /* turning it on needs a saved card: the payment still opens */ }
         else { st.autopay.desired = opts.autopay; setTimeout(() => { st.autopay.on = opts.autopay; st.autopay.desired = null; }, delay * 3); }
       }
-      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. Nothing has been charged.");
+      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. You weren't charged.");
       if (i.status === "paid") throw refuse("ALREADY_PAID", "Your payment is already confirmed.");
       const addons = (opts?.addons ?? []).map((a) => ({ ...a, ...PACKS.find((p) => p.code === a.code) }));
       if (addons.some((a) => !a.price_cents || !/^[A-Za-z0-9_-]{8,100}$/.test(String(a.key)))) throw refuse("INVALID_INPUT", "That didn't work. Reload the page and try again.");
       const sum = addons.reduce((t, a) => t + a.price_cents, 0);
-      await agreed(opts?.consentHash, { kind: "plan", todayMinor: i.amount_due_minor + sum, autopay: opts?.autopay !== false, renewalMinor: RENEWAL, addons: addons.length > 0 });
-      st.invoiceAddons.set(invoiceId, { hash: opts.consentHash, addons: addons.map(({ code, key, resource, quantity, price_cents }) => ({ code, key, resource, quantity, price_cents })) });
+      await agreed(opts?.consentHash, { kind: "invoice", todayMinor: i.amount_due_minor, addonsMinor: sum, autopay: opts?.autopay !== false, renewalMinor: RENEWAL });
+      // one submitted agreement at a time (the Pay press): another tab's with other add ons is refused while it may be paying
+      const prev = st.invoiceAddons.get(invoiceId);
+      const codes = (list) => list.map((a) => a.code).sort().join(",");
+      if (opts.submit && prev?.submitted && prev.hash !== opts.consentHash && codes(prev.addons) !== codes(addons)) {
+        throw refuse("ADDONS_IN_PROGRESS", "Another payment for this bill is in progress. Wait a moment, then reload this page.");
+      }
+      if (prev?.submitted && !opts.submit) { /* the submitted agreement stays the one bought */ }
+      else st.invoiceAddons.set(invoiceId, { hash: opts.consentHash, submitted: Boolean(opts.submit), addons: addons.map(({ code, key, resource, quantity, price_cents }) => ({ code, key, resource, quantity, price_cents })) });
       persist();
       if (completed(invoiceId)) return { status: "processing" };
       return { ...open(i.amount_due_minor), number: i.number, hosted_invoice_url: i.hosted_invoice_url, addons };
@@ -155,14 +162,14 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
     },
     packBuy: async (id, code, key, opts = {}) => {
       await wait(delay); owner(id);
-      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. Nothing has been charged.");
+      if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. You weren't charged.");
       if (scenario === "nocard") throw refuse("NO_SAVED_CARD", "Add a card in Settings, Billing first.");
       const pack = PACKS.find((p) => p.code === code);
       if (!pack) throw refuse("UNKNOWN_PACK", "That pack isn't available.");
       if (opts.invoiceId) {
         // an add on agreed with Pay now: only once that invoice is paid, and only as that agreement named it
         const agreedWith = st.invoiceAddons.get(opts.invoiceId);
-        if (find(opts.invoiceId).status !== "paid") throw refuse("INVOICE_NOT_PAID", "Add ons are charged once your plan payment is confirmed. Nothing was charged for them yet.");
+        if (find(opts.invoiceId).status !== "paid") throw refuse("INVOICE_NOT_PAID", "Add ons are charged once your plan payment is confirmed. You weren't charged for them yet.");
         if (!agreedWith || agreedWith.hash !== opts.consentHash || !agreedWith.addons.some((a) => a.code === code && a.key === key)) throw refuse("CONSENT_MISMATCH");
       } else {
         await agreed(opts.consentHash, { kind: "pack", todayMinor: pack.price_cents });

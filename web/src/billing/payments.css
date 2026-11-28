@@ -76,3 +76,10 @@ html[data-zella-theme="glass"]:has(.ba-root) .zpay-card {
 .zpay-route-done { justify-content: center; }
 .zpay-next { display: flex; align-items: flex-start; gap: var(--zella-space-2); margin: 0; color: var(--zella-text-2); font-size: var(--zella-text-sm); }
 @media (max-width: 760px) { .zpay-route { padding: var(--zella-space-3) var(--zella-space-2) var(--zella-space-5); } }
+
+/* ---- Type on Billing and subscription (owner, 27 Nov 2026): reading 15px, helpers 13px, headings 18px ---- */
+.zpay { font-size: var(--zella-text-md); line-height: var(--zella-leading-loose); }
+.zpay-card h3 { font-size: var(--zella-text-xl); }
+.zpay-lead, .zpay-next, .zpay-note, .zpay-alert, .zpay .zob-muted { font-size: var(--zella-text-md); line-height: var(--zella-leading-loose); }
+.zpay .zob-hint { font-size: var(--zella-text-sm); line-height: var(--zella-leading); }
+.zpay-route-crumbs, .zpay-row-main strong { font-size: var(--zella-text-base); }

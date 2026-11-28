@@ -40,8 +40,10 @@ export const toggle = (codes, code, on) => (on ? [...new Set([...(codes ?? []), 
 // a stable key for a selection: the onboarding session must be made again when it changes
 export const selectionKey = (codes) => [...new Set(codes ?? [])].sort().join(",");
 
-// The words for a plan payment (onboarding, Pay now) and for one pack
-export const planConsent = ({ todayMinor, autopay, renewalMinor, addons }) => consentText({ kind: "plan", todayMinor, autopay, renewalMinor, addons: addons > 0 });
+// The words for the onboarding payment (todayMinor: everything due today, addonsMinor: the add ons in it), for Pay now
+// (the plan on this card, the add ons on the saved card right after) and for one pack
+export const planConsent = ({ todayMinor, autopay, renewalMinor, addonsMinor = 0 }) => consentText({ kind: "plan", todayMinor, autopay, renewalMinor, addonsMinor });
+export const invoiceConsent = ({ planMinor, addonsMinor = 0, autopay, renewalMinor }) => consentText({ kind: "invoice", todayMinor: planMinor, addonsMinor, autopay, renewalMinor });
 export const packConsent = (priceMinor) => consentText({ kind: "pack", todayMinor: priceMinor });
 
 // One key per add on, made when Pay is first pressed and kept on retry and reload (sessionStorage, per payment): the

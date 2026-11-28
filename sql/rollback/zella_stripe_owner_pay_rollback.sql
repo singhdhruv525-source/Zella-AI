@@ -96,12 +96,12 @@ end $x$;
 do $$
 declare s text;
   owned constant jsonb := '{
-    "public.zella_owner_invoice_pay_status(uuid)": "9cca4cabc74e41752a4def8e7236dc99",
-    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text)": "dbe08e2aaeca8aae3ccfd2066483727f",
+    "public.zella_owner_invoice_pay_status(uuid)": "def8331d20227467d2553700d98e459d",
+    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)": "bad903805be54d7f02e80e2b35fe4db8",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "6e71430a8f8331ba81fce4300d15dfa7",
-    "public.zella_owner_pack_act_start(uuid,uuid,text)": "b1b8d7644df371e23c0e6dca4738c1f8",
+    "public.zella_owner_pack_act_start(uuid,uuid,text)": "0aae807c19c75defb0419cc4383ee3c7",
     "public.zella_billing_address_prefill(uuid)": "55f277f7ce0649984442cb26898b47ad",
     "public.zella_billing_pack_reopen(uuid,uuid,text,boolean,uuid)": "2950fa09737c3f6952e467a693c3a90f",
     "public.zella_billing_pack_reopen_expire(uuid)": "657a7c8fdf778b20ab1f65acad872aff",
@@ -116,12 +116,12 @@ declare s text;
     "public.zella_billing_checkout_autopay_trg()": "75550950726e34e2de939691c8613040",
     "public.zella_billing_consent_money(bigint)": "57e167a263519821941eec064909fdd6",
     "public.zella_billing_terms_version()": "45054b7849bdfb9e4d5e8ddde39a9a2f",
-    "public.zella_billing_consent_text(text,bigint,boolean,bigint,boolean)": "87c9b8c9585980c4d255a2f0b940f67a",
+    "public.zella_billing_consent_text(text,bigint,boolean,bigint,bigint)": "f71e539ac33a7aa48dfeee485e83d15d",
     "public.zella_billing_consent_check(text,text)": "d85ebeb30fb344fa1675fc928f61ef1d",
     "public.zella_billing_consent_record(uuid,text,uuid,text,text,bigint,boolean,bigint,jsonb)": "4db22aff67c22da2ce64fa7d7a86972d",
     "public.zella_owner_addon_catalog(uuid)": "89b1e2c913c527a6ea27377bdac1da9b",
     "public.zella_billing_card_checked(uuid,text)": "108b36e936fec7fc8b3386d9d576d87b",
-    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "ab81492ab0bf5ef653e2cd45ad0827c7",
+    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "fe0bb81b54e241cbd33608cf013a8956",
     "public.zella_billing_checkout_addon_codes(uuid)": "d0ec4062ffbf554269af24efc6e08841",
     "public.zella_billing_checkout_addon_lines(uuid,boolean)": "ddae63c27e07df49902c33ef00a1d0c1",
     "public.zella_billing_checkout_addon_price(uuid,text)": "e502357e2cc991ad5424017a3abb6def",
@@ -129,8 +129,9 @@ declare s text;
     "public.zella_stripe_failed_addon_price(billing_outbox)": "2485145a3aaee43c7f0c993a5e55365e",
     "public.zella_billing_checkout_addons_bind(billing_checkouts,jsonb)": "4a92accd70e9463aac14bbb16c57f4a3",
     "public.zella_billing_checkout_addons_grant(billing_checkouts,billing_periods)": "c66d31d7939007d7cf37bcce11241b60",
-    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "5348e17e0789beb7ca0b7c94fe675880",
-    "public.zella_stripe_on_customer_updated(billing_events,jsonb)": "2a5d901a5161ffbb7342fa49ba7f9bae"
+    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "78a6c8eba502c2b0a5e47d220ec62acf",
+    "public.zella_billing_invoice_attempts_clear(uuid)": "016b5d244d62683ecb79c0dd3d01be93",
+    "public.zella_stripe_on_customer_updated(billing_events,jsonb)": "787f60b347bef56d98b4c40e99748295"
   }';
 begin
   for s in select jsonb_object_keys(owned) loop

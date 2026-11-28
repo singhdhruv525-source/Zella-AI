@@ -3,8 +3,9 @@
 // The server's invoice as the checkout's payment state: paid only from our record (invoice.paid applied).
 // Auto pay's words (owner, 27 Nov 2026): honest about email while billing emails are held (email_live off)
 export function autopayWords(emailLive, card = "this card") {
-  return { onText: `Stripe charges ${card} on each renewal date.`,
-    offText: emailLive ? "We'll email your invoice; pay it within 3 days in the CRM." : "Your invoice appears in the CRM; pay it there within 3 days." };
+  // the switch says only what will happen (owner, 27 Nov 2026)
+  void emailLive;
+  return { onText: `We'll charge ${card} on each renewal date.`, offText: "You'll pay each bill yourself." };
 }
 
 export function invoiceAsPayment(inv) {

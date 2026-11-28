@@ -58,7 +58,7 @@ const WORDS: Record<string, string> = {
   NOT_ALLOWED: "Only the business owner can do this.",
   MFA_REQUIRED: "Enter the code from your authenticator app to continue.",
   BUSINESS_NOT_AVAILABLE: "This workspace is paused. Contact Zella Voice support.",
-  PAYMENTS_NOT_LIVE: "Payments aren't switched on yet. Nothing has been charged.",
+  PAYMENTS_NOT_LIVE: "Payments aren't switched on yet. You weren't charged.",
   STEP_LOCKED: "Finish the earlier steps first.",
   PLAN_MISSING: "Your plan isn't ready yet. Zella Voice will be in touch.",
   PLAN_CHANGED: "Your plan was just updated. Please review it again.",
@@ -70,18 +70,19 @@ const WORDS: Record<string, string> = {
   IDEMPOTENCY_CONFLICT: "That didn't work. Reload the page and try again.",
   INVALID_INPUT: "That didn't work. Reload the page and try again.",
   CHECKOUT_NOT_READY: "We couldn't open the payment form. Please try again in a minute.",
-  CHECKOUT_EXPIRED: "This payment form expired. Nothing was charged. Start again to get a new one.",
+  CHECKOUT_EXPIRED: "This payment form expired. You weren't charged. Start again to get a new one.",
   PAYMENTS_MISCONFIGURED: "Payments can't open right now. Nothing has been charged, and Zella Voice has been told.",
   NOT_FOUND: "We couldn't find that for your account. Check you're signed in as the business owner.",
-  NOT_PAYABLE: "This can't be paid online right now. Nothing was charged.",
+  NOT_PAYABLE: "This can't be paid online right now. You weren't charged.",
   NO_CUSTOMER: "Your card is added with your first payment. There's nothing to update yet.",
   NO_SUBSCRIPTION: "Auto pay can be changed once your plan is active.",
   PACK_PENDING: "This pack is already being paid. Wait a moment for it to finish, or finish it with your bank.",
   TOO_MANY: "Too many attempts. Wait a minute and try again.",
-  CONSENT_REQUIRED: "Tick the box to agree before you pay. Nothing was charged.",
-  CONSENT_MISMATCH: "The amounts changed. Check them, tick the box again, then pay. Nothing was charged.",
-  ADDONS_NOT_IN_TRIAL: "Add ons can be added once your plan is active. Nothing was charged.",
-  INVOICE_NOT_PAID: "Add ons are charged once your plan payment is confirmed. Nothing was charged for them yet.",
+  CONSENT_REQUIRED: "Please tick the box to continue.",
+  CONSENT_MISMATCH: "The total changed. Please tick the box again.",
+  ADDONS_NOT_IN_TRIAL: "Add ons can be added once your plan is active. You weren't charged.",
+  ADDONS_IN_PROGRESS: "Another payment for this bill is in progress. Wait a moment, then reload this page.",
+  INVOICE_NOT_PAID: "Add ons are charged once your plan payment is confirmed. You weren't charged for them yet.",
 };
 // per person, per minute (§9): starting a payment or a change, and the confirming polls
 const LIMITS: Record<string, number> = { checkout_start: 20, invoice_pay_start: 20, pack_act_start: 20, pack_buy: 10, card_update_start: 10, autopay_set: 10,
@@ -262,7 +263,7 @@ export async function handle(req: Request): Promise<Response> {
       // the words again, from the database's own figures for THIS checkout, before anything reaches Stripe (Stripe already
       // taking a payment needs none)
       if (start.status !== "completed" && !(await consentMatches(consentHashSent, { kind: "plan", todayMinor: start.amount_minor, autopay,
-          renewalMinor: start.renewal_minor, addons: Array.isArray(start.addons) && start.addons.length > 0 }))) return refuse("CONSENT_MISMATCH", 409);
+          renewalMinor: start.renewal_minor, addonsMinor: Number(start.addons_minor ?? 0) }))) return refuse("CONSENT_MISMATCH", 409);
       if (wantHosted && start.status === "preparing") await rpc("zella_billing_checkout_use_hosted", { p_checkout_id: checkout });
       // customer, product, prices, session: one after the other, each from the outbox with its stored body and key
       if (start.status === "preparing") {
@@ -356,15 +357,32 @@ export async function handle(req: Request): Promise<Response> {
       // are bought right after the plan payment (pack_buy with invoice_id), never on the invoice
       const addons = Array.isArray(body.addons) ? body.addons : [];
       if (addons.length > 20 || !addons.every((a) => a && typeof a === "object" && PACK_CODE.test(String(a.code ?? "")) && ATTEMPT_KEY.test(String(a.key ?? "")))) return refuse("INVALID_INPUT");
-      const inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", { p_invoice_id: invoiceId, p_autopay: typeof body.autopay === "boolean" ? body.autopay : null,
-        p_addons: addons.map((a: Record<string, unknown>) => ({ code: String(a.code), key: String(a.key) })), p_consent_hash: String(body.consent_hash) }) as Record<string, any>;
+      // submit: true is the Pay press (the agreement that goes with the payment to Stripe). Another tab's payment with
+      // other add ons may be in flight: the database refuses (ADDONS_IN_PROGRESS); only when Stripe says that attempt
+      // failed (the invoice's intent has a payment error, or was cancelled) is it cleared and this one let through, so
+      // the add ons bought after the payment are exactly those of the attempt that paid (review round 2)
+      const payArgs = { p_invoice_id: invoiceId, p_autopay: typeof body.autopay === "boolean" ? body.autopay : null,
+        p_addons: addons.map((a: Record<string, unknown>) => ({ code: String(a.code), key: String(a.key) })), p_consent_hash: String(body.consent_hash), p_submit: body.submit === true };
+      let inv: Record<string, any>;
+      try { inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", payArgs) as Record<string, any>; }
+      catch (e) {
+        if (!(e instanceof DbRefusal) || e.code !== "ADDONS_IN_PROGRESS") throw e;
+        const seen = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_status", { p_invoice_id: invoiceId }) as Record<string, any>;
+        const si = /^in_[A-Za-z0-9_]{1,250}$/.test(String(seen?.stripe_invoice_id ?? "")) ? await stripe.get(`/v1/invoices/${seen.stripe_invoice_id}`, { expand: ["payments"] }).catch(() => null) as Record<string, any> | null : null;
+        const piId = si ? invoicePaymentIntent(si) : null;
+        const pi = piId ? await stripe.get(`/v1/payment_intents/${piId}`).catch(() => null) as Record<string, any> | null : null;
+        const failed = pi && (pi.status === "canceled" || (pi.status === "requires_payment_method" && pi.last_payment_error));
+        if (!failed) return refuse("ADDONS_IN_PROGRESS", 409);
+        await rpc("zella_billing_invoice_attempts_clear", { p_invoice_id: invoiceId });
+        inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", payArgs) as Record<string, any>;
+      }
       business = String(inv.business_id);
       const publishable = await browserKey();   // after the owner check (review 7)
       if (publishable instanceof Response) return publishable;
       // the words again from the database's figures (the invoice's amount due plus the add ons at catalogue prices), before
       // any Auto pay change, any Stripe call and any client secret
-      if (!(await consentMatches(String(body.consent_hash), { kind: "plan", todayMinor: inv.total_minor, autopay: inv.autopay !== false, renewalMinor: inv.renewal_minor,
-          addons: Array.isArray(inv.addons) && inv.addons.length > 0 }))) return refuse("CONSENT_MISMATCH", 409);
+      if (!(await consentMatches(String(body.consent_hash), { kind: "invoice", todayMinor: inv.amount_due_minor, autopay: inv.autopay !== false, renewalMinor: inv.renewal_minor,
+          addonsMinor: Number(inv.addons_minor ?? 0) }))) return refuse("CONSENT_MISMATCH", 409);
       if (String(inv.currency ?? "").toLowerCase() !== "usd") return refuse("NOT_PAYABLE");   // review 4
       // the owner's Auto pay choice made with Pay now, stored on the server as the payment starts (review M2); a refusal
       // (no saved card to turn it on) never blocks paying the invoice

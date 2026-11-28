@@ -50,23 +50,26 @@ paid() { echo "{\"id\": \"$1\", \"object\": \"invoice\", \"livemode\": false, \"
 completed() { echo "{\"id\": \"$1\", \"object\": \"checkout.session\", \"livemode\": false, \"customer\": \"$2\", \"status\": \"complete\", \"mode\": \"subscription\", \"subscription\": \"$3\", \"metadata\": {$4}}"; }
 
 # ---- the agreement's words ----
-for args in "'plan', 94500, true, 24900, true|{ kind: 'plan', todayMinor: 94500, autopay: true, renewalMinor: 24900, addons: true }" \
-            "'plan', 24900, false, 24900, false|{ kind: 'plan', todayMinor: 24900, autopay: false, renewalMinor: 24900, addons: false }" \
-            "'plan', 123456789, true, 1050, false|{ kind: 'plan', todayMinor: 123456789, autopay: true, renewalMinor: 1050, addons: false }" \
-            "'pack', 2950, null, null, false|{ kind: 'pack', todayMinor: 2950 }" "'plan', 0, true, 24900, false|{ kind: 'plan', todayMinor: 0, autopay: true, renewalMinor: 24900 }"; do
+for args in "'plan', 94500, true, 24900, 4700|{ kind: 'plan', todayMinor: 94500, autopay: true, renewalMinor: 24900, addonsMinor: 4700 }" \
+            "'plan', 24900, false, 24900, 0|{ kind: 'plan', todayMinor: 24900, autopay: false, renewalMinor: 24900 }" \
+            "'plan', 123456789, true, 1050, 0|{ kind: 'plan', todayMinor: 123456789, autopay: true, renewalMinor: 1050 }" \
+            "'invoice', 24900, true, 24900, 4700|{ kind: 'invoice', todayMinor: 24900, autopay: true, renewalMinor: 24900, addonsMinor: 4700 }" \
+            "'invoice', 24900, false, 24900, 2950|{ kind: 'invoice', todayMinor: 24900, autopay: false, renewalMinor: 24900, addonsMinor: 2950 }" \
+            "'pack', 2950, null, null, 0|{ kind: 'pack', todayMinor: 2950 }" "'plan', 0, true, 24900, 0|{ kind: 'plan', todayMinor: 0, autopay: true, renewalMinor: 24900 }"; do
   sq=$(ctext "${args%%|*}"); jv=$(js_text "${args#*|}")
   [ -n "$sq" ] && [ "$sq" = "$jv" ] && [ "$(hx "$sq")" = "$(node --input-type=module -e "import { consentHash } from '$JS_CONSENT'; process.stdout.write(await consentHash(process.argv[1]))" "$jv")" ] \
     && ok "the words are the same in the database and on the page, and so is their sha256: $sq" || bad "words differ: [$sq] [$jv]"
 done
-[ "$(ctext "'plan', 24900, false, 24900, true")" = "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card \$249 today. I'll pay future invoices myself. Add ons are one time and never renew." ] \
-  && [ "$(ctext "'pack', 2900, null, null, false")" = "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card \$29 today for this add on." ] \
-  && ok "the owner's wording: Auto pay off, and a pack on its own" || bad "wording"
-[ "$(q "select coalesce(public.zella_billing_consent_text('plan', 100, true, null, false), 'none')")" = "none" ] && ok "a missing renewal price gives no words, so nothing can be agreed (never guessed)" || bad "null words"
+[ "$(ctext "'plan', 24900, false, 24900, 2900")" = "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card \$249 today. Add ons are one time." ] \
+  && [ "$(ctext "'invoice', 24900, true, 24900, 2900")" = "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge \$249 to this card and \$29 for add ons to my saved card today, and \$249 each renewal until I cancel. Add ons are one time." ] \
+  && [ "$(ctext "'pack', 2900, null, null, 0")" = "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge \$29 today for this add on." ] \
+  && ok "the owner's wording: Auto pay off, Pay now naming which card, and a pack on its own" || bad "wording"
+[ "$(q "select coalesce(public.zella_billing_consent_text('plan', 100, true, null, 0), 'none')")" = "none" ] && ok "a missing renewal price gives no words, so nothing can be agreed (never guessed)" || bad "null words"
 
 # ---- onboarding: plan and two packs, one payment ----
 q "insert into public.billing_pack_catalog values ('texts_500', 'texts', 500, 1800, true), ('emails_10000', 'emails', 10000, 2500, true), ('minutes_250', 'minutes', 250, 8900, false)" > /dev/null
 biz "Add Ons One" 64900; B1=$B; U1=$U
-T=$(ctext "'plan', 94500, true, 24900, true"); H=$(hx "$T"); HNO=$(hx "$(ctext "'plan', 89800, true, 24900, false")")
+T=$(ctext "'plan', 94500, true, 24900, 4700"); H=$(hx "$T"); HNO=$(hx "$(ctext "'plan', 89800, true, 24900, 0")")
 [ "$(start_e key-addons-0001 '{minutes_100,texts_500}' true null)" = "CONSENT_REQUIRED" ] && ok "the Pay step's start is refused without the agreement" || bad "no consent"
 [ "$(start_e key-addons-0001 '{minutes_100,texts_500}' true "'$HNO'")" = "CONSENT_MISMATCH" ] && [ "$(q "select count(*) from public.billing_checkouts where business_id = '$B'")" = "0" ] \
   && ok "and with words other than the server's for these amounts (here without the add ons): nothing is created" || bad "consent mismatch"
@@ -106,13 +109,13 @@ INV=$(paid in_A1 cus_A1 sub_A1 94500 "$(line 24900 price_A1), $(line 64900 price
 
 # ---- a selection changed mid session ----
 biz "Add Ons Two" 0
-cA=$(start key-change-0001 '{minutes_100}' "$(hx "$(ctext "'plan', 27800, true, 24900, true")")"); open_session "$cA" B1
-[ "$(start key-change-0001 '{texts_500}' "$(hx "$(ctext "'plan', 26700, true, 24900, true")")" true status)" = "expiring" ] \
+cA=$(start key-change-0001 '{minutes_100}' "$(hx "$(ctext "'plan', 27800, true, 24900, 2900")")"); open_session "$cA" B1
+[ "$(start key-change-0001 '{texts_500}' "$(hx "$(ctext "'plan', 26700, true, 24900, 1800")")" true status)" = "expiring" ] \
   && [ "$(q "select count(*) from public.billing_outbox where idempotency_key = 'checkoutexpire:$cA' and status = 'pending'")" = "1" ] \
   && [ "$(q "select count(*) from public.billing_checkouts where business_id = '$B'")" = "1" ] \
   && ok "the selection changed while a session is open: that session is expired at Stripe first, and no second one opens meanwhile" || bad "expiring"
 send1 "$B" "cs_B1" '{"status": "expired"}' > /dev/null
-cB=$(start key-change-0001 '{texts_500}' "$(hx "$(ctext "'plan', 26700, true, 24900, true")")")
+cB=$(start key-change-0001 '{texts_500}' "$(hx "$(ctext "'plan', 26700, true, 24900, 1800")")")
 [ -n "$cB" ] && [ "$cB" != "$cA" ] && [ "$(q "select status from public.billing_checkouts where id = '$cA'")|$(q "select first_amount_minor from public.billing_checkouts where id = '$cB'")" = "expired|26700" ] \
   && ok "once Stripe expired it, the new selection gets a new checkout at its own amount" || bad "new checkout: $cB"
 open_session "$cB" B2
@@ -123,7 +126,7 @@ open_session "$cB" B2
 
 # ---- a price that differs, a pack no longer on offer: quarantined, nothing granted ----
 biz "Add Ons Three" 0
-cC=$(start key-price-00001 '{minutes_100}' "$(hx "$(ctext "'plan', 27800, true, 24900, true")")"); open_session "$cC" C1
+cC=$(start key-price-00001 '{minutes_100}' "$(hx "$(ctext "'plan', 27800, true, 24900, 2900")")"); open_session "$cC" C1
 apply checkout.session.completed "$(completed cs_C1 cus_C1 sub_C1 '"addons": "minutes_100"')" > /dev/null
 [ "$(apply invoice.paid "$(paid in_C1 cus_C1 sub_C1 27800 "$(line 25300 price_C1), $(line 2500 price_C1_minutes_100)")")" = "quarantined" ] \
   && [ "$(q "select count(*) from public.billing_quarantine where reason like 'add on minutes_100 is not on the invoice once at its price%'")" = "1" ] \
@@ -145,7 +148,7 @@ q "update public.billing_pack_catalog set active = true where code = 'minutes_10
 q "update public.billing_invoices set status = 'open', amount_due_minor = 24900, paid_at = null where id = '$open'" > /dev/null
 q "update public.billing_outbox set status = 'sent' where business_id = '$b' and status in ('pending', 'retry_wait')" > /dev/null
 ADD='[{"code": "minutes_100", "key": "pay-now-key-a1"}, {"code": "texts_500", "key": "pay-now-key-b1"}]'
-TP=$(ctext "'plan', 29600, true, 24900, true"); HPN=$(hx "$TP")
+TP=$(ctext "'invoice', 24900, true, 24900, 4700"); HPN=$(hx "$TP")
 pn() { err "$u" aal2 "select public.zella_owner_invoice_pay_start('$open', true, '$1'::jsonb, '$2')"; }
 [ "$(pn "$ADD" "$HI")" = "CONSENT_MISMATCH" ] && ok "Pay now with add ons: the words without them are refused" || bad "pay now mismatch"
 [ "$(err "$u" aal2 "select public.zella_owner_invoice_pay_start('$open', true, '$ADD'::jsonb, null)")" = "CONSENT_REQUIRED" ] && ok "Pay now without the agreement is refused" || bad "pay now none"
@@ -153,7 +156,7 @@ pn() { err "$u" aal2 "select public.zella_owner_invoice_pay_start('$open', true,
   && [ "$(pn '[{"code": "nope_1", "key": "pay-now-key-a1"}]' "$HPN")" = "UNKNOWN_PACK" ] && [ "$(pn '[{"code": "minutes_100", "key": "x"}]' "$HPN")" = "INVALID_INPUT" ] \
   && ok "a pack twice, an unknown pack or a bad key is refused" || bad "pay now input"
 [ "$(as "$u" aal2 "select (x ->> 'total_minor') || ',' || (x ->> 'amount_due_minor') || ',' || jsonb_array_length(x -> 'addons') from public.zella_owner_invoice_pay_start('$open', true, '$ADD'::jsonb, '$HPN') x")" = "29600,24900,2" ] \
-  && [ "$(as "$u" aal2 "select (public.zella_owner_invoice_pay_start('$open', true, '$ADD'::jsonb, '$HPN')) ->> 'stripe_invoice_id'")" = "in_open" ] \
+  && [ "$(as "$u" aal2 "select (public.zella_owner_invoice_pay_start('$open', true, '$ADD'::jsonb, '$HPN', true)) ->> 'stripe_invoice_id'")" = "in_open" ] \
   && [ "$(q "select count(*) from public.billing_payment_consents where payment_kind = 'invoice' and payment_id = '$open' and consent_sha256 = '$HPN'")" = "1" ] \
   && ok "Pay now: the invoice's own amount is what Stripe takes; the \$296 agreed covers the 2 add ons; recorded once" || bad "pay now start"
 [ "$(as "$u" aal1 "select (x ->> 'addons_consent') || ',' || (select string_agg((a ->> 'code') || ':' || coalesce(a ->> 'status', 'none'), ',') from jsonb_array_elements(x -> 'addons') a) from public.zella_owner_invoice_pay_status('$open') x")" = "$HPN,minutes_100:none,texts_500:none" ] \
@@ -180,10 +183,10 @@ q "update public.pack_purchases set status = 'failed', failure_reason = 'card_de
 [ "$(q "select count(*) from public.billing_payment_consents where payment_kind = 'pack' and payment_id in ('$p1', '$p2')")" = "2" ] && ok "each add on carries the agreement it was bought under, once" || bad "add on consent rows"
 
 # ---- the pack page and finishing a pack: the add on's own words ----
-H18=$(hx "$(ctext "'pack', 1800, null, null, false")")
+H18=$(hx "$(ctext "'pack', 1800, null, null, 0")")
 [ "$(err "$u" aal2 "select public.zella_owner_pack_buy('$b', 'emails_10000', 'pack-page-key-1', '$H18')")" = "CONSENT_MISMATCH" ] && ok "the pack page: words for another amount are refused" || bad "pack page mismatch"
 [ "$(err "$u" aal2 "select public.zella_owner_pack_buy('$b', 'emails_10000', 'pack-page-key-1', null)")" = "CONSENT_REQUIRED" ] && ok "the pack page: refused without the agreement" || bad "pack page none"
-p3=$(as "$u" aal2 "select public.zella_owner_pack_buy('$b', 'emails_10000', 'pack-page-key-1', '$(hx "$(ctext "'pack', 2500, null, null, false")")') ->> 'purchase_id'")
+p3=$(as "$u" aal2 "select public.zella_owner_pack_buy('$b', 'emails_10000', 'pack-page-key-1', '$(hx "$(ctext "'pack', 2500, null, null, 0")")') ->> 'purchase_id'")
 [ -n "$p3" ] && [ "$(q "select count(*) || ',' || min(amount_today_minor) || ',' || bool_or(recurring) from public.billing_payment_consents where payment_kind = 'pack' and payment_id = '$p3'")" = "1,2500,false" ] \
   && ok "the pack page with the add on's own words: bought, the agreement recorded (one time, nothing recurring)" || bad "pack page"
 [ "$(q "set role authenticated; select public.zella_owner_pack_buy('$b', 'emails_10000', 'pack-page-key-2')" 2>&1 | grep -c 'permission denied')" = "1" ] && ok "the three argument pack buy is server only now" || bad "old pack grant"
@@ -207,13 +210,58 @@ q "update public.subscriptions set desired_autopay = null where business_id = '0
 [ "$(q "select 'customer.updated' = any (public.zella_stripe_event_types())")" = "t" ] && ok "customer.updated is now one of the events we take" || bad "event types"
 cu() { echo "{\"id\": \"$1\", \"object\": \"customer\", \"livemode\": false, \"invoice_settings\": {\"default_payment_method\": \"$2\"}}"; }
 apply customer.updated "$(cu cus_P1 pm_P9)" > /dev/null
-[ "$(q "select count(*) || ',' || min(body::text) || ',' || min(path) from public.billing_outbox where idempotency_key = 'defaultpm:sub_P1:pm_P9'")" = '1,{"default_payment_method": "pm_P9"},/v1/subscriptions/sub_P1' ] \
+[ "$(q "select count(*) || ',' || min(body::text) || ',' || min(path) || ',' || bool_and(idempotency_key like 'defaultpm:sub_P1:%') from public.billing_outbox where kind = 'default_pm'")" = '1,{"default_payment_method": "pm_P9"},/v1/subscriptions/sub_P1,true' ] \
   && ok "a new default card on our customer (Stripe's card page): one command makes it the subscription's card for renewals, key and body stored (review)" || bad "default pm: $(q "select error from public.billing_events where type = 'customer.updated' order by received_at desc limit 1")"
 apply customer.updated "$(cu cus_P1 pm_P9)" > /dev/null
 [ "$(q "select count(*) from public.billing_outbox where kind = 'default_pm'")" = "1" ] && ok "the same change again queues nothing more" || bad "default pm twice"
 apply customer.updated "$(cu cus_P1 pm_P1)" > /dev/null; apply customer.updated "$(cu cus_nobody pm_P7)" > /dev/null
 [ "$(q "select count(*) from public.billing_outbox where kind = 'default_pm'")" = "1" ] && ok "the subscription's own card, or a customer that isn't ours, changes nothing" || bad "default pm ignored"
 q "update public.billing_outbox set status = 'sent' where kind = 'default_pm'" > /dev/null
+# card A, then B, then A again (review round 2): three commands, and the subscription ends on A. Stripe's
+# customer.subscription.updated records each card after its command (our record never changes from our own command).
+sev() { local e; e=$(ev_row customer.subscription.updated sub_P1); q "select public.zella_stripe_on_customer_subscription_updated(e, '{\"id\": \"sub_P1\", \"status\": \"active\", \"collection_method\": \"charge_automatically\", \"default_payment_method\": \"$1\"}'::jsonb) from public.billing_events e where e.id = '$e'" > /dev/null; }
+sev pm_P9
+for pm in pm_PA pm_PB pm_PA; do
+  apply customer.updated "$(cu cus_P1 $pm)" > /dev/null
+  q "update public.billing_outbox set status = 'sent' where kind = 'default_pm' and status = 'pending'" > /dev/null
+  sev $pm
+done
+[ "$(q "select count(*) || ',' || string_agg(body ->> 'default_payment_method', ',' order by created_at) from public.billing_outbox where kind = 'default_pm' and body ->> 'default_payment_method' <> 'pm_P9'")" = "3,pm_PA,pm_PB,pm_PA" ] \
+  && [ "$(q "select metadata ->> 'default_payment_method' from public.subscriptions where business_id = '$b'")" = "pm_PA" ] \
+  && ok "card A, then B, then A again: three commands sent (keyed by the event), the subscription ends on A (review round 2)" || bad "A B A: $(q "select string_agg(idempotency_key || '=' || status, ' ') from public.billing_outbox where kind = 'default_pm'")"
+apply customer.updated "$(cu cus_P1 pm_PC)" > /dev/null; apply customer.updated "$(cu cus_P1 pm_PD)" > /dev/null
+[ "$(q "select string_agg(body ->> 'default_payment_method' || ':' || status, ',' order by created_at) from public.billing_outbox where kind = 'default_pm' and body ->> 'default_payment_method' in ('pm_PC', 'pm_PD')")" = "pm_PC:cancelled,pm_PD:pending" ] \
+  && ok "two cards set quickly: the latest wins, the older one waiting is never sent" || bad "latest card wins"
+q "update public.billing_outbox set status = 'sent' where kind = 'default_pm' and status = 'pending'" > /dev/null
+
+# ---- two tabs, different add ons, the first one pays (review round 2) ----
+q "update public.pack_purchases set status = 'granted' where business_id = '$b' and status = 'pending'" > /dev/null   # earlier packs settled
+q "insert into public.billing_invoices (id, business_id, stripe_invoice_id, status, number, total_minor, amount_due_minor) values ('00000000-0000-4000-8000-00000000f001', '$b', 'in_tabs', 'open', 'ZV-0009', 24900, 24900)" > /dev/null
+TAB='00000000-0000-4000-8000-00000000f001'
+A1='[{"code": "minutes_100", "key": "tab-one-key-001"}]'; A2='[{"code": "texts_500", "key": "tab-two-key-001"}]'
+H1=$(hx "$(ctext "'invoice', 24900, true, 24900, 2900")"); H2=$(hx "$(ctext "'invoice', 24900, true, 24900, 1800")")
+as "$u" aal2 "select public.zella_owner_invoice_pay_start('$TAB', true, '$A2'::jsonb, '$H2')" > /dev/null    # tab two opens the form first
+as "$u" aal2 "select public.zella_owner_invoice_pay_start('$TAB', true, '$A1'::jsonb, '$H1', true)" > /dev/null   # tab one presses Pay
+[ "$(err "$u" aal2 "select public.zella_owner_invoice_pay_start('$TAB', true, '$A2'::jsonb, '$H2', true)")" = "ADDONS_IN_PROGRESS" ] \
+  && ok "two tabs: while the first tab's payment may be in flight, Pay in the other tab with other add ons is refused" || bad "second tab submit"
+[ "$(as "$u" aal1 "select (x ->> 'addons_consent') || ',' || (select string_agg(a ->> 'code', ',') from jsonb_array_elements(x -> 'addons') a) from public.zella_owner_invoice_pay_status('$TAB') x")" = "$H1,minutes_100" ] \
+  && ok "the add ons listed are the paying tab's, not the newest agreement's" || bad "listed agreement"
+q "update public.billing_invoices set status = 'paid', amount_due_minor = 0, paid_at = now() where id = '$TAB'" > /dev/null
+[ "$(err "$u" aal2 "select public.zella_owner_pack_buy('$b', 'texts_500', 'tab-two-key-001', '$H2', '$TAB')")" = "CONSENT_MISMATCH" ] \
+  && ok "the other tab's add ons are never bought" || bad "other tab bought"
+t1=$(as "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'tab-one-key-001', '$H1', '$TAB') ->> 'purchase_id'")
+t1b=$(as "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'tab-one-key-001', '$H1', '$TAB') ->> 'purchase_id'")
+[ -n "$t1" ] && [ "$t1" = "$t1b" ] && [ "$(q "select count(*) from public.pack_purchases where idempotency_key in ('tab-one-key-001', 'tab-two-key-001')")" = "1" ] \
+  && ok "exactly the first tab's add ons are bought, once" || bad "first tab add ons: $t1 $t1b"
+# an attempt Stripe says failed frees the add ons for a new choice
+q "insert into public.billing_invoices (id, business_id, stripe_invoice_id, status, number, total_minor, amount_due_minor) values ('00000000-0000-4000-8000-00000000f002', '$b', 'in_tabs2', 'open', 'ZV-0010', 24900, 24900)" > /dev/null
+T2='00000000-0000-4000-8000-00000000f002'
+as "$u" aal2 "select public.zella_owner_invoice_pay_start('$T2', true, '$A1'::jsonb, '$H1', true)" > /dev/null
+q "set role service_role; select public.zella_billing_invoice_attempts_clear('$T2')" > /dev/null
+[ "$(as "$u" aal2 "select jsonb_array_length(x -> 'addons') from public.zella_owner_invoice_pay_start('$T2', true, '$A2'::jsonb, '$H2', true) x")" = "1" ] \
+  && [ "$(as "$u" aal1 "select (select string_agg(a ->> 'code', ',') from jsonb_array_elements(x -> 'addons') a) from public.zella_owner_invoice_pay_status('$T2') x")" = "texts_500" ] \
+  && ok "once Stripe says the first attempt failed, the new choice goes ahead and is the one bought" || bad "attempt cleared"
+[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_invoice_attempts_clear(uuid)', 'execute')")" = "f" ] && ok "clearing an attempt is server only" || bad "clear grant"
 
 # ---- rollback refusals added in this round ----
 q "update public.billing_checkouts set status = 'open' where id = '$cC'" > /dev/null

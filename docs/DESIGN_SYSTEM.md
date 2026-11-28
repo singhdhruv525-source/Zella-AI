@@ -119,6 +119,11 @@ are not changed by this.
   above the payment panel with the summary beside them; below that one column: card, payment details, summary. Panels
   have a light rim on the top edge (`--zella-sheen`), a contact and an ambient shadow, and a faint grain; Glass gets a
   stronger frost (28px blur), a fine light border (`--zella-border-strong`) and an inner glow from the primary.
+- **Type on the payment pages** (owner, 27 Nov 2026): new tokens `--zella-text-md` (15px, reading text in the
+  checkout's panels and on Billing and subscription) and `--zella-leading-loose` (1.6, paragraphs in narrow panels).
+  Labels are `--zella-text-base` (14px); helper and footnote text is never smaller than `--zella-text-sm` (13px); panel
+  headings are `--zella-text-xl` (18px); Due today stays `--zella-text-page`. Copy is short and plain, one idea per
+  line, with no internal terms; Pay buttons read "Pay $278"; the trust row is "Secured by Stripe" once.
 - **Add ons in the receipt** (`AddonPicker` in `web/src/billing/ReceiptExtras.jsx`, `.zgc-addons`; owner, 27 Nov 2026):
   under the receipt's total, an "Add ons" heading and a short note, then one `fieldset` per type with its `legend`
   (Minutes, Texts, Emails; small capitals in `--zella-text-secondary`). Each row is a real checkbox whose `label` is the
@@ -126,15 +131,15 @@ are not changed by this.
   `--zella-on-primary` check), the pack's name (`--zella-text`, semibold) and a one line description
   (`--zella-text-2`), and its price "$29 one time" on the right; a ticked row takes `--zella-primary-soft` and
   `--zella-primary-border`; the keyboard focus ring is `--zella-focus` on the drawn box. Ticked packs are receipt lines
-  (icon `add_circle`), with "Add ons are one time and never renew." under the total (and, on Pay now, "Add ons are
-  charged separately right after your plan payment"); a change of total is announced politely ("Total due today
+  (icon `add_circle`), with "Add ons are one time." under the total (on Pay now instead "Add ons are charged right
+  after your plan."); a change of total is announced politely ("Total due today
   $278."). Below 360px the price moves under the name. Locked (dimmed, not clickable) while a start is in flight.
 - **"I agree" box above Pay** (`ConsentBox`, `.zgc-consent`): a real checkbox (`accent-color: --zella-primary`,
   focus ring `--zella-focus`) with its label, on `--zella-subtle` with `--zella-border`; "Terms" and "Privacy Policy" are
   `.ba-link`s opening in a new tab (each with a screen reader "opens in a new tab"). Unticked, Pay keeps its place
   and its focus but looks disabled (`.zgc-pay-btn.is-blocked`, `aria-disabled="true"`); pressing it shows the error
   under the box (`--zella-danger`, `role="alert"`, the box's border `--zella-danger-border`). Pay buttons show the full
-  total: "Continue to pay $278" opens Stripe's form, "Pay $278" pays.
+  total: "Pay $278" (it first opens Stripe's card form, then pays).
 - **Add on progress after Pay now** (`AddonProgress`, `.zgc-addon-progress`): a card under the checkout once the plan
   payment is confirmed, one row per add on: adding (`hourglass_top`), added (`--zella-success-bg`,
   `--zella-success-border`) or "Plan paid. 100 minutes not added" (`--zella-danger-bg`, `--zella-danger-border`) with

@@ -134,14 +134,14 @@ test("billing emails: Pay now opens the invoice's own page when the data names i
   assert.ok(!renderEmail("D1", { invoiceId: "<script>", businessId: "x" }).html.includes("<script>"), "only real ids make it into a link");
 });
 
-test("Auto pay words: honest about email while billing emails are held, no dashes", async () => {
+test("Auto pay words: say only what will happen, no promise of an email, no dashes", async () => {
   const { autopayWords } = await import("../src/billing/payState.js");
   const held = autopayWords(false), live = autopayWords(true, "your saved card");
-  assert.equal(held.onText, "Stripe charges this card on each renewal date.");
-  assert.match(held.offText, /in the CRM/);
-  assert.doesNotMatch(held.offText, /email/i, "no promise of an email while email is off");
-  assert.equal(live.offText, "We'll email your invoice; pay it within 3 days in the CRM.");
-  assert.equal(live.onText, "Stripe charges your saved card on each renewal date.");
+  assert.equal(held.onText, "We'll charge this card on each renewal date.");
+  assert.equal(held.offText, "You'll pay each bill yourself.");
+  assert.doesNotMatch(held.offText, /email/i, "no promise of an email");
+  assert.equal(live.offText, "You'll pay each bill yourself.");
+  assert.equal(live.onText, "We'll charge your saved card on each renewal date.");
   for (const w of [held.onText, held.offText, live.offText]) assert.doesNotMatch(w, DASH);
 });
 

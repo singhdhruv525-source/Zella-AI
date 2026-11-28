@@ -4,9 +4,7 @@
 // test keeps the three the same (tests/stripe_owner_pay/stub_run.sh). Plain text only: the page links "Terms" and
 // "Privacy Policy" inside these exact words, and the sha256 is of these words.
 //
-//   kind "plan"  the onboarding payment or Pay now. With Auto pay on, the plan's renewal price ($Y) recurs; add ons
-//                never do, and the words say so when there are any.
-//   kind "pack"  one add on on its own (the pack page, or finishing a pack in Stripe's form).
+//   With Auto pay on, the plan's renewal price ($Y) recurs; add ons never do, and the words say so when there are any.
 
 export const TERMS_PREFIX = "I agree to the Terms and Privacy Policy";
 
@@ -22,20 +20,23 @@ export function consentMoney(minor) {
 }
 
 // The exact words, or null when a figure is missing (the box then can't be ticked and nothing can start).
-export function consentText({ kind = "plan", todayMinor, autopay = true, renewalMinor = null, addons = false }) {
+//   plan     the onboarding payment (todayMinor: the plan, the setup fee and any add ons) or Pay now without add ons
+//   invoice  Pay now with add ons: the plan on this card, the add ons on the saved card right after
+//   pack     one add on on its own
+export function consentText({ kind = "plan", todayMinor, autopay = true, renewalMinor = null, addonsMinor = 0 }) {
   const today = consentMoney(todayMinor);
   if (!today) return null;
-  const head = `${TERMS_PREFIX} and authorize Zella Voice to charge this card ${today} today`;
-  if (kind === "pack") return `${head} for this add on.`;
-  let text;
-  if (autopay) {
-    const renewal = consentMoney(renewalMinor);
-    if (!renewal) return null;
-    text = `${head} and ${renewal} on each renewal until I cancel.`;
-  } else {
-    text = `${head}. I'll pay future invoices myself.`;
-  }
-  return addons ? `${text} Add ons are one time and never renew.` : text;
+  if (kind === "pack") return `${TERMS_PREFIX} and authorize Zella Voice to charge ${today} today for this add on.`;
+  const extra = Number(addonsMinor ?? 0);
+  if (!Number.isInteger(extra) || extra < 0) return null;
+  const renewal = autopay ? consentMoney(renewalMinor) : "";
+  if (autopay && !renewal) return null;
+  const head = kind === "invoice" && extra > 0
+    ? `${TERMS_PREFIX} and authorize Zella Voice to charge ${today} to this card and ${consentMoney(extra)} for add ons to my saved card today`
+    : `${TERMS_PREFIX} and authorize Zella Voice to charge this card ${today} today`;
+  const sep = kind === "invoice" && extra > 0 ? "," : "";
+  const text = autopay ? `${head}${sep} and ${renewal} each renewal until I cancel.` : `${head}.`;
+  return extra > 0 ? `${text} Add ons are one time.` : text;
 }
 
 // sha256 of the words, lower case hex (Web Crypto: the browser, Deno and Node all have it).

@@ -136,17 +136,17 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   page sends pack codes only. **A single payment at onboarding**: the packs are lines of the same Checkout Session,
   granted only from the verified, bound first invoice, quarantined on any mismatch; a changed selection expires the
   open session first. **Separate charges on Pay now**: the plan payment first, then each pack through the pack path
-  with its own key ("Add ons are charged separately right after your plan payment"; "Plan paid. 100 minutes not
+  with its own key ("Add ons are charged right after your plan."; "Plan paid. 100 minutes not
   added" with Try again for that pack). **The required agree checkbox** before every Pay, with the server's amounts,
   rebuilt and hashed by the server, recorded in `billing_payment_consents`. **TODO (real terms versioning):** the terms
   version recorded with each agreement is a constant (`terms-draft-2026-11-27`, `zella_billing_terms_version()`) until
   the legal documents are published at `/terms` and `/privacy`; then version them and record the real version (a go
-  live gate, `docs/PAYMENTS_ARCHITECTURE.md` §14). **Open owner decisions:** (1) add ons bought with Pay now go on the
-  saved card (the pack path), not necessarily the card typed for the invoice, while the agreement says "this card";
-  either word it for that or charge the packs on the invoice's card (needs that card saved to the customer); (2) add
+  live gate, `docs/PAYMENTS_ARCHITECTURE.md` §14). **Open owner decisions:** (1) resolved by the copy pass (27 Nov 2026): the Pay now
+  agreement says "$A to this card and $B for add ons to my saved card"; (2) add
   ons are not offered with a trial (nothing is charged today then); (3) a refund of an add on bought at onboarding is
-  not offered separately; (4) `docs/BACKEND_SCHEMA.md` regeneration is pending (needs an isolated copy of production;
-  the generator has the new tables' purposes).
+  not offered separately; (4) **`docs/BACKEND_SCHEMA.md` must be regenerated before PR #148 merges**: it can't be
+  done in the build session (it needs an isolated copy of the production schema); the generator already has the
+  purposes of the three new tables (`billing_owner_requests`, `billing_payment_consents`, `billing_checkout_addons`).
 - **Card problems (owner question, 27 Nov 2026):** no screen of ours for the bank's code: live, Stripe.js opens the
   bank's own check in Stripe's overlay; the page waits ("Waiting for your bank to confirm") and shows the outcome. Wrong
   details inline, declines by Stripe's `decline_code` (lost and stolen read as generic), Try another card on the same

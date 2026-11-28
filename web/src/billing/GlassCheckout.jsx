@@ -31,7 +31,7 @@ import "./glassCheckout.css";
 //   mount        (slots, opts) => Promise<{ destroy, submit, demo? }>; default Stripe's card fields (stripeEmbedded.js)
 //   onUpdateCard opens Stripe's card update (for "There's no card to charge")
 //   words        per state overrides; payLabel the first button; saveNote a line under the fields
-//   autopay      { on, onChange(on), onText, offText }: the "Pay automatically each renewal" switch (owner, 27 Nov 2026)
+//   autopay      { on, onChange(on), onText, offText }: the "Auto pay" switch (owner, 27 Nov 2026)
 //   beforeSubmit () => Promise, run before Stripe confirms (sends the Auto pay choice with the payment)
 //   hostedFallback () => start(...) asking for Stripe's own Checkout page, used at once when Stripe.js can't load (onboarding)
 //   fallbackUrl  Stripe's hosted invoice page: offered ONLY when Stripe's form can't load or our checkout can't be shown
@@ -47,7 +47,7 @@ export default function GlassCheckout(props) {
     <ErrorBoundary resetKey="glass-checkout" fallback={(retry) => (
       <div className="zob-state zob-state-box error" role="alert">
         <Icon name="error" />
-        <div><strong>The payment form couldn't be shown</strong><p>Nothing was charged. Try again, or come back later.</p><button type="button" className="ba-btn sm" onClick={retry}>Try again</button>
+        <div><strong>The payment form couldn't be shown</strong><p>You weren't charged. Try again, or come back later.</p><button type="button" className="ba-btn sm" onClick={retry}>Try again</button>
           {props.fallbackUrl && <FallbackLink url={props.fallbackUrl} />}</div>
       </div>
     )}>
@@ -112,11 +112,11 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
     if (lastText.current === consentText) return;
     const had = agreed;
     lastText.current = consentText;
-    if (had) { setAgreed(false); setConsentError("The details changed. Tick the box again to agree to them."); }
+    if (had) { setAgreed(false); setConsentError("The total changed. Please tick the box again."); }
   }, [consentText]); // eslint-disable-line react-hooks/exhaustive-deps
   const consentOk = () => {
     if (!needsConsent || agreed) return true;
-    setConsentError("Tick the box to agree before you pay.");
+    setConsentError("Please tick the box to continue.");
     return false;
   };
   // the add ons changed while Stripe's form was open: back to Pay for the new total
@@ -173,13 +173,13 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
     let stage = "ours";
     try { if (beforeSubmit) await beforeSubmit(); stage = "stripe"; await handle.current.submit(); }
     catch (err) {
-      if (alive.current && stage === "ours") setInline(`${err?.words ?? err?.message ?? "That didn't work."} Nothing was charged.`.replace(/\. Nothing was charged\. Nothing was charged\./, ". Nothing was charged."));
+      if (alive.current && stage === "ours") setInline(`${err?.words ?? err?.message ?? "That didn't work."} You weren't charged.`.replace(/(Nothing was charged|You weren't charged)\. You weren't charged\./, "You weren't charged."));
       else if (alive.current) {
         const d = declineOf(err);
         // Stripe didn't answer: whether it was taken is unknown, so OUR server is asked (the confirming wait)
         if (d?.kind === "unknown") { setUnknown(true); dispatch({ type: "COMPLETE" }); }
         else if (d) setDecline(d);
-        else setInline(err?.code === "LOCAL_CHECK" ? err.message : "The payment didn't start. Nothing was charged. Please try again.");
+        else setInline(err?.code === "LOCAL_CHECK" ? err.message : "The payment didn't start. Please try again.");
       }
     }
     finally { clearTimeout(slow); submitting.current = false; if (alive.current) { setSending(false); setSlowBank(false); } }
@@ -269,10 +269,10 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
 
   const base = m.state === "error" ? ERROR_WORDS[m.kind] ?? ERROR_WORDS.server : WORDS[m.state] ?? WORDS.off;
   const words = { ...base, ...(over[m.state === "error" ? m.kind : m.state] ?? {}),
-    ...(m.state === "error" && m.kind === "refused" && m.words ? { body: `${m.words} Nothing was charged.` } : {}),
+    ...(m.state === "error" && m.kind === "refused" && m.words ? { body: `${m.words} You weren't charged.` } : {}),
     ...(m.state === "error" && m.kind !== "refused" && m.words ? { body: m.words } : {}),
-    ...(m.state === "confirming" && unknown ? { label: "Checking whether the payment went through", body: "Stripe didn't answer in time, so we don't know yet whether it was taken. Don't pay again: we're asking Stripe, and this page shows the result." } : {}),
-    ...(m.state === "ready" && (live.bank || (sending && slowBank)) ? { label: "Waiting for your bank to confirm", body: "Your bank may ask you to approve this payment in its own window: a code by text or a tap in your banking app. Keep this page open." } : {}) };
+    ...(m.state === "confirming" && unknown ? { label: "Checking your payment…", body: "We couldn't confirm your payment yet. Please don't pay again; we'll update this page." } : {}),
+    ...(m.state === "ready" && (live.bank || (sending && slowBank)) ? { label: "Waiting for your bank to confirm…", body: "Approve the payment in your bank's window. Keep this page open." } : {}) };
   const server = m.state === "confirmed" ? cardWords(m.card ?? card) : null;
   // what the card shows: only Stripe's events and preview, the server's answer, and the name from Stripe's billing address
   const view = {
@@ -311,7 +311,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
         <div className="zgc-grid" aria-hidden={staged ? "true" : undefined} inert={staged ? true : undefined}>
           <div className="zgc-cardcol">
             <CardArt ref={cardRef} view={view} confirmed={false} tilt />
-            <p className="zgc-cardcol-note"><Icon name="visibility_off" size="sm" /> The card shows only what Stripe returns, never your full number.</p>
+            <p className="zgc-cardcol-note"><Icon name="visibility_off" size="sm" /> We never see your full card number.</p>
           </div>
 
           <div className="zgc-panel zgc-pay" aria-labelledby="zgc-pay-title">
@@ -321,9 +321,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
             </div>
             {demo && <p className="zob-sr">Preview only. On the live site the card fields are Stripe's own secure fields. This local preview never loads Stripe and takes no card.</p>}
             <div className="zgc-form">
-              {(m.state === "idle" || m.state === "submitting") && (
-                <p className="zob-muted">{summary?.intro ?? <>You'll pay <strong>{amount}</strong> today. When you continue, Stripe's secure card fields open right here.</>}</p>
-              )}
+              {/* no intro paragraph (owner, 27 Nov 2026): the receipt says what is paid */}
               {detailsNote && (m.state === "idle" || m.state === "submitting") && <p className="zgc-details-note">{detailsNote}</p>}
               {(m.state === "off" || m.state === "locked") && <p className="zob-muted">{m.state === "off" ? "Nothing is charged until payment opens here." : "Payment opens once your identity is verified."}</p>}
               {formOpen && (
@@ -347,7 +345,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               {autopay && ["idle", "submitting", "loading", "ready"].includes(m.state) && (
                 <div className="zgc-autopay">
                   <div className="zgc-autopay-row">
-                    <span className="zgc-autopay-label" id="zgc-autopay-label">Pay automatically each renewal</span>
+                    <span className="zgc-autopay-label" id="zgc-autopay-label">Auto pay</span>
                     <button type="button" role="switch" aria-checked={autopay.on} aria-labelledby="zgc-autopay-label" aria-describedby="zgc-autopay-note"
                       className={`ba-switch${autopay.on ? " on" : ""}`} disabled={sending} onClick={() => autopay.onChange(!autopay.on)}><span /></button>
                   </div>
@@ -369,7 +367,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               {(m.state === "idle" || m.state === "submitting") && (
                 <button type="button" className={`ba-btn primary zgc-pay-btn${blocked ? " is-blocked" : ""}`} disabled={m.state === "submitting"} aria-disabled={blocked ? "true" : undefined}
                   aria-describedby={consentShown ? "zgc-consent-e" : undefined} onClick={() => begin("start")}>
-                  <Icon name="lock" size="sm" /> {m.state === "submitting" ? "Opening the secure form…" : idleLabel}
+                  <Icon name="lock" size="sm" /> {m.state === "submitting" ? "Opening the card form…" : idleLabel}
                 </button>
               )}
               {m.state === "ready" && demo && !live.preview && (
@@ -394,14 +392,14 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               )}
               <p className="zgc-trust">
                 <span><Icon name="lock" size="sm" /> Secured by Stripe</span>
-                <span><Icon name="verified_user" size="sm" /> Card details never reach Zella Voice</span>
               </p>
             </div>
           </div>
 
           <aside className="zgc-panel zgc-summary" aria-labelledby="zgc-summary-title">
-            <span className="zob-kicker">{summary?.kicker ?? "Order summary"}</span>
+            {summary?.kicker && <span className="zob-kicker">{summary.kicker}</span>}
             <h3 id="zgc-summary-title">{summary?.title ?? "Your plan"}</h3>
+            {summary?.subtitle && <p className="zgc-summary-sub">{summary.subtitle}</p>}
             <dl className="zgc-lines">
               {lines.map(([label, value, icon]) => (
                 <div key={label}>
@@ -411,7 +409,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
               ))}
             </dl>
             {amountKnown && <div className="zgc-total"><span>{totalLabel}</span><strong>{amount}</strong></div>}
-            {picked.length > 0 && <p className="zgc-addon-onetime"><Icon name="info" size="sm" /> Add ons are one time and never renew.{addons?.note ? ` ${addons.note}.` : ""}</p>}
+            {picked.length > 0 && <p className="zgc-addon-onetime"><Icon name="info" size="sm" /> {addons?.note ? `${addons.note}.` : "Add ons are one time."}</p>}
             <p className="zob-sr" aria-live="polite">{totalNote}</p>
             {summary?.footnote && <p className="zob-hint">{summary.footnote}</p>}
             {addons && (addons.offer ?? []).length > 0 && m.state !== "confirmed" && !staged && (
@@ -430,7 +428,7 @@ function Checkout({ summary, payment, kind = "checkout", start, actStart, confir
             {m.state !== "confirmed" && (
               <svg className="zgc-ring" viewBox="0 0 40 40" width="40" height="40"><circle className="zgc-ring-track" cx="20" cy="20" r="16" /><circle className="zgc-ring-arc" cx="20" cy="20" r="16" /></svg>
             )}
-            <p className="zgc-stage-caption">{m.state === "confirmed" ? words.label : m.state === "pending" ? "Still confirming" : "Confirming your payment"}</p>
+            <p className="zgc-stage-caption">{m.state === "confirmed" ? words.label : m.state === "pending" ? "Still confirming" : unknown ? "Checking your payment…" : "Confirming your payment"}</p>
           </div>
         )}
       </div>

@@ -968,7 +968,7 @@ same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when
   and Checkout sets it) could not be confirmed from Stripe's pages in this session, so it is a sandbox proof (§16.8)
   and nothing relies on it (review, round 1): `customer.updated` (now one of our events, fetched from Stripe) with a new
   default card on OUR customer queues one command `POST /v1/subscriptions/:id { default_payment_method }` (key
-  `defaultpm:<subscription>:<payment method>`, body stored, §8.1), so the replacement card is the one charged at
+  `defaultpm:<subscription>:<our event id>`, body stored, §8.1; the latest card wins), so the replacement card is the one charged at
   renewal. Our record of the saved card still changes only from `customer.subscription.updated`. It returns to the Payments page. **An open
   past due invoice after a card update:** Smart Retries (§16.6, days 2, 3 and 4) try again on their schedule with the
   new default card, and the owner can also press Pay now at once. Whether the portal also retries the open invoice
@@ -994,7 +994,12 @@ same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when
   `pack_buy { invoice_id, consent_hash }` reaches `zella_owner_pack_buy(business, code, key, hash, invoice)`, which
   refuses before the invoice is paid (`INVOICE_NOT_PAID`) and unless that invoice's agreement named this pack and this
   key (`CONSENT_MISMATCH`); the same key always reaches the same purchase. `invoice_pay_status` lists the agreed add ons
-  and each one's purchase, so a reload mid way resumes them. A pack that fails says "Plan paid. 100 minutes not added"
+  and each one's purchase, so a reload mid way resumes them. **Two tabs (review round 2):** the Pay press sends
+  `submit: true`, marking that agreement as the one that went to Stripe; a second Pay with other add ons while that one
+  may be paying (10 minutes) is refused (`ADDONS_IN_PROGRESS`), unless Stripe says the earlier attempt failed (its
+  intent has a payment error or was cancelled), when billing-api clears it (`zella_billing_invoice_attempts_clear`).
+  Add ons are bought only under the submitted agreement. (Refusing was chosen over binding to the attempt: the invoice
+  has ONE PaymentIntent, so two tabs confirm the same intent and Stripe can't say which tab paid.) A pack that fails says "Plan paid. 100 minutes not added"
   with Try again for that pack only (a declined card opens that pack's own page on THAT purchase: "Pay with another
   card"); the invoice is never charged again. **Note for the owner:** these packs are charged to the saved card (the
   pack path), not necessarily the card typed for the invoice; see `docs/MEMORY.md`.
@@ -1043,16 +1048,20 @@ Rules:
 ### 6.12 The owner's agreement before Pay (owner decision, 27 Nov 2026)
 
 Every payment the owner starts has a required "I agree" box above Pay: a real, labelled checkbox, unticked by
-default; Pay stays disabled (`aria-disabled`, still focusable) until it is ticked, and pressing it first announces "Tick
-the box to agree before you pay." through the box's live region. The words come from the server's figures, with Terms
+default; Pay stays disabled (`aria-disabled`, still focusable) until it is ticked, and pressing it first announces "Please
+tick the box to continue." through the box's live region. The words come from the server's figures, with Terms
 (`/terms`) and Privacy Policy (`/privacy`) opening in a new tab:
 
 | Case | Words |
 |---|---|
-| Auto pay on | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today and $Y on each renewal until I cancel. |
-| Auto pay off | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today. I'll pay future invoices myself. |
-| A pack on its own | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today for this add on. |
-| Add ons in the receipt | the plan wording, then "Add ons are one time and never renew." |
+| Auto pay on | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today and $Y each renewal until I cancel. |
+| Auto pay off | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $X today. |
+| Pay now with add ons | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $A to this card and $B for add ons to my saved card today, and $Y each renewal until I cancel. (Auto pay off: "... to my saved card today.") |
+| A pack on its own | I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $X today for this add on. |
+| Add ons in the receipt | the wording above, then "Add ons are one time." |
+
+(Copy pass, owner 27 Nov 2026: shorter words, the same authorization. Pay now with add ons names which card pays what,
+because the add ons go through the pack path on the saved card: the owner's decision 1, resolved by the wording.)
 
 $X is the total due today (onboarding: the plan, the setup fee and the packs; Pay now: the invoice's amount due and
 the packs; a pack: its price). $Y is the plan's renewal price only (the latest plan version); packs never renew.
@@ -1266,7 +1275,7 @@ stateDiagram-v2
 | Pay now on an open invoice | none: the invoice's own PaymentIntent is confirmed in Stripe's form | (no POST of ours) | the invoice's one intent | the invoice and its intent |
 | Add on Price for an onboarding checkout (27 Nov 2026) | `POST /v1/prices` (one time, the catalogue amount) | `price:addon:<add on id>` | one per add on row (unique checkout and pack) | the link `addon_price` with its amount |
 | Add on bought after Pay now (27 Nov 2026) | `POST /v1/payment_intents` (the pack path) | `pack:<purchase id>`; the purchase's own key is the page's per add on key, made when Pay is pressed and kept on retry and reload | one purchase per key; one pending owner purchase per pack | PaymentIntent by `metadata.purchase_id` |
-| A card set on Stripe's card page becomes the subscription's default (review, 27 Nov 2026) | `POST /v1/subscriptions/:id` (`default_payment_method`) | `defaultpm:<subscription>:<payment method>` | one command per new card | the subscription's `default_payment_method` from `customer.subscription.updated` |
+| A card set on Stripe's card page becomes the subscription's default (review, 27 Nov 2026) | `POST /v1/subscriptions/:id` (`default_payment_method`) | `defaultpm:<subscription>:<our event id>` (review round 2: keyed by the customer event, so A, B, A sends three) | one command per event; the same card already on its way queues nothing; the latest card wins | the subscription's `default_payment_method` from `customer.subscription.updated` |
 | Auto pay on or off (27 Nov 2026) | `POST /v1/subscriptions/:id` (`collection_method`, `days_until_due`) | `autopay:<subscription>:<version>:<attempt>` | one command per choice; older waiting ones cancelled | the subscription's `collection_method` from `customer.subscription.updated` |
 | Card update page (Customer Portal) | `POST /v1/billing_portal/sessions` | `portal:<business id>:<attempt key>` | none needed: a short lived page, no money; a new one per attempt | not needed |
 | Auto-reload | `POST /v1/payment_intents` (`off_session`) | `reload:<purchase id>` | one pending reload per business (partial unique index) | same |
@@ -1322,6 +1331,8 @@ at Stripe; the page also never offers Pay while a payment for the same thing is 
 | 17 | Pay now with add ons: a pack fails after the plan payment | the plan stays paid; the invoice can't be charged again (`ALREADY_PAID`); Try again for that pack only, with its own key: the same purchase | SQL `stub_run`, unit `addonsConsent`, browser `crm-payments` |
 | 18 | Pay now add ons: a reload mid way, a retry, a double click | the server lists the agreed add ons and their purchases; each key reaches one purchase; one confirm of the plan payment | SQL `stub_run`, unit `addonsConsent`, browser `crm-payments` |
 | 19 | An add on bought before the plan payment is confirmed, or not in the agreement | refused (`INVOICE_NOT_PAID`, `CONSENT_MISMATCH`) | SQL `stub_run`, Deno `handle_test` |
+| 20 | Pay now in two tabs (or the emailed link) with different add ons (review round 2) | the Pay press marks its agreement submitted; another submitted agreement with other add ons in the last 10 minutes refuses the second Pay (`ADDONS_IN_PROGRESS`) unless Stripe says that attempt failed (billing-api clears it); add ons are bought only from the submitted agreement, so exactly the paying tab's, once | SQL `stub_run`, Deno `handle_test`, unit `addonsConsent` |
+| 21 | A card set on Stripe's card page, then another, then the first again | each `customer.updated` event its own command (`defaultpm:<subscription>:<event>`); the latest card wins, an older one waiting is cancelled | SQL `stub_run` (A, B, A) |
 
 ### 8.2 Every way something could happen twice, and what stops it
 

@@ -42,7 +42,7 @@ export default function BillingPayRoute({ workspace, kind, id, base = "/app" }) 
       </nav>
       <h1 id="zpay-route-title" className="zpay-route-title" tabIndex={-1}>{title}</h1>
       <ErrorBoundary resetKey={`${kind}:${id}`} fallback={(retry) => (
-        <div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div><strong>This page couldn't be shown</strong><p>Nothing was charged.</p><button type="button" className="ba-btn sm" onClick={retry}>Try again</button></div></div>
+        <div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div><strong>This page couldn't be shown</strong><p>You weren't charged.</p><button type="button" className="ba-btn sm" onClick={retry}>Try again</button></div></div>
       )}>
         {workspace.role !== "owner" ? <NotFound what={kind === "pack" ? "pack" : "invoice"} />   /* the server refuses too; the same page either way */
           : !api ? <p className="zpay-loading" role="status">Loading…</p>

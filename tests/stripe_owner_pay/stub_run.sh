@@ -152,7 +152,7 @@ made=$(md5of 'public.zella_owner_invoices(uuid)')
 [ "$(md5of 'public.zella_billing_email_invoice_trg()')" = "e71bf72e22f1e906f1022c5e94f44f5e" ] && [ "$(q "select position('''invoiceId'', new.id' in pg_get_functiondef('public.zella_billing_email_invoice_trg()'::regprocedure)) > 0")" = "t" ] \
   && ok "invoice emails now carry our invoice id (for the /pay/invoice/<id> link), one exact change" || bad "trigger change"
 "${P[@]}" -d "$DB" -f "$MIG" > /dev/null 2>&1 && [ "$(md5of 'public.zella_owner_invoices(uuid)')" = "$made" ] && ok "applies again, unchanged" || bad "second apply"
-[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_stripe_refs(uuid,boolean)', 'execute')::text || has_function_privilege('anon', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text)', 'execute')::text || has_function_privilege('authenticated', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text)', 'execute')::text")" = "falsefalsetrue" ] \
+[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_stripe_refs(uuid,boolean)', 'execute')::text || has_function_privilege('anon', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)', 'execute')::text || has_function_privilege('authenticated', 'public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)', 'execute')::text")" = "falsefalsetrue" ] \
   && ok "the Stripe lookup is server only; the owner functions are for signed in people, never anonymous" || bad "grants"
 
 b=$(q "insert into public.businesses (name) values ('Pay One') returning id"); b2=$(q "insert into public.businesses (name) values ('Pay Two') returning id")
@@ -163,7 +163,7 @@ paid=$(q "insert into public.billing_invoices (business_id, stripe_invoice_id, s
 void=$(q "insert into public.billing_invoices (business_id, stripe_invoice_id, status, number, total_minor, amount_due_minor) values ('$b', 'in_void', 'void', 'ZV-0003', 24900, 24900) returning id")
 draft=$(q "insert into public.billing_invoices (business_id, stripe_invoice_id, status, total_minor, amount_due_minor) values ('$b', 'in_draft', 'draft', 100, 100) returning id")
 q "insert into public.business_plans (business_id, version, price_cents) values ('$b', 1, 24900)" > /dev/null
-HI=$(hx "$(ctext "'plan', 24900, true, 24900, false")"); HP=$(hx "$(ctext "'pack', 2900, null, null, false")")
+HI=$(hx "$(ctext "'plan', 24900, true, 24900, 0")"); HP=$(hx "$(ctext "'pack', 2900, null, null, 0")")
 
 [ "$(as "$u" aal1 "select (x ->> 'id') || ',' || (x ->> 'amount_due_minor') || ',' || (x ->> 'payable') from jsonb_array_elements(public.zella_owner_invoices('$b')) x where x ->> 'number' = 'ZV-0001'")" = "$open,24900,true" ] && ok "the list carries our id, the amount due and Pay now" || bad "list"
 [ "$(as "$u" aal1 "select string_agg((x ->> 'number') || '=' || (x ->> 'payable'), ',' order by x ->> 'number') from jsonb_array_elements(public.zella_owner_invoices('$b')) x")" = "ZV-0001=true,ZV-0002=false,ZV-0003=false" ] && ok "paid and void invoices aren't payable; drafts aren't listed" || bad "payable flags"

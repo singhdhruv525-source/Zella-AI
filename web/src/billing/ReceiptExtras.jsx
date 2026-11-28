@@ -17,7 +17,7 @@ export function AddonPicker({ offer, selected, onChange, locked = false, note })
   return (
     <section className="zgc-addons" aria-labelledby={`${base}-t`}>
       <h4 id={`${base}-t`}>Add ons</h4>
-      <p className="zgc-addons-note">One time packs for this month, added to today's payment.{note ? ` ${note}` : ""}</p>
+      <p className="zgc-addons-note">One time, for this month.</p>
       {groups.map((g) => (
         <fieldset key={g.resource} className="zgc-addon-group" disabled={locked}>
           <legend>{g.title}</legend>
@@ -75,7 +75,7 @@ export function AddonProgress({ items, onRetry, busy }) {
             <span className="ba-icon" aria-hidden="true">{a.step === "added" ? "task_alt" : a.step === "failed" ? "error" : "hourglass_top"}</span>
             <div>
               <strong>{a.step === "failed" ? `Plan paid. ${addonShort(a)} not added` : `${addonName(a)}: ${STEP_WORDS[a.step]}`}</strong>
-              <span className="zob-hint">{a.step === "failed" ? (a.words ?? "Nothing was charged for this pack. Your plan payment is safe.") : `${formatMoney(a.price_cents, "usd")} one time`}</span>
+              <span className="zob-hint">{a.step === "failed" ? (a.words ?? "You weren't charged for this add on. Your plan is paid.") : `${formatMoney(a.price_cents, "usd")} one time`}</span>
             </div>
             {a.step === "failed" && <button type="button" className="ba-btn sm" disabled={busy} onClick={() => onRetry(a)}>Try again</button>}
           </li>

@@ -118,10 +118,11 @@ const mockHasInputs = (page) => page.evaluate(() => [...document.querySelectorAl
 // the "I agree" words as shown (the screen reader's "opens in a new tab" left out): exactly the words whose sha256 is sent
 const consentWords = (page) => page.evaluate(() => { const l = document.querySelector(".zgc-consent label")?.cloneNode(true); l?.querySelectorAll(".zob-sr").forEach((n) => n.remove()); return l?.textContent ?? ""; });
 // a press on Pay while the box is unticked: Pay is aria-disabled (still focusable and pressable, so it can say why)
-const pressBlocked = (page, selector) => page.click(selector, { force: true });
+// (pressed from the keyboard: it stays in the tab order, and no fixed bar of the CRM shell can be under the pointer)
+const pressBlocked = async (page, selector) => { await page.focus(selector); await page.keyboard.press("Enter"); };
 // the required "I agree" box, then the first Pay button (it opens Stripe's form; the server records the agreement)
 async function agree(page) { await page.check("#zgc-consent"); }
-async function startPay(page, label = "Continue to pay") {
+async function startPay(page, label = "Pay $") {
   await page.waitForSelector("#zgc-consent", { timeout: 10000 }).catch(() => {});
   await agree(page);
   await page.click(`.zgc-pay-foot button:has-text('${label}')`);

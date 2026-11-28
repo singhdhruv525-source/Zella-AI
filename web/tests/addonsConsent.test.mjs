@@ -3,7 +3,7 @@
 //   cd web && node --test tests/addonsConsent.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addonKeys, addonName, addonShort, addonStep, addonsTotal, chosen, groupOffer, offerFrom, packConsent, planConsent, selectionKey, toggle } from "../src/billing/addons.js";
+import { addonKeys, addonName, addonShort, addonStep, addonsTotal, chosen, groupOffer, invoiceConsent, offerFrom, packConsent, planConsent, selectionKey, toggle } from "../src/billing/addons.js";
 import { consentHash, consentMoney, consentText } from "../supabase/functions/_shared/paymentConsent.js";
 import { ERROR_KINDS, ERROR_WORDS, reduce } from "../src/billing/checkoutMachine.js";
 import { createFakeBillingApi, FAKE_BUSINESS } from "../src/billing/fakeBillingApi.js";
@@ -16,17 +16,23 @@ const CATALOG = [{ code: "texts_500", resource: "texts", quantity: 500, price_ce
   { code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900 }, { code: "emails_10000", resource: "emails", quantity: 10000, price_cents: 2500 },
   { code: "BAD", resource: "minutes", quantity: 1, price_cents: 1 }, { code: "calls_1", resource: "calls", quantity: 1, price_cents: 100 }, { code: "minutes_9", resource: "minutes", quantity: 9, price_cents: 0 }];
 
-test("the agreement's words: the owner's three wordings, server amounts, add ons one time, no dashes", async () => {
+test("the agreement's words: Auto pay on and off, Pay now naming which card, a pack, add ons one time, no dashes", async () => {
   assert.equal(consentText({ kind: "plan", todayMinor: 27800, autopay: true, renewalMinor: 24900 }),
-    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $278 today and $249 on each renewal until I cancel.");
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $278 today and $249 each renewal until I cancel.");
   assert.equal(consentText({ kind: "plan", todayMinor: 27800, autopay: false, renewalMinor: 24900 }),
-    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $278 today. I'll pay future invoices myself.");
-  assert.equal(consentText({ kind: "pack", todayMinor: 2900 }), "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $29 today for this add on.");
-  assert.match(planConsent({ todayMinor: 27800, autopay: true, renewalMinor: 24900, addons: 1 }), / Add ons are one time and never renew\.$/, "$Y is the plan's price only; add ons never renew");
-  assert.equal(planConsent({ todayMinor: 100, autopay: true, renewalMinor: null, addons: 0 }), null, "a missing renewal price: no words, nothing can be agreed");
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $278 today.");
+  assert.equal(planConsent({ todayMinor: 92700, autopay: true, renewalMinor: 24900, addonsMinor: 2900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge this card $927 today and $249 each renewal until I cancel. Add ons are one time.");
+  assert.equal(invoiceConsent({ planMinor: 24900, addonsMinor: 2900, autopay: true, renewalMinor: 24900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $249 to this card and $29 for add ons to my saved card today, and $249 each renewal until I cancel. Add ons are one time.");
+  assert.equal(invoiceConsent({ planMinor: 24900, addonsMinor: 2900, autopay: false, renewalMinor: 24900 }),
+    "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $249 to this card and $29 for add ons to my saved card today. Add ons are one time.");
+  assert.equal(invoiceConsent({ planMinor: 24900, addonsMinor: 0, autopay: true, renewalMinor: 24900 }), planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900 }), "no add ons: the plan wording");
+  assert.equal(consentText({ kind: "pack", todayMinor: 2900 }), "I agree to the Terms and Privacy Policy and authorize Zella Voice to charge $29 today for this add on.");
+  assert.equal(planConsent({ todayMinor: 100, autopay: true, renewalMinor: null }), null, "a missing renewal price: no words, nothing can be agreed");
   assert.equal(packConsent(undefined), null);
-  assert.deepEqual([consentMoney(2950), consentMoney(114700), consentMoney(123456789), consentMoney(0), consentMoney(-1), consentMoney(1.5)], ["$29.50", "$1,147", "$1,234,567.89", "$0", null, null]);
-  for (const t of [planConsent({ todayMinor: 1, autopay: false, renewalMinor: 1, addons: 2 }), packConsent(1)]) assert.ok(!DASH.test(t), t);
+  assert.deepEqual([consentMoney(2950), consentMoney(114700), consentMoney(123456789), consentMoney(0), consentMoney(-1), consentMoney(1.5), consentMoney(null)], ["$29.50", "$1,147", "$1,234,567.89", "$0", null, null, null]);
+  for (const t of [invoiceConsent({ planMinor: 1, addonsMinor: 2, autopay: false, renewalMinor: 1 }), packConsent(1)]) assert.ok(!DASH.test(t), t);
   assert.equal(await consentHash("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "sha256 hex, as the database computes it");
 });
 
@@ -76,9 +82,9 @@ test("CRM stand in, Pay now with add ons: refused without the agreement; the pla
   const offer = offerFrom(await api.addonCatalog(FAKE_BUSINESS));
   assert.ok(offer.length >= 3);
   const addons = [{ code: "minutes_100", key: "pay-now-key-a1" }, { code: "texts_500", key: "pay-now-key-b1" }];
-  const words = planConsent({ todayMinor: 24900 + 2900 + 1800, autopay: true, renewalMinor: 24900, addons: 2 });
+  const words = invoiceConsent({ planMinor: 24900, addonsMinor: 2900 + 1800, autopay: true, renewalMinor: 24900 });
   await assert.rejects(api.invoiceStart(OPEN, { addons }), (e) => e.code === "CONSENT_REQUIRED");
-  await assert.rejects(api.invoiceStart(OPEN, { addons, consentHash: await consentHash(planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900, addons: 0 })) }),
+  await assert.rejects(api.invoiceStart(OPEN, { addons, consentHash: await consentHash(planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900 })) }),
     (e) => e.code === "CONSENT_MISMATCH", "the words without the add ons");
   const hash = await consentHash(words);
   const open = await api.invoiceStart(OPEN, { addons, consentHash: hash, autopay: true });
@@ -118,7 +124,7 @@ test("CRM stand in, Pay now with add ons: refused without the agreement; the pla
 test("CRM stand in: a new instance after a reload keeps the completion marker, so the invoice can be confirmed (review)", async () => {
   globalThis.sessionStorage = memory();
   const a = createFakeBillingApi({ scenario: "", delay: 0 });
-  const open = await a.invoiceStart(OPEN, { consentHash: await consentHash(planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900, addons: 0 })) });
+  const open = await a.invoiceStart(OPEN, { consentHash: await consentHash(planConsent({ todayMinor: 24900, autopay: true, renewalMinor: 24900 })) });
   const doc = { createElement: () => ({ setAttribute() {}, classList: { remove() {} }, textContent: "" }) };
   const slot = () => ({ ownerDocument: doc, replaceChildren() {} });
   const h = await a.mountPayment({ number: slot(), expiry: slot(), cvc: slot() }, { clientSecret: open.client_secret, invoiceId: OPEN, onEvent: () => {}, onComplete: () => {} });
@@ -140,12 +146,12 @@ test("onboarding stand in: the plan and the packs in one checkout; other words r
   const id = (await api.listBusinesses()).businesses[0].business_id;
   api.approveIdentity();
   const offer = offerFrom(await api.addonCatalog(id));
-  const t1 = planConsent({ todayMinor: 89800 + addonsTotal(offer, ["minutes_100", "texts_500"]), autopay: true, renewalMinor: 24900, addons: 2 });
-  await assert.rejects(api.startCheckout(id, "a-good-key-1", { packs: ["minutes_100", "texts_500"], consentHash: await consentHash(planConsent({ todayMinor: 89800, autopay: true, renewalMinor: 24900, addons: 0 })) }),
+  const t1 = planConsent({ todayMinor: 89800 + addonsTotal(offer, ["minutes_100", "texts_500"]), autopay: true, renewalMinor: 24900, addonsMinor: addonsTotal(offer, ["minutes_100", "texts_500"]) });
+  await assert.rejects(api.startCheckout(id, "a-good-key-1", { packs: ["minutes_100", "texts_500"], consentHash: await consentHash(planConsent({ todayMinor: 89800, autopay: true, renewalMinor: 24900 })) }),
     (e) => e.code === "CONSENT_MISMATCH");
   const r = await api.startCheckout(id, "a-good-key-1", { packs: ["texts_500", "minutes_100"], consentHash: await consentHash(t1) });
   assert.deepEqual([r.status, r.amount_minor, r.addons], ["open", 94500, ["minutes_100", "texts_500"]], "one payment of $945 for the plan, the setup fee and both packs");
-  const t2 = planConsent({ todayMinor: 89800 + 2900, autopay: false, renewalMinor: 24900, addons: 1 });
+  const t2 = planConsent({ todayMinor: 89800 + 2900, autopay: false, renewalMinor: 24900, addonsMinor: 2900 });
   const r2 = await api.startCheckout(id, "a-good-key-1", { packs: ["minutes_100"], autopay: false, consentHash: await consentHash(t2) });
   assert.equal(r2.amount_minor, 92700, "the new selection's own amount (the old session expired first)");
 });
@@ -154,7 +160,7 @@ test("onboarding stand in: a later Auto pay change wins over the checkout's off 
   const api = createFakeApi({ scenario: "pay", storage: memory(), delay: 0 });
   const id = (await api.listBusinesses()).businesses[0].business_id;
   api.approveIdentity();
-  await api.startCheckout(id, "a-good-key-1", { autopay: false, consentHash: await consentHash(planConsent({ todayMinor: 89800, autopay: false, renewalMinor: 24900, addons: 0 })) });
+  await api.startCheckout(id, "a-good-key-1", { autopay: false, consentHash: await consentHash(planConsent({ todayMinor: 89800, autopay: false, renewalMinor: 24900 })) });
   api.confirmPayment();
   assert.equal((await api.autopayStatus(id)).on, false, "the checkout's off choice once paid");
   await api.autopaySet(id, true, "autopay-key-0001");
@@ -204,23 +210,24 @@ test("card problems in the owner's words: declines by Stripe's code, the bank's 
   assert.equal(dc("generic_decline").title, "Your card was declined");
   assert.equal(dc("lost_card").title, "Your card was declined", "lost or stolen reads as a generic decline");
   assert.equal(dc("stolen_card").body, dc("generic_decline").body);
-  assert.equal(dc("insufficient_funds").title, "Your card doesn't have enough funds");
+  assert.equal(dc("insufficient_funds").title, "This card doesn't have enough funds");
   assert.equal(dc("incorrect_cvc").title, "The security code is incorrect");
-  for (const c of ["generic_decline", "insufficient_funds", "incorrect_cvc", "lost_card"]) assert.match(dc(c).body, /Nothing was charged\.$/, "a definite decline: nothing was charged");
+  for (const c of ["generic_decline", "insufficient_funds", "incorrect_cvc", "lost_card"]) assert.match(dc(c).body, /You weren't charged\.$/, "a definite decline: you weren't charged");
   const bank = declineOf({ code: "BANK_FAILED", stripe_code: "payment_intent_authentication_failure" });
   assert.deepEqual([bank.kind, bank.title], ["bank_failed", "Your bank didn't confirm the payment"]);
-  assert.match(bank.body, /^Your bank didn't confirm the payment\. Nothing was charged\./);
+  assert.equal(`${bank.title}. ${bank.body}`, "Your bank didn't confirm the payment. You weren't charged. Try again, or try another card.");
   const unk = declineOf({ code: "UNKNOWN_OUTCOME" });
   assert.equal(unk.kind, "unknown");
-  assert.ok(!/Nothing was charged/.test(unk.body), "unknown never says nothing was charged");
+  assert.ok(!/weren't charged|Nothing was charged/.test(unk.body), "unknown never says you weren't charged");
+  assert.equal(unk.body, "We couldn't confirm your payment yet. Please don't pay again; we'll update this page.");
   assert.equal(declineOf({ code: "LOCAL_CHECK", message: "Complete the card details first." }), null, "a local check is not a decline");
-  assert.equal(savedCardDecline("insufficient_funds").title, "Your card doesn't have enough funds");
+  assert.equal(savedCardDecline("insufficient_funds").title, "This card doesn't have enough funds");
   assert.equal(savedCardDecline("stolen_card").title, "Your card was declined");
   for (const t of [...Object.values(FIELD_ERRORS), unk.body, bank.body, dc("incorrect_cvc").body]) assert.ok(!DASH.test(t), t);
   const { packAnswer } = await import("../src/billing/payState.js");
   const a = packAnswer({ status: "failed", can_act: true, failure_reason: "insufficient_funds" });
   assert.equal(a.stopped, "card_declined");
-  assert.match(a.stoppedWords, /^Your card doesn't have enough funds\./);
+  assert.match(a.stoppedWords, /^This card doesn't have enough funds\./);
 });
 
 test("the stand in's card fields: wrong details inline, no preview; a decline then another card; Try another card empties the fields", async () => {
@@ -244,4 +251,18 @@ test("the stand in's card fields: wrong details inline, no preview; a decline th
   await h.demo();
   await h.submit();
   assert.equal(paid, 1, "another card pays, on the same payment");
+});
+
+test("CRM stand in, two tabs with different add ons: the second tab's Pay waits while the first may be paying (review round 2)", async () => {
+  globalThis.sessionStorage = memory();
+  const api = createFakeBillingApi({ scenario: "", delay: 0 });
+  const one = [{ code: "minutes_100", key: "tab-one-key-001" }], two = [{ code: "texts_500", key: "tab-two-key-001" }];
+  const h1 = await consentHash(invoiceConsent({ planMinor: 24900, addonsMinor: 2900, autopay: true, renewalMinor: 24900 }));
+  const h2 = await consentHash(invoiceConsent({ planMinor: 24900, addonsMinor: 1800, autopay: true, renewalMinor: 24900 }));
+  await api.invoiceStart(OPEN, { addons: one, consentHash: h1, autopay: true, submit: true });
+  await assert.rejects(api.invoiceStart(OPEN, { addons: two, consentHash: h2, autopay: true, submit: true }), (e) => e.code === "ADDONS_IN_PROGRESS");
+  await api.invoiceStart(OPEN, { addons: two, consentHash: h2, autopay: true });   // the other tab only opening its form changes nothing
+  const st = await api.invoiceStatus(OPEN);
+  assert.deepEqual([st.addons_consent, st.addons.map((a) => a.code)], [h1, ["minutes_100"]], "the add ons listed are the paying tab's");
+  delete globalThis.sessionStorage;
 });

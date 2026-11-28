@@ -33,7 +33,7 @@ export const realBillingApi = {
   // every start carries the owner's agreement (consent: true and the sha256 of the words shown; owner, 27 Nov 2026)
   invoiceStart: (invoiceId, opts = {}) => billing("invoice_pay_start", { invoice_id: invoiceId, consent: true, consent_hash: opts.consentHash,
     ...(typeof opts.autopay === "boolean" ? { autopay: opts.autopay } : {}), ...(opts.autopayKey ? { autopay_key: opts.autopayKey } : {}),
-    addons: Array.isArray(opts.addons) ? opts.addons : [] }),
+    addons: Array.isArray(opts.addons) ? opts.addons : [], ...(opts.submit ? { submit: true } : {}) }),
   invoiceReturn: (invoiceId) => billing("invoice_pay_return", { invoice_id: invoiceId }),
   packBuy: (businessId, packCode, key, opts = {}) => billing("pack_buy", { business_id: businessId, pack_code: packCode, idempotency_key: key, consent: true,
     consent_hash: opts.consentHash, ...(opts.invoiceId ? { invoice_id: opts.invoiceId } : {}) }),

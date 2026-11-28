@@ -229,7 +229,7 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
     startCheckout: async (id, key, opts = {}) => {
       const packs = [...new Set(opts.packs ?? [])].sort();
       const sum = packs.reduce((t, c) => t + (ADDONS.find((a) => a.code === c)?.price_cents ?? NaN), 0);
-      const words = consentText({ kind: "plan", todayMinor: DUE + sum, autopay: opts.autopay !== false, renewalMinor: RENEWAL, addons: packs.length > 0 });
+      const words = consentText({ kind: "plan", todayMinor: DUE + sum, autopay: opts.autopay !== false, renewalMinor: RENEWAL, addonsMinor: Number.isFinite(sum) ? sum : 0 });
       const expected = words ? await consentHash(words) : null;
       return db(() => {
       owner(id);
@@ -238,8 +238,8 @@ export function createFakeApi({ scenario = "", storage = null, delay = 120 } = {
       if (st.payment_confirmed) throw Object.assign(new Error("Your payment is already confirmed."), { code: "ALREADY_PAID", status: 400 });
       if (st.checkout_completed) return { status: "processing" };
       if (!Number.isFinite(sum)) throw dbError("UNKNOWN_PACK");
-      if (!/^[0-9a-f]{64}$/.test(String(opts.consentHash ?? ""))) throw Object.assign(new Error("Tick the box to agree before you pay. Nothing was charged."), { code: "CONSENT_REQUIRED", status: 400 });
-      if (opts.consentHash !== expected) throw Object.assign(new Error("The amounts changed. Check them, tick the box again, then pay. Nothing was charged."), { code: "CONSENT_MISMATCH", status: 409 });
+      if (!/^[0-9a-f]{64}$/.test(String(opts.consentHash ?? ""))) throw Object.assign(new Error("Please tick the box to continue."), { code: "CONSENT_REQUIRED", status: 400 });
+      if (opts.consentHash !== expected) throw Object.assign(new Error("The total changed. Please tick the box again."), { code: "CONSENT_MISMATCH", status: 409 });
       const selection = packs.join(",");
       if (st.checkout_started && (st.checkout_selection ?? "") !== selection) st.sessions_expired = (st.sessions_expired ?? 0) + 1;   // the old session expired first
       if (!st.checkout_started || (st.checkout_selection ?? "") !== selection) st.sessions_made = (st.sessions_made ?? 0) + 1;

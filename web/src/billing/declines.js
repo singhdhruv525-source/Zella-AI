@@ -9,17 +9,18 @@
 
 // Stripe's decline codes, in our words. lost_card and stolen_card are shown as a generic decline on purpose (the
 // cardholder shouldn't learn that from us; Stripe's own guidance).
-const GENERIC = { title: "Your card was declined", body: "Your bank declined this payment. Try another card, or contact your bank. Nothing was charged." };
+// One shape for every problem (owner, 27 Nov 2026): what happened, then the next step; each specific to its case.
+const GENERIC = { title: "Your card was declined", body: "Try another card. You weren't charged." };
 const BY_CODE = {
-  insufficient_funds: { title: "Your card doesn't have enough funds", body: "Your bank declined this payment for insufficient funds. Try another card. Nothing was charged." },
-  incorrect_cvc: { title: "The security code is incorrect", body: "Check the 3 or 4 digit code on your card and try again, or try another card. Nothing was charged." },
-  invalid_cvc: { title: "The security code is incorrect", body: "Check the 3 or 4 digit code on your card and try again, or try another card. Nothing was charged." },
-  expired_card: { title: "Your card has expired", body: "Try another card. Nothing was charged." },
-  incorrect_number: { title: "The card number is incorrect", body: "Check the number and try again, or try another card. Nothing was charged." },
-  processing_error: { title: "The card couldn't be processed", body: "Try again in a moment, or try another card. Nothing was charged." },
+  insufficient_funds: { title: "This card doesn't have enough funds", body: "Try another card. You weren't charged." },
+  incorrect_cvc: { title: "The security code is incorrect", body: "Check the code on the back of your card, or try another card. You weren't charged." },
+  invalid_cvc: { title: "The security code is incorrect", body: "Check the code on the back of your card, or try another card. You weren't charged." },
+  expired_card: { title: "This card has expired", body: "Try another card. You weren't charged." },
+  incorrect_number: { title: "The card number is incorrect", body: "Check the number, or try another card. You weren't charged." },
+  processing_error: { title: "This card couldn't be processed", body: "Try again in a moment, or try another card. You weren't charged." },
 };
-const BANK = { title: "Your bank didn't confirm the payment", body: "Your bank didn't confirm the payment. Nothing was charged. Try again, or try another card." };
-const UNKNOWN = { title: "We couldn't tell if the payment went through", body: "The connection dropped before Stripe answered. Don't pay again yet: we're checking with Stripe now, and this page shows the result." };
+const BANK = { title: "Your bank didn't confirm the payment", body: "You weren't charged. Try again, or try another card." };
+const UNKNOWN = { title: "Checking your payment…", body: "We couldn't confirm your payment yet. Please don't pay again; we'll update this page." };
 
 // err: what stripeEmbedded.js (or the stand in) threw: { code: "DECLINED" | "BANK_FAILED" | "UNKNOWN_OUTCOME", decline_code?, stripe_code? }
 export function declineOf(err) {

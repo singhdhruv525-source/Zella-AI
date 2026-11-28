@@ -124,32 +124,32 @@ export function failureKind(err) {
 
 // What each state says (no dashes or hyphens, US spelling, "Zella Voice" in full).
 export const WORDS = {
-  off: { label: "Payment opens here soon", body: "You'll pay for your plan right here. We're finishing this part now. Nothing is charged until then." },
-  locked: { label: "Payment opens after verification", body: "You'll be able to pay once your identity is verified." },
-  idle: { label: "Ready to pay", body: "Your card goes into Stripe's secure form on this page. Your card details never reach Zella Voice." },
-  submitting: { label: "Opening the secure form", body: "One moment while we get Stripe's secure form ready." },
-  loading: { label: "Opening the secure form", body: "One moment while we get Stripe's secure form ready." },
-  ready: { label: "Enter your card", body: "Type your card into Stripe's secure form below. If your bank asks you to confirm, Stripe shows that step here." },
-  confirming: { label: "Confirming your payment", body: "Stripe has your payment. We're waiting for Stripe to confirm it, which usually takes a few seconds." },
+  off: { label: "Payment opens here soon", body: "You'll pay for your plan here. Nothing is charged until then." },
+  locked: { label: "Payment opens after verification", body: "You can pay once your identity is verified." },
+  idle: { label: "Ready to pay", body: "Your card details go straight to Stripe." },
+  submitting: { label: "Opening the card form", body: "One moment." },
+  loading: { label: "Opening the card form", body: "One moment." },
+  ready: { label: "Enter your card", body: "Your card details go straight to Stripe." },
+  confirming: { label: "Confirming your payment", body: "This usually takes a few seconds." },
   // billing emails are held while email_live is off, so this promises only what always happens: the CRM notice
   // (zella_notify_owners "payment_received") and this page looking again by itself
   // a bank that takes its time (an authorization held, a payment processing) waits here, honestly: neither paid nor failed
-  pending: { label: "Still confirming", body: "This is taking longer than usual, sometimes because your bank is still approving the payment. You don't need to pay again. We'll let you know in your CRM as soon as it's confirmed, and this page updates by itself." },
-  confirmed: { label: "Payment received", body: "Thank you. Your payment is confirmed." },
+  pending: { label: "Still confirming", body: "Your bank may still be approving it. Please don't pay again; we'll update this page." },
+  confirmed: { label: "Payment confirmed", body: "Thank you. Your receipt is in Billing." },
 };
 export const ERROR_WORDS = {
-  expired: { label: "This payment form expired", body: "Nothing was charged. Start again to get a new secure form.", action: "Start again" },
-  network: { label: "You're offline", body: "We couldn't reach Zella Voice. Check your connection, then try again. Nothing was charged.", action: "Try again" },
-  stripe_load: { label: "The secure form didn't load", body: "Stripe's form couldn't load on this page. Check your connection, or allow js.stripe.com if a blocker is on, then try again. Nothing was charged.", action: "Try again" },
-  server: { label: "We couldn't open the secure form", body: "Something went wrong on our side. Nothing was charged. Please try again in a minute.", action: "Try again" },
-  misconfigured: { label: "Payments can't open right now", body: "Nothing has been charged, and Zella Voice has been told. Please try again later.", action: "Try again" },
-  needs_action: { label: "Your bank wants to confirm this payment", body: "Nothing was charged yet. Confirm it with your bank in Stripe's secure form. It's the same payment, never a second charge.", action: "Confirm with your bank" },
-  card_declined: { label: "Your saved card was declined", body: "Nothing was charged. Pay with another card in Stripe's secure form, or update your saved card.", action: "Pay with another card" },
-  no_card: { label: "There's no card to charge", body: "Add or update your card on Stripe's secure page, then try again. Nothing was charged.", action: "Update card" },
-  not_payable: { label: "This can't be paid online", body: "Nothing was charged. If you think this is wrong, contact Zella Voice support.", action: null },
-  not_found: { label: "We couldn't find this", body: "Check you're signed in as the business owner. Nothing was charged.", action: null },
-  refused: { label: "This can't go ahead yet", body: "Nothing was charged.", action: "Try again" },
-  not_taken: { label: "The payment didn't go through", body: "Stripe didn't take this payment, so nothing was charged. You can pay again now.", action: "Pay again" },
+  expired: { label: "This card form expired", body: "You weren't charged. Start again to get a new one.", action: "Start again" },
+  network: { label: "You're offline", body: "We couldn't reach Zella Voice. Check your connection and try again.", action: "Try again" },
+  stripe_load: { label: "The card form didn't load", body: "Stripe's card form couldn't open here. Check your connection, or allow js.stripe.com in your blocker.", action: "Try again" },
+  server: { label: "We couldn't open the card form", body: "Something went wrong on our side. Please try again in a minute.", action: "Try again" },
+  misconfigured: { label: "Payments can't open right now", body: "Zella Voice has been told. Please try again later.", action: "Try again" },
+  needs_action: { label: "Your bank wants to confirm this payment", body: "You weren't charged yet. Confirm it with your bank to finish.", action: "Confirm with your bank" },
+  card_declined: { label: "Your saved card was declined", body: "You weren't charged. Pay with another card, or update your saved card.", action: "Pay with another card" },
+  no_card: { label: "There's no card to charge", body: "You weren't charged. Add a card on Stripe's page, then try again.", action: "Update card" },
+  not_payable: { label: "This can't be paid online", body: "You weren't charged. Contact Zella Voice support if this looks wrong.", action: null },
+  not_found: { label: "We couldn't find this", body: "Check you're signed in as the business owner.", action: null },
+  refused: { label: "This can't go ahead yet", body: "You weren't charged.", action: "Try again" },
+  not_taken: { label: "The payment didn't go through", body: "You weren't charged. You can pay again now.", action: "Pay again" },
 };
 
 // Money as the server sent it: integer minor units and the plan's currency.

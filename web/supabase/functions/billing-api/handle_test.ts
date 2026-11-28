@@ -24,7 +24,7 @@ type Db = { checkout: Record<string, unknown> | null; payment: Record<string, un
   limited?: boolean; noMigration?: boolean; reopened?: Record<string, unknown>[]; checkoutAutopay?: unknown[]; hosted?: string[]; expired?: string[];
   startSeq?: Record<string, unknown>[]; packBuys?: Record<string, unknown>[]; cardChecks?: Record<string, unknown>[] };
 // what the database's start answers by default: the amount it computed and the figures of the agreement's words
-const START_FIGURES = { amount_minor: 29900, renewal_minor: 29900, autopay: true, addons: [] as string[], mode: "pay", currency: "usd" };
+const START_FIGURES = { amount_minor: 29900, renewal_minor: 29900, autopay: true, addons: [] as string[], addons_minor: 0, mode: "pay", currency: "usd" };
 const CATALOG = [{ code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900, currency: "usd" }, { code: "texts_500", resource: "texts", quantity: 500, price_cents: 1800, currency: "usd" }];
 const PURCHASE_BUY = "88888888-8888-4888-8888-888888888888";
 // Auto pay's database stand in: the owner's choice (versioned), our record of Stripe's value (changed ONLY by an applied
@@ -108,9 +108,9 @@ async function withConsent(body: Record<string, unknown>) {
   if (!NEEDS_CONSENT.has(String(body.action)) || "consent" in body) return body;
   let f: Parameters<typeof consentText>[0] | null = null;
   if (body.action === "checkout_start") { const s = db.start instanceof Error ? START_FIGURES : { ...START_FIGURES, ...(db.start ?? {}) } as typeof START_FIGURES;
-    f = { kind: "plan", todayMinor: s.amount_minor, autopay: body.autopay !== false, renewalMinor: s.renewal_minor, addons: (s.addons ?? []).length > 0 }; }
+    f = { kind: "plan", todayMinor: s.amount_minor, autopay: body.autopay !== false, renewalMinor: s.renewal_minor, addonsMinor: s.addons_minor ?? 0 }; }
   if (body.action === "invoice_pay_start" && db.invoiceStart && !(db.invoiceStart instanceof Error)) { const i = db.invoiceStart as Record<string, any>;
-    f = { kind: "plan", todayMinor: i.total_minor, autopay: i.autopay !== false, renewalMinor: i.renewal_minor, addons: (i.addons ?? []).length > 0 }; }
+    f = { kind: "invoice", todayMinor: i.amount_due_minor, autopay: i.autopay !== false, renewalMinor: i.renewal_minor, addonsMinor: i.addons_minor ?? 0 }; }
   if (body.action === "pack_act_start" && db.packAct && !(db.packAct instanceof Error)) f = { kind: "pack", todayMinor: (db.packAct as Record<string, any>).price_cents };
   if (body.action === "pack_buy") f = { kind: "pack", todayMinor: CATALOG.find((c) => c.code === body.pack_code)?.price_cents };
   return { ...body, consent: true, consent_hash: f ? await hashOf(f) : "0".repeat(64) };
@@ -227,7 +227,7 @@ async function pastDue() {
 }
 const invRow = (inv: Record<string, any>, extra: Record<string, unknown> = {}) => ({ invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, number: inv.number,
   amount_due_minor: inv.amount_due, currency: "usd", hosted_invoice_url: inv.hosted_invoice_url, livemode: false,
-  total_minor: inv.amount_due, renewal_minor: 29900, autopay: true, addons: [], ...extra });
+  total_minor: inv.amount_due, renewal_minor: 29900, autopay: true, addons: [], addons_minor: 0, ...extra });
 
 Deno.test("Pay now: the open invoice's own PaymentIntent for Stripe's form; a double start gives the same intent and creates nothing", async () => {
   const { customer, sub, inv } = await pastDue();
@@ -513,7 +513,7 @@ Deno.test("agreement: every payment start is refused without consent and a sha25
 
 Deno.test("agreement: words that don't match the server's figures are refused, and nothing reaches Stripe or the browser", async () => {
   const sess = await newSession();
-  db = { checkout: openRow(sess.id), payment: {}, start: { checkout_id: CHECKOUT, status: "preparing", ...START_FIGURES, amount_minor: 34600, addons: ["minutes_100", "texts_500"] } };
+  db = { checkout: openRow(sess.id), payment: {}, start: { checkout_id: CHECKOUT, status: "preparing", ...START_FIGURES, amount_minor: 34600, addons: ["minutes_100", "texts_500"], addons_minor: 4700 } };
   calls.length = 0;
   const wrong = await hashOf({ kind: "plan", todayMinor: 29900, autopay: true, renewalMinor: 29900 });   // the page without the add ons
   const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "consent-key-003", packs: ["minutes_100", "texts_500"], consent: true, consent_hash: wrong });
@@ -522,7 +522,7 @@ Deno.test("agreement: words that don't match the server's figures are refused, a
   assertEquals(calls.find((c) => c.fn === "zella_owner_billing_checkout_start")?.args.p_packs, ["minutes_100", "texts_500"], "pack codes only reach the database");
   // Pay now: the database answered the invoice plus two add ons; the page's words without them are refused, no secret
   const { customer, sub, inv } = await pastDue();
-  db = { checkout: null, payment: {}, invoiceStart: invRow(inv, { total_minor: inv.amount_due + 4700, addons: [{ code: "minutes_100" }, { code: "texts_500" }] }), refs: { customer, subscription: sub } };
+  db = { checkout: null, payment: {}, invoiceStart: invRow(inv, { total_minor: inv.amount_due + 4700, addons: [{ code: "minutes_100" }, { code: "texts_500" }], addons_minor: 4700 }), refs: { customer, subscription: sub } };
   const p = await act({ action: "invoice_pay_start", invoice_id: INVOICE, addons: [{ code: "minutes_100", key: "addon-key-001" }, { code: "texts_500", key: "addon-key-002" }],
     consent: true, consent_hash: await hashOf({ kind: "plan", todayMinor: inv.amount_due, autopay: true, renewalMinor: 29900 }) });
   assertEquals([p.status, p.body.code, "client_secret" in p.body], [409, "CONSENT_MISMATCH", false]);
@@ -606,6 +606,27 @@ Deno.test("review: while our record is still open, Pay now's return says whether
   const start = await act({ action: "invoice_pay_start", invoice_id: INVOICE });
   fake.confirmIntent(String(start.body.client_secret).split("_secret_")[0]);
   assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.invoice.processing, true, "Stripe has it: confirming, never Pay again");
+});
+
+Deno.test("review round 2: Pay in a second tab with other add ons waits while the first tab's payment may be in flight", async () => {
+  const { customer, sub, inv } = await pastDue();
+  const si = await stripe.get(`/v1/invoices/${inv.id}`, { expand: ["payments"] }) as Record<string, any>;
+  const pi = fake.objects.get(String(si.payments.data[0].payment.payment_intent))!;
+  db = { checkout: null, payment: {}, invoiceStart: new Error("ADDONS_IN_PROGRESS"), refs: { customer, subscription: sub },
+    invoice: { invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, status: "open", payable: true } };
+  // the first tab's confirm may be on its way: the intent shows no failed attempt
+  pi.status = "requires_confirmation"; pi.last_payment_error = null;
+  calls.length = 0;
+  const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE, submit: true, consent: true, consent_hash: "c".repeat(64) });
+  assertEquals([r.status, r.body.code], [409, "ADDONS_IN_PROGRESS"]);
+  assert(!calls.some((c) => c.fn === "zella_billing_invoice_attempts_clear"), "nothing is cleared while it may be paying");
+  assertEquals(calls.find((c) => c.fn === "zella_owner_invoice_pay_start")?.args.p_submit, true, "the Pay press is marked as such");
+  // the first attempt failed at Stripe (declined on the invoice's intent): cleared, then asked again
+  pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" };
+  calls.length = 0;
+  await act({ action: "invoice_pay_start", invoice_id: INVOICE, submit: true, consent: true, consent_hash: "c".repeat(64) });
+  assertEquals(calls.filter((c) => c.fn === "zella_billing_invoice_attempts_clear").map((c) => c.args.p_invoice_id), [INVOICE]);
+  assertEquals(calls.filter((c) => c.fn === "zella_owner_invoice_pay_start").length, 2, "asked again once Stripe says the earlier attempt failed");
 });
 
 Deno.test("review: the fake Stripe models a 3D Secure challenge, and refuses a redirect method without return_url", async () => {

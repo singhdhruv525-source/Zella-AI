@@ -107,7 +107,7 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const baseDue = Number.isFinite(Number(pay.due_now_minor)) ? Number(pay.due_now_minor) : null;
   const totalDue = baseDue === null ? null : baseDue + addonsTotal(offer, picked);
   // the required "I agree" words, from the server's figures (the plan's due today and renewal price, the packs' prices)
-  const consent = totalDue === null ? null : planConsent({ todayMinor: totalDue, autopay: autopayOn, renewalMinor: p.price_cents, addons: picked.length });
+  const consent = totalDue === null ? null : planConsent({ todayMinor: totalDue, autopay: autopayOn, renewalMinor: p.price_cents, addonsMinor: addonsTotal(offer, picked) });
   // back from Stripe (a payment method that redirects): the session id never stays in the address bar
   useEffect(() => {
     if (!returned) return;
@@ -135,32 +135,30 @@ export function PaymentScreen({ api, state, onState, onComplete }) {
   const confirm = () => api.checkoutReturn(state.business_id);
   const onPayment = (payment) => { if (payment && typeof payment === "object") onState((s) => ({ ...s, payment })); };
   const period = billingPeriod(p.billing_interval);
-  const lines = [["Plan price", `${money(p.price_cents, p.currency)} ${period}`, "workspace_premium"]];
-  if (Number(p.setup_fee_cents) > 0) lines.push(["One time setup fee", money(p.setup_fee_cents, p.currency), "build"]);
+  const lines = [["Plan", `${money(p.price_cents, p.currency)} ${period}`, "workspace_premium"]];
+  if (Number(p.setup_fee_cents) > 0) lines.push(["Setup fee", money(p.setup_fee_cents, p.currency), "build"]);
   if (p.trial_enabled === true) lines.push(["Free trial", trial ? "Starts today" : "Not included", "redeem"]);
   if (p.minutes != null) lines.push(["Call minutes", `${allowance(p.minutes, "minute")} ${period}`, "call"]);
   const summary = {
-    kicker: "Order summary",
     title: p.tier ? `Your ${tierName(p.tier)} plan` : "Your plan",
     lines,
     totalLabel: "Due today",
     amountMinor: totalDue,
     currency: pay.checkout?.currency ?? p.currency ?? "USD",
-    // the trial's words follow the server's amount due today, never the trial alone (review)
-    intro: !trial ? undefined : totalDue === 0 ? "Add a card to start your free trial. Nothing is charged until the trial ends."
-      : `You'll pay ${formatMoney(totalDue, p.currency ?? "USD")} today. Your plan's own charge starts when the trial ends.`,
-    footnote: "Stripe processes this payment for Zella Voice. The amount comes from the plan you accepted.",
+    // the trial's note follows the amount due today, never the trial alone (review)
+    footnote: !trial ? undefined : totalDue === 0 ? "Nothing is charged until your trial ends."
+      : `${formatMoney(totalDue, p.currency ?? "USD")} is charged today. Your plan starts charging when the trial ends.`,
   };
   return (
     <>
       <GlassCheckout summary={summary} payment={state.payment} start={start} confirm={confirm} onPayment={onPayment}
-        kind="checkout" saveNote="Stripe saves this card for your plan's renewals." mount={api.mountCheckout} returned={returned === "return"}
-        payLabel={trial ? "Add a card and start my trial" : (a) => `Continue to pay ${a}`}
+        kind="checkout" saveNote="This card is saved for your renewals." mount={api.mountCheckout} returned={returned === "return"}
+        payLabel={trial ? "Add a card and start my trial" : (a) => `Pay ${a}`}
         addons={trial ? null : { offer, selected, onChange: (code, on) => setSelected((cur) => toggle(cur, code, on)) }}
         consentText={consent} restartKey={selectionKey(picked)}
         autopay={{ on: autopayOn, onChange: setAutopayOn, ...autopayWords(emailLive) }} hostedFallback={hostedFallback} beforeSubmit={() => start()} />
-      {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. We'll ask for payment here once it's switched on.</p>}
-      {st.key !== "confirmed" && state.payment?.required !== false && <p className="zob-muted">Your receptionist starts answering calls only after payment, so you're never charged for something that isn't working yet. You can choose Finish later and come back to this page any time.</p>}
+      {st.key === "waiting" && state.payment?.required === false && <p className="zob-muted">You can continue now. You'll pay here once payments open.</p>}
+      {st.key !== "confirmed" && state.payment?.required !== false && <><p className="zob-muted">Your receptionist starts answering calls after you pay.</p><p className="zob-muted">You can choose Finish later and come back any time.</p></>}
       <ErrorText>{action.error}</ErrorText>
       {(st.key === "confirmed" || paymentPassed(state.payment)) && (
         <Actions><button type="button" className="ba-btn primary" disabled={action.busy} onClick={() => action.run(() => onComplete("payment"))}>{action.busy ? "One moment…" : "Continue"}</button></Actions>
