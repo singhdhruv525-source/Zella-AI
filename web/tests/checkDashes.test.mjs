@@ -89,6 +89,21 @@ test("JSX text on a line of its own is found", () => {
   assert.match(two.out, /Sample\.jsx:4/);
 });
 
+test("a labelled sentence on a line of its own is text, and an object property is still code", () => {
+  const label = check("export const L = () => (\n  <p>\n    Note: Enter a 6-digit code.\n  </p>\n);\n");
+  assert.equal(label.code, 1);
+  assert.match(label.out, /Sample\.jsx:3 {2}hyphen in text: Note: Enter a 6-digit code\./);
+  const props = check([
+    "export const o = {",
+    "  className: \"pay-card\",",
+    "  kind: \"one-off\",",
+    "  size: compact,",
+    "  view: x ? \"side-by-side\" : y,",
+    "};", "",
+  ].join("\n"));
+  assert.equal(props.code, 0, props.out);
+});
+
 test("a > on its own line, after props spread over lines, opens the text", () => {
   const r = check([
     "export const A = ({ on }) => (",
