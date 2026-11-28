@@ -70,13 +70,13 @@ export function HealthPanel() {
       {error && <div className="owner-form-error op-gap-top">{error}</div>}
       <ul className="op-list">
         {loading && !data && <li><span className="op-muted">Checking…</span></li>}
-        {data && <li><div><strong>Open alerts</strong><span>Urgent {count("urgent")} · Warning {count("warning")} · Info {count("info")}</span></div>
+        {data && <li><div><strong>Open alerts</strong><span>Urgent {count("urgent")}, Warning {count("warning")}, Info {count("info")}</span></div>
           <Pill tone={!counted ? "neutral" : alerts.urgent ? "danger" : alerts.warning ? "warning" : "success"}>{!counted ? "Unknown" : alerts.urgent || alerts.warning ? "Needs a look" : "Clear"}</Pill></li>}
         {data && <li><div><strong>Failed events, last 24 hours</strong><span>Automation events that failed for good</span></div><Pill tone={data.failed_events_24h ? "danger" : "success"}>{data.failed_events_24h || "No failures"}</Pill></li>}
         {data && <li><div><strong>Businesses with failed texts, last 24 hours</strong><span>Outbound texts that couldn't be delivered</span></div><Pill tone={data.businesses_with_failed_messages_24h ? "warning" : "success"}>{data.businesses_with_failed_messages_24h || "No failures"}</Pill></li>}
         {(data?.providers ?? []).map((p) => (
           <li key={p.provider}>
-            <div><strong>{p.provider}</strong><span>{p.detail || <EmptyValue label="No detail recorded" />} · Checked {formatDateTime(p.checked_at)}{p.failures_in_a_row ? ` · ${p.failures_in_a_row} failures in a row` : ""}</span></div>
+            <div><strong>{p.provider}</strong><span>{p.detail || <EmptyValue label="No detail recorded" />}, Checked {formatDateTime(p.checked_at)}{p.failures_in_a_row ? `, ${p.failures_in_a_row} failures in a row` : ""}</span></div>
             <Pill tone={p.ok ? "success" : "danger"}>{p.ok ? "OK" : "Failing"}</Pill>
           </li>
         ))}
@@ -116,7 +116,7 @@ export function FailedEventsPanel({ onOpenBusiness }) {
                 {e.business_name
                   ? <button type="button" className="op-link" onClick={() => onOpenBusiness(e.business_id)}>{e.business_name}</button>
                   : "Unknown business"}
-                {" · "}{formatDateTime(e.received_at)} · {e.attempts} attempts
+                {", "}{formatDateTime(e.received_at)}, {e.attempts} attempts
               </span>
               {(e.error_category || e.error_message) && <span className="pm-error">{[e.error_category, e.error_message].filter(Boolean).join(": ")}</span>}
             </div>

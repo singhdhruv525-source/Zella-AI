@@ -40,7 +40,7 @@ const MESSAGES = {
   }),
   ended: (name) => ({
     title: "This plan has already ended",
-    body: `${name}'s membership has ended. To start again, reply to the email or contact the Zella Voice team.`,
+    body: `${name}'s plan has ended. To start again, reply to the email or contact the Zella Voice team.`,
   }),
   outdated: () => ({
     title: "This link is out of date",
@@ -95,8 +95,9 @@ export default function ContinuePlan() {
 
         {state.status === "error" && (
           <>
-            <h1>Something went wrong</h1>
+            <h1>We couldn't open your plan</h1>
             <p>{state.message}</p>
+            <p className="op-muted">Try again, or contact the Zella Voice team.</p>
           </>
         )}
 

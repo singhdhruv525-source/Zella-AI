@@ -6,7 +6,7 @@ import { Empty, Notice, friendly, orThrow, useLoad } from "./BusinessShared";
 import { PhoneField } from "./formFields";
 import { formatDay, formatTime } from "./businessTime";
 
-const SETTINGS_DIDNT_LOAD = "Your receptionist's settings didn't load. Try again.";
+const SETTINGS_DIDNT_LOAD = "Your AI receptionist's settings didn't load. Try again.";
 
 // Edit the AI receptionist through the versioned flow the database already has
 // (sql/zella_workflows.sql): save a draft, check it, publish it, or bring back an
@@ -24,7 +24,7 @@ const AFTER_HOURS = [
 const SYNC = { none: ["Not used yet", ""], pending: ["Waiting for the next call", "warning"], live: ["Live on calls", "success"], failed: ["Calls can't use it", "danger"] };
 const STATUS = { draft: "Draft", valid: "Checked", invalid: "Needs fixes", published: "Published", superseded: "Earlier version" };
 const SAY = {
-  NOT_ALLOWED: "Only an owner, admin or manager can change the receptionist.",
+  NOT_ALLOWED: "Only an owner, admin or manager can change the AI receptionist.",
   NOT_VALID: "Fix the problems listed before publishing.",
   ALREADY_PUBLISHED: "This version is already published.",
   OLD_VERSION_NOT_VALID_ANY_MORE: "That earlier version no longer passes the checks, so it can't be brought back.",
@@ -99,7 +99,7 @@ function Editor({ agent, base, onSaved }) {
   }
 
   async function publish() {
-    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once the assistant is updated, which Zella Voice support does for now.")) return;
+    if (!window.confirm("Publish these changes? Booking, handover and knowledge rules apply from the next call. Changes to what it says (instructions, greeting, owner's rules) reach the phone line once your AI receptionist is updated, which Zella Voice support does for now.")) return;
     setBusy(true);
     setProblem("");
     const { data, error } = await supabase.rpc("zella_publish_agent_config", { p_version_id: result.versionId });
@@ -111,7 +111,7 @@ function Editor({ agent, base, onSaved }) {
 
   return (
     <form className="ba-panel" onSubmit={saveAndCheck}>
-      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>What your receptionist says and does</h2><p>Changes are saved as a new version and checked before they can go live.</p></div></div></div>
+      <div className="ba-panel-head"><div className="ba-panel-title"><div><h2>What your AI receptionist says and does</h2><p>Changes are saved as a new version and checked before they can go live.</p></div></div></div>
       <div className="ba-panel-body">
         <div className="ba-form-grid">
           <Field label="Instructions" hint="How to greet callers, what to offer, what never to say. At least 20 characters. Never paste passwords or keys here." full>
@@ -139,7 +139,7 @@ function Editor({ agent, base, onSaved }) {
               ))}
             </fieldset>
           )}
-          <Field label="Things it must never say or do" hint="One per line. The receptionist follows these as instructions; Zella Voice can't check them on its own, so keep anything that must be enforced in the booking rules below." full>
+          <Field label="Things it must never say or do" hint="One per line. The AI receptionist follows these as instructions; Zella Voice can't check them on its own, so keep anything that must be enforced in the booking rules below." full>
             <textarea rows={4} value={form.restrictions} onChange={set("restrictions")} maxLength={15000} placeholder={"Never give medical advice\nNever promise a same day appointment"} />
           </Field>
           <fieldset className="ba-fieldset full">
@@ -157,7 +157,7 @@ function Editor({ agent, base, onSaved }) {
               </Field>
             </div>
           </fieldset>
-          <Field label="Booking notes (information for callers)" hint="What the receptionist may tell callers about booking. Notes never change what can be booked: use the rules above for that." full>
+          <Field label="Booking notes (information for callers)" hint="What the AI receptionist may tell callers about booking. Notes never change what can be booked: use the rules above for that." full>
             <textarea rows={3} value={form.booking_notes} onChange={set("booking_notes")} maxLength={2000} placeholder="New clients: please arrive 10 minutes early." />
           </Field>
         </div>
@@ -203,8 +203,8 @@ function Versions({ workspace, versions, onRestored }) {
               return (
                 <li key={v.id} className="ba-list-row">
                   <div>
-                    <strong>Version {v.version} · {STATUS[v.status] ?? v.status}</strong>
-                    <small>{formatDay(v.created_at, workspace.timezone)} · {formatTime(v.created_at, workspace.timezone)}{v.sync_error ? ` · ${v.sync_error}` : ""}</small>
+                    <strong>Version {v.version}, {STATUS[v.status] ?? v.status}</strong>
+                    <small>{formatDay(v.created_at, workspace.timezone)}, {formatTime(v.created_at, workspace.timezone)}{v.sync_error ? `, ${v.sync_error}` : ""}</small>
                   </div>
                   <div className="ba-form-actions">
                     {v.status === "published" && <Pill tone={syncTone}>{syncText}</Pill>}
@@ -238,7 +238,7 @@ export function ReceptionistEditor({ workspace, agent, onNotice, stacked }) {
   }, [agent?.id, canManage]);
 
   if (!agent) return null;
-  if (!canManage) return <p className="ba-muted pad-top">An owner, admin or manager can change what the receptionist says.</p>;
+  if (!canManage) return <p className="ba-muted pad-top">An owner, admin or manager can change what the AI receptionist says.</p>;
   return (
     <>
       <Notice error={error} onRetry={reload} plain={error === SETTINGS_DIDNT_LOAD} />
@@ -246,10 +246,10 @@ export function ReceptionistEditor({ workspace, agent, onNotice, stacked }) {
       {data && (
         <div className={stacked ? "ba-stack-1" : "ba-grid-2"} style={{ marginTop: 16 }}>
           <Editor key={data.versions.find((v) => v.status === "published")?.id ?? "none"} agent={agent} base={data.base} onSaved={(published, version) => {
-            if (published) onNotice?.(`Version ${version} published. Rules apply from the next call; wording changes wait for the assistant update.`);
+            if (published) onNotice?.(`Version ${version} published. Rules apply from the next call; wording changes wait for the AI receptionist update.`);
             reload();
           }} />
-          <Versions workspace={workspace} versions={data.versions} onRestored={(version) => { onNotice?.(`Brought back as version ${version}. Rules apply from the next call; wording changes wait for the assistant update.`); reload(); }} />
+          <Versions workspace={workspace} versions={data.versions} onRestored={(version) => { onNotice?.(`Brought back as version ${version}. Rules apply from the next call; wording changes wait for the AI receptionist update.`); reload(); }} />
         </div>
       )}
     </>

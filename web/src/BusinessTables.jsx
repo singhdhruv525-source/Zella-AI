@@ -205,8 +205,8 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
                         <th scope="row"><button type="button" className="ba-link" onClick={() => setSelected(t.id)}>{t.name}</button></th>
                         <td>{t.section}</td><td>{t.min_party > 1 ? `${t.min_party} to ${t.seats}` : t.seats}</td>
                         <td><StateLabel state={t.state} /></td>
-                        <td>{t.current ? `${t.current.guest ?? "Guest"} · ${t.current.party}` : t.available_until ? `Free until ${formatTime(t.available_until, tz)}` : "None"}</td>
-                        <td>{t.next ? `${formatTime(t.next.at, tz)} · ${t.next.guest ?? "Guest"} · ${t.next.party}` : "None"}</td>
+                        <td>{t.current ? `${t.current.guest ?? "Guest"}, ${t.current.party}` : t.available_until ? `Free until ${formatTime(t.available_until, tz)}` : "None"}</td>
+                        <td>{t.next ? `${formatTime(t.next.at, tz)}, ${t.next.guest ?? "Guest"}, ${t.next.party}` : "None"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -243,22 +243,22 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
           </div>
 
           <section className="ba-panel tb-timeline" aria-label="Reservations">
-            <div className="ba-panel-head"><h2>Reservations</h2><p>{period ? `${clock(period.opens)} to ${clock(period.closes)}` : "All day"} · {reservations.length}</p></div>
+            <div className="ba-panel-head"><h2>Reservations</h2><p>{period ? `${clock(period.opens)} to ${clock(period.closes)}` : "All day"}, {reservations.length}</p></div>
             {!reservations.length ? <Empty title="No reservations in this period" icon="event_available" /> : (
               <ul className="tb-res">
                 {reservations.map((r) => (
                   <li key={r.id} className="tb-res-row">
                     <span className="tb-res-time">{formatTime(r.at, tz)}</span>
                     <span className="tb-res-main">
-                      <strong>{r.guest ?? "Guest"}</strong> · party of {r.party ?? "?"}{r.tables.length ? ` · ${r.tables.join(" + ")}` : ""}
-                      <small>{RES_STATUS[r.status] ?? r.status} · {SOURCES[r.source] ?? "Team"}{r.preferences ? ` · prefers ${r.preferences}` : ""}{r.requests ? ` · ${r.requests}` : ""}</small>
+                      <strong>{r.guest ?? "Guest"}</strong>, party of {r.party ?? "?"}{r.tables.length ? `, ${r.tables.join(" + ")}` : ""}
+                      <small>{RES_STATUS[r.status] ?? r.status}, {SOURCES[r.source] ?? "Team"}{r.preferences ? `, prefers ${r.preferences}` : ""}{r.requests ? `, ${r.requests}` : ""}</small>
                     </span>
                     {canEdit && data.today && ["confirmed", "arrived"].includes(r.status) && (
                       <span className="ba-form-actions">
                         {r.status === "confirmed" && <button type="button" className="ba-btn sm" disabled={working} onClick={() => attendance(r.id, "arrived", null, `${r.guest ?? "Guest"} arrived.`)}>Arrived</button>}
                         <button type="button" className="ba-btn sm" disabled={working} onClick={() => act("seat", { appointment_id: r.id }, `${r.guest ?? "Guest"} seated.`)}>Seat</button>
                         <button type="button" className="ba-btn sm" disabled={working} onClick={() => setModal({ kind: "move", reservation: r })}>Move</button>
-                        <button type="button" className="ba-btn sm danger-outline" disabled={working} onClick={() => setModal({ kind: "close", reservation: r })}>no show / cancel</button>
+                        <button type="button" className="ba-btn sm danger-outline" disabled={working} onClick={() => setModal({ kind: "close", reservation: r })}>No show or cancel</button>
                       </span>
                     )}
                   </li>
@@ -280,7 +280,7 @@ export function TablesPage({ workspace, refreshKey, onNotice, onBook }) {
         footer={<><button type="button" className="ba-btn" onClick={() => setModal(null)}>Keep blocked</button><button type="button" className="ba-btn primary" disabled={working} onClick={() => unblock(modal.table)}>Unblock</button></>}>
         <p>{modal.table.block?.reason ? `Blocked: ${modal.table.block.reason}.` : "Blocked."} It becomes available for seating and reservations again.</p></Modal>}
       {modal?.kind === "close" && <CloseModal reservation={modal.reservation} working={working} onClose={() => setModal(null)}
-        onSubmit={(action, reason) => attendance(modal.reservation.id, action, reason, action === "no_show" ? "Marked as a no show." : "Reservation cancelled.")} />}
+        onSubmit={(action, reason) => attendance(modal.reservation.id, action, reason, action === "no_show" ? "Marked as a no show." : "Reservation canceled.")} />}
       {history && <Modal title={`${history.table.name}: activity`} onClose={() => setHistory(null)} wide>
         {!history.events.length ? <Empty title="Nothing recorded yet" icon="history" /> : (
           <ul className="tb-history">{history.events.map((e, i) => (
@@ -321,13 +321,13 @@ function TableCard({ t, tz, selected, onSelect }) {
       <span className="tb-card-head"><strong>{t.name}</strong><span>{t.min_party > 1 ? `${t.min_party} to ${t.seats}` : t.seats} seats</span></span>
       <span className="tb-card-state"><Icon name={s.icon} size="sm" />{s.label}</span>
       <span className="tb-card-body">
-        {t.state === "seated" && t.current ? <>{formatTime(t.current.since, tz)} · {t.current.guest ?? "Guest"}<br />Party of {t.current.party}</>
-          : t.state === "unavailable" ? <>{t.block?.reason ?? "Blocked"}{t.block?.until ? ` · until ${formatTime(t.block.until, tz)}` : ""}</>
+        {t.state === "seated" && t.current ? <>{formatTime(t.current.since, tz)}, {t.current.guest ?? "Guest"}<br />Party of {t.current.party}</>
+          : t.state === "unavailable" ? <>{t.block?.reason ?? "Blocked"}{t.block?.until ? `, until ${formatTime(t.block.until, tz)}` : ""}</>
           : t.state === "needs_clearing" ? <>Since {formatTime(t.clearing_since, tz)}</>
-          : t.next ? <>{t.state === "available" ? `Free until ${formatTime(t.next.at, tz)}` : `${formatTime(t.next.at, tz)} · ${t.next.guest ?? "Guest"}`}<br />Next: party of {t.next.party}</>
+          : t.next ? <>{t.state === "available" ? `Free until ${formatTime(t.next.at, tz)}` : `${formatTime(t.next.at, tz)}, ${t.next.guest ?? "Guest"}`}<br />Next: party of {t.next.party}</>
           : "Free for the rest of the day"}
       </span>
-      {t.attributes?.length > 0 && <span className="tb-card-tags">{t.attributes.join(" · ")}</span>}
+      {t.attributes?.length > 0 && <span className="tb-card-tags">{t.attributes.join(", ")}</span>}
     </button>
   );
 }
@@ -337,16 +337,16 @@ function TablePanel({ t, tz, today, canEdit, working, reservations, onClose, onS
   return (
     <section className="ba-panel tb-panel" aria-label={`Table ${t.name}`}>
       <div className="ba-panel-head">
-        <div><h2>{t.name} · {t.min_party > 1 ? `${t.min_party} to ${t.seats}` : t.seats} seats</h2><p>{t.section}{t.attributes?.length ? ` · ${t.attributes.join(", ")}` : ""}</p></div>
+        <div><h2>{t.name}, {t.min_party > 1 ? `${t.min_party} to ${t.seats}` : t.seats} seats</h2><p>{t.section}{t.attributes?.length ? `, ${t.attributes.join(", ")}` : ""}</p></div>
         <button type="button" className="ba-icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
       </div>
       <div className="tb-panel-body">
         <StateLabel state={t.state} />
-        {t.current && <p><strong>{t.current.guest ?? "Guest"}</strong> · party of {t.current.party} · seated {formatTime(t.current.since, tz)}
-          {new Date(t.current.expected_end) < new Date() ? <><br /><span className="tb-warn">Past the expected end ({formatTime(t.current.expected_end, tz)}). The next booking stays assigned; move it if needed.</span></> : ` · until about ${formatTime(t.current.expected_end, tz)}`}</p>}
+        {t.current && <p><strong>{t.current.guest ?? "Guest"}</strong>, party of {t.current.party}, seated {formatTime(t.current.since, tz)}
+          {new Date(t.current.expected_end) < new Date() ? <><br /><span className="tb-warn">Past the expected end ({formatTime(t.current.expected_end, tz)}). The next booking stays assigned; move it if needed.</span></> : `, until about ${formatTime(t.current.expected_end, tz)}`}</p>}
         <h3>Coming up</h3>
         {!reservations.length ? <p className="ba-muted">No more reservations today.</p> : (
-          <ul className="tb-mini">{reservations.map((r) => <li key={r.id}>{formatTime(r.at, tz)} · {r.guest ?? "Guest"} · {r.party} · {RES_STATUS[r.status] ?? r.status}
+          <ul className="tb-mini">{reservations.map((r) => <li key={r.id}>{formatTime(r.at, tz)}, {r.guest ?? "Guest"}, {r.party}, {RES_STATUS[r.status] ?? r.status}
             {canEdit && today && <button type="button" className="ba-link" onClick={() => onMove(r)}>Move</button>}</li>)}</ul>
         )}
         {canEdit && today && (
@@ -374,8 +374,8 @@ function WaitlistPanel({ entries, canEdit, working, onAdd, onSeat, onRemove }) {
         <ul className="tb-mini">
           {entries.map((w) => (
             <li key={w.id}>
-              <span><strong>{w.guest ?? "Guest"}</strong> · {w.party ?? "?"} · waiting {minutesSince(w.joined)} min{w.preferences ? ` · ${w.preferences}` : ""}
-                <small>{w.fits_now?.length ? `Fits now: ${w.fits_now.join(" + ")}` : "No table free for them yet"}{w.contact_ok ? " · may be contacted" : " · don't contact"}</small></span>
+              <span><strong>{w.guest ?? "Guest"}</strong>, {w.party ?? "?"}, waiting {minutesSince(w.joined)} min{w.preferences ? `, ${w.preferences}` : ""}
+                <small>{w.fits_now?.length ? `Fits now: ${w.fits_now.join(" + ")}` : "No table free for them yet"}{w.contact_ok ? ", may be contacted" : ", don't contact"}</small></span>
               {canEdit && <span className="ba-form-actions">
                 <button type="button" className="ba-btn sm" disabled={working || !w.fits_now?.length} onClick={() => onSeat(w)}>Seat</button>
                 <button type="button" className="ba-btn sm danger-outline" disabled={working} onClick={() => onRemove(w)}>Remove</button></span>}
@@ -404,7 +404,7 @@ function WalkInModal({ tables, preset, working, onClose, onSubmit }) {
         <Field label="Table" hint="Leave on Best fit and Zella Voice picks the smallest free table or combination.">
           <select value={tableId} onChange={(e) => setTableId(e.target.value)}>
             <option value="">Best fit</option>
-            {tables.map((t) => <option key={t.id} value={t.id}>{t.name} · {t.seats} seats</option>)}
+            {tables.map((t) => <option key={t.id} value={t.id}>{t.name}, {t.seats} seats</option>)}
           </select>
         </Field>
         {!preset.waitlist && <Field label="Name (optional)"><input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} /></Field>}
@@ -439,13 +439,13 @@ function MoveModal({ reservation, tables, working, onClose, onSubmit }) {
   const [ids, setIds] = useState(() => tables.filter((t) => reservation.tables.includes(t.name)).map((t) => t.id));
   const toggle = (id) => setIds(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
   return (
-    <Modal title={`Tables for ${reservation.guest ?? "this party"} · party of ${reservation.party}`} onClose={onClose} busy={working}
+    <Modal title={`Tables for ${reservation.guest ?? "this party"}, party of ${reservation.party}`} onClose={onClose} busy={working}
       description="Pick one table or an allowed combination. Zella Voice refuses tables another booking already has; nobody is moved without you seeing it."
       footer={<><button type="button" className="ba-btn" onClick={onClose}>Cancel</button><button type="button" className="ba-btn primary" disabled={working || !ids.length} onClick={() => onSubmit(ids)}>Save tables</button></>}>
       <fieldset className="tb-pick"><legend className="ba-sr-only">Tables</legend>
         {tables.map((t) => (
           <label key={t.id} className={ids.includes(t.id) ? "on" : ""}><input type="checkbox" checked={ids.includes(t.id)} onChange={() => toggle(t.id)} />
-            {t.name} · {t.seats} seats · {TABLE_STATES[t.state]?.label ?? t.state}</label>
+            {t.name}, {t.seats} seats, {TABLE_STATES[t.state]?.label ?? t.state}</label>
         ))}
       </fieldset>
     </Modal>
@@ -471,7 +471,7 @@ function BlockModal({ table, tz, date, working, onClose, onSubmit }) {
 function CloseModal({ reservation, working, onClose, onSubmit }) {
   const [action, setAction] = useState("no_show"); const [reason, setReason] = useState("");
   return (
-    <Modal title={`${reservation.guest ?? "Reservation"} · ${reservation.party} people`} onClose={onClose} busy={working}
+    <Modal title={`${reservation.guest ?? "Reservation"}, ${reservation.party} people`} onClose={onClose} busy={working}
       footer={<><button type="button" className="ba-btn" onClick={onClose}>Back</button>
         <button type="button" className="ba-btn danger" disabled={working || !reason.trim()} onClick={() => onSubmit(action, reason.trim())}>{action === "no_show" ? "Mark no show" : "Cancel reservation"}</button></>}>
       <Segment label="What happened" value={action} onChange={setAction} options={[["no_show", "Didn't come"], ["cancelled", "Canceled"]]} />
@@ -530,7 +530,7 @@ export function TableSetup({ workspace, onNotice }) {
     <div className="tb-setup">
       {problem && (
         <div className="ba-banner error" role="alert"><span>{problem.text}
-          {problem.affected.length > 0 && <ul>{problem.affected.map((a) => <li key={a.appointment_id}>{new Date(a.at).toLocaleString([], { timeZone: workspace.timezone, dateStyle: "medium", timeStyle: "short" })} · party of {a.party} · {(a.tables ?? []).join(" + ")}</li>)}</ul>}</span></div>
+          {problem.affected.length > 0 && <ul>{problem.affected.map((a) => <li key={a.appointment_id}>{new Date(a.at).toLocaleString([], { timeZone: workspace.timezone, dateStyle: "medium", timeStyle: "short" })}, party of {a.party}, {(a.tables ?? []).join(" + ")}</li>)}</ul>}</span></div>
       )}
       <section className="ba-panel">
         <div className="ba-panel-head"><div><h2>Tables</h2><p>Order here is the order on the board. Attributes are comma separated (accessible, window, booth). Tables you remove are switched off, never deleted.</p></div></div>
@@ -605,11 +605,11 @@ export function TableSetup({ workspace, onNotice }) {
       </section>
 
       <section className="ba-panel">
-        <div className="ba-panel-head"><div><h2>Seating rules</h2><p>Set in AI receptionist, Appointment booking, which the AI and the CRM both follow.</p></div></div>
+        <div className="ba-panel-head"><div><h2>Seating rules</h2><p>Set in AI receptionist, Appointment booking, which your AI receptionist and the CRM both follow.</p></div></div>
         <ul className="tb-mini">
           <li>Table time: {data.duration_minutes} minutes (the usual reservation length)</li>
           <li>Reset between parties: {data.buffer_minutes} minutes (the gap between bookings)</li>
-          <li>Largest party the AI books itself: {data.max_party_ai || "none yet"}; larger parties go to the team</li>
+          <li>Largest party your AI receptionist books itself: {data.max_party_ai || "none yet"}; larger parties go to the team</li>
           <li>Opening hours and holidays: Settings, Business hours</li>
         </ul>
       </section>

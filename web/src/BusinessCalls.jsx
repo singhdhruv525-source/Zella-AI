@@ -66,7 +66,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
 
   return (
     <Modal wide title={personName(person) ?? (call.from_number ? formatPhone(call.from_number) : "Unknown caller")} onClose={onClose} busy={Boolean(busy)}
-      description={`${call.direction === "outbound" ? "Outgoing" : "Incoming"} call · ${formatDay(call.created_at, tz)} · ${formatTime(call.created_at, tz)}`}>
+      description={`${call.direction === "outbound" ? "Outgoing" : "Incoming"} call, ${formatDay(call.created_at, tz)}, ${formatTime(call.created_at, tz)}`}>
       <div className="ba-modal-body">
         {error && <p className="ba-error" role="alert">{error}</p>}
         {isOpenEscalation(call) && <div className="ba-banner alert" role="alert"><span><strong>Needs a person.</strong> {call.escalation_reason || "The AI receptionist handed this call over."}</span></div>}
@@ -125,7 +125,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
             {followUps.map((f) => (
               <li key={f.id}>
                 <span className="ba-thread-icon"><Icon name="phone_callback" size="sm" /></span>
-                <div><strong>{f.kind === "callback" ? (CB_REASON[f.reason] ?? "Callback") : "follow up call"}</strong><small>{f.done ? "Done" : `Due ${when(f.due_at, tz)}`}</small></div>
+                <div><strong>{f.kind === "callback" ? (CB_REASON[f.reason] ?? "Callback") : "Follow up call"}</strong><small>{f.done ? "Done" : `Due ${when(f.due_at, tz)}`}</small></div>
               </li>
             ))}
           </ul>
@@ -146,7 +146,7 @@ function CallDetail({ call, person, followUps, roster, workspace, onClose, onCha
   );
 }
 
-const INTENT_LABEL = { book_appointment: "Wants to book", reschedule: "Wants to reschedule", cancel: "Wants to cancel", question: "Had a question", quote_request: "Asked for a quote", complaint: "Complaint", callback_request: "Wants a call back", message: "Left a message", emergency: "Emergency", sales_lead: "New enquiry", other: "Other" };
+const INTENT_LABEL = { book_appointment: "Wants to book", reschedule: "Wants to reschedule", cancel: "Wants to cancel", question: "Had a question", quote_request: "Asked for a quote", complaint: "Complaint", callback_request: "Wants a call back", message: "Left a message", emergency: "Emergency", sales_lead: "New inquiry", other: "Other" };
 const INTENT_TONE = { emergency: "danger", complaint: "danger", sales_lead: "info", quote_request: "info" };
 
 // What the AI noticed on recent calls. Nothing changes until someone accepts.
@@ -180,7 +180,7 @@ function CallSuggestions({ workspace, refreshKey, onNotice }) {
               <div>
                 <Pill tone={INTENT_TONE[i.intent] ?? ""}>{INTENT_LABEL[i.intent] ?? "Other"}</Pill>{" "}
                 <strong>{i.summary}</strong>
-                {found.length > 0 && <small className="ba-muted" style={{ display: "block" }}>{found.join(" · ")}</small>}
+                {found.length > 0 && <small className="ba-muted" style={{ display: "block" }}>{found.join(", ")}</small>}
                 {(i.unresolved ?? []).length > 0 && <small className="ba-muted" style={{ display: "block" }}>Still open: {(i.unresolved ?? []).map((u) => u.summary ?? u.kind).join("; ")}</small>}
               </div>
               <div className="ba-actions">
@@ -195,7 +195,7 @@ function CallSuggestions({ workspace, refreshKey, onNotice }) {
   );
 }
 
-const FILTERS = [["all", "All"], ["answered", "Answered"], ["missed", "Missed"], ["ai", "Handled by AI"], ["human", "Needs a person"], ["recorded", "Recordings"]];
+const FILTERS = [["all", "All"], ["answered", "Answered"], ["missed", "Missed"], ["ai", "Handled by AI receptionist"], ["human", "Needs a person"], ["recorded", "Recordings"]];
 
 /**
  * Show server-filtered call history and fetch full details only when a call is opened.
@@ -267,7 +267,7 @@ export function CallsPage({ workspace, refreshKey, onNotice, onOpenPerson, trans
                         <td><Assignee id={c.assigned_to} nameOf={roster.nameOf} /></td>
                         <td className="ba-actions ba-calls-flags">
                           {isOpenEscalation(c) && <Pill tone="danger">Needs a person</Pill>}
-                          {openLinks > 0 && <Pill tone="info" >follow up set</Pill>}
+                          {openLinks > 0 && <Pill tone="info" >Follow up set</Pill>}
                           {recordingAllowed(c) && <Icon name="graphic_eq" size="sm" />}
                           {c.has_transcript && <Icon name="subject" size="sm" />}
                         </td>

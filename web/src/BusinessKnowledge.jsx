@@ -180,13 +180,13 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
                   <div className="ba-panel-body">
                     <strong>{g.question}</strong>
                     <p className="ba-muted">
-                      Asked {plural(g.times_asked, "time")} · last {timeAgo(g.last_asked_at)}
-                      {g.status !== "open" && ` · ${g.status === "answered" ? "answered" : "dismissed"} ${timeAgo(g.resolved_at)}`}
+                      Asked {plural(g.times_asked, "time")}, last {timeAgo(g.last_asked_at)}
+                      {g.status !== "open" && `, ${g.status === "answered" ? "answered" : "dismissed"} ${timeAgo(g.resolved_at)}`}
                     </p>
                     {g.status === "open" && g.suggested_answer && (
                       <div className="ba-draft">
                         <p className="ba-draft-label">
-                          Zella Voice's draft{g.suggestion_source ? ` · from ${g.suggestion_source}` : ""}
+                          Zella Voice's draft{g.suggestion_source ? `, from ${g.suggestion_source}` : ""}
                           {g.suggestion_confidence === "low" && <Pill tone="warning">Check the facts</Pill>}
                         </p>
                         <p className="ba-item-text">{g.suggested_answer}</p>
@@ -224,7 +224,7 @@ export function KnowledgePage({ workspace, refreshKey, onNotice }) {
                   {i.question && <p className="ba-muted">{i.question}</p>}
                   <p className="ba-item-text">{i.answer}</p>
                   {i.status === "failed" && <p className="ba-error">{i.error || "This couldn't be checked."} Edit it or try again.</p>}
-                  <p className="ba-muted">Version {i.version} · updated {timeAgo(i.updated_at)}</p>
+                  <p className="ba-muted">Version {i.version}, updated {timeAgo(i.updated_at)}</p>
                   <div className="ba-form-actions">
                     <button type="button" className="ba-btn sm" onClick={() => editItem(i)}>Edit</button>
                     {i.status === "failed" && <button type="button" className="ba-btn sm" disabled={working === `r-${i.id}`} onClick={() => retry(i)}>Try again</button>}

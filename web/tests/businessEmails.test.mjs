@@ -71,7 +71,7 @@ test("facts come from the data passed in, in the HTML and the plain text", () =>
 test("emails about a change say which way it went", () => {
   const pairs = [["K2", "mfaOn", /turned on/, /turned off/], ["H1", "autoPayOn", /switched on/, /switched off/],
     ["H6", "billingAccessGranted", /can now see/, /can no longer see/], ["E9", "accountPaused", /paused/, /restored|active again/],
-    ["G6", "disputeWon", /in our favour/, /in your favour/]];
+    ["G6", "disputeWon", /in our favor/, /in your favor/]];
   for (const [code, flag, yes, no] of pairs) {
     const a = renderEmail(code, { [flag]: true }), b = renderEmail(code, { [flag]: false });
     assert.match(a.subject + a.text, yes, `${code} true`);

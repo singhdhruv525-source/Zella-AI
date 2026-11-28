@@ -58,7 +58,7 @@ function ProfileForm({ initial, canEdit }) {
           <div className="zs-field full"><span>Default platform time zone</span><TimeZoneSelect label="Default platform time zone" value={f.timezone} onChange={form.set("timezone")} /></div>
         </div>
       </fieldset>
-      <Facts rows={[["Date format", "US, for example Oct 26, 2026"], ["Time format", "12-hour, for example 3:04 PM"], ["Default language", "English (US)"]]} />
+      <Facts rows={[["Date format", "US, for example Oct 26, 2026"], ["Time format", "12 hour, for example 3:04 PM"], ["Default language", "English (US)"]]} />
       {canEdit && <SaveBar form={form} onSave={() => form.save(async (v) => (await call("platform_profile_save", { section: "profile", values: v })).value)} />}
     </Card>
   );
@@ -106,7 +106,7 @@ function BrandingForm({ initial, canEdit }) {
         </div>
         <div className="zs-card" style={{ padding: 16, textAlign: "center" }}>
           <small className="zs-muted">Preview</small>
-          <div style={{ marginTop: 8 }}>{form.values.logo_url ? <img src={form.values.logo_url} alt="Logo preview" style={{ maxHeight: 56, maxWidth: "100%" }} /> : <strong>zella voice</strong>}</div>
+          <div style={{ marginTop: 8 }}>{form.values.logo_url ? <img src={form.values.logo_url} alt="Logo preview" style={{ maxHeight: 56, maxWidth: "100%" }} /> : <strong>Zella Voice</strong>}</div>
           {form.values.login_headline && <p className="zs-muted">{form.values.login_headline}</p>}
         </div>
       </div>
@@ -222,7 +222,7 @@ export function AllBusinesses({ openBusiness }) {
               ["Status", (b) => { const [t, tone] = businessState(b); return <Pill tone={tone}>{t}</Pill>; }],
               ["Plan", (b) => (r.subscriptionLookupFailed ? "Unavailable" : b.subscription ? `${b.subscription.plan ?? "Plan"}, ${words(b.subscription.status).toLowerCase()}` : "None")],
               ["Team", (b) => b.members],
-              ["Apps", (b) => (b.integrations.total ? `${b.integrations.total}${b.integrations.failing ? ` · ${b.integrations.failing} failing` : ""}` : "None")],
+              ["Apps", (b) => (b.integrations.total ? `${b.integrations.total}${b.integrations.failing ? `, ${b.integrations.failing} failing` : ""}` : "None")],
               ["Created", (b) => (b.created_at ? <span title={when(b.created_at)} style={{ whiteSpace: "nowrap" }}>{new Date(b.created_at).toLocaleDateString([], { dateStyle: "medium" })}</span> : "None")],
               ["", (b) => <button type="button" className="zs-btn sm" aria-expanded={expanded === b.id} onClick={() => setExpanded(expanded === b.id ? null : b.id)}>{expanded === b.id ? "Hide summary" : "Show summary"}</button>],
             ]} />
@@ -240,7 +240,7 @@ export function Pager({ page, size, total, onPage }) {
   if (pages <= 1) return <p className="zs-muted" style={{ marginTop: 8 }}>{total} shown</p>;
   return (
     <div className="zs-savebar">
-      <span className="zs-savebar-state">{total} total · page {page + 1} of {pages}</span>
+      <span className="zs-savebar-state">{total} total, page {page + 1} of {pages}</span>
       <button type="button" className="zs-btn sm" disabled={page === 0} onClick={() => onPage(page - 1)}>Previous</button>
       <button type="button" className="zs-btn sm" disabled={page + 1 >= pages} onClick={() => onPage(page + 1)}>Next</button>
     </div>
@@ -262,11 +262,11 @@ export function TenantSummary({ businessId }) {
             </div>
             <div>
               <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>Team</h3>
-              {s.members.length ? <ul className="zs-rows">{s.members.map((m) => <li key={m.user_id}><div><strong>{m.email ?? "Member"}</strong><small>{words(m.role)} · {m.status} · last sign-in {when(m.last_sign_in_at)}</small></div></li>)}</ul> : <Empty>No members yet.</Empty>}
+              {s.members.length ? <ul className="zs-rows">{s.members.map((m) => <li key={m.user_id}><div><strong>{m.email ?? "Member"}</strong><small>{words(m.role)}, {m.status}, last sign in {when(m.last_sign_in_at)}</small></div></li>)}</ul> : <Empty>No members yet.</Empty>}
             </div>
             <div>
               <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>Integrations</h3>
-              {s.integrations.length ? <ul className="zs-rows">{s.integrations.map((i) => <li key={i.provider}><div><strong>{words(i.provider)}</strong><small>{words(i.status)}{i.last_error ? ` · ${i.last_error}` : ""}</small></div></li>)}</ul> : <Empty>None connected.</Empty>}
+              {s.integrations.length ? <ul className="zs-rows">{s.integrations.map((i) => <li key={i.provider}><div><strong>{words(i.provider)}</strong><small>{words(i.status)}{i.last_error ? `, ${i.last_error}` : ""}</small></div></li>)}</ul> : <Empty>None connected.</Empty>}
             </div>
             <div>
               <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>Recent activity</h3>
@@ -299,9 +299,7 @@ export function Lifecycle({ openBusiness }) {
           ]} />
         </Card>
       )}</LoadState>
-      <Needs title="Deactivation and deletion requests aren't separate states yet" have="Canceled businesses are kept until their retention date; nothing is deleted automatically from the admin dashboard.">
-        Pending deletion and deletion requested need a deletion request record, a second-person approval and a deletion job that can be stopped.
-      </Needs>
+      <Needs title="Deactivation and deletion requests aren't separate states yet." have="Canceled businesses are kept until their retention date; nothing is deleted automatically from the admin dashboard." />
     </>
   );
 }
@@ -315,7 +313,7 @@ export function BusinessDetailsPicker({ openBusiness }) {
       <Field label="Business name"><input type="search" value={q} onChange={(e) => setQ(e.target.value)} /></Field>
       <LoadState state={state}>{(r) => (
         <ul className="zs-rows">{r.rows.map((b) => (
-          <li key={b.id}><div><strong>{b.name}</strong><small>{b.industry ?? "None"} · {[b.city, b.state].filter(Boolean).join(", ") || "No address"} · created {when(b.created_at)}</small></div>
+          <li key={b.id}><div><strong>{b.name}</strong><small>{b.industry ?? "None"}, {[b.city, b.state].filter(Boolean).join(", ") || "No address"}, created {when(b.created_at)}</small></div>
             <span className="zs-actions"><button type="button" className="zs-btn sm" onClick={() => setPick(b.id)}>Summary</button>
               <button type="button" className="zs-btn sm" onClick={() => openBusiness(b.id)}>Full page</button></span></li>
         ))}</ul>
@@ -374,7 +372,7 @@ export function Administrators({ onNavigate }) {
   const [q, setQ] = useState("");
   return (
     <>
-      <LinkRows rows={[{ title: "Invite, change roles and deactivate", detail: "On the Users & Access page.", onClick: () => onNavigate("Users & Access"), label: "Open" }]} />
+      <LinkRows rows={[{ title: "Invite, change roles and deactivate", detail: "On the Users & access page.", onClick: () => onNavigate("Users & access"), label: "Open" }]} />
       <Card title="Platform administrators">
         <Field label="Search"><input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Email or role" /></Field>
         <LoadState state={state}>{(d) => (
@@ -435,7 +433,7 @@ export function Permissions() {
         </Card>
         <Card title="Where it's enforced">
           <Facts rows={[["Admin dashboard actions", "The server checks the role and permission before every action"],
-            ["Direct database tools (health, incidents, offers)", "Need a Zella Voice owner or super admin (is_platform_admin)"],
+            ["Direct database tools (health, incidents, offers)", "Need a Zella Voice owner or super admin"],
             ["Business data", "Row level security and role checks inside each business"]]} />
         </Card>
       </>
@@ -457,10 +455,7 @@ export function AuthPolicies() {
         )}</LoadState>
       </Card>
       <Needs title="Session length, sign up policy, leaked password checks and failed sign in monitoring are set in Supabase, not here"
-        have="Check them in the Supabase dashboard > Authentication. Zella Voice can't see their current state, so it isn't shown here. Recommended: turn leaked password protection on.">
-        Supabase doesn't let the app read or change these settings, and sign in attempt logs aren't stored in the database for this project.
-        Showing them here would need the Supabase Management API with a server-side token.
-      </Needs>
+        have="Check them in the Supabase dashboard, Authentication. Zella Voice can't see their current state, so it isn't shown here. Recommended: turn leaked password protection on." />
     </>
   );
 }
@@ -475,7 +470,7 @@ export function PlanManagement({ me, onNavigate }) {
   const state = useAsync(() => call("plans_list"), []);
   return (
     <>
-      <LinkRows rows={[{ title: "Create, rename and archive plans", detail: "On the Plans & subscriptions page. Archiving keeps every existing subscription.", onClick: () => onNavigate("Plans & Subscriptions") }]} />
+      <LinkRows rows={[{ title: "Create, rename and archive plans", detail: "On the Plans & subscriptions page. Archiving keeps every existing subscription.", onClick: () => onNavigate("Plans & subscriptions") }]} />
       <LoadState state={state}>{(d) => (
         <Card title="Plans">
           <Table rows={d.plans ?? []} empty="No plans yet. Create one on the Plans & subscriptions page." columns={[
@@ -554,7 +549,7 @@ export function Subscriptions() {
           <Table rows={d.rows} empty="No subscriptions yet. They appear when billing is connected." columns={[
             ["Business", (s) => s.business_name ?? "None"], ["Plan", (s) => s.plan ?? "None"], ["Status", (s) => words(s.status)], ["Billing", (s) => words(s.billing_interval)],
             ["Renews", (s) => when(s.current_period_end)], ["Trial ends", (s) => when(s.trial_end_at)], ["Grace ends", (s) => when(s.grace_period_end_at)],
-            ["Canceled", (s) => (s.cancelled_at ? `${when(s.cancelled_at)}${s.cancellation_reason ? ` · ${s.cancellation_reason}` : ""}` : "None")],
+            ["Canceled", (s) => (s.cancelled_at ? `${when(s.cancelled_at)}${s.cancellation_reason ? `, ${s.cancellation_reason}` : ""}` : "None")],
           ]} />
           <Pager page={d.page} size={d.size} total={d.total} onPage={setPage} />
         </>
@@ -566,12 +561,10 @@ export function Subscriptions() {
 export function TrialsPromotions({ onNavigate, onGo }) {
   return (
     <>
-      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Discount type and value, start and end, redemption limits, eligibility and approval: on the Offers & promotions page.", onClick: () => onNavigate("Offers & Promotions") },
+      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Discount type and value, start and end, redemption limits, eligibility and approval: on the Offers & promotions page.", onClick: () => onNavigate("Offers & promotions") },
         { title: "Offer automation rules", detail: "Starting and ending on time, approval limits, unpaid claim hold and alerts.", onClick: () => onGo("offers/rules") },
         { title: "Trial ending notices", detail: "When owners are told a trial is ending.", onClick: () => onGo("general/operations") }]} />
-      <Needs title="Trial length and eligible plans aren't configurable yet" have="Trials come from the payment provider's subscription (trial start and end dates are stored). Trial ending notices use the trial_notice_days setting.">
-        Zella-side trials need a trial length per plan and a sign-up flow that starts the trial.
-      </Needs>
+      <Needs title="Trial length and eligible plans aren't configurable yet." have="Trials come from the payment provider's subscription (trial start and end dates are stored). Trial ending notices use the trial notice setting above." />
     </>
   );
 }
@@ -584,9 +577,7 @@ export function EntitlementEnforcement() {
           ["AI voice minutes", "Owners are told at 80% and 100% of minutes, texts and emails"], ["No plan", "No limits apply until a business has a subscription"],
           ["Core CRM", "Never limited by plan"]]} />
       </Card>
-      <Needs title="Stopping AI calls when minutes run out isn't enforced yet" have="Usage is counted from recorded calls; notices go out; each business's choice (stop, pay as you go, top up) is saved.">
-        Stopping or redirecting a call needs the phone assistant's start of call request (Vapi assistant request) to ask the database first. That request isn't wired yet.
-      </Needs>
+      <Needs title="Stopping AI calls when minutes run out isn't enforced yet." have="Usage is counted from recorded calls; notices go out; each business's choice (stop, pay as you go, top up) is saved." />
     </>
   );
 }
@@ -642,9 +633,7 @@ export function Refunds() {
   return (
     <>
       <Payments status="refunded" />
-      <Needs title="Refund requests and approvals aren't built" have="Refunds made in the payment provider arrive through the webhook and appear above.">
-        Issuing a refund from Zella Voice needs the payment provider's API with a server-side key, an approval step, and an audit entry. Credits and adjustments need the same.
-      </Needs>
+      <Needs title="Refunds, credits and adjustments from Zella Voice aren't available yet." have="Refunds made in the payment provider arrive through the webhook and appear above." />
     </>
   );
 }
@@ -683,18 +672,16 @@ export function AiProviders({ me }) {
         <>
           <Card title="Providers">
             <Facts rows={[["Voice (calls)", vapi?.set ? "Vapi: key configured" : "Vapi: key not set"],
-              ["Phone assistant model", `${row("voice_llm_provider")?.value ?? "None"} · ${row("voice_llm_model")?.value ?? "None"}`],
-              ["Call summaries", `${row("call_intel_model")?.value ?? "None"} · ${row("call_intel_live")?.value === true ? "on" : "off"}`],
-              ["Knowledge drafting", `${row("knowledge_ai_model")?.value ?? "None"} · ${row("knowledge_ai_live")?.value === true ? "on" : "off"}`],
-              ...((health?.providers ?? []).map((p) => [`${p.provider} health`, `${p.ok ? "OK" : "Failing"} · checked ${when(p.checked_at)}`]))]} />
-            {!(health?.providers ?? []).length && <p className="zs-muted">No provider health checks have run yet (they run once provider_checks_live is on).</p>}
+              ["Phone assistant model", `${row("voice_llm_provider")?.value ?? "None"}, ${row("voice_llm_model")?.value ?? "None"}`],
+              ["Call summaries", `${row("call_intel_model")?.value ?? "None"}, ${row("call_intel_live")?.value === true ? "on" : "off"}`],
+              ["Knowledge drafting", `${row("knowledge_ai_model")?.value ?? "None"}, ${row("knowledge_ai_live")?.value === true ? "on" : "off"}`],
+              ...((health?.providers ?? []).map((p) => [`${p.provider} health`, `${p.ok ? "OK" : "Failing"}, checked ${when(p.checked_at)}`]))]} />
+            {!(health?.providers ?? []).length && <p className="zs-muted">No provider health checks have run yet (they run once provider checks are switched on).</p>}
           </Card>
           {["voice_llm_provider", "voice_llm_model", "call_intel_model", "knowledge_ai_model"].map((k) => row(k) && (
             <SettingText key={k} me={me} row={row(k)} />
           ))}
-          <Needs title="Usage and error reporting per AI provider isn't collected yet" have="AI tool calls and their results are recorded per business (ai_tool_calls).">
-            Provider-side usage and costs need each provider's usage API.
-          </Needs>
+          <Needs title="Usage, costs and errors per AI provider aren't collected yet." have="AI tool calls and their results are recorded per business." />
         </>
       );
     }}</LoadState>
@@ -757,7 +744,7 @@ export function AgentRegistry({ onNavigate }) {
   const state = useAsync(() => call("agents_list"), []);
   return (
     <>
-      <LinkRows rows={[{ title: "All AI agents", detail: "Every business's receptionist, its status and setup.", onClick: () => onNavigate("AI Agents") }]} />
+      <LinkRows rows={[{ title: "All AI receptionists", detail: "Every business's AI receptionist, its status and setup.", onClick: () => onNavigate("AI receptionists") }]} />
       <LoadState state={state}>{(d) => (
         <Card title="Agents">
           <Table rowKey={(a) => a.agentId} rows={d.agents ?? []} empty="No agents yet." columns={[["Agent", (a) => a.name], ["Business", (a) => a.businessName ?? "None"],
@@ -771,12 +758,12 @@ export function AgentRegistry({ onNavigate }) {
 export function AgentConfiguration({ onNavigate }) {
   return (
     <>
-      <Card title="How receptionist settings are layered" sub="Global changes never overwrite a business's own instructions.">
+      <Card title="How AI receptionist settings are layered" sub="Global changes never overwrite a business's own instructions.">
         <Facts rows={[["Industry defaults", "Words, starter wording and modules per industry (Industry configuration)"], ["Each business", "Its own versions: draft, check, publish, restore (business Settings, AI receptionist)"],
           ["Deployment", "A published version is synced to Vapi by n8n; it's live when the sync succeeds"]]} />
       </Card>
-      <LinkRows rows={[{ title: "Industry defaults", detail: "Industry configuration page", onClick: () => onNavigate("Industry Configuration") }]} />
-      <Needs title="A global default prompt that rolls out to businesses isn't built" have="Each business edits and publishes its own receptionist; nothing global overwrites it.">
+      <LinkRows rows={[{ title: "Industry defaults", detail: "Industry configuration page", onClick: () => onNavigate("Industry configuration") }]} />
+      <Needs title="A global default prompt that rolls out to businesses isn't built" have="Each business edits and publishes its own AI receptionist; nothing global overwrites it.">
         Rolling out a global change safely needs a migration that creates a draft in every business for its owner to approve.
       </Needs>
     </>
@@ -789,7 +776,7 @@ export function AiTesting() {
 
 export function AiGuardrails() {
   return (
-    <Card title="Guardrails in place" sub="These are built into the phone assistant's tools and the database, not settings.">
+    <Card title="Guardrails in place" sub="These are built into the AI receptionist's tools and Zella Voice's checks, not settings.">
       <Facts rows={[["Knowledge", "Answers only from knowledge the business approved; otherwise says it doesn't know and logs the question"],
         ["Bookings", "Never says booked until the calendar confirms; checks free time first"], ["Transfers", "Only to a number the business set, only when someone is reachable; otherwise a callback is created"],
         ["Actions", "Every tool call is recorded with its result (ai_tool_calls)"], ["Sensitive data", "Recordings and transcripts are for managers and above; secrets in instructions are rejected"],
@@ -809,7 +796,7 @@ export function TelephonyProviders() {
         <>
           <Card title="Providers">
             <Facts rows={[["Telnyx (numbers, texts)", n.telnyx ? "Key configured" : "Key not set"], ["Vapi (AI voice)", n.vapi ? "Key configured" : "Key not set"],
-              ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's receptionist"]]} />
+              ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's AI receptionist"]]} />
           </Card>
           <Needs title="Buying numbers and provider error logs are off until the keys are added" have="Voice & numbers > Providers: an admin asks, a Zella Voice owner approves, then Telnyx and Vapi are called. Numbers are assigned to businesses under Numbers.">
             Both keys, and number_orders_enabled switched on by a Zella Voice owner, are needed before anything is bought or released.
@@ -845,7 +832,7 @@ export function PhoneNumbers({ me }) {
             <Field label="Vapi phone number id" hint="From the Vapi dashboard"><input value={edit.vapiPhoneNumberId} onChange={(e) => setEdit({ ...edit, vapiPhoneNumberId: e.target.value })} /></Field>
             <Field label="Label"><input value={edit.label} onChange={(e) => setEdit({ ...edit, label: e.target.value })} placeholder="Main line" /></Field>
           </div>
-          {edit.id && <p className="zs-muted">Calls to this number will reach the new business's receptionist once Vapi is updated.</p>}
+          {edit.id && <p className="zs-muted">Calls to this number will reach the new business's AI receptionist once Vapi is updated.</p>}
         </Confirm>}
         {confirm && <Confirm title={confirm.status === "active" ? `Pause ${confirm.e164}?` : `Activate ${confirm.e164}?`} reason confirmLabel={confirm.status === "active" ? "Pause" : "Activate"} danger={confirm.status === "active"}
           onClose={() => setConfirm(null)} onConfirm={async (reason) => { await call("number_set_status", { id: confirm.id, status: confirm.status === "active" ? "paused" : "active", reason }); state.reload(); }}>
@@ -863,7 +850,7 @@ export function VoiceUsage() {
   const [all, setAll] = useState(false);
   const state = useAsync(() => call("usage_summary", { from: new Date(Date.now() - range * 86400000).toISOString() }), [range]);
   return (
-    <Card title="AI voice usage" sub="From recorded calls answered by the AI. Costs are estimates from the pricing inputs (Voice cost configuration), not provider charges.">
+    <Card title="AI voice usage" sub="From recorded calls answered by AI receptionists. Costs are estimates from the pricing inputs (Voice cost configuration), not provider charges.">
       <Field label="Period" fit><select value={range} onChange={(e) => { setAll(false); setRange(Number(e.target.value)); }}>{[7, 30, 90].map((d) => <option key={d} value={d}>Last {d} days</option>)}</select></Field>
       <LoadState state={state}>{(u) => (
         <>
@@ -932,9 +919,7 @@ export function UsageLimits() {
         <Facts rows={[["Included allowances", "Plans, subscriptions & entitlements > Plan entitlements"], ["Business choice", "Stop, pay as you go, or automatic top up, with a spending limit (the owner authorizes it)"],
           ["Notices", "80% and 100% to the owners"], ["Additional usage rates", "Voice cost configuration"]]} />
       </Card>
-      <Needs title="Charging for extra usage and cutting off calls aren't built" have="Choices and limits are saved and audited; nothing is ever charged from Zella Voice today.">
-        Charging needs the payment provider; cutting off needs the start-of-call check described under Entitlement enforcement.
-      </Needs>
+      <Needs title="Charging for extra usage and cutting off calls aren't available yet." have="Choices and limits are saved and audited; nothing is ever charged from Zella Voice today." />
     </>
   );
 }
@@ -990,7 +975,7 @@ export function Templates() {
         </Card>
       )}</LoadState>
       <LinkRows rows={[{ title: "Edit platform templates", detail: "On Messaging, Templates. Each save is a new version, and every variable is checked against the ones that message supports.",
-        label: "Open Templates", onClick: () => navigate("/messaging/templates") }]} />
+        label: "Open templates", onClick: () => navigate("/messaging/templates") }]} />
     </>
   );
 }
@@ -1004,7 +989,7 @@ export function DeliveryMonitoring({ onNavigate }) {
           <Facts rows={[["Texts failed (7 days)", c.sms.failed7d], ["Email bounces (30 days)", c.email.events30d.bounced ?? c.email.events30d["email.bounced"] ?? 0],
             ["Spam complaints (30 days)", c.email.events30d.complained ?? c.email.events30d["email.complained"] ?? 0], ["Suppressed contacts", c.optOuts]]} />
         </Card>
-        <LinkRows rows={[{ title: "Failed events and retries", detail: "Platform operations", onClick: () => onNavigate("Platform Operations") }]} />
+        <LinkRows rows={[{ title: "Failed events and retries", detail: "Platform operations", onClick: () => onNavigate("Platform operations") }]} />
       </>
     )}</LoadState>
   );
@@ -1208,7 +1193,7 @@ export function PrivacyControls({ onGo }) {
 }
 
 export function SecurityAudit({ onNavigate }) {
-  return <LinkRows rows={[{ title: "Audit log", detail: "Every admin action, permission change, billing change, provider change, suspension, export and erasure. Only the server can add entries; nobody can edit them.", onClick: () => onNavigate("Audit Logs"), label: "Open" }]} />;
+  return <LinkRows rows={[{ title: "Audit log", detail: "Every admin action, permission change, billing change, provider change, suspension, export and erasure. Only the server can add entries; nobody can edit them.", onClick: () => onNavigate("Audit logs"), label: "Open" }]} />;
 }
 
 /* ---------------- 11. Notifications ---------------- */
@@ -1266,7 +1251,7 @@ export function NotificationHistory({ me }) {
         <>
           <Table rows={d.rows} empty="No alerts." columns={[["Alert", (a) => <><strong>{a.title}</strong>{a.detail && <><br /><small className="zs-muted">{a.detail}</small></>}</>],
             ["Severity", (a) => <Pill tone={a.severity === "urgent" ? "danger" : a.severity === "warning" ? "warning" : ""}>{words(a.severity)}</Pill>], ["Business", (a) => a.business_name ?? "Platform"],
-            ["Seen", (a) => `${when(a.last_seen_at)}${a.occurrences > 1 ? ` · ${a.occurrences}×` : ""}`], ["Emailed", (a) => (a.notified_at ? when(a.notified_at) : "Not yet")], ["Status", (a) => words(a.status)],
+            ["Seen", (a) => `${when(a.last_seen_at)}${a.occurrences > 1 ? `, ${a.occurrences}×` : ""}`], ["Emailed", (a) => (a.notified_at ? when(a.notified_at) : "Not yet")], ["Status", (a) => words(a.status)],
             ["", (a) => can(me, "support.manage") && a.status !== "resolved" && <span className="zs-actions">
               {a.status === "open" && <button type="button" className="zs-btn sm" onClick={() => act(a.id, "acknowledged")}>Acknowledge</button>}
               <button type="button" className="zs-btn sm" onClick={() => act(a.id, "resolved")}>Resolve</button></span>]]} />
@@ -1404,7 +1389,7 @@ export function LegalVersioning({ me }) {
       <LoadState state={state}>{(d) => (
         <Card title="Versions and review" sub="Draft → in review → published → retired. Publishing a version retires the one before it.">
           <Table rows={d.docs} empty="No documents yet." columns={[["Document", (x) => `${LEGAL_LABELS[x.kind]} ${x.version}`], ["Status", (x) => words(x.status)],
-            ["Published", (x) => when(x.published_at)], ["Effective", (x) => when(x.effective_at)], ["Acceptance", (x) => (x.requires_acceptance ? `Required · ${x.acceptances} accepted` : "Not required")],
+            ["Published", (x) => when(x.published_at)], ["Effective", (x) => when(x.effective_at)], ["Acceptance", (x) => (x.requires_acceptance ? `Required, ${x.acceptances} accepted` : "Not required")],
             ["", (x) => manage && <span className="zs-actions">{(next[x.status] ?? []).map(([to, label]) => <button key={to} type="button" className={`zs-btn sm ${to === "published" ? "primary" : ""}`} onClick={() => setMove({ doc: x, to, label })}>{label}</button>)}</span>]]} />
         </Card>
       )}</LoadState>
@@ -1499,7 +1484,7 @@ export function OffersOverview({ onNavigate }) {
       return (
         <>
           <Card title="Offers" sub="Discounts, promo codes and deals for businesses. Created, approved and scheduled on the Offers & promotions page."
-            actions={<button type="button" className="zs-btn sm primary" onClick={() => onNavigate("Offers & Promotions")}>Open Offers & Promotions</button>}>
+            actions={<button type="button" className="zs-btn sm primary" onClick={() => onNavigate("Offers & promotions")}>Open Offers & promotions</button>}>
             <Facts rows={[...OFFER_STATUS.map(([k, label]) => [label, count(k)]),
               ["Claims waiting for payment", d.offers.reduce((n, o) => n + (o.claims - o.confirmed), 0)], ["Paid claims", d.offers.reduce((n, o) => n + o.confirmed, 0)]]} />
           </Card>

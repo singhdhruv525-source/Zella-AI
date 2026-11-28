@@ -29,7 +29,7 @@ const ESCALATION_REASONS = [
   "Medical or urgent question",
   "Complaint or upset caller",
   "Billing or insurance",
-  "AI couldn't answer",
+  "AI receptionist couldn't answer",
   "Other",
 ];
 
@@ -94,7 +94,7 @@ export function Transcript({ transcript, role }) {
         const ai = /assistant|ai|bot/i.test(l.who);
         return (
           <p key={i} className={ai ? "ai" : "caller"}>
-            {l.who && <b>{ai ? "Receptionist" : "Caller"}</b>}
+            {l.who && <b>{ai ? "AI receptionist" : "Caller"}</b>}
             {l.text}
           </p>
         );
@@ -112,12 +112,12 @@ export function CallCard({ call, tz, role, defaultOpen, onChanged, onNotice }) {
       <button type="button" className="ba-item-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         <div className="ba-item-name">
           <Icon name={missed ? "phone_missed" : call.direction === "outbound" ? "call_made" : "call_received"} size="sm" />
-          <span>{formatDay(call.created_at, tz)} · {formatTime(call.created_at, tz)}</span>
+          <span>{formatDay(call.created_at, tz)}, {formatTime(call.created_at, tz)}</span>
         </div>
         <div className="ba-item-meta">
           {flagged && <Pill tone="danger">Needs a person</Pill>}
           <Pill tone={callResult(call.status).tone}>{callResult(call.status).label}</Pill>
-          <span>{call.ai_handled ? "AI" : "Team"} · {clock(call.duration_seconds)}</span>
+          <span>{call.ai_handled ? "AI receptionist" : "Team"}, {clock(call.duration_seconds)}</span>
           <Icon name={open ? "expand_less" : "expand_more"} size="sm" />
         </div>
       </button>
@@ -138,9 +138,9 @@ function followLabel(f) {
   const tries = `${f.attempts ?? 0} of ${f.max_attempts ?? 2} tries`;
   if (f.status === "pending") return "Zella Voice will call to offer a new time";
   if (f.status === "in_progress") return "Zella Voice is calling to offer a new time";
-  if (f.status === "cancelled") return "follow up call canceled";
+  if (f.status === "cancelled") return "Follow up call canceled";
   const o = { rescheduled: "Rebooked after the follow up call", wants_callback: "Asked for a call from the team", declined: "Declined a new time", no_answer: `No answer after ${tries}`, voicemail: `Voicemail after ${tries}`, failed: `Call failed after ${tries}`, sms_sent: "Text sent offering a new time" };
-  return o[f.outcome] ?? "follow up finished";
+  return o[f.outcome] ?? "Follow up finished";
 }
 
 function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tasks = []) {
@@ -156,7 +156,7 @@ function buildTimeline(person, calls, appts, convos, follows = [], cbs = [], tas
   return events.sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
-const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["records", "Records"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow ups"], ["lead", "Lead & quotes"], ["people", "People & consent"], ["privacy", "Privacy"]];
+const TABS = [["overview", "Overview"], ["appointments", "Appointments"], ["records", "Records"], ["timeline", "Timeline"], ["calls", "Calls"], ["messages", "Messages"], ["followups", "Follow ups"], ["lead", "Lead and quotes"], ["people", "People and consent"], ["privacy", "Privacy"]];
 
 export default function PersonProfile({ personId, workspace, onClose, onChanged, onNotice }) {
   const tz = workspace.timezone;
@@ -398,18 +398,18 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                       <div>
                         <strong>
                           {e.kind === "call" && `${e.call.status === "missed" ? "Missed call" : !isAnswered(e.call.status) ? `Call: ${callResult(e.call.status).label.toLowerCase()}` : e.call.ai_handled ? "Call answered by the AI receptionist" : "Call answered by the team"}`}
-                          {e.kind === "appt" && `${e.appt.title} · ${APPT_LABEL[e.appt.status] ?? e.appt.status}${e.appt.attendance_note || e.appt.cancel_reason ? ` (${e.appt.attendance_note || e.appt.cancel_reason})` : ""}`}
+                          {e.kind === "appt" && `${e.appt.title}, ${APPT_LABEL[e.appt.status] ?? e.appt.status}${e.appt.attendance_note || e.appt.cancel_reason ? ` (${e.appt.attendance_note || e.appt.cancel_reason})` : ""}`}
                           {e.kind === "convo" && `${e.convo.channel ? humanize(e.convo.channel) : "Message"} conversation${e.convo.subject ? `: ${e.convo.subject}` : ""}`}
                           {e.kind === "follow" && followLabel(e.follow)}
-                          {e.kind === "cb" && `${CB_REASON[e.cb.reason] ?? "Callback"}${CB_CLOSED.includes(e.cb.status) ? " · done" : ` · due ${formatDay(e.cb.due_at, tz)}`}`}
-                          {e.kind === "task" && `${e.task.title}${e.task.status === "open" ? "" : " · done"}`}
+                          {e.kind === "cb" && `${CB_REASON[e.cb.reason] ?? "Callback"}${CB_CLOSED.includes(e.cb.status) ? ", done" : `, due ${formatDay(e.cb.due_at, tz)}`}`}
+                          {e.kind === "task" && `${e.task.title}${e.task.status === "open" ? "" : ", done"}`}
                           {e.kind === "added" && `Added to your ${term("customers").toLowerCase()}`}
-                          {e.srv && `${e.srv.title}${e.srv.status ? ` · ${humanize(e.srv.status)}` : ""}`}
+                          {e.srv && `${e.srv.title}${e.srv.status ? `, ${humanize(e.srv.status)}` : ""}`}
                         </strong>
                         <small>
-                          {formatDay(e.at, tz)} · {formatTime(e.at, tz)}
-                          {e.kind === "call" && ` · ${clock(e.call.duration_seconds)}`}
-                          {e.kind === "appt" && e.appt.checked_in_at && ` · checked in ${formatTime(e.appt.checked_in_at, tz)}`}
+                          {formatDay(e.at, tz)}, {formatTime(e.at, tz)}
+                          {e.kind === "call" && `, ${clock(e.call.duration_seconds)}`}
+                          {e.kind === "appt" && e.appt.checked_in_at && `, checked in ${formatTime(e.appt.checked_in_at, tz)}`}
                         </small>
                         {e.kind === "call" && isOpenEscalation(e.call) && <Pill tone="danger">Needs a person</Pill>}
                         {e.kind === "call" && e.call.summary && <p className="ba-item-text">{e.call.summary}</p>}
@@ -435,7 +435,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
                 <div key={a.id} className="ba-mini">
                   <span>
                     {a.title}
-                    <small>{formatDay(a.start_time, tz)} · {formatTime(a.start_time, tz)}{staffName[a.staff_id] ? ` · ${staffName[a.staff_id]}` : ""}{a.location ? ` · ${a.location}` : ""}{a.checked_in_at ? ` · checked in ${formatTime(a.checked_in_at, tz)}` : ""}</small>
+                    <small>{formatDay(a.start_time, tz)}, {formatTime(a.start_time, tz)}{staffName[a.staff_id] ? `, ${staffName[a.staff_id]}` : ""}{a.location ? `, ${a.location}` : ""}{a.checked_in_at ? `, checked in ${formatTime(a.checked_in_at, tz)}` : ""}</small>
                     {(a.attendance_note || a.cancel_reason) && <small>{a.attendance_note || a.cancel_reason}</small>}
                   </span>
                   <Pill tone={APPT_TONE[a.status]}>{APPT_LABEL[a.status] ?? a.status}</Pill>
@@ -473,7 +473,7 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
             {tab === "messages" && (
               data.convos.length ? data.convos.map((c) => (
                 <div key={c.id} className="ba-mini">
-                  <span>{c.subject || `${c.channel ?? "Message"} conversation`}<small>{c.channel ?? "Message"} · last message {c.last_message_at ? timeAgo(c.last_message_at) : "never"}{c.ai_handled ? " · AI handling" : ""}</small></span>
+                  <span>{c.subject || `${c.channel ?? "Message"} conversation`}<small>{c.channel ?? "Message"}, last message {c.last_message_at ? timeAgo(c.last_message_at) : "never"}{c.ai_handled ? ", AI receptionist handling" : ""}</small></span>
                   <Pill tone={c.status === "open" ? "warning" : ""}>{humanize(c.status)}</Pill>
                 </div>
               )) : <p className="ba-muted">No messages yet.</p>
@@ -481,13 +481,13 @@ export default function PersonProfile({ personId, workspace, onClose, onChanged,
 
             {tab === "followups" && (() => {
               const items = [
-                ...data.cbs.map((c) => ({ key: `cb${c.id}`, at: c.due_at ?? c.created_at, title: CB_REASON[c.reason] ?? "Callback", icon: "phone_callback", done: CB_CLOSED.includes(c.status), detail: `${c.attempts} of ${c.max_attempts} tries${c.summary ? ` · ${c.summary}` : ""}`, status: c.status })),
+                ...data.cbs.map((c) => ({ key: `cb${c.id}`, at: c.due_at ?? c.created_at, title: CB_REASON[c.reason] ?? "Callback", icon: "phone_callback", done: CB_CLOSED.includes(c.status), detail: `${c.attempts} of ${c.max_attempts} tries${c.summary ? `, ${c.summary}` : ""}`, status: c.status })),
                 ...data.tasks.map((k) => ({ key: `t${k.id}`, at: k.due_at ?? k.created_at, title: k.title, icon: "task_alt", done: k.status !== "open", detail: k.body ?? "", status: k.status })),
                 ...data.follows.map((f) => ({ key: `f${f.id}`, at: f.status === "pending" ? f.due_at : (f.completed_at ?? f.due_at), title: followLabel(f), icon: "forward_to_inbox", done: !["pending", "in_progress"].includes(f.status), detail: "", status: f.status })),
               ].sort((a, b) => new Date(b.at) - new Date(a.at));
               return items.length ? items.map((i) => (
                 <div key={i.key} className="ba-mini">
-                  <span><Icon name={i.icon} size="sm" /> {i.title}<small>{when(i.at, tz)}{i.detail ? ` · ${i.detail}` : ""}</small></span>
+                  <span><Icon name={i.icon} size="sm" /> {i.title}<small>{when(i.at, tz)}{i.detail ? `, ${i.detail}` : ""}</small></span>
                   <Pill tone={i.done ? "success" : "warning"}>{i.done ? "Done" : "Open"}</Pill>
                 </div>
               )) : <p className="ba-muted">No follow ups yet.</p>;

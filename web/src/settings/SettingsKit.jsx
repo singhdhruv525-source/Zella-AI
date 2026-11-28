@@ -72,7 +72,7 @@ export function Needs({ title = "Not available yet", children, have }) {
   return (
     <div className="zs-needs">
       <strong>{title}</strong>
-      <div>{children}</div>
+      {children && <div>{children}</div>}
       {have && <div className="zs-needs-have"><span>What works today:</span> {have}</div>}
     </div>
   );

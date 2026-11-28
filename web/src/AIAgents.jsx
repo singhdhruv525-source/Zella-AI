@@ -107,7 +107,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
         <div>
           <div className="owner-eyebrow">AI & communications</div>
           <h1>AI receptionists</h1>
-          <p>Every client's receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
+          <p>Every client's AI receptionist, how complete its setup is, and whether it's connected and answering calls.</p>
         </div>
         <div className="op-heading-actions">
           <UpdatedAt r={state} />
@@ -120,7 +120,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
       <LoadNotice r={state} what="AI receptionists" />
 
       <div className="ag-filters ait-tabs op-gap" role="tablist" aria-label="AI receptionists views">
-        {[["receptionists", "Receptionists"], ["testing", "AI testing"]].map(([key, label]) => (
+        {[["receptionists", "AI receptionists"], ["testing", "AI testing"]].map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
@@ -128,7 +128,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
       {tab === "testing" ? <AiTesting me={me} onOpenBusiness={onOpenBusiness} refresh={testingRefresh} /> : <>
 
       <div className="owner-stat-grid">
-        <Metric label="Receptionists" value={show(s?.total)} note={typeof s?.missingKnowledge === "number" ? `One per business, ${countText(s.missingKnowledge)} missing knowledge` : "One per business"} />
+        <Metric label="AI receptionists" value={show(s?.total)} note={typeof s?.missingKnowledge === "number" ? `One per business, ${countText(s.missingKnowledge)} missing knowledge` : "One per business"} />
         <Metric label="Live" value={showLink(s?.live)} note="Switched on, number linked to Vapi" />
         <Metric label="Answering" value={showLink(s?.answering)} note={typeof s?.notReady7d === "number" ? `Answered a call in the last 7 days, ${countText(s.notReady7d)} had calls not ready` : "Answered a call in the last 7 days"} />
         <Metric label="Ready to connect" value={showLink(s?.readyToConnect)} note="Set up, number not linked to Vapi" />
@@ -136,7 +136,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
 
       <section className="owner-panel">
         <div className="owner-panel-heading ag-toolbar">
-          <div className="ag-filters" role="tablist" aria-label="Show receptionists">
+          <div className="ag-filters" role="tablist" aria-label="Show AI receptionists">
             {FILTERS.map(([key, label]) => (
               <button
                 key={key}
@@ -167,7 +167,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
             <thead>
               <tr>
                 <th>Business</th>
-                <th>Receptionist</th>
+                <th>AI receptionist</th>
                 <th>Setup</th>
                 <th>Status</th>
                 <th>Calls served, last 7 days</th>
@@ -193,7 +193,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                         <span className="ag-line">{a.industry}, {a.stage === "active" ? "setup finished" : firstLower(stageLabel(a.stage))}</span>
                       </div>
                     </td>
-                    <td data-label="Receptionist">
+                    <td data-label="AI receptionist">
                       <div className="ag-cell" title={[custom, a.personality].filter(Boolean).join(", ") || undefined}>
                         <span className="ag-nowrap">{knowledge}</span>
                         {custom && <span className="ag-line">{custom}</span>}
@@ -241,7 +241,7 @@ export default function AIAgents({ onOpenBusiness, onOpenSetup }) {
                   <td colSpan={7}>
                     <div className="op-empty">
                       {data?.agents?.length
-                        ? "No receptionists match this filter."
+                        ? "No AI receptionists match this filter."
                         : emptyText(state, Array.isArray(data?.agents) ? "No AI receptionists yet. One is created with each new business." : "Not reported.", "AI receptionists")}
                     </div>
                   </td>

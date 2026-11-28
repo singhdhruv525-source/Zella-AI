@@ -3,7 +3,9 @@
 // Checks the app's source for:
 //   1. long dashes (U+2014, U+2013) anywhere outside comments: these are only ever text;
 //   2. hyphenated words in JSX text and in quoted strings that read as words people see (they contain a space,
-//      or are a known label prop such as title, label, placeholder, aria-label).
+//      or are a known label prop such as title, label, placeholder, aria-label). A hyphen counts after a letter or a
+//      number ("follow-up", "6-digit"). JSX text is checked whether it sits between tags on one line or on lines of
+//      its own inside an element.
 // Code is not text: class names, CSS, imports, URLs, routes, keys, dates and ids are skipped.
 // Usage: node scripts/check-dashes.mjs [--list]   (exit 1 when anything is found)
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -12,7 +14,7 @@ import { join, relative } from "node:path";
 const rootArg = process.argv.indexOf("--root");
 const ROOT = rootArg > 0 ? process.argv[rootArg + 1] : new URL("../src", import.meta.url).pathname;
 const LONG = /[—–]/;
-const WORD_HYPHEN = /[A-Za-z]-[A-Za-z]/;
+const WORD_HYPHEN = /[A-Za-z0-9]-[A-Za-z]/;
 // a quoted string that is code, not words: class lists, css, paths, urls, keys, mime types, dates, regexes
 const CODE_STRING = /^(?:[a-z0-9_.:/#@?=&%-]+|[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*|https?:\/\/\S+|\S+\/\S+|--[\w-]+|var\(.*\)|[\w-]+\s*:\s*.*;?)$/;
 // code that happens to sit in a quoted string: locale tags, CSS (including inline styles in email HTML), file names,
@@ -23,7 +25,7 @@ const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|cs
 // dropped, so "Follow-up requires X-Request-Id" is still caught for "Follow-up".
 const isCode = (t) => NOT_WORDS.test(t) || /^\.[a-z][\w-]*,?$/.test(t);
 const wordsOnly = (s) => s.replace(/\$\{[^}]*\}/g, "X").replace(/\d+px solid(?=\s|$|[;,"')])/g, " ").split(/\s+/).filter((t) => !isCode(t)).join(" ");
-const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*$/;
+const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*\{?\s*$/;
 
 function files(dir) {
   return readdirSync(dir).flatMap((n) => {
@@ -38,16 +40,103 @@ function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
 }
 
+// JSX text on a line of its own, inside an element that spans lines:
+//   <p>
+//     Uses a server-side token.
+//   </p>
+// A line is text when it follows an opening tag (a line ending in ">", including a ">" on its own after props spread
+// over lines, but not "=>" or "/>") or more such text, and reads as words: it doesn't start a statement and holds no
+// code punctuation. A line inside the text that starts with a whole expression or child element ("{name} has
+// arrived", "<strong>Save</strong> keeps a copy", "</strong> and more") keeps the text going, and the words after its
+// last tag or brace are checked. What sits inside tags or braces on the line is taken out before it is checked.
+// "key: value" is code only when the value reads like one (a quote, bracket, number, a single name, or a line ending in
+// a comma); "Note: Enter a 6-digit code." is a sentence with a label, so it stays text.
+const JS_LINE = /^(?:[<{})\]?:&|+*/.,;]|return\b|const\b|let\b|var\b|if\b|else\b|import\b|export\b|function\b|case\b|default\b)|=>|[;=]\s*$|&&|\|\||\b[\w.]+\(|^\w+:\s*(?:[\"'`\[{(\d-]|[^.!?]*,\s*$|[\w.$]+\s*$)|[=!]==/;
+// control flow after a closing brace: "} else {", "} else if (x) {", "} catch (e) {", "} while (x)". Only the keyword
+// with its syntax counts ("if (", "else" right before "{"), so "} for follow-up calls" is still read as text.
+const JS_FLOW = /^\s*(?:else\s*$|else\s+if\s*\(|(?:if|for|while|switch|catch)\s*\(|(?:try|finally|do)\s*$|return\s*\()/;
+const CODE_BITS = /=>|&&|\|\||[=;{}]|\b[\w.]+\(/;
+const count = (s, ch) => s.split(ch).length - 1;
+// a line that starts with a child: a whole {expression}, a whole element, a self closing tag, or a closing tag
+// followed by more text; braces and tags balance on the line, so nothing carries on to the next one
+function childLine(t) {
+  if (count(t, "{") !== count(t, "}")) return false;
+  if (/^\{/.test(t)) return true;
+  if (/^<\/[\w.]*>\s*\S/.test(t)) return true;
+  const open = t.match(/^<([A-Za-z][\w.]*)\b/);
+  return Boolean(open) && (new RegExp(`</${open[1].replace(".", "\\.")}>`).test(t) || /^<[^<>]*\/>/.test(t));
+}
+// elements a line opens minus those it closes (self closing tags count for neither); a fragment "<>" opens one and
+// "</>" closes it, like any element
+const netTags = (t) => (t.match(/<[A-Za-z][\w.]*(?:\s[^<>]*?)?(?<!\/)>|<>/g) ?? []).length - (t.match(/<\/[\w.]*>/g) ?? []).length;
+// a JSX entity (&nbsp; &amp; &#39; &#x2019;) is a character of the text, not code punctuation: it reads as a space
+const ENTITY = /&(?:[A-Za-z]+|#\d+|#x[0-9A-Fa-f]+);/g;
+// The text lasts while an element opened since it began is still open: a closing </strong> inside an open <section>
+// keeps the section's text going, and the closing </section> ends it.
+// A line ending in ">" opens an element only when it holds an opening tag, or ends one begun on an earlier line
+// ("<p" then props then ">"); a comparison such as "a >" opens nothing.
+const UNCLOSED_TAG = /<[A-Za-z][\w.]*(?:\s[^<>]*)?$/;
+function jsxTextLines(lines) {
+  const out = [], ctx = new Set();
+  let inText = false, depth = 0, tagOpen = false;
+  let expr = 0, exprBase = 0;   // braces of a JSX expression left open on an earlier line, and the element depth then
+  lines.forEach((line, i) => {
+    const t = line.trim().replace(ENTITY, " ");
+    if (!t) return;
+    // inside an open expression only code is skipped: an element it opens ("ready && (" then "<p>") holds text again
+    const inExpr = expr > 0;
+    if (inExpr) expr = Math.max(0, expr + count(t, "{") - count(t, "}"));
+    if (inExpr && depth <= exprBase && !/^<[A-Za-z]/.test(t)) return;
+    if (inText) ctx.add(i);
+    const closeOnly = /^<\/[\w.]*>$/.test(t);
+    const child = inText && /^[<{]/.test(t) && childLine(t);
+    const textual = inText && !child && !closeOnly && !JS_LINE.test(t);
+    // only the text before the first tag or brace and after the last one: text between tags is checked above
+    if (textual) out.push([i, /[<>{}]/.test(t) ? `${t.split(/[<{]/)[0]} ${t.split(/[>}]/).pop()}`.trim() : t]);
+    if (child) {
+      const rest = t.split(/[>}]/).pop().trim();
+      if (rest && !CODE_BITS.test(rest)) out.push([i, rest]);
+    }
+    // the next line is text when this one opens an element, or is text (or a child) inside an element still open
+    const endsTag = /(^|[^=/-])>$/.test(t) && !/^[)}]/.test(t) && !closeOnly;
+    const opens = endsTag && (netTags(t) > 0 || (tagOpen && !/<[A-Za-z]/.test(t)));
+    // an opening tag with text after it on the same line ("<p className="x">Some words"): the element stays open, its
+    // words on this line are checked, and the lines after it are read as its text
+    const opensWithText = !endsTag && !inText && /^<[A-Za-z]/.test(t) && netTags(t) > 0 && !UNCLOSED_TAG.test(t) && !/[;,]$|=>|\)$/.test(t);
+    if (opensWithText) {
+      const rest = t.split(/[>}]/).pop().trim();
+      if (rest && !CODE_BITS.test(rest)) out.push([i, rest]);
+    }
+    tagOpen = UNCLOSED_TAG.test(t) || (tagOpen && !/\/?>$/.test(t));
+    if (opensWithText) depth = netTags(t);
+    else if (opens) depth = (inText ? depth : 0) + Math.max(1, netTags(t));   // a ">" alone ends a tag begun above
+    else if (inText && (child || textual || closeOnly)) depth += closeOnly ? -1 : netTags(t);
+    else depth = 0;
+    inText = depth > 0;
+    // a "{" this line leaves open starts an expression ("<p>{" then "follow-up" is a subtraction)
+    if (!inExpr && (inText || opensWithText || child || textual)) { expr = Math.max(0, count(t, "{") - count(t, "}")); exprBase = depth; }
+  });
+  return { out, ctx };
+}
+
 const found = [];
 // the email catalogue lives with the edge functions; its wording is text people read too
 const EXTRA = rootArg > 0 ? [] : [new URL("../supabase/functions/_shared/businessEmails.js", import.meta.url).pathname];
 for (const f of [...files(ROOT), ...EXTRA]) {
   const lines = stripComments(readFileSync(f, "utf8")).split("\n");
+  const jsx = /\.[jt]sx$/.test(f) ? jsxTextLines(lines) : { out: [], ctx: new Set() };
   lines.forEach((line, i) => {
     const where = `${f.startsWith(ROOT) ? relative(ROOT, f) : f.slice(f.indexOf("supabase/"))}:${i + 1}`;
     if (LONG.test(line)) { found.push([where, "long dash", line.trim()]); return; }
-    // JSX text between tags
-    for (const m of line.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) {
+    // JSX text between tags, and between an expression and the next tag or expression ("{n} follow-ups sent"); the
+    // second kind holds no code punctuation, so props and calls after a "}" are left alone
+    // the second kind only where the line is JSX: it holds a tag, or sits inside an element's text
+    const inJsx = /<\/?[A-Za-z][\w.]*[\s>/]/.test(line) || jsx.ctx.has(i);
+    const text = line.replace(ENTITY, " ");
+    const between = [...text.matchAll(/(?<!=)>([^<>{}]*[A-Za-z][^<>{}]*)[<{]/g),
+      ...(inJsx ? text.matchAll(/\}([^<>{}=[\]"`\\:;]*[A-Za-z][^<>{}=[\]"`\\:;]*)[<{]/g) : [])];
+    for (const m of between) {
+      if (m[0].startsWith("}") && JS_FLOW.test(m[1])) continue;   // "} else if (a-b) {" is code, not text
       if (WORD_HYPHEN.test(wordsOnly(m[1])) && !/=>/.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);
     }
     // quoted strings
@@ -68,6 +157,12 @@ for (const f of [...files(ROOT), ...EXTRA]) {
       found.push([where, "hyphen in text", s]);
     }
   });
+  if (/\.[jt]sx$/.test(f)) {
+    for (const [i, words] of jsx.out) {
+      if (LONG.test(lines[i]) || !WORD_HYPHEN.test(wordsOnly(words))) continue;   // a long dash is reported above
+      found.push([`${f.startsWith(ROOT) ? relative(ROOT, f) : f}:${i + 1}`, "hyphen in text", words]);
+    }
+  }
 }
 
 if (process.argv.includes("--list")) for (const [w, k, t] of found) console.log(`${w}  ${k}: ${t.slice(0, 140)}`);

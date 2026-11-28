@@ -53,7 +53,7 @@ export function checklistProgress(items) {
   const list = Array.isArray(items) ? items : [];
   const done = list.filter((i) => i.done).length;
   const missing = list.filter((i) => i.required && !i.done).length;
-  return { done, total: list.length, missing, text: list.length ? `${done} of ${list.length} done${missing ? ` · ${missing} required left` : ""}` : "" };
+  return { done, total: list.length, missing, text: list.length ? `${done} of ${list.length} done${missing ? `, ${missing} required left` : ""}` : "" };
 }
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

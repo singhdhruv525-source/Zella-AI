@@ -260,7 +260,7 @@ export default function OffersPage({ onOpenBusiness }) {
                     <tr key={o.id}>
                       <td>
                         <div className="owner-table-primary">{o.name}</div>
-                        <div className="owner-table-secondary">{o.summary}{o.code ? ` · code ${o.code}` : ""}</div>
+                        <div className="owner-table-secondary">{o.summary}{o.code ? `, code ${o.code}` : ""}</div>
                         {o.problems?.length > 0 && <div className="of-problem-line">{o.problems.length} thing{o.problems.length > 1 ? "s" : ""} to fix</div>}
                       </td>
                       <td>{statusPill(o.status)}</td>
@@ -836,8 +836,8 @@ function OfferDetail({ offerId, me, isOwner, lookups, onClose, onEdit, onChanged
         <ul className="of-history">
           {data.events.map((e) => (
             <li key={e.id}>
-              <span>{EVENT_TEXT[e.kind] ?? e.kind}{e.business ? ` · ${e.business}` : ""}{e.detail?.reason ? ` (${humanize(e.detail.reason)})` : ""}{e.detail?.note ? `: ${e.detail.note}` : ""}</span>
-              <span className="op-muted">{e.actor ?? "Zella Voice"} · {timeAgo(e.created_at)}</span>
+              <span>{EVENT_TEXT[e.kind] ?? e.kind}{e.business ? `, ${e.business}` : ""}{e.detail?.reason ? ` (${humanize(e.detail.reason)})` : ""}{e.detail?.note ? `: ${e.detail.note}` : ""}</span>
+              <span className="op-muted">{e.actor ?? "Zella Voice"}, {timeAgo(e.created_at)}</span>
               {e.detail?.problems && <span className="of-problem-line">{e.detail.problems.join(" ")}</span>}
             </li>
           ))}
@@ -1056,7 +1056,7 @@ export function MonitorTab({ onOpenOffer }) {
                     <td>{r.trigger === "schedule" ? "Schedule" : r.trigger === "retry" ? `Retry (${r.started_by ?? "admin"})` : r.started_by ?? "Admin"}</td>
                     <td>{formatDateTime(r.started_at)}</td>
                     <td><Pill tone={r.status === "succeeded" ? "success" : r.status === "skipped" ? "neutral" : r.status === "running" ? "info" : "danger"}>{r.status}</Pill></td>
-                    <td>{r.processed}{r.failures ? ` · ${r.failures} failed` : ""}</td>
+                    <td>{r.processed}{r.failures ? `, ${r.failures} failed` : ""}</td>
                     <td className="owner-table-secondary">{r.error ?? ""}</td>
                   </tr>
                 ))}

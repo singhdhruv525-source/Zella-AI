@@ -123,9 +123,9 @@ const ADMIN_NAV = [
   { label: "Overview", path: "/", perm: "businesses.view" },
   { label: "Businesses", path: "/businesses", perm: "businesses.view" },
   { label: "Verification", path: "/verification", perm: "businesses.manage" },
-  { label: "Platform Operations", path: "/operations", perm: "businesses.view" },
+  { label: "Platform operations", path: "/operations", perm: "businesses.view" },
   { label: "Support", path: "/support", perm: "support.manage" },
-  { label: "Audit Logs", path: "/audit-logs", perm: "audit.view" },
+  { label: "Audit logs", path: "/audit-logs", perm: "audit.view" },
   { label: "Settings", path: "/settings", perm: null },
 ];
 const canAll = (...perms) => (p) => perms.includes(p);
@@ -133,7 +133,7 @@ const canAll = (...perms) => (p) => perms.includes(p);
 test("admin: Overview, Businesses, Support and Operations for a full role (owner decision 4)", () => {
   const tabs = adminTabs(ADMIN_NAV, canAll("businesses.view", "businesses.manage", "support.manage", "audit.view"));
   assert.deepEqual(labels(tabs), ["Overview", "Businesses", "Support", "Operations"]);
-  assert.deepEqual(tabs.map((t) => t.page), ["Overview", "Businesses", "Support", "Platform Operations"]);
+  assert.deepEqual(tabs.map((t) => t.page), ["Overview", "Businesses", "Support", "Platform operations"]);
 });
 
 test("admin: a page the role can't use is replaced by Verification, then Audit logs", () => {
@@ -189,7 +189,7 @@ test("the admin live strip shows open incidents, the oldest first", () => {
     { status: "open", title: "Texts delayed for 3 businesses", created_at: ago(18) },
   ], NOW);
   assert.equal(strip.title, "Texts delayed for 3 businesses");
-  assert.equal(strip.sub, "Incident open for 18 min · 2 open incidents");
+  assert.equal(strip.sub, "Incident open for 18 min, 2 open incidents");
   assert.equal(strip.action, "View");
 });
 
@@ -353,7 +353,7 @@ test("the admin live strip from the incidents reading", () => {
   assert.equal(adminStripFor({ status: "ok", value: [] }, NOW), null, "a successful empty read: no strip");
   assert.equal(adminStripFor({ status: "ok", value: inc }, NOW).title, "Texts delayed for 3 businesses");
   assert.equal(adminStripFor({ status: "failed", value: null }, NOW).title, "Incidents couldn't be checked");
-  assert.equal(adminStripFor({ status: "stale", value: inc }, NOW).sub, "Incident open for 18 min · may be out of date");
+  assert.equal(adminStripFor({ status: "stale", value: inc }, NOW).sub, "Incident open for 18 min, may be out of date");
   assert.equal(adminStripFor({ status: "stale", value: [] }, NOW).title, "Incidents couldn't be refreshed");
 });
 

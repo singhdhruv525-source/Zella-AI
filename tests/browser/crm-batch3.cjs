@@ -87,7 +87,7 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   check(colCounts.reduce((a, n) => a + Number(n), 0) === 1201, "B3-03 pipeline column totals add up to all 1,201 leads", colCounts.join(","));
   await shot(s.p, "b3-03-pipeline");
   await s.p.locator(".ba-segment button", { hasText: "List" }).click(); await s.p.waitForTimeout(1500);
-  check(/1201 leads · page 1 of 49/.test(await text(s.p, ".ba-table-foot")), "B3-03 the list counts 1,201 leads in 49 pages", await text(s.p, ".ba-table-foot"));
+  check(/1201 leads, page 1 of 49/.test(await text(s.p, ".ba-table-foot")), "B3-03 the list counts 1,201 leads in 49 pages", await text(s.p, ".ba-table-foot"));
   const first = await s.p.locator(".ba-table tbody tr").first().innerText();
   await s.p.locator(".ba-table-foot button", { hasText: "Next" }).click(); await s.p.waitForTimeout(1200);
   check(/page 2 of 49/.test(await text(s.p, ".ba-table-foot")) && (await s.p.locator(".ba-table tbody tr").first().innerText()) !== first, "B3-03 Next loads the second page");
@@ -100,7 +100,7 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   await searchBox.fill(""); await s.p.waitForTimeout(1200);
   await s.p.locator(".ba-segment button", { hasText: /^Overdue/ }).click(); await s.p.waitForTimeout(1500);
   const od = await text(s.p, ".ba-table-foot");
-  check(/leads? ·/.test(od) && !/^1201/.test(od), "B3-03 the overdue filter pages over all overdue leads", od);
+  check(/leads?,/.test(od) && !/^1201/.test(od), "B3-03 the overdue filter pages over all overdue leads", od);
   check(s.errors.length === 0, "B3-03 no page errors", s.errors.join(" | "));
   await s.ctx.close();
 
@@ -109,7 +109,7 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   await go(s.p, "/app/records/b3jobs");
   const sel = s.p.locator(".ba-toolbar select").first();
   await sel.selectOption("all"); await s.p.waitForTimeout(1500);
-  check(/611 jobs · page 1 of 25/.test(await text(s.p, ".ba-table-foot")), "B3-04 all 611 jobs (more than 500) are counted and paged", await text(s.p, ".ba-table-foot"));
+  check(/611 jobs, page 1 of 25/.test(await text(s.p, ".ba-table-foot")), "B3-04 all 611 jobs (more than 500) are counted and paged", await text(s.p, ".ba-table-foot"));
   const cells = await s.p.locator(".ba-table tbody tr td:nth-child(3)").allInnerTexts();
   check(cells.length === 25 && cells.every((c) => /^Property \d+$/.test(c)), "B3-07 linked property titles resolve on the page", cells.slice(0, 3).join(","));
   await shot(s.p, "b3-04-records");
@@ -137,7 +137,7 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   // ---------------- B3-05 calls
   s = await login(b, "own-a@b3.test", { path: "/app/calls" });
   await go(s.p, "/app/calls");
-  check(/360 calls · page 1 of 15/.test(await text(s.p, ".ba-table-foot")), "B3-05 all 360 calls (more than 300) are counted", await text(s.p, ".ba-table-foot"));
+  check(/360 calls, page 1 of 15/.test(await text(s.p, ".ba-table-foot")), "B3-05 all 360 calls (more than 300) are counted", await text(s.p, ".ba-table-foot"));
   await s.p.locator(".ba-segment button", { hasText: "Needs a person" }).click(); await s.p.waitForTimeout(1500);
   check(/^3 calls$/.test(await text(s.p, ".ba-table-foot")), "B3-05 needs-a-person covers the whole history (3, including the 341st call)", await text(s.p, ".ba-table-foot"));
   await s.p.locator(".ba-segment button", { hasText: "Missed" }).click(); await s.p.waitForTimeout(1500);
@@ -169,7 +169,7 @@ const isAttentionCount = (q) => q.url().includes("/rest/v1/calls_view") && q.url
   // ---------------- B3-02 inbox and B3-06 partial failures
   s = await login(b, "own-a@b3.test", { path: "/app/inbox" });
   await go(s.p, "/app/inbox");
-  check(/600 items · page 1 of 12/.test(await text(s.p, ".ba-inbox-list .ba-table-foot")), "B3-02 the inbox counts all 600 calls and conversations", await text(s.p, ".ba-inbox-list .ba-table-foot"));
+  check(/600 items, page 1 of 12/.test(await text(s.p, ".ba-inbox-list .ba-table-foot")), "B3-02 the inbox counts all 600 calls and conversations", await text(s.p, ".ba-inbox-list .ba-table-foot"));
   const times = await s.p.locator(".ba-inbox-row time").evaluateAll((ts) => ts.map((t) => t.getAttribute("title")));
   check(times.length === 50, "B3-02 a page holds 50 items");
   const kinds = await s.p.locator(".ba-inbox-row .ba-thread-icon").evaluateAll((xs) => xs.map((x) => x.innerText.trim()));

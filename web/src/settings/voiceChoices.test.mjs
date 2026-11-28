@@ -90,7 +90,7 @@ test("filter chips: only providers that have voices, in order", () => {
 });
 
 test("card words: traits, announcement, which voices have samples", () => {
-  assert.equal(voiceTraits(CHOICES[2]), "English · Female");
+  assert.equal(voiceTraits(CHOICES[2]), "English, Female");
   assert.equal(voiceTraits(CHOICES[0]), "");
   assert.equal(selectedAnnouncement(CHOICES[2]), "Katie, Cartesia, English, female, selected");
   assert.equal(selectedAnnouncement(null, "Burt"), "Zella Voice default, Burt, selected");

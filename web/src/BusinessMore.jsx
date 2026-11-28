@@ -50,7 +50,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
       <Notice error={error} onRetry={reload} />
       {loading && !data ? <p className="ba-muted">Loading…</p> : !rows.length ? (
         <Empty title={filter === "open" ? "All clear" : "No handled handoffs yet"}>
-          {filter === "open" ? "When a caller asks for a person, or the AI can't help, it appears here with the full transcript." : "Handled handoffs are kept here for your records."}
+          {filter === "open" ? "When a caller asks for a person, or your AI receptionist can't help, it appears here with the full transcript." : "Handled handoffs are kept here for your records."}
         </Empty>
       ) : (
         <div className="ba-stack">
@@ -63,7 +63,7 @@ export function AttentionPage({ workspace, refreshKey, onNotice, onOpenPerson, o
                     <div className="ba-avatar sm">{initials(personName(person) ?? c.from_number ?? "?")}</div>
                     <div>
                       <NameButton person={person} fallback={c.from_number ? formatPhone(c.from_number) : "Unknown caller"} onOpenPerson={onOpenPerson} />
-                      <small>{person ? formatPhone(c.from_number) : ""} {c.escalated_at ? `· handed over ${timeAgo(c.escalated_at)}` : ""}</small>
+                      <small>{person ? formatPhone(c.from_number) : ""} {c.escalated_at ? `, handed over ${timeAgo(c.escalated_at)}` : ""}</small>
                     </div>
                   </div>
                   {(person?.phone || c.from_number) && <a className="ba-btn primary sm" href={`tel:${person?.phone ?? c.from_number}`}><Icon name="call" size="sm" />Call now</a>}
@@ -124,7 +124,7 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
       if (customerId) made.current = { key, id: customerId };
       const now = new Date();
       const inserted = await supabase.from("appointments").insert({
-        business_id: workspace.id, customer_id: customerId, title: "walk in", status: "confirmed",
+        business_id: workspace.id, customer_id: customerId, title: "Walk in", status: "confirmed",
         start_time: now.toISOString(), end_time: new Date(now.getTime() + 30 * 60000).toISOString(),
         timezone: workspace.timezone, description: form.note.trim() || null,
         checked_in_at: now.toISOString(),
@@ -132,7 +132,7 @@ export function WalkInModal({ workspace, staff, hospitality, onClose, onSaved })
         ...(form.partySize ? { party_size: Number(form.partySize) } : {}),
       });
       if (inserted.error) throw inserted.error;
-      onSaved(`${name || "walk in"} checked in.`);
+      onSaved(`${name || "Walk in"} checked in.`);
     } catch (err) {
       setError(friendly(err));
     } finally {
@@ -349,7 +349,7 @@ export function ReportsPage({ workspace, refreshKey }) {
           <h2 className="ba-h2">Calls</h2>
           <div className="ba-kpis rp-kpis">
             <Stat label="Total calls" value={r.calls} note={`${r.answered} answered`} />
-            <Stat label="Handled by AI" value={pct(r.ai, r.calls)} note={`${r.ai} calls`} />
+            <Stat label="Handled by AI receptionist" value={pct(r.ai, r.calls)} note={`${r.ai} calls`} />
             <Stat label="Missed" value={r.missed} note={r.missed ? `${r.followed} followed up` : "None missed"} />
             <Stat label="Average call" value={r.avg ? clock(r.avg) : r.calls ? "Not available" : "No calls yet"} />
             <Stat label="Handed to a person" value={r.handoffs} note={r.handoffsOpen ? `${r.handoffsOpen} still waiting` : "None waiting"} />
@@ -397,7 +397,7 @@ const CATALOG = [
   { match: ["whatsapp"], icon: "chat", name: "WhatsApp", text: "Chat with customers on WhatsApp from the inbox." },
   { match: ["google_ads", "google_leads", "google_profile"], icon: "ads_click", name: "Google leads", text: "Brings in leads from Google Ads and your Business Profile." },
   { match: ["meta", "facebook", "instagram"], icon: "campaign", name: "Facebook and Instagram", text: "Brings in leads from your ads and messages." },
-  { match: ["website", "form", "web"], icon: "language", name: "Website forms", text: "Sends website enquiries straight into your leads." },
+  { match: ["website", "form", "web"], icon: "language", name: "Website forms", text: "Sends website inquiries straight into your leads." },
 ];
 
 const STATUS_TEXT = { active: "Connected", inactive: "Turned off", error: "Needs attention", disconnected: "Removed" };
@@ -437,7 +437,7 @@ function IntegrationCard({ item, row, canManage, loading, onNotice, onChanged, w
           ) : confirming ? (
             <div className="ba-confirm" role="alertdialog" aria-label={`Remove ${item.name}`}>
               <p>
-                Remove {item.name}? Its saved sign-in details are deleted.
+                Remove {item.name}? Its saved sign in details are deleted.
                 {core && " Your AI receptionist can't take calls without it."} The Zella Voice team has to connect it again.
               </p>
               <div className="ba-auto-actions">
@@ -498,7 +498,7 @@ function StoreCard({ workspace, onNotice }) {
     onNotice(`Store connected: ${data.shop_name ?? data.shop}.${data.more_access_than_needed?.length ? " The token can also change things in your store; Zella Voice only reads orders, so a read only token is safer." : ""}`);
   }
   async function disconnect() {
-    if (!window.confirm("Disconnect the store? The assistant stops checking order status and takes messages instead. The access token is deleted.")) return;
+    if (!window.confirm("Disconnect the store? Your AI receptionist stops checking order status and takes messages instead. The access token is deleted.")) return;
     const r = await supabase.rpc("zella_store_disconnect", { p_business_id: workspace.id });
     if (r.error) return setProblem(explain(r.error));
     setVersion((v) => v + 1); onNotice("Store disconnected.");
@@ -507,7 +507,7 @@ function StoreCard({ workspace, onNotice }) {
     <section className="ba-panel ba-integration ba-integration-controls">
       <div className="ba-integration-row">
         <span className="ba-thread-icon"><Icon name="storefront" size="sm" /></span>
-        <div><strong>Shopify store</strong><small>The assistant tells callers their order status and tracking, only when they call from the number on the order or give its email.</small></div>
+        <div><strong>Shopify store</strong><small>Your AI receptionist tells callers their order status and tracking, only when they call from the number on the order or give its email.</small></div>
         <Pill tone={st ? (st.status === "active" ? "success" : "warning") : ""}>{st ? (st.status === "active" ? "Connected" : "Needs attention") : "Not connected"}</Pill>
       </div>
       {problem && <p className="ba-error" role="alert">{problem}</p>}

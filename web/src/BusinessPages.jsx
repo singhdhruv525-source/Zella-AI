@@ -265,8 +265,8 @@ function BlockDetail({ block, who, tz, onClose, onChanged, onNotice }) {
   return (
     <Modal
       icon="event_busy"
-      title={`${block.title}${who ? ` · ${who}` : ""}`}
-      description={block.all_day ? `${formatDay(block.start_time, tz)} to ${formatDay(new Date(new Date(block.end_time).getTime() - 60000), tz)}, all day` : `${formatLongDate(block.start_time, tz)} · ${formatTime(block.start_time, tz)} to ${formatTime(block.end_time, tz)}`}
+      title={`${block.title}${who ? `, ${who}` : ""}`}
+      description={block.all_day ? `${formatDay(block.start_time, tz)} to ${formatDay(new Date(new Date(block.end_time).getTime() - 60000), tz)}, all day` : `${formatLongDate(block.start_time, tz)}, ${formatTime(block.start_time, tz)} to ${formatTime(block.end_time, tz)}`}
       onClose={onClose}
       busy={busy}
       footer={<button type="button" className="ba-btn danger-outline" disabled={busy} onClick={remove}>Remove block</button>}
@@ -331,7 +331,7 @@ function AgendaList({ days, appts, people, staffName, tz, term, cfg, onOpen }) {
                     <span className="cal-agenda-time">{formatTime(x.start_time, tz)}{len ? <small>{len} min</small> : null}</span>
                     <span className="cal-agenda-main">
                       <strong>{who ?? x.title}</strong>
-                      <small>{[who ? x.title : null, x.appointment_type, x.staff_id ? staffName[x.staff_id] : null, cfg.guests && x.party_size ? `${x.party_size} ${term("customers").toLowerCase()}` : null].filter(Boolean).join(" · ")}</small>
+                      <small>{[who ? x.title : null, x.appointment_type, x.staff_id ? staffName[x.staff_id] : null, cfg.guests && x.party_size ? `${x.party_size} ${term("customers").toLowerCase()}` : null].filter(Boolean).join(", ")}</small>
                     </span>
                     {["zella", "ai_receptionist"].includes(x.metadata?.source) && <Icon name="smart_toy" size="sm" className="cal-ai" />}
                     <Pill tone={state[1]}>{state[0]}</Pill>
@@ -748,10 +748,10 @@ export function ReceptionistPage({ workspace, onNotice, onReload }) {
   const missed = calls.filter((c) => c.status === "missed").length;
   const primary = data?.agents?.[0];
   const checks = [
-    ["Receptionist created", Boolean(workspace.receptionist), "Zella Voice sets this up for you."],
+    ["AI receptionist created", Boolean(workspace.receptionist), "Zella Voice sets this up for you."],
     ["Phone line connected", workspace.phone_connected, "Zella Voice connects your number before going live."],
-    ["Voice assistant connected", workspace.voice_connected, "Zella Voice links the voice assistant to your number."],
-    ["Receptionist switched on", workspace.receptionist?.status === "active", "It starts answering once everything above is done."],
+    ["AI receptionist connected", workspace.voice_connected, "The Zella Voice team connects your AI receptionist to your number."],
+    ["AI receptionist switched on", workspace.receptionist?.status === "active", "It starts answering once everything above is done."],
   ];
 
   return (

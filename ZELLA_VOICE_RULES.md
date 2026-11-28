@@ -600,7 +600,7 @@ stateDiagram-v2
 ## Part 14: Words and brand
 
 - `BRD-1` The product and company are **always written in full: "Zella Voice"**, everywhere: product copy, emails, texts, the AI's speech, documents and code comments. Never "Zella" alone, never "Zella AI". Technical identifiers such as `zella_*` function names are not brand text.
-- `BRD-2` **Plain, calm, warm.** Short sentences, everyday words, sentence case, no hype, no exclamation marks on working screens, no blame.
+- `BRD-2` **Plain, calm, warm.** Short sentences, everyday words, sentence case, no hype, no blame. CRM notifications and success toasts may be playful, with jokes and exclamation marks (owner, 28 Nov 2026); never in money, service, error, urgent or security messages, which stay plain and serious. The AI that answers is always "AI receptionist" (`docs/DESIGN_SYSTEM.md`, Writing guide).
 - `BRD-3` **American English**, consistent spelling and terms across app, emails, texts and the AI's speech.
 - `BRD-4` **One label per state**, defined once and reused everywhere.
 - `BRD-5` **No promises we can't keep**: no "guaranteed", no "never miss a call" if a provider can be down, no compliance claims.

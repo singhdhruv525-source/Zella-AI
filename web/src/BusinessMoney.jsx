@@ -10,7 +10,7 @@ import { PersonPicker } from "./BusinessWork";
 // elsewhere (cash, a card terminal, a bank transfer), or what a payment provider confirmed. Staff add charges, managers
 // record payments, owners and admins refund. The database checks every one of these again.
 
-const KINDS = [["invoice", "Invoice"], ["estimate", "Estimate"], ["deposit", "Deposit"], ["no_show_fee", "no show fee"], ["gift_card", "Gift card"]];
+const KINDS = [["invoice", "Invoice"], ["estimate", "Estimate"], ["deposit", "Deposit"], ["no_show_fee", "No show fee"], ["gift_card", "Gift card"]];
 const KIND_LABEL = Object.fromEntries(KINDS);
 const STATUS = {
   proposed: ["Proposed", "info"], accepted: ["Accepted", "success"], declined: ["Declined", ""], open: ["Unpaid", "warning"],
@@ -152,8 +152,8 @@ function ChargeDetail({ workspace, charge, onClose, onChanged }) {
         {(info.data?.payments ?? []).length === 0 ? <p className="ba-muted">None recorded.</p> : (
           <ul className="ba-history">
             {info.data.payments.map((p) => (
-              <li key={p.id}><strong>{{ payment: "Payment", refund: "Refund", redemption: "Gift card used" }[p.kind]} · {showMoney(p.amount_minor, cur)}</strong>
-                {` · ${p.source === "provider" ? "confirmed by payment provider" : METHODS.find(([v]) => v === p.method)?.[1] ?? p.method}`}{p.note ? ` · ${p.note}` : ""}
+              <li key={p.id}><strong>{{ payment: "Payment", refund: "Refund", redemption: "Gift card used" }[p.kind]}, {showMoney(p.amount_minor, cur)}</strong>
+                {`, ${p.source === "provider" ? "confirmed by payment provider" : METHODS.find(([v]) => v === p.method)?.[1] ?? p.method}`}{p.note ? `, ${p.note}` : ""}
                 <small>{timeAgoLabel(p.created_at)}</small></li>
             ))}
           </ul>
@@ -207,7 +207,7 @@ export function MoneyPage({ workspace, refreshKey, onNotice, onOpenPerson }) {
         <label className="ba-inline">Show <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="open">Open</option><option value="all">All</option>{KINDS.map(([v, l]) => <option key={v} value={v}>{l}s</option>)}
         </select></label>
-        {Object.keys(owed).length > 0 && <span className="ba-muted">Unpaid invoices, deposits and fees (full amounts): {Object.entries(owed).map(([c, m]) => showMoney(m, c)).join(" · ")}</span>}
+        {Object.keys(owed).length > 0 && <span className="ba-muted">Unpaid invoices, deposits and fees (full amounts): {Object.entries(owed).map(([c, m]) => showMoney(m, c)).join(", ")}</span>}
       </div>
       {error && <div className="ba-banner error">{explain(error)}</div>}
       {rows.length === 0 ? <Empty icon="payments" title={loading ? "Loading…" : "Nothing here yet"}>{!loading && "Add an estimate, invoice, deposit or gift card when you need to keep track of one."}</Empty> : (

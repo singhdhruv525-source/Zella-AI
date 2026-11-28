@@ -14,7 +14,7 @@ const CODES = {
   STAFF_NEEDS_PHONE: "This person needs a phone number first. Add it with Edit hours.",
   INVALID_STAFF: "Pick someone who still works here.",
   INVALID_TIMES: "Those times don't work. Check the days and times.",
-  TOO_MANY_SHIFTS: "That's the most shifts one rota can hold. Remove some first.",
+  TOO_MANY_SHIFTS: "That's the most shifts one on call schedule can hold. Remove some first.",
 };
 const say = (error) => CODES[error?.message?.trim()] ?? friendly(error);
 
@@ -59,7 +59,7 @@ function ShiftModal({ workspace, staff, onClose, onSaved }) {
       saved += 1;
     }
     setBusy(false);
-    onSaved(form.kind === "weekly" ? "Added to the weekly rota." : "Cover added. It takes over from the weekly rota for that time.");
+    onSaved(form.kind === "weekly" ? "Added to the weekly schedule." : "Cover added. It replaces the weekly schedule for that time.");
   }
 
   const overnight = form.kind === "weekly" && form.ends < form.starts;
@@ -132,13 +132,13 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
     const { error: saveError } = await supabase.rpc("zella_on_call_settings_save", { p_business_id: workspace.id, p_enabled: next.enabled, p_scope: next.scope });
     setBusy(false);
     if (saveError) return onNotice(say(saveError));
-    onNotice(next.enabled ? "on call transfers are on." : "on call transfers are off. after hours calls get a message and a callback.");
+    onNotice(next.enabled ? "On call transfers are on." : "On call transfers are off. After hours calls get a message and a callback.");
     reload();
   }
   async function remove(shift) {
     const { error: deleteError } = await supabase.rpc("zella_on_call_delete", { p_business_id: workspace.id, p_shift_id: shift.id });
     if (deleteError) return onNotice(say(deleteError));
-    onNotice("Removed from the rota.");
+    onNotice("Removed from the on call schedule.");
     reload();
   }
 
@@ -151,7 +151,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
           {s.kind === "weekly"
             ? `${WEEKDAYS[s.weekday]} ${s.starts} to ${s.ends}${s.ends < s.starts ? " (next morning)" : ""}`
             : `${formatDay(s.starts_at, tz)} ${formatTime(s.starts_at, tz)} to ${formatDay(s.ends_at, tz)} ${formatTime(s.ends_at, tz)}`}
-          {s.note ? ` · ${s.note}` : ""}
+          {s.note ? `, ${s.note}` : ""}
         </small>
       </div>
       <div className="ba-thread-meta">
@@ -168,7 +168,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
         <div className="ba-panel-title">
           <div>
             <h2>On call</h2>
-            <p>Who your AI receptionist puts calls through to while you're closed. One off cover beats the weekly rota.</p>
+            <p>Who your AI receptionist puts calls through to while you're closed. One time cover replaces the weekly schedule for that time.</p>
           </div>
         </div>
         {canEdit && <button type="button" className="ba-btn sm" onClick={() => setAdding(true)} disabled={!data?.staff?.length}><Icon name="add" size="sm" /><span>Add time</span></button>}
@@ -197,7 +197,7 @@ export function OnCallPanel({ workspace, refreshKey, onNotice }) {
           </div>
         )}
         {loading && !data ? <p className="ba-muted">Loading…</p> : !weekly.length && !cover.length ? (
-          <Empty title="No on call rota yet" icon="support_agent">
+          <Empty title="No on call schedule yet" icon="support_agent">
             Add who covers evenings and weekends. Until then, after hours callers get a message and a callback.
           </Empty>
         ) : (

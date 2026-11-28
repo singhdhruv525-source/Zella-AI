@@ -127,7 +127,7 @@ hyphens, no emoji, no caller data, card numbers only as the last 4 digits. Colou
 | C1 | Your invoice | an invoice is issued | No, always sent |
 | C2 | Receipt | a pay as you go or pack charge succeeds without a Stripe invoice | No, always sent |
 | C3 | Paid | every successful payment | No, always sent |
-| C4 | Invoice cancelled | an invoice already emailed is cancelled | No, always sent |
+| C4 | Invoice canceled | an invoice already emailed is canceled | No, always sent |
 | C5 | Invoice due tomorrow | 1 day before the due date, if unpaid and automatic payment is off | No, always sent |
 | C6 | Replacement invoice | usage is billed again after an invoice was cancelled | No, always sent |
 | C7 | Credit note | an issued invoice is reduced | No, always sent |

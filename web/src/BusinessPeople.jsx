@@ -26,7 +26,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
     if (res.error) throw new Error(peopleError(res.error));
     const d = res.data;
     // anything but the expected shape is treated as "couldn't load", never drawn half-empty
-    if (!d || !Array.isArray(d.relationships) || !Array.isArray(d.consents)) throw new Error("People & consent couldn't be loaded. Try again.");
+    if (!d || !Array.isArray(d.relationships) || !Array.isArray(d.consents)) throw new Error("People and consent didn't load. Try again.");
     return { ...d, authorized_for: Array.isArray(d.authorized_for) ? d.authorized_for : [] };
   }, [workspace.id, customerId, recordId]);
   const [editing, setEditing] = useState(null);   // null | "new" | relationship
@@ -84,11 +84,11 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
             return (
               <li key={r.id} data-relationship={r.state}>
                 <div>
-                  <strong>{personLabel(r.person)}</strong> · {KIND_LABEL[r.kind] ?? r.kind} <Pill tone={tone}>{label}</Pill>
+                  <strong>{personLabel(r.person)}</strong>, {KIND_LABEL[r.kind] ?? r.kind} <Pill tone={tone}>{label}</Pill>
                   <small>
-                    {r.permissions.length ? r.permissions.map((x) => PERMISSION_LABEL[x] ?? x).join(" · ") : "No permissions"}
-                    {r.valid_until ? ` · until ${calendarDay(r.valid_until)}` : ""}
-                    {r.state === "active" && r.verification_method ? ` · ${METHOD_LABEL[r.verification_method] ?? r.verification_method}` : ""}
+                    {r.permissions.length ? r.permissions.map((x) => PERMISSION_LABEL[x] ?? x).join(", ") : "No permissions"}
+                    {r.valid_until ? `, until ${calendarDay(r.valid_until)}` : ""}
+                    {r.state === "active" && r.verification_method ? `, ${METHOD_LABEL[r.verification_method] ?? r.verification_method}` : ""}
                   </small>
                   {r.note && <small>{r.note}</small>}
                 </div>
@@ -134,7 +134,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
 
       {past.length > 0 && (
         <details className="ba-people-past"><summary>Revoked ({past.length})</summary>
-          <ul className="ba-people-list">{past.map((r) => <li key={r.id}><div><strong>{personLabel(r.person)}</strong> · {KIND_LABEL[r.kind] ?? r.kind}<small>Revoked {formatDay(r.revoked_at, tz)}</small></div></li>)}</ul>
+          <ul className="ba-people-list">{past.map((r) => <li key={r.id}><div><strong>{personLabel(r.person)}</strong>, {KIND_LABEL[r.kind] ?? r.kind}<small>Revoked {formatDay(r.revoked_at, tz)}</small></div></li>)}</ul>
         </details>
       )}
 
@@ -144,7 +144,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
           <ul className="ba-people-list">
             {p.authorized_for.map((r) => {
               const [tone, label] = STATE[r.state] ?? ["neutral", r.state];
-              return <li key={r.id}><div><strong>{r.subject.name || "Unnamed"}</strong> · {KIND_LABEL[r.kind] ?? r.kind} <Pill tone={tone}>{label}</Pill><small>{r.permissions.map((x) => PERMISSION_LABEL[x] ?? x).join(" · ") || "No permissions"}</small></div></li>;
+              return <li key={r.id}><div><strong>{r.subject.name || "Unnamed"}</strong>, {KIND_LABEL[r.kind] ?? r.kind} <Pill tone={tone}>{label}</Pill><small>{r.permissions.map((x) => PERMISSION_LABEL[x] ?? x).join(", ") || "No permissions"}</small></div></li>;
             })}
           </ul>
         </>
@@ -159,7 +159,7 @@ export function PeopleAndConsent({ workspace, subject, onNotice }) {
               <li key={k.id} data-consent={k.state}>
                 <div>
                   <strong>{CONSENT_LABEL[k.kind] ?? k.kind}</strong>{k.scope ? `: ${k.scope}` : ""} <Pill tone={tone}>{label}</Pill>
-                  <small>By {personLabel(k.given_by)} · {formatDay(k.given_at, tz)}{k.expires_at ? ` · until ${calendarDay(k.expires_at)}` : ""}{k.evidence ? ` · ${k.evidence}` : ""}</small>
+                  <small>By {personLabel(k.given_by)}, {formatDay(k.given_at, tz)}{k.expires_at ? `, until ${calendarDay(k.expires_at)}` : ""}{k.evidence ? `, ${k.evidence}` : ""}</small>
                 </div>
                 {p.can_edit && k.state === "active" && (
                   <div className="ba-people-actions">

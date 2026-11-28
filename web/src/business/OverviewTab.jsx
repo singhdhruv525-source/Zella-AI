@@ -82,23 +82,23 @@ export default function OverviewTab({ can, data, b, r, kb, term, invitation, pho
           <Check
             ok={Boolean(invitation)}
             title="Owner"
-            detail={invitation ? `${invitation.owner_name} · invitation ${invitation.status}` : "Owner not added"}
+            detail={invitation ? `${invitation.owner_name}, invitation ${invitation.status}` : "Owner not added"}
           />
           <Check ok={enabledModules.length > 0} title="Modules" detail={`${enabledModules.length} of ${data.modules.length} enabled`} />
           <Check
             ok={(kb.services?.length || 0) + (kb.faqs?.length || 0) > 0}
             later
             title="AI receptionist knowledge"
-            detail={`${kb.services?.length || 0} ${term("services").toLowerCase()} · ${kb.faqs?.length || 0} FAQs · hours ${hoursSet ? "set" : "not set"}`}
+            detail={`${kb.services?.length || 0} ${term("services").toLowerCase()}, ${kb.faqs?.length || 0} FAQs, hours ${hoursSet ? "set" : "not set"}`}
           />
           <Check ok={Boolean(phone)} later title="Phone setup choice" detail={phone ? label(phone.mode) : "Not chosen"} />
           <Check
             ok={Boolean(telnyx)}
             later
             title="Phone number connected"
-            detail={telnyx ? `Connected${telnyx.account_email ? ` · ${telnyx.account_email}` : ""}` : "Not connected yet"}
+            detail={telnyx ? `Connected${telnyx.account_email ? `, ${telnyx.account_email}` : ""}` : "Not connected yet"}
           />
-          <Check ok={r.status === "active"} later title="AI receptionist live" detail={r.status === "active" ? "Answering calls" : "Off until phone and voice agent are connected"} />
+          <Check ok={r.status === "active"} later title="AI receptionist live" detail={r.status === "active" ? "Answering calls" : "Off until the phone number and AI receptionist are connected"} />
           <Check ok={invitation?.status === "accepted"} later title="Owner accepted invitation" detail={invitation?.status === "accepted" ? `Accepted ${formatDate(invitation.accepted_at)}` : "Not yet"} />
         </ul>
       </Card>
@@ -128,7 +128,7 @@ export default function OverviewTab({ can, data, b, r, kb, term, invitation, pho
       <BusinessSizeCard businessId={businessId} size={b.business_size} onSaved={load} canEdit={canManage} />
 
       {!isCancelled && canLifecycle && (
-        <Card title="Manage business" description="Stop a business now, or end its membership when its month is over.">
+        <Card title="Manage business" description="Stop a business now, or end its plan when its month is over.">
           <div className="bd-manage">
             {isSuspended ? (
               <div>
@@ -139,7 +139,7 @@ export default function OverviewTab({ can, data, b, r, kb, term, invitation, pho
             ) : (
               <div>
                 <strong>Suspend now</strong>
-                <span>Stops the workspace, receptionist and automations immediately. For example, a payment problem.</span>
+                <span>Stops the workspace, AI receptionist and automations immediately. For example, a payment problem.</span>
                 <button type="button" className="owner-secondary-button op-small" onClick={() => setPending("suspend")} disabled={busy}>Suspend</button>
               </div>
             )}
@@ -151,7 +151,7 @@ export default function OverviewTab({ can, data, b, r, kb, term, invitation, pho
               </div>
             ) : (
               <div>
-                <strong>Cancel membership</strong>
+                <strong>Cancel plan</strong>
                 <span>Keeps working until the end of their current month, then stops automatically.</span>
                 <button type="button" className="wiz-link-danger bd-inline" onClick={() => setPending("cancel")} disabled={busy}>Cancel at end of month</button>
               </div>

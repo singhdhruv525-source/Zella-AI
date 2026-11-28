@@ -126,7 +126,7 @@ export function Pager({ page, pages, total, onPage, noun, nounMany, hasNext, bus
   if (total <= size && page === 0 && !more) return <div className="ba-table-foot"><span>{plural(total, noun, nounMany)}</span></div>;
   return (
     <div className="ba-table-foot">
-      <span>{plural(total, noun, nounMany)} · page {page + 1} of {Math.max(pages, page + 1)}</span>
+      <span>{plural(total, noun, nounMany)}, page {page + 1} of {Math.max(pages, page + 1)}</span>
       <div className="ba-page-actions">
         <button type="button" className="ba-btn sm" disabled={page === 0 || busy} onClick={() => onPage(page - 1)}>Previous</button>
         <button type="button" className="ba-btn sm" disabled={!more || busy} onClick={() => onPage(page + 1)}>Next</button>
@@ -145,7 +145,7 @@ export function transcriptLines(transcript) {
 }
 
 
-const NEEDS_UPDATE = "Your workspace needs the latest Zella Voice update before this can be saved. Please ask the Zella Voice team.";
+const NEEDS_UPDATE = "This isn't switched on for your workspace yet. Ask the Zella Voice team.";
 // Short codes raised by the database functions, in plain words.
 const CODES = {
   NOT_ALLOWED: "You don't have permission to do that in this workspace.",
@@ -170,7 +170,7 @@ export const friendly = (error) => {
   if (/failed to fetch|network|load failed/i.test(message)) return "Couldn't reach Zella Voice. Check your internet connection and try again.";
   if (CODES[message.trim()]) return CODES[message.trim()];
   // an internal code no screen explains yet: say what happened and keep the code for support
-  if (/^[A-Z][A-Z0-9_]{2,}$/.test(message.trim())) return `That didn't work (code ${message.trim()}). Try again, or contact Zella Voice support if it keeps happening.`;
+  if (/^[A-Z][A-Z0-9_]{2,}$/.test(message.trim())) return `That didn't work. Try again, or contact Zella Voice support if it keeps happening. Reference: ${message.trim()}.`;
   return message;
 };
 
@@ -278,7 +278,7 @@ export async function noShowNotice(appointmentId, who, timeZone) {
 const CODE_MESSAGES = {
   NOT_ALLOWED: "You don't have access to do that.",
   SLOT_TAKEN: "That time is no longer free. Pick another time.",
-  BAD_TIME: "Times need to start on a 5-minute mark, like 10:00 or 10:05.",
+  BAD_TIME: "Times need to start on a 5 minute mark, like 10:00 or 10:05.",
   ALREADY_CLOSED: "This is already closed.",
   ALREADY_RESOLVED: "This was already handled.",
   ALREADY_CONFIRMED: "This booking is already confirmed.",
@@ -303,7 +303,7 @@ export function explain(error) {
   if (text.includes("PARTY_SIZE_REQUIRED")) return "Enter how many people the reservation is for: it decides which table they get.";
   if (/SLOT_TAKEN/.test(text) && /no table for|those tables/.test(String(error?.details ?? ""))) return "No table that seats this party is free then. Pick another time, or add them to the waitlist.";
   if (/\bFULL\b/.test(text)) return "That's full. There's no waitlist for it.";
-  if ((m = text.match(/CAPABILITY_OFF:(\w+)/))) return "Your business has this switched off. An owner or admin can turn it on in Settings > Industry and workflows > What your business does.";
+  if ((m = text.match(/CAPABILITY_OFF:(\w+)/))) return "Your business has this switched off. An owner or admin can turn it on in Settings, Industry and workflows, What your business does.";
   if (text.includes("STATUS_IN_USE")) return "Some records still use a status you removed. Move them first, or keep the status.";
   if ((m = text.match(/FIELD_REMOVED:([^\n]+)/))) return `"${m[1].trim()}" can't be removed because it may hold information. Hide it from the table instead.`;
   if ((m = text.match(/FIELD_LOCKED:([^\n]+)/))) return `The type of "${m[1].trim()}" can't change once it exists.`;

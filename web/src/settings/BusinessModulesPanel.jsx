@@ -9,13 +9,13 @@ import { Banner, Card, Facts, LinkRows, LoadState, Needs, Pill, Table, useAsync,
 
 const ABOUT = {
   "ai-receptionist": "Answers calls, takes messages and hands over to a person",
-  "ai-appointments": "Lets the receptionist book, move and cancel bookings",
-  "ai-follow-up": "Lets the receptionist follow up on missed calls and leads",
-  "ai-sales": "Lets the receptionist answer pricing and service questions",
-  "ai-support": "Lets the receptionist answer common questions",
+  "ai-appointments": "Lets the AI receptionist book, move and cancel bookings",
+  "ai-follow-up": "Lets the AI receptionist follow up on missed calls and leads",
+  "ai-sales": "Lets the AI receptionist answer pricing and service questions",
+  "ai-support": "Lets the AI receptionist answer common questions",
   calls: "Call history, recordings and transcripts",
   automations: "Reminders, follow ups and other automatic steps",
-  calendar: "Waitlist, and booking from the receptionist",
+  calendar: "Waitlist, and booking from the AI receptionist",
   sms: "Text messages to and from customers",
   email: "Email to and from customers",
 };
@@ -58,7 +58,7 @@ export function BusinessModulesPanel({ w, onGo }) {
               ["Module", (m) => <><strong>{m.name ?? words(m.slug)}</strong><br /><small className="zs-muted">{ABOUT[m.slug] ?? ""}</small></>],
               ["Industry", (m) => (m.available ? <Pill tone="success">Supported</Pill> : <Pill>Not offered</Pill>)],
               ["This business", (m) => (m.enabled ? <Pill tone="success">On</Pill> : <Pill tone="warning">Off</Pill>)],
-              ["Pages", (m) => (m.pages.length ? m.pages.map((p) => `${p.label}${p.allowed ? "" : " (not with your role)"}`).join(", ") : "Works inside the receptionist")],
+              ["Pages", (m) => (m.pages.length ? m.pages.map((p) => `${p.label}${p.allowed ? "" : " (not with your role)"}`).join(", ") : "Works inside the AI receptionist")],
             ]} />
           </Card>
           <Card title={n.operations_label ?? "Business operations"} sub="Records for your kind of business. Owners, admins and managers switch them on or off.">
@@ -69,12 +69,10 @@ export function BusinessModulesPanel({ w, onGo }) {
               <LinkRows rows={[{ title: "Switch records on or off, or add your own", detail: "Customize records", onClick: () => onGo("record-settings") }]} />
             )}
           </Card>
-          <Needs title="Switching shared modules here isn't available" have="Ask the Zella Voice team (Help and support) and they'll change it for your plan.">
-            Changing a shared module from here needs the plan's list of optional modules, checked on the server, so nothing is switched on outside your plan.
-          </Needs>
-          <Card title="Not built yet" sub="Not shown in your menu until they work.">
+          <Needs title="Switching shared modules here isn't available yet." have="Ask the Zella Voice team (Help and support) and they'll change it for your plan." />
+          <Card title="Coming soon" sub="Not shown in your menu until they work.">
             <Facts rows={[["Voicemails", "Calls with a recording are in Calls"], ["Reviews inbox", "Send your review link from SMS, email and messages"],
-              ["Marketing campaigns", "Lead sources shows where leads come from"], ["AI agents beyond the receptionist", "None"]]} />
+              ["Marketing campaigns", "Lead sources shows where leads come from"], ["More AI tools beyond the AI receptionist", "None"]]} />
           </Card>
         </>
       );

@@ -20,7 +20,7 @@ import { loadRead, mergeBellNotes, needsNowNotes, pruneRead, saveRead } from "./
 /* ------------------------------------------------------------------ */
 
 export const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
-export const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "None");
+export const when = (value, tz) => (value ? `${formatDay(value, tz)}, ${formatTime(value, tz)}` : "None");
 
 // Search is limited to the business being worked in: someone who belongs to several businesses can read all of
 // their customers, and picking one from another business would link it to the wrong place.
@@ -261,7 +261,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
               return (
                 <div key={d.id} className="ba-dup">
                   <div><small>Already in your list</small><strong>{personName(existing) ?? "Unnamed"}</strong><span className="ba-muted">{existing?.phone ?? ""} {existing?.email ?? ""}</span></div>
-                  <div><small>New enquiry</small><strong>{[inc.first_name, inc.last_name].filter(Boolean).join(" ") || "Unnamed"}</strong><span className="ba-muted">{inc.phone ?? ""} {inc.email ?? ""}</span></div>
+                  <div><small>New inquiry</small><strong>{[inc.first_name, inc.last_name].filter(Boolean).join(" ") || "Unnamed"}</strong><span className="ba-muted">{inc.phone ?? ""} {inc.email ?? ""}</span></div>
                   <div className="ba-form-actions wrap">
                     {d.customer_id && <button type="button" className="ba-btn primary sm" disabled={working === `m-${d.id}`} onClick={() => run(`m-${d.id}`, () => supabase.rpc("zella_resolve_duplicate", { p_review_id: d.id, p_action: "merge" }), "Added to the existing record.")}>Same person: merge</button>}
                     <button type="button" className="ba-btn sm" disabled={working === `m-${d.id}`} onClick={() => run(`m-${d.id}`, () => supabase.rpc("zella_resolve_duplicate", { p_review_id: d.id, p_action: "keep_separate" }), "Added as a new person.")}>Different person</button>
@@ -329,7 +329,7 @@ export function TasksPage({ workspace, refreshKey, onNotice, onOpenPerson, onCha
                   {t.body && <p className="ba-item-text">{t.body}</p>}
                   <p className="ba-muted">
                     {t.status === "open" ? (t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time") : `${t.status === "done" ? "Done" : "Canceled"} ${timeAgo(t.completed_at ?? t.created_at)}`}
-                    {person && <> · <button type="button" className="ba-link" onClick={() => onOpenPerson(person.id)}>{personName(person)}</button></>}
+                    {person && <>, <button type="button" className="ba-link" onClick={() => onOpenPerson(person.id)}>{personName(person)}</button></>}
                   </p>
                   {t.status === "open" && (
                     <div className="ba-form-actions">
@@ -442,8 +442,8 @@ export function WaitlistPage({ workspace, term, refreshKey, onNotice, onOpenPers
                     {w.title && <Pill>{w.title}</Pill>}
                   </div>
                   <p className="ba-muted">
-                    {w.duration_minutes} min · added {timeAgo(w.created_at)}
-                    {(w.earliest_at || w.latest_at) && ` · ${w.earliest_at ? formatDay(w.earliest_at, tz) : "any time"} to ${w.latest_at ? formatDay(w.latest_at, tz) : "open"}`}
+                    {w.duration_minutes} min, added {timeAgo(w.created_at)}
+                    {(w.earliest_at || w.latest_at) && `, ${w.earliest_at ? formatDay(w.earliest_at, tz) : "any time"} to ${w.latest_at ? formatDay(w.latest_at, tz) : "open"}`}
                   </p>
                   {w.status === "offered" && <p className="ba-item-text">Offered {when(w.offered_start, tz)}. Waiting for their answer until {formatTime(w.offer_expires_at, tz)}.</p>}
                   {w.notes && <p className="ba-item-text">{w.notes}</p>}
@@ -672,7 +672,7 @@ export function LeadTab({ person, workspace, onChanged, onNotice }) {
           {person.qualification_result && <Pill tone={person.qualification_result === "qualified" ? "success" : ""}>{person.qualification_result === "qualified" ? "Meets your criteria" : person.qualification_result === "unqualified" ? "Doesn't meet your criteria" : "Questions unanswered"}</Pill>}
           {person.contact_deadline_at && stage === "new" && <Pill tone="warning">Contact by {when(person.contact_deadline_at, tz)}</Pill>}
         </div>
-        {stage === "lost" && person.lost_reason && <p className="ba-item-text">Lost: {person.lost_reason}{person.reactivate_after ? ` · Zella Voice may reach out again around ${formatDay(person.reactivate_after, tz)}` : ""}</p>}
+        {stage === "lost" && person.lost_reason && <p className="ba-item-text">Lost: {person.lost_reason}{person.reactivate_after ? `, Zella Voice may reach out again around ${formatDay(person.reactivate_after, tz)}` : ""}</p>}
         <div className="ba-form-actions wrap">
           {STAGES.filter(([k]) => k !== "lost" && k !== stage && k !== "quote_sent").map(([k, l]) => (
             <button key={k} type="button" className="ba-btn sm" disabled={working === `s-${k}`} onClick={() => setStage(k)}>Mark {l.toLowerCase()}</button>
@@ -699,7 +699,7 @@ export function LeadTab({ person, workspace, onChanged, onNotice }) {
             {data.quotes.map((q) => (
               <li key={q.id}>
                 <span className="ba-thread-icon"><Icon name="request_quote" size="sm" /></span>
-                <div><strong>{q.title}</strong><small>{when(q.issued_at, tz)} · {q.follow_ups_sent} follow-up{q.follow_ups_sent === 1 ? "" : "s"} sent</small></div>
+                <div><strong>{q.title}</strong><small>{when(q.issued_at, tz)}, {q.follow_ups_sent} follow up{q.follow_ups_sent === 1 ? "" : "s"} sent</small></div>
                 <div className="ba-thread-meta">
                   <Pill tone={QUOTE_TONE[q.status]}>{QUOTE_LABEL[q.status]}</Pill>
                   {q.status === "issued" && (<>
@@ -725,7 +725,7 @@ export function LeadTab({ person, workspace, onChanged, onNotice }) {
         {!data?.tasks.length && !data?.cbs.filter((c) => !CB_CLOSED.includes(c.status)).length ? <p className="ba-muted">Nothing open for them.</p> : (
           <ul className="ba-threads">
             {(data?.tasks ?? []).map((t) => <li key={t.id}><span className="ba-thread-icon"><Icon name="task_alt" size="sm" /></span><div><strong>{t.title}</strong><small>{t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time"}</small></div></li>)}
-            {(data?.cbs ?? []).filter((c) => !CB_CLOSED.includes(c.status)).map((c) => <li key={c.id}><span className="ba-thread-icon"><Icon name="phone_callback" size="sm" /></span><div><strong>{CB_REASON[c.reason]}</strong><small>{(CB_STATUS[c.status] ?? [c.status])[0]} · due {when(c.due_at, tz)}</small></div></li>)}
+            {(data?.cbs ?? []).filter((c) => !CB_CLOSED.includes(c.status)).map((c) => <li key={c.id}><span className="ba-thread-icon"><Icon name="phone_callback" size="sm" /></span><div><strong>{CB_REASON[c.reason]}</strong><small>{(CB_STATUS[c.status] ?? [c.status])[0]}, due {when(c.due_at, tz)}</small></div></li>)}
           </ul>
         )}
       </section>

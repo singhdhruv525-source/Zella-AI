@@ -53,7 +53,7 @@ test("setup done follows onboarding_status, even when suspended or canceled (BIZ
   const cancelling = businessState({ onboarding_status: "active", cancel_at: "2026-12-01T12:00:00Z" });
   assert.equal(cancelling.cancelling, true);
   assert.equal(cancelling.key, "live");
-  assert.match(cancelling.label, /^Live · cancels /);
+  assert.match(cancelling.label, /^Live, cancels /);
 });
 
 test("the web app and the server put every business in the same stage", () => {

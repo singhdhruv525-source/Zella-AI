@@ -4,7 +4,7 @@ import { Card, LoadState, Pill, Table, useAsync, when } from "../SettingsKit";
 // n8n's own view of each Zella Voice workflow (AUTO-N8N-STATUS): active in n8n or not, and its last execution. Read on
 // the server with an n8n API key kept as a secret (owner-provision-business n8n_status); the key never reaches the
 // browser. Until the owner sets the key and the address, it says "Not connected yet".
-const RUN = { success: ["success", "Succeeded"], error: ["danger", "Failed"], crashed: ["danger", "Failed"], running: ["warning", "Running"], waiting: ["warning", "Waiting"], canceled: ["neutral", "Cancelled"] };
+const RUN = { success: ["success", "Succeeded"], error: ["danger", "Failed"], crashed: ["danger", "Failed"], running: ["warning", "Running"], waiting: ["warning", "Waiting"], canceled: ["neutral", "Canceled"] };
 
 export default function N8nStatus() {
   const state = useAsync(() => callOwnerFunction("n8n_status"), []);

@@ -41,7 +41,7 @@ export function inspectionProgress(items) {
   const answered = list.filter((i) => i.result).length;
   const failed = list.filter((i) => i.result === "fail").length;
   return { answered, failed, total: list.length, complete: list.length > 0 && answered === list.length,
-    text: list.length ? `${answered} of ${list.length} checked${failed ? ` · ${failed} failed` : ""}` : "" };
+    text: list.length ? `${answered} of ${list.length} checked${failed ? `, ${failed} failed` : ""}` : "" };
 }
 
 // due dates read plainly against today (both YYYY-MM-DD)

@@ -13,7 +13,7 @@ import { chime, deviceAlerts, setDeviceAlerts } from "../liveAlerts";
 // Every change applies at once and is saved to their account.
 
 const THEMES = [
-  { key: "zella", label: "Zella Voice", text: "Paper, midnight and coral, the official Zella Voice look" },
+  { key: "zella", label: "Zella Voice", text: "Paper, midnight and coral, the Zella Voice look" },
   { key: "classic", label: "Classic", text: "Warm cream and copper, the earlier Zella Voice look" },
   { key: "glass", label: "Glass", text: "Frosted panels over a background picture of your choice" },
 ];

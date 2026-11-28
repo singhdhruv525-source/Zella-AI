@@ -134,7 +134,7 @@ function NoteForm({ initial, busy, error, onCancel, onSend }) {
     <form className="ba-form zob-form" onSubmit={(e) => { e.preventDefault(); if (note.trim()) onSend(note.trim()); }}>
       <div className="ba-field">
         <label htmlFor={id}>What should change?</label>
-        <textarea id={id} ref={area} value={note} maxLength={1000} aria-describedby={hintId} onChange={(e) => setNote(e.target.value)} placeholder="For example: we close at 18:00 on Fridays" />
+        <textarea id={id} ref={area} value={note} maxLength={1000} aria-describedby={hintId} onChange={(e) => setNote(e.target.value)} placeholder="For example: we close at 6 PM on Fridays" />
         <small id={hintId}>The Zella Voice team reads this and makes the change for you. {1000 - note.length} characters left.</small>
       </div>
       <ErrorText>{error}</ErrorText>

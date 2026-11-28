@@ -177,7 +177,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
 
       <Notice error={error} onRetry={reload} />
       {data?.staffMissing && (
-        <div className="ba-banner error"><span>Team availability needs the latest Zella Voice update. Please ask the Zella Voice team to apply it.</span></div>
+        <div className="ba-banner error"><span>Team availability isn't switched on for your workspace yet. Ask the Zella Voice team.</span></div>
       )}
 
       <section className="ba-panel">
@@ -224,7 +224,7 @@ export function TeamPage({ workspace, email, refreshKey, onNotice }) {
                 <span className="ba-thread-icon"><Icon name="block" size="sm" /></span>
                 <div>
                   <strong>{b.title}: {b.staff_id ? nameOf[b.staff_id] ?? "Team member" : "Whole business"}</strong>
-                  <small>{b.all_day ? `${formatDay(b.start_time, tz)} to ${formatDay(new Date(new Date(b.end_time).getTime() - 60000), tz)}, all day` : `${formatDay(b.start_time, tz)} · ${formatTime(b.start_time, tz)} to ${formatTime(b.end_time, tz)}`}{b.reason ? ` · ${b.reason}` : ""}</small>
+                  <small>{b.all_day ? `${formatDay(b.start_time, tz)} to ${formatDay(new Date(new Date(b.end_time).getTime() - 60000), tz)}, all day` : `${formatDay(b.start_time, tz)}, ${formatTime(b.start_time, tz)} to ${formatTime(b.end_time, tz)}`}{b.reason ? `, ${b.reason}` : ""}</small>
                 </div>
                 <div className="ba-thread-meta"><button type="button" className="ba-btn sm" onClick={() => removeBlock(b)}>Remove</button></div>
               </li>

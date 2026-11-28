@@ -55,7 +55,7 @@ export function planMessage(plan) {
 
 // The server's refusals of zella_business_language_save, in words.
 const CODES = {
-  LANGUAGES_ADMIN_ONLY: "Only Zella Voice admins who can manage businesses change a receptionist's languages.",
+  LANGUAGES_ADMIN_ONLY: "Only Zella Voice admins who can manage businesses change an AI receptionist's languages.",
   NOT_FOUND: "This business no longer exists.",
   UNKNOWN_LANGUAGE: "Pick languages from the list.",
   TOO_MANY_LANGUAGES: "Up to three extra languages.",

@@ -91,12 +91,12 @@ export function carouselItems(choices, languages = [], provider = "") {
   return [{ id: "", isDefault: true }, ...groupChoices(kept, languages).flatMap((g) => g.choices)];
 }
 
-// "English" / "Spanish" for a code, "" when unknown; and the card's small line, "English · Female"
+// "English" / "Spanish" for a code, "" when unknown; and the card's small line, "English, Female"
 export const languageName = (code) => (code ? LANGUAGE_NAME[code] ?? code : "");
 export function voiceTraits(choice) {
   if (!choice) return "";
   const g = choice.gender ? choice.gender.charAt(0).toUpperCase() + choice.gender.slice(1) : "";
-  return [languageName(choice.language), g].filter(Boolean).join(" · ");
+  return [languageName(choice.language), g].filter(Boolean).join(", ");
 }
 
 // What a screen reader hears when the centred card changes

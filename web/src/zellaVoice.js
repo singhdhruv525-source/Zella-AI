@@ -1,7 +1,9 @@
-// Zella Voice's voice for notifications and confirmations inside the CRM: creative but professional, warm, short,
-// never robotic, no emoji, and in the business's own words (docs/DESIGN_SYSTEM.md, Notifications).
+// Zella Voice's voice for notifications and confirmations inside the CRM: playful but professional, warm, short,
+// never robotic, no emoji, and in the business's own words (docs/DESIGN_SYSTEM.md, Notifications; owner, 28 Nov 2026).
 // The facts (names, times, reasons) still come from the original message; only the wrapping changes.
-// Urgent and safety-related messages stay plain and direct, with warmth but no jokes.
+// Money, service problems, errors, urgent or safety alerts and security stay plain and serious: one line, no jokes, no
+// exclamation marks (SERIOUS below), and warm() never rewrites a message about them. An urgent notification shows the
+// server's own title.
 
 const hash = (text) => { let h = 0; for (const ch of String(text)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 const choose = (list, seed) => list[hash(seed) % list.length];
@@ -38,7 +40,7 @@ const BY_INDUSTRY = {
 
 
 // Every industry talks about its own people and bookings: patients and appointments, guests and tables, tenants and viewings.
-const NOUNS = {"automotive": {"p": "customer", "ps": "customers", "b": "service slot"}, "beautysalon": {"p": "client", "ps": "clients", "b": "chair"}, "childcare": {"p": "family", "ps": "families", "b": "tour"}, "cleaningservices": {"p": "client", "ps": "clients", "b": "clean"}, "dental": {"p": "patient", "ps": "patients", "b": "appointment"}, "ecommerce": {"p": "customer", "ps": "customers", "b": "order"}, "education": {"p": "student", "ps": "students", "b": "session"}, "electrical": {"p": "customer", "ps": "customers", "b": "job"}, "financialservices": {"p": "client", "ps": "clients", "b": "consultation"}, "fitness": {"p": "member", "ps": "members", "b": "class"}, "healthcare": {"p": "patient", "ps": "patients", "b": "appointment"}, "homeservices": {"p": "customer", "ps": "customers", "b": "visit"}, "hospitality": {"p": "guest", "ps": "guests", "b": "stay"}, "hvac": {"p": "customer", "ps": "customers", "b": "service call"}, "insurance": {"p": "client", "ps": "clients", "b": "review"}, "landscapinglawncare": {"p": "customer", "ps": "customers", "b": "visit"}, "legal": {"p": "client", "ps": "clients", "b": "consultation"}, "other": {"p": "customer", "ps": "customers", "b": "booking"}, "pestcontrol": {"p": "customer", "ps": "customers", "b": "visit"}, "petcareveterinary": {"p": "pet owner", "ps": "pet owners", "b": "visit"}, "photographyevents": {"p": "client", "ps": "clients", "b": "shoot"}, "plumbing": {"p": "customer", "ps": "customers", "b": "job"}, "professionalservices": {"p": "client", "ps": "clients", "b": "meeting"}, "propertymanagement": {"p": "tenant", "ps": "tenants", "b": "viewing"}, "realestate": {"p": "buyer", "ps": "buyers", "b": "viewing"}, "restaurant": {"p": "guest", "ps": "guests", "b": "table"}, "spawellness": {"p": "guest", "ps": "guests", "b": "treatment"}, "travel": {"p": "traveller", "ps": "travellers", "b": "trip"}};
+const NOUNS = {"automotive": {"p": "customer", "ps": "customers", "b": "service slot"}, "beautysalon": {"p": "client", "ps": "clients", "b": "chair"}, "childcare": {"p": "family", "ps": "families", "b": "tour"}, "cleaningservices": {"p": "client", "ps": "clients", "b": "clean"}, "dental": {"p": "patient", "ps": "patients", "b": "appointment"}, "ecommerce": {"p": "customer", "ps": "customers", "b": "order"}, "education": {"p": "student", "ps": "students", "b": "session"}, "electrical": {"p": "customer", "ps": "customers", "b": "job"}, "financialservices": {"p": "client", "ps": "clients", "b": "consultation"}, "fitness": {"p": "member", "ps": "members", "b": "class"}, "healthcare": {"p": "patient", "ps": "patients", "b": "appointment"}, "homeservices": {"p": "customer", "ps": "customers", "b": "visit"}, "hospitality": {"p": "guest", "ps": "guests", "b": "stay"}, "hvac": {"p": "customer", "ps": "customers", "b": "service call"}, "insurance": {"p": "client", "ps": "clients", "b": "review"}, "landscapinglawncare": {"p": "customer", "ps": "customers", "b": "visit"}, "legal": {"p": "client", "ps": "clients", "b": "consultation"}, "other": {"p": "customer", "ps": "customers", "b": "booking"}, "pestcontrol": {"p": "customer", "ps": "customers", "b": "visit"}, "petcareveterinary": {"p": "pet owner", "ps": "pet owners", "b": "visit"}, "photographyevents": {"p": "client", "ps": "clients", "b": "shoot"}, "plumbing": {"p": "customer", "ps": "customers", "b": "job"}, "professionalservices": {"p": "client", "ps": "clients", "b": "meeting"}, "propertymanagement": {"p": "tenant", "ps": "tenants", "b": "viewing"}, "realestate": {"p": "buyer", "ps": "buyers", "b": "viewing"}, "restaurant": {"p": "guest", "ps": "guests", "b": "table"}, "spawellness": {"p": "guest", "ps": "guests", "b": "treatment"}, "travel": {"p": "traveler", "ps": "travelers", "b": "trip"}};
 // The business's own words win: terminology set for this workspace ("session", "client") replaces the industry's.
 function industryVoice(k, own = {}) {
   const n = NOUNS[k];
@@ -51,7 +53,7 @@ function industryVoice(k, own = {}) {
   return {
     best_day: [`A record day for your ${plural(B)}`, `Your busiest day for ${plural(B)} in three months`],
     call_surge: [`${Ps} are calling in numbers today`, `A busy day on the phones with your ${ps}`],
-    new_lead: () => [`${a} new ${P} is getting in touch. Say hello!`, `Someone new wants to become ${a.toLowerCase()} ${P}. Say hello!`, `A new ${P} enquiry just arrived.`],
+    new_lead: () => [`A new ${P} is getting in touch. Say hello!`, `Someone new wants to become ${a.toLowerCase()} ${P}. Say hello!`, `A new ${P} inquiry just arrived.`],
     callback: [`${a} ${P} is waiting for your call.`, `${a} ${P} would love a call back.`],
     appointment_cancelled: [`A ${B} was canceled. That time is free again.`, `One ${B} canceled. Your calendar has room.`],
     customer_arrived: (x) => [`${x.title}. Time to welcome them in!`, `${x.title}. Your ${P} is here!`],
@@ -114,7 +116,7 @@ const TITLES = {
   time_off_decision: ["There's an answer on your time off request."],
   staff_joined: ["A new teammate just joined. Welcome them in!", "Say hello! Someone new has joined the team."],
   staff_unavailable: ["Someone on your team is away. We've kept things covered."],
-  went_live: ["You're live! Zella Voice is picking up the phone.", "It's official: Zella Voice is on the line for you."],
+  went_live: ["You're live! Your AI receptionist is picking up the phone.", "It's official: your AI receptionist is on the line for you."],
   business_welcome: ["Welcome aboard! We're glad you're here.", "Welcome to Zella Voice. We're right here with you."],
   setup_incomplete: ["A few small steps left before you go live."],
   setup_reminder: ["Almost there. A few steps are left to finish setup."],
@@ -136,7 +138,7 @@ const TITLES = {
   incident_open: ["We hit a bump, and we're on it."],
   incident_resolved: ["All clear. Everything's back to normal."],
   data_rights_request: ["A customer made a privacy request. Please take a look."],
-  agent_config_published: ["Your AI receptionist has a fresh update. She's ready!"],
+  agent_config_published: ["Your AI receptionist has a fresh update. It's ready!"],
   knowledge_report: ["Your knowledge report is ready."],
   duplicate: ["Two records look like the same person. Want to tidy up?"],
   industry_alert: (n) => [`Zella Voice spotted something: ${n.title}`, `Heads up! ${n.title}`, `Worth a look: ${n.title}`, `A little nudge from Zella Voice: ${n.title}`],
@@ -166,8 +168,8 @@ Object.assign(TITLES, {
   wrong_answer_reported: ["Someone flagged an answer from your AI receptionist. Let's fix it together."],
   spot_check: ["A few AI conversations are ready for a quick spot check."],
   on_call_starting: (n) => /^You're on call/.test(n.title)
-    ? [`${n.title}. Phone charged? You've got this.`, `${n.title}. after hours calls will come to you.`]
-    : [`${n.title}. after hours calls are covered.`, `Tonight's cover: ${n.title.replace(/^(.+) is on call/, "$1, on call")}.`],
+    ? [`${n.title}. Phone charged? You've got this.`, `${n.title}. After hours calls will come to you.`]
+    : [`${n.title}. After hours calls go to the person on call.`, `Tonight's cover: ${n.title.replace(/^(.+) is on call/, "$1, on call")}.`],
   // leads, work and the team
   lead_assigned: ["A new lead has your name on it. Say hello!", "You've got a lead! A quick hello goes a long way."],
   task_escalated: ["A task needs a hand. Can you help it over the line?"],
@@ -182,9 +184,9 @@ Object.assign(TITLES, {
   email_unsubscribed: ["A customer unsubscribed from emails. We'll respect that."],
   kpi_message_failures: ["More messages than usual didn't get through. Let's check why."],
   kpi_missed_calls: ["More calls than usual went unanswered. Let's look together."],
-  kpi_no_shows: ["no shows are a little higher than usual. Reminders may help."],
+  kpi_no_shows: ["No shows are a little higher than usual. Reminders may help."],
   // knowledge and the website
-  knowledge_gap: ["Callers asked something your AI couldn't answer. Teach it once, it remembers.", "A new question came up. A quick answer helps every caller after."],
+  knowledge_gap: ["Callers asked something your AI receptionist couldn't answer. Teach it once, it remembers.", "A new question came up. A quick answer helps every caller after."],
   knowledge_repeat: ["The same question keeps coming up. Worth adding to Knowledge?"],
   knowledge_conflict: ["Two answers in Knowledge disagree. Which one is right?"],
   knowledge_failed: ["A knowledge update didn't go through. Let's try again."],
@@ -194,7 +196,7 @@ Object.assign(TITLES, {
   website_review: ["New pages from your website are ready for a look."],
   website_new_pages: ["We spotted new pages on your website."],
   website_page_broken: ["A page on your website isn't loading. Worth a check."],
-  website_page_removed: ["A page disappeared from your website. We've kept your AI up to date."],
+  website_page_removed: ["A page disappeared from your website. We've kept your AI receptionist up to date."],
   // social, spam and reviews
   social_comment: ["Someone commented on your social post!", "A new comment is waiting on social."],
   social_handoff: ["A social conversation needs a person. Over to you!"],
@@ -216,10 +218,66 @@ Object.assign(TITLES, {
   call_surge: ["Calls are pouring in today", "A busy day on the phones"],
 });
 
+
+// Money, service problems, errors, urgent or safety alerts and security: plain and serious, one line, no jokes and no
+// exclamation marks (owner, 28 Nov 2026). These replace any playful wording above and get no extra variants.
+// A function gets the original notification, for a kind whose server title carries the facts.
+export const SERIOUS = {
+  // money, plan and billing
+  payment_failed: "Your payment didn't go through.",
+  payment_overdue: "A payment is overdue.",
+  payment_received: "Payment received.",
+  renewal_upcoming: "Your plan renews soon. You don't need to do anything unless you want to change it.",
+  trial_ending: "Your trial ends soon.",
+  trial_ended: "Your trial has ended.",
+  account_cancelled: "Your Zella Voice plan was canceled.",
+  account_reactivated: "Your workspace is active again.",
+  account_suspended: "Your workspace is paused.",
+  subscription_cancelled: "Your plan was canceled.",
+  cancellation_coming: "Your plan ends soon.",
+  usage_threshold: (n) => n.title,
+  // service problems
+  incident_open: "We're working on a problem with Zella Voice.",
+  incident_resolved: "A problem with Zella Voice was fixed.",
+  agent_failures: "Your AI receptionist ran into errors on some calls.",
+  agent_sync_failed: "An update didn't reach your AI receptionist yet. We'll try again.",
+  transfer_failures: "Some calls couldn't be transferred to a person. Check the transfer number.",
+  transfer_fallback_applied: "Calls are now going to your backup number.",
+  integration_down: "One of your connections stopped working.",
+  integration_reconnect: "A connection needs to be reconnected.",
+  calendar_disconnected: "Your calendar was disconnected.",
+  calendar_sync_owner: "Your calendar sync needs attention.",
+  meta_disconnected: "Facebook or Instagram was disconnected.",
+  reviews_disconnected: "Google reviews stopped syncing.",
+  website_page_broken: "A page on your website isn't loading.",
+  // errors
+  email_bounced: "An email couldn't be delivered.",
+  sms_not_delivered: "A text message wasn't delivered.",
+  messages_failed: "Some messages weren't delivered.",
+  reminder_failed: "A reminder wasn't sent.",
+  knowledge_failed: "A knowledge update didn't go through.",
+  review_reply_failed: "A review reply couldn't be posted.",
+  meta_lead_failed: "A lead from Facebook didn't come through.",
+  meta_lead_incomplete: "A Facebook lead arrived with missing details.",
+  kpi_message_failures: "More messages than usual weren't delivered.",
+  kpi_missed_calls: "More calls than usual were missed.",
+  // urgent and safety
+  emergency_call: "Emergency call. Please look at this one first.",
+  escalation_unacknowledged: "Someone is still waiting for a person.",
+  data_rights_request: "A customer made a privacy request.",
+  data_rights_due: "A privacy request is due soon.",
+  // security and sign in
+  spam_high_risk: "Zella Voice blocked something suspicious.",
+  spam_unreviewed: "Some suspicious contacts are waiting for review.",
+  email_complaint: "Someone marked an email as spam. We've stopped emailing them.",
+  meta_permissions_missing: "Facebook needs more permissions.",
+};
+for (const [kind, line] of Object.entries(SERIOUS)) TITLES[kind] = line;
+
 // More ways to say the same thing, so the bell never feels like a template. Only the wording changes, never the facts.
 const EXTRA = {
-  website_lead: ["A visitor liked your website enough to say hi!", "Your website just did its job. A new enquiry is in."],
-  social_lead: ["A new enquiry came in from social media.", "Someone new reached out on social media."],
+  website_lead: ["A visitor liked your website enough to say hi!", "Your website just did its job. A new inquiry is in."],
+  social_lead: ["A new inquiry came in from social media.", "Someone new reached out on social media."],
   callback: ["A caller is waiting to hear from you.", "Someone is hoping for a call back today."],
   callback_assigned: ["A callback has your name on it.", "This callback was made for you."],
   callback_soon: ["A callback is due in a few minutes.", "Get ready: a callback is due shortly."],
@@ -233,17 +291,17 @@ const EXTRA = {
   lead_escalated: ["A conversation needs your human touch.", "Zella Voice's passing this one to you. It's a good one."],
   task_overdue: ["A task is past its due date.", "One task is running behind."],
   lead_overdue: ["A lead is still waiting for hello number one.", "Don't let this lead go cold. A quick hello will do it."],
-  call_insight: ["Zella Voice was listening and noticed something worth a look.", "A recent call taught us something. Take a peek."],
+  call_insight: ["Zella Voice spotted something worth a look on a recent call.", "A recent call has a tip for you. Take a peek."],
   staff_joined: ["Team news: someone new has joined. Wave hello!"],
-  went_live: ["You're live. Zella Voice is answering your calls.", "Your AI receptionist is now answering calls."],
+  went_live: ["You're live. Your AI receptionist is answering your calls.", "Your AI receptionist is now answering calls."],
   payment_received: ["Payment received. Thank you.", "Thank you! That payment arrived safely."],
   daily_summary: ["Your day, wrapped up neatly.", "Today's recap is ready, with everything that mattered."],
   weekly_review: ["Your week at a glance is ready.", "Weekly review is ready. It was a good one."],
   incident_resolved: ["Resolved. Everything is running normally.", "All fixed. Thanks for your patience."],
-  agent_config_published: ["Your AI receptionist just learned something new.", "Your receptionist's update is live."],
+  agent_config_published: ["Your AI receptionist just learned something new.", "Your AI receptionist's update is live."],
   duplicate: ["These two look like the same person. Shall we tidy up?", "Two records may be the same person."],
 };
-for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind])) TITLES[kind] = [...TITLES[kind], ...extra];
+for (const [kind, extra] of Object.entries(EXTRA)) if (Array.isArray(TITLES[kind]) && !(kind in SERIOUS)) TITLES[kind] = [...TITLES[kind], ...extra];
 
 const ownWords = (workspace) => {
   const t = workspace?.terminology ?? {};
@@ -256,7 +314,8 @@ export function voiceTitle(n, workspace) {
   // titles written by the server may say "5-star" or "24-hour"; the bell says "5 star" (names keep their hyphens)
   if (typeof n?.title === "string") n = { ...n, title: n.title.replace(/(\d)-(?=[A-Za-z])/g, "$1 ") };
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
-  if (n.kind === "industry_alert" && n.severity === "urgent") return localize(n.title, term); // urgent stays plain and direct
+  if (n.severity === "urgent") return localize(n.title, term);   // urgent stays the server's own words
+  if (n.kind in SERIOUS) return localize(typeof SERIOUS[n.kind] === "function" ? SERIOUS[n.kind](n) : SERIOUS[n.kind], term);
   const ind = key(workspace?.industry);
   const entry = BY_INDUSTRY[ind]?.[n.kind] ?? industryVoice(ind, ownWords(workspace))?.[n.kind] ?? TITLES[n.kind];
   if (!entry) return localize(n.title, term);
@@ -275,7 +334,7 @@ const RULES = [
   [/^Lead created\.?$/, () => roll(["Lead added. A promising start.", "New lead saved. Welcome them in!"])],
   [/^Removed\. The time is open again\.?$/, () => "Done. That time is open again."],
   [/^Block removed\. The time is open again\.?$/, () => "Done. That time is open again."],
-  [/^You're live\./, () => "You're live! Zella Voice is picking up the phone."],
+  [/^You're live\./, () => "You're live! Your AI receptionist is picking up the phone."],
   [/^Run queued to try again\.?$/, () => "Trying again now."],
   [/^Submitted\. /, (m) => m.replace(/^Submitted\./, "Thanks, submitted.")],
   [/^Added\. /, (m) => m.replace(/^Added\./, "Added. Nice one.")],
@@ -287,9 +346,14 @@ const RULES = [
   [/^Saved to the customer\.?$/, () => "Saved to the customer. Thanks for checking!"],
 ];
 
+// Messages about money, service, errors, security and privacy (call recording, transcripts, consent) are shown as
+// written, whatever a rule above would match.
+export const SERIOUS_MESSAGE = /\b(?:(?:pay|payment|bill|invoice|refund|dispute|charge|card|plan|subscription|trial|price|minutes? pack|auto reload|limit|error|failure|problem|outage|incident|password|session|permission|role|code|record|recording|transcript|consent)(?:s|es)?|paid|billing|usage|failed|couldn't|can't|didn't|wasn't|isn't|not|denied|paused|suspended|urgent|emergency|security|sign in|sign out|two step|authenticator|access|spam|blocked|privacy|erase|erased|delete|deleted|recorded)\b/i;
+
 export function warm(message, workspace) {
   if (typeof message !== "string" || !message) return message;
   const term = workspace?.terminology ? (k) => workspace.terminology[k] || k : null;
+  if (SERIOUS_MESSAGE.test(message)) return localize(message, term);
   for (const [pattern, make] of RULES) {
     const hit = message.match(pattern);
     if (hit) return localize(make(message, ...hit.slice(1)), term);

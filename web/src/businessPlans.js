@@ -31,7 +31,7 @@ export function tierShort(plan) {
 const n = (v) => (typeof v === "number" ? v.toLocaleString("en-US") : "Not set");
 export function allowanceText(plan) {
   if (!plan) return "";
-  return `${n(plan.minutes)} minutes · ${n(plan.texts)} texts · ${n(plan.emails)} emails`;
+  return `${n(plan.minutes)} minutes, ${n(plan.texts)} texts, ${n(plan.emails)} emails`;
 }
 
 // The current plan as zella_admin_plan_get returns it (snake case), in the shape the list uses, so the drawer shows

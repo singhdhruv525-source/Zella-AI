@@ -120,7 +120,7 @@ export function AddLeadModal({ workspace, term, onClose, onSaved }) {
     <Modal
       icon="trending_up"
       title="Add a lead"
-      description={`A new enquiry. They'll appear in your ${term("customers").toLowerCase()} and on Today.`}
+      description={`A new inquiry. They'll appear in your ${term("customers").toLowerCase()} and on Today.`}
       onClose={onClose}
       busy={busy}
       footer={
@@ -475,7 +475,7 @@ export function RescheduleModal({ workspace, term, appt, person, onClose, onSave
     <Modal
       icon="event_repeat"
       title={`Reschedule ${term("appointment").toLowerCase()}`}
-      description={`${appt.title}${personName(person) ? ` · ${personName(person)}` : ""}. Times are in ${workspace.name}'s time zone (${formatTimeZone(tz)}).`}
+      description={`${appt.title}${personName(person) ? `, ${personName(person)}` : ""}. Times are in ${workspace.name}'s time zone (${formatTimeZone(tz)}).`}
       onClose={onClose}
       busy={busy}
       footer={

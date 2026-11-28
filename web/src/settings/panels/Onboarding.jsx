@@ -78,13 +78,13 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
       {deleting && createPortal(   // the settings pane is animated, so a fixed dialog inside it would scroll with it
         <Confirm title={`Delete ${deleting.name}?`} danger word={deleting.name} reason confirmLabel="Delete draft"
           onConfirm={(reason) => remove(deleting, reason)} onClose={() => setDeleting(null)}>
-          <p>This deletes the draft and everything made for it: its settings, receptionist, modules, uploaded documents and any owner invitation not yet accepted. It can't be undone.</p>
+          <p>This deletes the draft and everything made for it: its settings, AI receptionist, modules, uploaded documents and any owner invitation not yet accepted. It can't be undone.</p>
           <p>Its audit history is kept. A business with calls, phone numbers, billing, an accepted owner or finished setup can't be deleted.</p>
         </Confirm>,
         document.body,
       )}
       <Needs title="Automatic retry runs only once the owner switches it on" have="Every setup step is recorded. Modules, the AI receptionist and automations can be retried here with Retry step; the owner invitation email with Send owner invite; anything else with Continue setup.">
-        The timed retry (zella_provisioning_retry) retries those three internal steps at most 3 times each, and is off until the owner turns it on. Steps that reach a provider or send an email are never retried on their own.
+        The timed retry retries those three internal steps at most 3 times each, and is off until the owner turns it on. Steps that reach a provider or send an email are never retried on their own.
       </Needs>
     </>
   );

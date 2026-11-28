@@ -238,7 +238,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
         <div className="ic-warning op-gap">
           <span>
             Suspended {formatDateTime(b.suspended_at)}{b.suspension_reason ? `: ${b.suspension_reason}` : ""}.
-            The workspace, receptionist and automations are stopped.
+            The workspace, AI receptionist and automations are stopped.
           </span>
           {canLifecycle && (
             <div>
@@ -267,7 +267,7 @@ export default function BusinessDetails({ businessId, onBack, onOpenSetup, can =
       {isCancelled && (
         <div className="wiz-note op-gap">
           Canceled on {formatDate(b.cancelled_at)}{b.cancellation_reason ? `: ${b.cancellation_reason}` : ""}.
-          This business's data is kept, but its workspace, receptionist and automations are off.
+          This business's data is kept, but its workspace, AI receptionist and automations are off.
         </div>
       )}
 

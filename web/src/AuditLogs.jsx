@@ -275,8 +275,8 @@ export default function AuditLogs({ onOpenBusiness }) {
                         <p className="op-muted">
                           {log.entity_type ? `Record: ${log.entity_type}` : ""}
                           {log.entity_id ? ` ${log.entity_id}` : ""}
-                          {log.ip_address ? ` · IP ${log.ip_address}` : ""}
-                          {log.user_agent ? ` · Browser: ${log.user_agent}` : ""}
+                          {log.ip_address ? `, IP ${log.ip_address}` : ""}
+                          {log.user_agent ? `, Browser: ${log.user_agent}` : ""}
                         </p>
                       </td>
                     </tr>

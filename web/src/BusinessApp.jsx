@@ -35,6 +35,7 @@ import { useMfaGate } from "./mfa";
 import { maintenanceText, usePlatformInfo } from "./platformInfo";
 import "./CrmMotion.css";
 import { warm } from "./zellaVoice";
+import { latestOnly, workspaceList, workspaceScreen } from "./crm/workspaceScreen";
 import BusinessToday from "./BusinessToday";
 import { MoneyPage } from "./BusinessMoney";
 import { AddLeadModal, BookAppointmentModal } from "./BusinessForms";
@@ -100,7 +101,7 @@ function Blocked({ workspace, onSignOut, signOutError }) {
         <h1>{canceled ? "This plan has ended" : "This workspace is paused"}</h1>
         <p className="ba-auth-description">
           {canceled
-            ? "Your Zella Voice membership has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella Voice team to start again."
+            ? "Your Zella Voice plan has ended, so your workspace and AI receptionist are off. Your information is kept. Contact the Zella Voice team to start again."
             : "Your workspace and AI receptionist are paused for now. Please contact the Zella Voice team to get it running again."}
         </p>
         <button type="button" className="ba-btn block" onClick={onSignOut}>Sign out</button>
@@ -699,24 +700,39 @@ function BusinessHome() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [invites, setInvites] = useState(null);
 
+  // Only the latest read writes: a read that a newer one replaced never sets the error, the list or the invitations.
+  const [reads] = useState(latestOnly);
   const loadWorkspaces = useCallback(async () => {
+    const read = reads.start();
+    const stillLatest = () => reads.isCurrent(read);
+    // a first read or a retry shows Loading until it ends, never the empty state; a reload inside the app keeps it
     setError("");
+    setWorkspaces((list) => (list?.length ? list : null));
     // Activates any invitation this person hasn't accepted yet (safe to repeat); problems are shown, not hidden.
-    try { setInvites(await acceptInvitations()); }
-    catch (err) { console.error("Accepting invitations failed:", err); setInvites({ accepted: 0, needsEmailLink: 0, problems: [], failed: true }); }
+    let invited;
+    try { invited = await acceptInvitations(); }
+    catch (err) { console.error("Accepting invitations failed:", err); invited = { accepted: 0, needsEmailLink: 0, problems: [], failed: true }; }
+    if (!stillLatest()) return;
+    setInvites(invited);
 
-    const { data, error: loadError } = await supabase.rpc("zella_my_workspaces");
-    if (loadError) {
-      setError(loadError.message);
+    const { data: answer, error: loadError } = await supabase.rpc("zella_my_workspaces");
+    if (!stillLatest()) return;
+    const data = workspaceList(answer);
+    if (loadError || !data) {
+      // the technical detail stays in the console; the screen says what happened and offers Try again
+      console.error("Loading workspaces failed:", loadError ?? "no list in the answer");
+      setError(loadError?.message || "no list");
       setWorkspaces([]);
       return;
     }
-    if (!(data ?? []).length) {
+    if (!data.length) {
       // A Zella Voice admin without a business of their own belongs in the admin dashboard.
       const { data: admin } = await supabase.rpc("is_platform_admin");
+      if (!stillLatest()) return;
       setIsAdmin(admin === true);
     }
-    setWorkspaces(data ?? []);
+    setError("");
+    setWorkspaces(data);
     const linked = openedFor.current;
     openedFor.current = null;
     if (linked && linkBusiness() === linked) forgetLinkBusiness();   // leave another tab's newer hint alone
@@ -725,7 +741,7 @@ function BusinessHome() {
       if ((data ?? []).some((w) => w.id === want)) return want;
       return (data ?? []).some((w) => w.id === current) ? current : data?.[0]?.id ?? null;
     });
-  }, []);
+  }, [reads]);
 
   useEffect(() => {
     let active = true;
@@ -741,8 +757,13 @@ function BusinessHome() {
 
   useEffect(() => {
     if (session && mfa.state === "ok") loadWorkspaces();
-    else if (!session) setWorkspaces(null);
-  }, [session, mfa.state, loadWorkspaces]);
+    else if (!session) {
+      // signed out: a read still in flight for the old session must not write its list or error afterwards
+      reads.invalidate();
+      setError("");
+      setWorkspaces(null);
+    }
+  }, [session, mfa.state, loadWorkspaces, reads]);
 
   // Signs out. If the server can't be reached, the session is still cleared on this device; if even that fails, the
   // person is told, and the screen does not claim they are signed out.
@@ -757,6 +778,8 @@ function BusinessHome() {
         return false;
       }
     }
+    reads.invalidate();
+    setError("");
     setWorkspaces(null);
   }
 
@@ -775,9 +798,10 @@ function BusinessHome() {
       </section>
     </main>
   );
-  if (workspaces === null) return <Loading text="Loading your workspace…" />;
+  const screen = workspaceScreen({ workspaces, failed: Boolean(error) });
+  if (screen === "loading") return <Loading text="Loading your workspace…" />;
 
-  if (!workspaces.length) {
+  if (screen !== "app") {
     return (
       <main className="ba-auth">
         <section className="ba-auth-card">
@@ -785,15 +809,16 @@ function BusinessHome() {
             <div className="ba-logo">Z</div>
             <div className="ba-brand-name">Zella Voice</div>
           </div>
-          <h1>{isAdmin ? "You're a Zella Voice admin" : "No workspace yet"}</h1>
+          <h1>{error ? "Your workspace didn't load" : isAdmin ? "You're a Zella Voice admin" : "No workspace yet"}</h1>
           <p className="ba-auth-description">
             {error
-              ? `Your workspace couldn't be loaded: ${error}`
+              ? "We couldn't load your workspace. Check your connection and try again."
               : isAdmin
                 ? `${session.user.email} manages Zella Voice from the admin dashboard and isn't linked to a business here.`
                 : `${session.user.email} isn't linked to a Zella Voice business yet. If you were invited, open the link in your invitation email first, or ask the Zella Voice team to resend it.`}
           </p>
           <InviteBanner status={invites} email={session.user.email} onRetry={loadWorkspaces} />
+          {error && <button type="button" className="ba-btn primary block" onClick={loadWorkspaces}>Try again</button>}
           {isAdmin && <a className="ba-btn primary block" href="/">Open the admin dashboard</a>}
           <button type="button" className="ba-btn block" onClick={signOut}>Sign out</button>
           {signOutError && <p className="ba-error" role="alert">{signOutError}</p>}

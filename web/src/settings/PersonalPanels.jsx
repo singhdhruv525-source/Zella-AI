@@ -18,7 +18,7 @@ const say = (error) => {
     BAD_AVATAR_URL: "Upload the picture here so it's stored with Zella Voice.",
   };
   const code = Object.keys(codes).find((k) => m.includes(k));
-  return code ? codes[code] : /does not exist|schema cache|Could not find the function/i.test(m) ? "This needs the latest Zella Voice database update." : m;
+  return code ? codes[code] : /does not exist|schema cache|Could not find the function/i.test(m) ? "This isn't switched on yet. Ask the Zella Voice team." : m;
 };
 
 async function rpc(name, args) {
@@ -34,7 +34,7 @@ export async function uploadImage(path, file) {
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
   const full = `${path}-${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from("brand-assets").upload(full, file, { contentType: file.type, upsert: false });
-  if (error) throw new Error(/bucket not found/i.test(error.message) ? "Image storage isn't set up yet (needs the latest Zella Voice database update)." : /row-level security|unauthorized/i.test(error.message) ? "You don't have permission to upload this image." : error.message);
+  if (error) throw new Error(/bucket not found/i.test(error.message) ? "Picture upload isn't switched on yet. Ask the Zella Voice team." : /row-level security|unauthorized/i.test(error.message) ? "You don't have permission to upload this image." : error.message);
   return supabase.storage.from("brand-assets").getPublicUrl(full).data.publicUrl;
 }
 
@@ -198,7 +198,7 @@ function MfaCard({ required: requiredByPage = false }) {
           <Facts rows={[["Status", s.enrolled ? "On" : "Off"], ["This session", s.level === "aal2" ? "Verified with a code" : "Password only"]]} />
           {s.enrolled && s.factors.map((f) => (
             <div key={f.id} className="zs-savebar">
-              <span className="zs-savebar-state">{f.friendly_name || "Authenticator app"} · added {when(f.created_at)}</span>
+              <span className="zs-savebar-state">{f.friendly_name || "Authenticator app"}, added {when(f.created_at)}</span>
               {/* every Zella Voice admin needs two step sign in (ACC-01): the last authenticator can't be removed here */}
               {required && s.factors.length < 2
                 ? <span className="zs-muted">Required for admins</span>
@@ -216,7 +216,7 @@ function MfaCard({ required: requiredByPage = false }) {
             onClick={() => step(async () => setSetup(await startMfaEnrollment()))}>{s.enrolled ? "Add another authenticator app" : "Set up an authenticator app"}</button>}
           {setup && (
             <div style={{ marginTop: 12 }}>
-              <p className="zs-muted">Scan this with your authenticator app, or type the key in by hand. Then enter the 6-digit code it shows.</p>
+              <p className="zs-muted">Scan this with your authenticator app, or type the key in by hand. Then enter the six digit code it shows.</p>
               <img src={setup.qr} alt="QR code for your authenticator app" width="180" height="180" />
               <p className="zs-muted">Key: <code>{setup.secret}</code></p>
               <div className="zs-grid">
@@ -284,7 +284,7 @@ function SessionsCard() {
       <Banner tone="error">{notice.error}</Banner>
       <LoadState state={state}>{(rows) => (
         <Table rows={rows} empty="No sessions found." columns={[
-          ["Device", (s) => <>{device(s.user_agent)}{s.current && <> · <strong>this device</strong></>}</>],
+          ["Device", (s) => <>{device(s.user_agent)}{s.current && <>, <strong>this device</strong></>}</>],
           ["Signed in", (s) => when(s.created_at)],
           ["Last active", (s) => when(s.last_active_at)],
           ["IP address", (s) => s.ip ?? "None"],

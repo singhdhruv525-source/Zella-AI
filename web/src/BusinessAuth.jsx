@@ -73,7 +73,7 @@ function AuthCard({ eyebrow, title, description, children }) {
           <h1>{title}</h1>
           {description && <p className="ba-auth-description">{description}</p>}
           {children}
-          <p className="ba-auth-legal"><a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a></p>
+          <p className="ba-auth-legal"><a href="/privacy">Privacy policy</a>, <a href="/terms">Terms of service</a></p>
         </section>
     </main>
   );
@@ -132,7 +132,7 @@ function SocialSignIn({ email, setError, disabled }) {
 
   return (
     <div className="ba-social">
-      <div className="ba-social-divider"><span>or continue with</span></div>
+      <div className="ba-social-divider"><span>Or continue with</span></div>
       <div className="ba-social-grid">
         {SOCIAL.map((option) => (
           <button key={option.id} type="button" className="ba-btn ba-social-btn" disabled={disabled || Boolean(working)} onClick={() => go(option)}>
@@ -163,7 +163,7 @@ export function MfaCodeCard({ email, onDone }) {
     }
   }
   return (
-    <AuthCard title="Enter your code" description={`Open your authenticator app and enter the 6-digit code for ${email || "your account"}.`}>
+    <AuthCard title="Enter your code" description={`Open your authenticator app and enter the six digit code for ${email || "your account"}.`}>
       <form className="ba-form" onSubmit={submit}>
         <label className="ba-field">
           <span>Authenticator code</span>
@@ -391,10 +391,10 @@ export function Welcome() {
       <AuthCard
         title={resetting ? "Reset your password" : "Welcome to Zella Voice"}
         description={resetting
-          ? "Press continue to choose a new password."
+          ? "Choose Continue to pick a new password."
           : link.type === "invite"
-            ? "Press continue to accept your invitation and choose a password."
-            : "Press continue to confirm your email address."}
+            ? "Choose Continue to accept your invitation and pick a password."
+            : "Choose Continue to confirm your email address."}
       >
         {error && <div className="ba-error">{error}</div>}
         <button type="button" className="ba-btn primary block" onClick={confirmLink} disabled={busy}>
@@ -418,7 +418,7 @@ export function Welcome() {
 
   return (
     <AuthCard
-      title="Set up your front desk"
+      title="Choose your password"
       description={email ? `You'll use ${email} and this password to sign in.` : "Choose a password and you are ready to go."}
     >
       <form className="ba-form" onSubmit={save}>

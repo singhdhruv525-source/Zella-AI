@@ -27,7 +27,7 @@ export function useMfaGate(session) {
 // authenticators in turn, so a code from any of their apps works (not only the first one set up).
 export async function verifyMfaCode(code, factorId = null) {
   const clean = String(code ?? "").replace(/\s/g, "");
-  if (!/^\d{6}$/.test(clean)) throw new Error("Enter the 6-digit code from your authenticator app.");
+  if (!/^\d{6}$/.test(clean)) throw new Error("Enter the six digit code from your authenticator app.");
   const { data, error } = await supabase.auth.mfa.listFactors();
   if (error) throw error;
   const verified = (data?.totp ?? []).filter((f) => f.status === "verified" && (!factorId || f.id === factorId));
@@ -63,7 +63,7 @@ export async function startMfaEnrollment() {
 
 export async function finishMfaEnrollment(factorId, code) {
   const clean = String(code ?? "").replace(/\s/g, "");
-  if (!/^\d{6}$/.test(clean)) throw new Error("Enter the 6-digit code from your authenticator app.");
+  if (!/^\d{6}$/.test(clean)) throw new Error("Enter the six digit code from your authenticator app.");
   // the account setting it up and whether it is an admin, known before the code is checked; an admin's authenticator
   // is put on the retry list first, so even a lost answer to the check below leaves it to be recorded
   const owner = await currentUserId().catch(() => null);

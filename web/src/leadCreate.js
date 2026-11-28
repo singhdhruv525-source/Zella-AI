@@ -9,7 +9,7 @@ const LEAD_ERRORS = [
   [/NO_CONTACT/, "Enter a phone number or email so you can follow up."],
   [/BAD_EMAIL/, "That email doesn't look right."],
   [/BUSINESS_NOT_AVAILABLE/, "This workspace is paused, so leads can't be added right now."],
-  [/JWT expired|invalid JWT|refresh token|not signed in/i, "Your sign in has expired. Sign in again and retry."],
+  [/JWT expired|invalid JWT|refresh token|not signed in/i, "Your sign in has expired. Sign in again, then try again."],
   [/failed to fetch|network|load failed|timeout/i, "Couldn't reach Zella Voice. Check your connection and try again. The lead wasn't added."],
   [/zella_staff_add_lead|schema cache|Could not find the function|does not exist/i, "Adding leads isn't available on this workspace yet. The lead wasn't added; please ask the Zella Voice team."],
 ];

@@ -10,7 +10,7 @@ import { formatPhone } from "./lib/format";
 /* The lead pipeline: a board by status, or a list, with who owns each lead and
    when the next follow-up is due. Details open in a panel so this page stays calm. */
 
-const when = (value, tz) => (value ? `${formatDay(value, tz)} · ${formatTime(value, tz)}` : "None");
+const when = (value, tz) => (value ? `${formatDay(value, tz)}, ${formatTime(value, tz)}` : "None");
 const PRIORITY_TONE = { urgent: "danger", high: "warning", normal: "" };
 const PRIORITY_LABEL = { urgent: "Urgent", high: "High", normal: "Normal" };
 
@@ -77,7 +77,7 @@ function LeadCard({ p, tz, nameOf, onOpen }) {
         <strong>{name}</strong>
         {p.priority && p.priority !== "normal" && <Pill tone={PRIORITY_TONE[p.priority]}>{PRIORITY_LABEL[p.priority]}</Pill>}
       </span>
-      <small>{sourceName(p.source)} · {p.last_contacted_at ? `contacted ${timeAgo(p.last_contacted_at)}` : "not contacted"}</small>
+      <small>{sourceName(p.source)}, {p.last_contacted_at ? `contacted ${timeAgo(p.last_contacted_at)}` : "not contacted"}</small>
       <span className="ba-lead-foot">
         {over
           ? <span className="ba-flag"><Icon name="schedule" size="sm" />Overdue</span>
@@ -183,7 +183,7 @@ export function LeadsPage({ workspace, query, refreshKey, onNotice, onOpenPerson
                       <td><Pill tone={stage === "won" ? "success" : stage === "lost" || stage === "unqualified" ? "danger" : "warning"}>{stage === "unqualified" ? "Not a fit" : col.label}</Pill></td>
                       <td>{sourceName(p.source)}</td>
                       <td><Assignee id={p.assigned_to} nameOf={roster.nameOf} /></td>
-                      <td>{isOverdue(p) ? <span className="ba-flag">Overdue{p.next_follow_up_at ? ` · ${formatDay(p.next_follow_up_at, tz)}` : ""}</span> : p.next_follow_up_at ? when(p.next_follow_up_at, tz) : "None"}</td>
+                      <td>{isOverdue(p) ? <span className="ba-flag">Overdue{p.next_follow_up_at ? `, ${formatDay(p.next_follow_up_at, tz)}` : ""}</span> : p.next_follow_up_at ? when(p.next_follow_up_at, tz) : "None"}</td>
                       <td>{p.last_contacted_at ? timeAgoLabel(p.last_contacted_at) : <span className="ba-flag">Not yet</span>}</td>
                       <td>{p.priority && p.priority !== "normal" ? <Pill tone={PRIORITY_TONE[p.priority]}>{PRIORITY_LABEL[p.priority]}</Pill> : "Normal"}</td>
                     </tr>
@@ -273,7 +273,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
       p_customer_id: person.id, p_priority: plan.priority,
       p_next_follow_up_at: plan.date ? zonedDateTime(plan.date, plan.time || "09:00", tz).toISOString() : null,
       p_clear_follow_up: !plan.date,
-    }), "follow up plan saved.");
+    }), "Follow up plan saved.");
   }
   const addNote = (event) => {
     event.preventDefault();
@@ -292,12 +292,12 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
   const col = COLUMNS.find((c) => c.stages.includes(stage)) ?? COLUMNS[0];
   return (
     <Modal wide title={name} onClose={onClose} busy={Boolean(busy)}
-      description={`${sourceName(person.source)} · added ${timeAgo(person.created_at)}${person.last_contacted_at ? ` · last contact ${timeAgo(person.last_contacted_at)}` : " · not contacted yet"}`}>
+      description={`${sourceName(person.source)}, added ${timeAgo(person.created_at)}${person.last_contacted_at ? `, last contact ${timeAgo(person.last_contacted_at)}` : ", not contacted yet"}`}>
       <div className="ba-modal-body">
         {error && <p className="ba-error" role="alert">{error}</p>}
         <div className="ba-kn-head">
           <Pill tone={stage === "won" ? "success" : stage === "lost" || stage === "unqualified" ? "danger" : "warning"}>{stage === "unqualified" ? "Not a fit" : col.label}</Pill>
-          {isOverdue(person) && <span className="ba-flag"><Icon name="schedule" size="sm" />follow up overdue</span>}
+          {isOverdue(person) && <span className="ba-flag"><Icon name="schedule" size="sm" />Follow up overdue</span>}
           {person.phone && <a className="ba-btn sm" href={`tel:${person.phone}`}><Icon name="call" size="sm" />{formatPhone(person.phone)}</a>}
           <button type="button" className="ba-btn sm" onClick={() => onOpenProfile(person.id)}>Full profile</button>
         </div>
@@ -318,7 +318,7 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
           </form>
         )}
 
-        <h3 className="ba-sub">follow up</h3>
+        <h3 className="ba-sub">Follow up</h3>
         <form className="ba-form-grid" onSubmit={savePlan}>
           <Field label="Assigned to">
             <select value={plan.assigned} onChange={(e) => setPlan({ ...plan, assigned: e.target.value })}>
@@ -337,10 +337,10 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
         </form>
 
         <h3 className="ba-sub">Callback</h3>
-        {data?.callbacksFailed && <p className="ba-muted">Couldn't load</p>}
+        {data?.callbacksFailed && <p className="ba-muted">Callbacks didn't load. Refresh the page to try again.</p>}
         {data?.cbs.length > 0 && (
           <ul className="ba-threads">
-            {data.cbs.map((c) => <li key={c.id}><span className="ba-thread-icon"><Icon name="phone_callback" size="sm" /></span><div><strong>Call back {when(c.due_at, tz)}</strong><small>{c.attempts} of {c.max_attempts} tries{c.summary ? ` · ${c.summary}` : ""}</small></div></li>)}
+            {data.cbs.map((c) => <li key={c.id}><span className="ba-thread-icon"><Icon name="phone_callback" size="sm" /></span><div><strong>Call back {when(c.due_at, tz)}</strong><small>{c.attempts} of {c.max_attempts} tries{c.summary ? `, ${c.summary}` : ""}</small></div></li>)}
           </ul>
         )}
         {!cb.open ? (
@@ -365,21 +365,21 @@ function LeadPanel({ person, workspace, roster, onClose, onChanged, onNotice, on
         {person.notes ? <p className="ba-item-text ba-notes">{person.notes}</p> : <p className="ba-muted">No notes yet.</p>}
 
         <h3 className="ba-sub">Open to dos</h3>
-        {!data?.tasks.length ? <p className="ba-muted">{loading && !data ? "Loading…" : data?.tasksFailed ? "Couldn't load" : "Nothing open."}</p> : (
+        {!data?.tasks.length ? <p className="ba-muted">{loading && !data ? "Loading…" : data?.tasksFailed ? "Tasks didn't load. Refresh the page to try again." : "Nothing open."}</p> : (
           <ul className="ba-threads">
-            {data.tasks.map((t) => <li key={t.id}><span className="ba-thread-icon"><Icon name="task_alt" size="sm" /></span><div><strong>{t.title}</strong><small>{t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time"}{t.assigned_to && roster.nameOf[t.assigned_to] ? ` · ${roster.nameOf[t.assigned_to]}` : ""}</small></div></li>)}
+            {data.tasks.map((t) => <li key={t.id}><span className="ba-thread-icon"><Icon name="task_alt" size="sm" /></span><div><strong>{t.title}</strong><small>{t.due_at ? `Due ${when(t.due_at, tz)}` : "No due time"}{t.assigned_to && roster.nameOf[t.assigned_to] ? `, ${roster.nameOf[t.assigned_to]}` : ""}</small></div></li>)}
           </ul>
         )}
 
         <h3 className="ba-sub">Call history</h3>
-        {!data?.calls.length ? <p className="ba-muted">{loading && !data ? "Loading…" : data?.callsFailed ? "Couldn't load" : `No calls from this ${term("customer").toLowerCase()} yet.`}</p> : (
+        {!data?.calls.length ? <p className="ba-muted">{loading && !data ? "Loading…" : data?.callsFailed ? "Calls didn't load. Refresh the page to try again." : `No calls from this ${term("customer").toLowerCase()} yet.`}</p> : (
           <ul className="ba-threads">
             {data.calls.map((c) => (
               <li key={c.id}>
                 <span className="ba-thread-icon"><Icon name={c.status === "missed" ? "phone_missed" : "call"} size="sm" /></span>
                 <div>
                   <strong>{c.status === "missed" ? "Missed call" : !isAnswered(c.status) ? `Call: ${callResult(c.status).label.toLowerCase()}` : c.ai_handled ? "Answered by the AI receptionist" : "Answered by the team"}</strong>
-                  <small>{when(c.started_at ?? c.created_at, tz)} · {clock(c.duration_seconds)}</small>
+                  <small>{when(c.started_at ?? c.created_at, tz)}, {clock(c.duration_seconds)}</small>
                   {c.summary && <small>{c.summary}</small>}
                 </div>
                 {c.needs_human && <Pill tone="danger">Needs a person</Pill>}

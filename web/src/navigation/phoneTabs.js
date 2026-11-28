@@ -109,11 +109,11 @@ const ADMIN_PREFERRED = [
   ["Overview", "Overview", "space_dashboard"],
   ["Businesses", "Businesses", "storefront"],
   ["Support", "Support", "support_agent"],
-  ["Platform Operations", "Operations", "monitor_heart"],
+  ["Platform operations", "Operations", "monitor_heart"],
 ];
 const ADMIN_REPLACEMENTS = [
   ["Verification", "Verification", "verified_user"],
-  ["Audit Logs", "Audit logs", "history"],
+  ["Audit logs", "Audit logs", "history"],
 ];
 
 /**

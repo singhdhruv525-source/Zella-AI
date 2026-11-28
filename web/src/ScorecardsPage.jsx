@@ -78,7 +78,7 @@ export default function ScorecardsPage({ workspace }) {
           ) : (
             <div className="sc-table-wrap" tabIndex={0}>
               <table className="sc-table">
-                <thead><tr><th>Team member</th><th>Booked</th><th>Done</th><th>no shows</th><th>no show rate</th><th>Canceled</th></tr></thead>
+                <thead><tr><th>Team member</th><th>Booked</th><th>Done</th><th>No shows</th><th>No show rate</th><th>Canceled</th></tr></thead>
                 <tbody>
                   {bookable.map((b) => (
                     <tr key={b.staff_id}>

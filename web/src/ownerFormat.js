@@ -15,8 +15,8 @@ export const ACTION_LABELS = {
   "ai_receptionist.updated": "Updated AI receptionist",
   "integrations.preferences_updated": "Updated phone & integrations",
   "automations.updated": "Updated automations",
-  "invitation.sent": "Finished setup · invitation sent",
-  "invitation.failed": "Finished setup · invitation failed",
+  "invitation.sent": "Finished setup, invitation sent",
+  "invitation.failed": "Finished setup, invitation failed",
   "setup.finished": "Finished setup",
   "industry.created": "Created industry",
   "industry.updated": "Updated industry configuration",
@@ -129,7 +129,7 @@ export function businessState(business) {
   }
   const base = { key: stageKey(status), label: stageLabel(status), tone: stageTone(status), done };
   if (business.cancel_at) {
-    return { ...base, cancelling: true, label: `${base.label} · cancels ${formatDate(business.cancel_at)}`, tone: "warning" };
+    return { ...base, cancelling: true, label: `${base.label}, cancels ${formatDate(business.cancel_at)}`, tone: "warning" };
   }
   return base;
 }

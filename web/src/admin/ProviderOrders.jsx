@@ -31,7 +31,7 @@ export default function ProviderOrders({ me, say = () => {} }) {
           <>
             <Facts rows={[["Telnyx key", o.telnyx ? "Added" : "Not added"], ["Vapi key", o.vapi ? "Added" : "Not added"],
               ["Number orders", o.enabled ? "On" : "Off"], ["Bought numbers added to Vapi", o.vapiImport ? "Yes" : "No, the Vapi credential for Telnyx isn't set"]]} />
-            {blocked && <NotAvailable title="Not connected yet" tip="Setting number_orders_enabled">{blocked} Until then nothing is bought, released or sent to a provider.</NotAvailable>}
+            {blocked && <NotAvailable title="Not connected yet" tip="Number ordering switch (number_orders_enabled)">{blocked} Until then nothing is bought, released or sent to a provider.</NotAvailable>}
             <DataTable rows={o.orders} empty="No number orders yet." columns={[
               ["Number", (r) => r.e164], ["Order", (r) => KIND[r.kind]], ["For", (r) => r.business_name ?? "None"],
               ["Status", (r) => <Pill tone={STATUS[r.status]?.[1]}>{STATUS[r.status]?.[0] ?? r.status}</Pill>],
@@ -66,7 +66,7 @@ export default function ProviderOrders({ me, say = () => {} }) {
       {dialog?.resolve && <ResolveDialog order={dialog.resolve} onClose={() => setDialog(null)} onDone={done} />}
       {dialog?.cancel && (
         <ReasonDialog title={`Cancel the order for ${dialog.cancel.e164}?`} icon="close" confirmLabel="Cancel the order" onClose={() => setDialog(null)}
-          onConfirm={async (reason) => { await callOwnerFunction("number_order_cancel", { id: dialog.cancel.id, reason }); done("Order cancelled."); }}>
+          onConfirm={async (reason) => { await callOwnerFunction("number_order_cancel", { id: dialog.cancel.id, reason }); done("Order canceled."); }}>
           <p>Nothing has been sent to a provider for this order.</p>
         </ReasonDialog>
       )}

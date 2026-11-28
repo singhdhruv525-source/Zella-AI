@@ -19,7 +19,7 @@ const SWITCHES = {
   n8n_dispatch_enabled: ["Dispatcher switch", "Lets the database hand due work to n8n"],
   email_live: ["Emails live", "Off means test mode: nothing is sent"],
   sms_live: ["Texts live", "Off means test mode: nothing is sent"],
-  calls_live: ["AI calls live", "Off means the AI places no outbound calls"],
+  calls_live: ["AI calls live", "Off means AI receptionists place no outbound calls"],
   provider_checks_live: ["Provider checks", "Checks that Telnyx, Vapi and Resend answer"],
   calendar_sync_live: ["Calendar sync", "Bookings sync with Google and Microsoft calendars"],
   spam_workflow_live: ["Spam protection workflow", "Spam checks on calls and messages"],

@@ -15,7 +15,7 @@ test("a business plan in words, never Unknown plan", () => {
   assert.equal(priceText(plan), "$399.00 a year, plus $50.00 setup");
   assert.equal(priceText({ ...plan, billingInterval: "monthly", setupFeeCents: 0 }), "$399.00 a month");
   assert.equal(priceText(null), "No plan saved");
-  assert.equal(allowanceText(plan), "900 minutes · 200 texts · 1,200 emails");
+  assert.equal(allowanceText(plan), "900 minutes, 200 texts, 1,200 emails");
   assert.equal(money(undefined), "Not set");
 });
 

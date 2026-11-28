@@ -21,7 +21,7 @@ test("answering is its own line, with the time of the last served call", () => {
 
 test("what is missing before a receptionist can be live", () => {
   assert.deepEqual(missingForLive({ businessState: "active", status: "active", checks: { phone: true, voice: false } }), ["the number linked to Vapi"]);
-  assert.deepEqual(missingForLive({ businessState: "setup", status: "paused", checks: { phone: false } }), ["setup finished", "receptionist switched on", "an active phone number"]);
+  assert.deepEqual(missingForLive({ businessState: "setup", status: "paused", checks: { phone: false } }), ["setup finished", "AI receptionist switched on", "an active phone number"]);
   assert.deepEqual(missingForLive({ businessState: "active", status: "active", checks: { phone: true, voice: true } }), []);
   assert.equal(NOT_TRACKED, "Not tracked");
 });

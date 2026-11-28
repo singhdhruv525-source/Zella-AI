@@ -200,9 +200,9 @@ function Journey({ api, email }) {
         <p className="zob-lead">{left.saved
           ? `Next time, you'll start right here, at ${at.toLowerCase()}. Sign in to Zella Voice at any time and choose Finish setting up.`
           : "We couldn't record that you're leaving, but everything you finished is saved. You'll pick up from the first step that isn't done."}</p>
-        <ErrorText>{left.retry ? "We couldn't reach Zella Voice just now. Check your connection, then choose Carry on now again." : ""}</ErrorText>
+        <ErrorText>{left.retry ? "We couldn't reach Zella Voice just now. Check your connection, then choose Continue now again." : ""}</ErrorText>
         <div className="zob-actions">
-          <button type="button" className="ba-btn primary" disabled={leaving} onClick={carryOn}>{leaving ? "One moment…" : "Carry on now"}</button>
+          <button type="button" className="ba-btn primary" disabled={leaving} onClick={carryOn}>{leaving ? "One moment…" : "Continue now"}</button>
           <button type="button" className="ba-btn" onClick={() => api.signOut()}>Sign out</button>
         </div>
       </Frame>

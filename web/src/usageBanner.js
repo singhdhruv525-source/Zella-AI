@@ -14,7 +14,7 @@ export function usageBanner(resource, u, daysLeft) {
     return out
       ? { tone: "urgent", kicker: "Action needed", title: "This month's minutes are used up",
           body: `${fmt(u.used)} of ${fmt(u.included)} minutes used. Add minutes or turn on auto reload so your plan covers every call.`, action: "Add minutes" }
-      : { tone: "heads", kicker: "Heads up", title: "Your receptionist has been busy this month",
+      : { tone: "heads", kicker: "Heads up", title: "Your AI receptionist has been busy this month",
           body: `${fmt(u.used)} of ${fmt(u.included)} minutes used, ${days}. Every call is still being answered.`, action: "Add minutes" };
   }
   const word = resource === "texts" ? "texts" : "emails";

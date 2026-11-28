@@ -4,7 +4,7 @@
 export const ORDER_STATUS = {
   requested: ["Waiting for an owner", "warning"], approved: ["Approved", "neutral"], placing: ["Being placed", "neutral"],
   completed: ["Done", "success"], failed: ["Failed", "danger"], needs_check: ["Check at Telnyx", "danger"],
-  rejected: ["Rejected", "neutral"], cancelled: ["Cancelled", "neutral"],
+  rejected: ["Rejected", "neutral"], cancelled: ["Canceled", "neutral"],
 };
 export const ORDER_KIND = { purchase: "Buy", release: "Release" };
 

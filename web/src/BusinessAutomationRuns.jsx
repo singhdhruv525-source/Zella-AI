@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { inFlight } from "./crm/inFlight";
 import { supabase } from "./supabase";
 import { Icon, Pill } from "./BusinessUI";
 import { formatDay, formatTime, timeAgo } from "./businessTime";
@@ -127,15 +128,19 @@ export function failureReason(run) {
 }
 
 export function RunsPanel({ runs, audits, nameOf, people, canManage, tz, onNotice, onChanged }) {
-  const [busy, setBusy] = useState("");
+  // each run's Try again is disabled while its own request is pending; other runs can still be tried (UX-4)
+  const [busy, setBusy] = useState(() => new Set());
+  const flight = useRef(null);
+  flight.current ??= inFlight(() => setBusy(flight.current.ids()));
   const [error, setError] = useState("");
   const [tab, setTab] = useState("runs");
 
   async function retry(run) {
-    setBusy(run.id);
+    if (flight.current.has(run.id)) return;
     setError("");
-    const { error: failure } = await supabase.rpc("zella_retry_automation_run", { p_run_id: run.id });
-    setBusy("");
+    const r = await flight.current.run(run.id, () => supabase.rpc("zella_retry_automation_run", { p_run_id: run.id }));
+    if (r.skipped) return;
+    const failure = r.value.error;
     if (failure) return setError(explain(failure));
     onNotice?.("Run queued to try again.");
     onChanged();
@@ -156,14 +161,14 @@ export function RunsPanel({ runs, audits, nameOf, people, canManage, tz, onNotic
               <div>
                 <strong>{people[r.customer_id] ? [people[r.customer_id].first_name, people[r.customer_id].last_name].filter(Boolean).join(" ") || "Customer" : "Run"} <Pill tone={RUN_TONE[r.status]}>{RUN_LABEL[r.status] ?? r.status}</Pill></strong>
                 <small>
-                  {formatDay(r.started_at ?? r.created_at, tz)} · {formatTime(r.started_at ?? r.created_at, tz)}
-                  {r.attempt_count > 1 ? ` · ${r.attempt_count} attempts` : ""}
-                  {r.status === "queued" || r.status === "waiting" ? (r.next_run_at ? ` · next ${formatDay(r.next_run_at, tz)} ${formatTime(r.next_run_at, tz)}` : "") : ""}
+                  {formatDay(r.started_at ?? r.created_at, tz)}, {formatTime(r.started_at ?? r.created_at, tz)}
+                  {r.attempt_count > 1 ? `, ${r.attempt_count} attempts` : ""}
+                  {r.status === "queued" || r.status === "waiting" ? (r.next_run_at ? `, next ${formatDay(r.next_run_at, tz)} ${formatTime(r.next_run_at, tz)}` : "") : ""}
                 </small>
                 {r.status === "failed" && <small className="ba-fail">Why: {failureReason(r)}</small>}
               </div>
               {r.status === "failed" && canManage && (
-                <button type="button" className="ba-btn sm" disabled={busy === r.id} onClick={() => retry(r)}><Icon name="replay" size="sm" />{busy === r.id ? "Retrying…" : "Retry"}</button>
+                <button type="button" className="ba-btn sm" disabled={busy.has(r.id)} onClick={() => retry(r)}><Icon name="replay" size="sm" />{busy.has(r.id) ? "Trying again…" : "Try again"}</button>
               )}
             </li>
           ))}
@@ -175,7 +180,7 @@ export function RunsPanel({ runs, audits, nameOf, people, canManage, tz, onNotic
               <span className="ba-thread-icon"><Icon name="history" size="sm" /></span>
               <div>
                 <strong>{AUDIT_LABEL[a.action] ?? a.action}</strong>
-                <small>{nameOf[a.user_id] ?? "A team member"} · {timeAgo(a.created_at)}{a.new_data?.status && a.old_data?.status !== a.new_data.status ? ` · ${a.old_data?.status ?? "None"} to ${a.new_data.status}` : ""}</small>
+                <small>{nameOf[a.user_id] ?? "A team member"}, {timeAgo(a.created_at)}{a.new_data?.status && a.old_data?.status !== a.new_data.status ? `, ${a.old_data?.status ?? "None"} to ${a.new_data.status}` : ""}</small>
               </div>
             </li>
           ))}

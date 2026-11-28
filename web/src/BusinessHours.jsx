@@ -150,7 +150,7 @@ export function HoursSection({ workspace, settings, onSaved }) {
                   <strong>{c.label}</strong>
                   <small>
                     {calendarDay(c.starts_on)}{c.ends_on !== c.starts_on ? ` to ${calendarDay(c.ends_on)}` : ""}
-                    {" · "}{c.opens ? `${c.opens} to ${c.closes}` : "Closed all day"}
+                    {", "}{c.opens ? `${c.opens} to ${c.closes}` : "Closed all day"}
                   </small>
                 </div>
                 {canEdit && <button type="button" className="ba-btn sm" onClick={() => removeClosure(c)} disabled={busy}>Remove</button>}

@@ -161,7 +161,7 @@ export function BusinessSwitcher({ workspace, workspaces, config, onSwitch, onGo
           {others.map((w) => (
             <button key={w.id} type="button" className="ba-menu-item" onClick={() => { menu.setOpen(false); onSwitch(w.id); }}>
               <span className="ba-switcher-logo sm">{initialsOf(w.name)}</span>
-              <span><strong>{w.name}</strong><small>{w.industry ?? "Industry not set"} · {w.role}</small></span>
+              <span><strong>{w.name}</strong><small>{w.industry ?? "Industry not set"}, {w.role}</small></span>
             </button>
           ))}
           {others.length > 0 && <div className="ba-menu-sep" />}
@@ -224,14 +224,14 @@ export function ReceptionistCard({ workspace, agent, term, onTest }) {
       <div className="ba-agent-row">
         <span className="ba-agent-avatar"><Icon name="support_agent" size="sm" /></span>
         <div className="ba-agent-name">
-          <strong>{workspace.receptionist?.name ?? "AI Receptionist"}</strong>
+          <strong>{workspace.receptionist?.name ?? "AI receptionist"}</strong>
           <Pill tone={agent.tone} dot={agent.live} pulse={agent.live}>{agent.label}</Pill>
         </div>
       </div>
       <span>{agent.live
         ? `Handling calls, ${term("appointments").toLowerCase()} and ${term("customer").toLowerCase()} questions 24/7`
         : "Zella Voice connects your phone line before it goes live"}</span>
-      <button type="button" className="ba-btn block" onClick={onTest}><Icon name="call" size="sm" />Test AI Voice</button>
+      <button type="button" className="ba-btn block" onClick={onTest}><Icon name="call" size="sm" />Test your AI receptionist</button>
     </div>
   );
 }
@@ -241,7 +241,7 @@ export function ReceptionistCard({ workspace, agent, term, onTest }) {
 export function TestVoiceModal({ workspace, phone, agent, onClose, onGo }) {
   const name = workspace.receptionist?.name ?? "your AI receptionist";
   return (
-    <Modal title="Test AI Voice" description={`Hear ${name} the way your callers do.`} onClose={onClose}
+    <Modal title="Test your AI receptionist" description={`Hear ${name} the way your callers do.`} onClose={onClose}
       footer={<>
         <button type="button" className="ba-btn" onClick={() => { onClose(); onGo("settings/receptionist/testing"); }}>Testing checklist</button>
         {phone && <a className="ba-btn primary" href={`tel:${phone}`}><Icon name="call" size="sm" />Call {phone}</a>}
@@ -250,7 +250,7 @@ export function TestVoiceModal({ workspace, phone, agent, onClose, onGo }) {
         {phone ? (
           <>
             <p className="ba-note">Call your Zella Voice number from your own phone: <strong>{phone}</strong></p>
-            {!agent.live && <div className="ba-banner">The receptionist isn't live yet, so the call may not be answered by Zella Voice.</div>}
+            {!agent.live && <div className="ba-banner">The AI receptionist isn't live yet, so the call may not be answered by Zella Voice.</div>}
             <ul className="ba-test-list">
               <li>Ask for your opening hours.</li>
               <li>Book a time, then check it appears in your Calendar.</li>

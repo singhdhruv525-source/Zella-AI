@@ -56,7 +56,7 @@ function registry() {
     { key: "offers", label: "Offers", icon: "offers", items: [
       page("overview", "Offers overview", (c) => <P.OffersGate me={c.me}><P.OffersOverview onNavigate={c.onNavigate} /></P.OffersGate>, "offers promo code discount deal status approval connections"),
       page("rules", "Offer automation rules", (c) => <P.OffersGate me={c.me}><RulesTab onChanged={() => {}} /></P.OffersGate>, "start end approval thresholds claim hold unpaid expiry warning limit unusual activity renewal referral win back abandoned checkout"),
-      page("monitoring", "Offer monitoring", (c) => <P.OffersGate me={c.me}><MonitorTab onOpenOffer={() => c.onNavigate("Offers & Promotions")} /></P.OffersGate>, "claims failed codes attempts activity"),
+      page("monitoring", "Offer monitoring", (c) => <P.OffersGate me={c.me}><MonitorTab onOpenOffer={() => c.onNavigate("Offers & promotions")} /></P.OffersGate>, "claims failed codes attempts activity"),
       page("reports", "Offer reports", (c) => <P.OffersGate me={c.me}><ReportsTab /></P.OffersGate>, "redemptions revenue discount report"),
     ] },
     { key: "billing", label: "Billing", icon: "billing", items: [
@@ -69,8 +69,8 @@ function registry() {
     ] },
     { key: "ai", label: "AI", icon: "ai", items: [
       page("providers", "AI provider configuration", (c) => <P.AiProviders me={c.me} />, "model anthropic vapi health"),
-      page("registry", "AI agent registry", (c) => <P.AgentRegistry onNavigate={c.onNavigate} />, "agents"),
-      page("configuration", "AI agent configuration", (c) => <P.AgentConfiguration onNavigate={c.onNavigate} />, "instructions defaults versions"),
+      page("registry", "AI receptionist registry", (c) => <P.AgentRegistry onNavigate={c.onNavigate} />, "agents"),
+      page("configuration", "AI receptionist configuration", (c) => <P.AgentConfiguration onNavigate={c.onNavigate} />, "instructions defaults versions"),
       page("testing", "AI testing and evaluation", () => <P.AiTesting />, "eval test accuracy"),
       page("guardrails", "AI safety and guardrails", () => <P.AiGuardrails />, "safety handoff injection"),
     ] },

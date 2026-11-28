@@ -130,17 +130,100 @@ are not changed by this.
     "&". Admin screens never show file names or database talk: a missing setup note says what isn't switched on, with
     any file name in the note's hover tip.
 - `npm run lint` runs `web/scripts/check-dashes.mjs`, which fails on any dash or hyphen in the app's text
-  (`npm run check:writing` lists them).
+  (`npm run check:writing` lists them): a hyphen after a letter or a number ("follow-up", "6-digit"), in JSX text
+  between tags, next to an expression, or on lines of its own inside an element, and in label props given as an
+  expression (`title={...}`). Its tests are in `web/tests/checkDashes.test.mjs`.
 
-## Notifications: creative but professional
+## Writing guide (owner, 27 Nov 2026; notifications changed 28 Nov 2026)
 
-Every notification (banner, pop up, bell item, email) follows one pattern, in the business's own words:
+How every screen, toast, notification and email is worded, in both apps. It builds on the Writing rules above; the
+rulebook's `BRD-1` to `BRD-6` and `UX-2`, `UX-10`, `UX-11` stay the source of each rule.
+
+**Tone.** Plain and calm on screens, in errors and in emails. Say what happened, then what it means for calls or
+money, then what to do. Short sentences and everyday words, no slogans. Warmth comes from being specific ("Your
+receptionist keeps answering until Dec 1."). Good models: onboarding (`onboarding/StartScreens.jsx`) and the public
+link pages (`Reschedule.jsx`, `WaitlistOffer.jsx`).
+
+The one exception (owner, 28 Nov 2026, after "plain and calm" on 27 Nov): **CRM notifications and success toasts are
+playful**. They may joke, vary their wording and use exclamation marks ("Fresh lead! Someone's interested in you.",
+"Saved. Looking good."). Never in these, which stay plain and serious with no jokes, no variants and no exclamation
+marks: money and billing (payments, past due, refunds, disputes, plan changes), service problems and outages,
+errors, urgent and safety alerts (they show the server's own title), and security and sign in. No surveillance
+phrasing anywhere ("was listening", "taught us").
+
+**Headings and labels.** Sentence case with a capital first letter ("Audit logs", "Follow up", "No show rate"). Name
+the thing, not a teaser. No spaced capitals, no slogans ("Every business. One platform."). Field labels and table
+heads start with a capital ("Walk ins welcome").
+
+**Buttons.** Sentence case, verb first, saying what happens: "Schedule callback", "Mark contacted", "Save and
+continue", "Keep my plan". One name per action: **Try again** for a failed load or step (never Retry), **Send again**
+for a message, **Remove** to take something off a list, **Delete** only when data is gone, **Cancel** to close a
+dialog without saving. Working states use one ellipsis character: "Saving…", "Sending again…".
+
+**Errors.** What happened, then the next step (`UX-10`), and whether anything was saved when that matters:
+- "We couldn't load your workspace. Check your connection and try again." (with Try again)
+- "That time is no longer free. Pick another time."
+- "That didn't work. Try again, or contact Zella Voice support if it keeps happening. Reference: <code>." (for an internal code no screen explains yet)
+
+Never show raw server text, table names, file names or "database update" on screens; log the detail
+(`console.error`) and keep a short code only as a reference for support. When something isn't switched on, say so
+and who can switch it on: "This isn't switched on for your workspace yet. Ask the Zella Voice team."
+
+**Confirmations and toasts.** Shown only after the server confirms (`UX-2`), in plain past tense as the code writes
+them: "Details saved.", "Callback scheduled.", "Reservation canceled.". In the CRM, `warm()` may turn a success into
+a playful variant ("Saved. Looking good.", "Confirmed! It's in the calendar."), keeping the fact. It never touches a
+message about money, service, errors or security (`SERIOUS_MESSAGE` in `web/src/zellaVoice.js`), which is shown as
+written.
+
+**Dialogs.** A question title that names the object, then what is lost: "Remove Google Calendar? Its saved sign in
+details are deleted." The confirm button repeats the verb ("Remove", "Cancel callback").
+
+**Empty states.** What will appear here and how to get it (`UX-11`): "No on call schedule yet. Add who covers
+evenings and weekends." In the bell, one of a few calm lines such as "All quiet. Nothing needs you right now."
+
+**Not available yet.** One plain line naming the feature ("Attachments aren't available yet.", "Guides are coming
+soon."), then what works today and who to ask. Never how it would be built.
+
+**Notifications.** A label of two or three words, a headline that keeps the name, time or number the server sent,
+the server's body with the facts, one action. Playful headlines are fine for leads, bookings, messages, the team and
+celebrations; money, service, error, urgent and security kinds read plainly (`SERIOUS` in `web/src/zellaVoice.js`),
+and urgent notifications show the server's own title. The AI receptionist is "it", never "she".
+
+**Mechanics.** No dashes or hyphens in text ("follow up", "sign in", "six digit code", "5 minute mark", "1 hour
+arrival window"). US spelling ("canceled", "inquiry", "color", "gray", "license", "favor", "takeout", "traveler").
+"Zella Voice" in full, always. Sentence case. A line joining facts uses commas, not middle dots ("Incoming call, Nov
+16, 2:49 PM"); a dot stays only between links in a footer. Write plurals out ("3 calls", not "call(s)") and "a
+month", not "/ month". Places in the app read "Settings, Billing". Times use 12 hours ("6 PM"). The CRM writes
+"and", not "&"; the admin's grouped page names keep "&".
+
+| Use | Don't use |
+|---|---|
+| Zella Voice (in full) | Zella, zella voice, Zella side |
+| AI receptionist; "your AI receptionist"; the business's own name for it (for example Ava); "it" | assistant, voice assistant, phone assistant, voice agent, AI agent, AI Agents, the AI, AI (alone), she |
+| AI receptionists (admin page and menu) | AI Agents |
+| plan | membership; subscription outside billing records |
+| Try again; Send again for a message | Retry, Retry sending |
+| canceled, cancellation | cancelled |
+| inquiry | enquiry |
+| on call schedule; weekly schedule | rota |
+| auto reload | auto-reload, autoreload |
+| follow up, no show, walk in, check in, sign in, opt out, two step sign in, pay as you go | follow-up, no-show, walk-in, check-in, sign-in, opt-out |
+| six digit code | 6-digit code |
+| Not available yet; Coming soon | isn't built, isn't wired, needs a database update |
+| and (in the CRM) | & (in the CRM) |
+
+## Notifications: playful, with serious money and service
+
+Every notification (banner, pop up, bell item, email) follows one pattern, in the business's own words. CRM
+notifications and toasts are playful (owner, 28 Nov 2026, which reverses the plain and calm wording of 27 Nov): random
+variants, jokes and exclamation marks are fine. Money and billing, service problems, errors, urgent or safety alerts
+and security stay plain and serious, one line each (see Writing guide above):
 
 | Part | What it is |
 |---|---|
 | Picture | A ring that fills to the percentage (usage), or an icon on a soft tile that says what happened (phone, calendar, chat, envelope, star, shield, refresh) |
 | Label | Two or three words above the headline: Heads up, Action needed, Topped up, Still answering, Paused for now, Celebration |
-| Headline | Warm and plain: "Your receptionist has been busy this month", "Every call is still being answered" |
+| Headline | Playful for good news and everyday work ("Doorbell! Sam Lee has arrived.", "Fresh lead! Someone's interested in you."); plain for money, service, errors, urgent and security ("Your payment didn't go through.") |
 | Body | The facts: numbers, the date things reset, what happens to calls and messages, money involved |
 | Action | One clear main button (and at most two others) |
 
@@ -149,14 +232,17 @@ Every notification (banner, pop up, bell item, email) follows one pattern, in th
 - Red notices can't be dismissed until the problem is fixed; the others can. Pop ups fade after a few seconds.
 - Each business sees the notifications for its own kind of business plus the general ones; the wording uses its
   terms (chairs, patients, tables, jobs, viewings, tenants).
-- No jokes, no emoji, no dashes. Motion (filling rings, fades) stops for people who prefer reduced motion.
+- No emoji, no dashes; jokes only where the Writing guide allows them. Motion (filling rings, fades) stops for people who prefer reduced motion.
 - Emails use one layout (`web/src/emails/businessEmails.js`): the Zella Voice name and the business, a tone badge,
   the headline, the facts, one mocha button, and the reason for the email in the footer. Email clients can't read CSS
   variables, so `EMAIL_COLORS` copies the hex values from `tokens.css`; `web/tests/businessEmails.test.mjs` fails if
   they drift.
 - Pop ups (`.ba-toast`) sit on the plain card colour: no colour wash, no confetti, and the bell doesn't shake. The
   tone shows in the coloured left edge, the icon and the label (owner, 25 Nov 2026).
-- In the CRM, `noteStyle(n)` in `web/src/zellaVoice.js` gives each notification its icon, tone and label. The five
+- In the CRM, `voiceTitle(n)` in `web/src/zellaVoice.js` picks each kind's headline (one plain line for the kinds
+  in `SERIOUS`; urgent ones keep the server's own title), `warm(message)` gives success toasts their playful wording
+  (never for money, service, error or security messages), and `noteStyle(n)` gives each notification its icon, tone
+  and label. The five
   tones are classes `tone-good`, `tone-brand`, `tone-info`, `tone-heads` and `tone-urgent` on `.ba-toast`,
   `.ba-note-icon` and `.ba-kicker` (`BusinessApp.css`), built only from the `--ba-success`, `--ba-primary`,
   `--ba-info`, `--ba-warning` and `--ba-danger` tokens and their soft backgrounds.
@@ -274,7 +360,7 @@ for dialogs that open outside it), so the CRM does not change. A shared componen
 - The primary colour (midnight in Zella Voice, mocha in Classic) is for primary buttons and key icons. Coral marks only
   what is selected or live. Most buttons are secondary (white with a border).
 - Status badges always carry a word (Active, Pending, Failed). Colour backs the word up, never replaces it:
-  green done or active, blue scheduled or informational, amber pending or warning, red failed, cancelled or urgent.
+  green done or active, blue scheduled or informational, amber pending or warning, red failed, canceled or urgent.
 - Icons are Material Symbols Outlined (`<Icon name="..." />` from `BusinessUI.jsx`) in both apps.
 - **CRM motion (owner, 25 Nov 2026, replaces the lively motion of 6 Nov 2026 for the CRM):** quiet and short. Nothing lifts, bounces,
   springs, shines or ripples. A hover is a colour or border change, a press scales to 0.98, the page eases in once

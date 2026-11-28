@@ -15,7 +15,7 @@ import {
 // nothing on this page sends a message. A retry puts the original reminder or follow-up back in the queue, and the
 // sender checks consent, opt-outs and quiet hours again before anything goes out.
 
-const TABS = [["overview", "Overview"], ["sms", "Texts"], ["email", "Emails"], ["templates", "Templates"], ["business-emails", "Emails to businesses"], ["providers", "Senders & providers"], ["compliance", "Consent & opt-outs"]];
+const TABS = [["overview", "Overview"], ["sms", "Texts"], ["email", "Emails"], ["templates", "Templates"], ["business-emails", "Emails to businesses"], ["providers", "Senders & providers"], ["compliance", "Consent & opt outs"]];
 const STATUSES = ["queued", "sent", "delivered", "failed", "received", "dry_run", "blocked"];
 const STATUS_LABEL = { dry_run: "Test mode (not sent)", sent: "Accepted by provider", received: "Received" };
 const KINDS = { sms: [["reminder", "Reminder"], ["follow_up", "Follow up"], ["staff_alert", "Staff alert"], ["inbound", "Inbound"], ["other", "Other"]],
@@ -188,7 +188,7 @@ function MessageDrawer({ channel, id, me, onClose, onOpenBusiness, onRetried }) 
       {retry && (
         <ReasonDialog title="Retry this message?" icon="replay" confirmLabel="Put back in the queue" onClose={() => setRetry(false)}
           onConfirm={async (reason) => { await rpc("zella_admin_message_retry", { p_channel: channel, p_id: id, p_reason: reason }); d.reload(); onRetried(); }}>
-          <p>Its {d.data.retry.source === "reminder" ? "appointment reminder" : "follow up"} goes back in the queue (tried {d.data.retry.attempts ?? 0} times so far). The sender checks consent, opt-outs and quiet hours again. The same message can't be sent twice.</p>
+          <p>Its {d.data.retry.source === "reminder" ? "appointment reminder" : "follow up"} goes back in the queue (tried {d.data.retry.attempts ?? 0} times so far). The sender checks consent, opt outs and quiet hours again. The same message can't be sent twice.</p>
         </ReasonDialog>
       )}
     </Drawer>
@@ -260,7 +260,7 @@ function TemplateDrawer({ t, canEdit, options, onClose, onSaved }) {
       <div className="ao-preview">
         {t.channel === "email" && <strong>{fill(subject, SAMPLE)}</strong>}
         <pre className="ao-pre">{fill(body, SAMPLE)}</pre>
-        <small className="op-muted">{body.length} characters{segments ? ` · about ${segments} text segment${segments === 1 ? "" : "s"}` : ""}. Preview only. Nothing is sent.</small>
+        <small className="op-muted">{body.length} characters{segments ? `, about ${segments} text segment${segments === 1 ? "" : "s"}` : ""}. Preview only. Nothing is sent.</small>
       </div>
       {editable ? (
         <div className="ao-drawer-actions">

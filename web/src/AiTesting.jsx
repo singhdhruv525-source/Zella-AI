@@ -46,7 +46,7 @@ export default function AiTesting({ me, onOpenBusiness, refresh = 0 }) {
       <div className="owner-panel-heading">
         <div>
           <h2>AI testing</h2>
-          <p>Each business's test questions, checked against its knowledge. This checks what the receptionist can look up, not live calls: nothing is sent and nothing is charged.
+          <p>Each business's test questions, checked against its knowledge. This checks what the AI receptionist can look up, not live calls: nothing is sent and nothing is charged.
             A business passes when it has at least {state.data?.min_cases ?? 3} questions and every one passes. A failing run is a warning only; it never stops a business going live.</p>
         </div>
         {valid && <Pill tone="neutral">{`${state.data.passing} of ${state.data.total} passing`}</Pill>}
