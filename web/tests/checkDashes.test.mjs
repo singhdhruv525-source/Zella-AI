@@ -41,6 +41,80 @@ test("JSX text, labels and long dashes are found", () => {
   assert.equal(check('export const D = () => <p>{"Saved — thanks"}</p>;\n').code, 1);
 });
 
+test("a number before the hyphen is found: 6-digit, 5-minute, 12-hour", () => {
+  const jsx = check("export const A = () => <p>Enter the 6-digit code.</p>;\n");
+  assert.equal(jsx.code, 1);
+  assert.match(jsx.out, /6-digit/);
+  const str = check('export const hint = "Times start on a 5-minute mark";\n');
+  assert.equal(str.code, 1);
+  assert.match(str.out, /5-minute/);
+  const label = check('export const A = () => <option label="12-hour" />;\n');
+  assert.equal(label.code, 1);
+  assert.match(label.out, /12-hour/);
+  // a label prop given as an expression: title={`Auto-reload: ${name}`}
+  const expr = check("export const A = ({ n }) => <Card title={`Auto-reload: ${n}`} />;\n");
+  assert.equal(expr.code, 1);
+  assert.match(expr.out, /Auto-reload/);
+  // dates, phone numbers and ids are digits on both sides, and stay code
+  assert.equal(check('export const d = "2026-11-27";\nexport const p = "Call (555) 010 0200 on 2026-11-27";\n').code, 0);
+});
+
+test("JSX text on a line of its own is found", () => {
+  const r = check([
+    "export const A = () => (",
+    "  <p className=\"note\">",
+    "    Showing them here needs a server-side token.",
+    "  </p>",
+    ");", "",
+  ].join("\n"));
+  assert.equal(r.code, 1);
+  assert.match(r.out, /Sample\.jsx:3 {2}hyphen in text: Showing them here needs a server-side token\./);
+  // text next to an expression is checked: "{n} follow-ups sent", "couldn't run{reason}"
+  const expr = check("export const E = ({ n, r }) => <p><small>{n} follow-ups sent</small> The follow-up couldn't run{r}.</p>;\n");
+  assert.equal(expr.code, 1);
+  assert.equal((expr.out.match(/ {2}hyphen in text:/g) ?? []).length, 2, expr.out);
+  // the text after an inline tag on the same line is checked too, once
+  const mixed = check([
+    "export const B = () => (",
+    "  <p>",
+    "    Use <strong>Save</strong> to keep a 6-digit code.",
+    "  </p>",
+    ");", "",
+  ].join("\n"));
+  assert.equal(mixed.code, 1);
+  assert.equal((mixed.out.match(/ {2}hyphen in text:/g) ?? []).length, 1);
+  // a second line of the same paragraph is still text
+  const two = check("export const C = () => (\n  <p>\n    First line of words.\n    Then a follow-up line.\n  </p>\n);\n");
+  assert.equal(two.code, 1);
+  assert.match(two.out, /Sample\.jsx:4/);
+});
+
+test("code after a tag is not JSX text: expressions, props, arrow functions, statements", () => {
+  const r = check([
+    "export function A({ items, on }) {",
+    "  const x = (",
+    "    <ul>",
+    "      {items.map((it) => <li key={it.id}>{it.name}</li>)}",
+    "    </ul>",
+    "  );",
+    "  return (",
+    "    <div>",
+    "      <Button",
+    "        aria-pressed={on}",
+    "        data-test-id=\"save-row\"",
+    "      >",
+    "        Save",
+    "      </Button>",
+    "      {on && x}",
+    "    </div>",
+    "  );",
+    "}",
+    "const row = (v) => v > 0 ? \"x-y\" : \"y-z\";",
+    "export const C = () => <i>{row(1)}</i>;", "",
+  ].join("\n"));
+  assert.equal(r.code, 0, r.out);
+});
+
 test("code is not text: class lists, object keys, file names", () => {
   const r = check([
     'export const A = ({ on }) => <button className={on ? "ba-btn ba-btn-primary" : "ba-btn"}>Save</button>;',

@@ -3,7 +3,9 @@
 // Checks the app's source for:
 //   1. long dashes (U+2014, U+2013) anywhere outside comments: these are only ever text;
 //   2. hyphenated words in JSX text and in quoted strings that read as words people see (they contain a space,
-//      or are a known label prop such as title, label, placeholder, aria-label).
+//      or are a known label prop such as title, label, placeholder, aria-label). A hyphen counts after a letter or a
+//      number ("follow-up", "6-digit"). JSX text is checked whether it sits between tags on one line or on lines of
+//      its own inside an element.
 // Code is not text: class names, CSS, imports, URLs, routes, keys, dates and ids are skipped.
 // Usage: node scripts/check-dashes.mjs [--list]   (exit 1 when anything is found)
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -12,7 +14,7 @@ import { join, relative } from "node:path";
 const rootArg = process.argv.indexOf("--root");
 const ROOT = rootArg > 0 ? process.argv[rootArg + 1] : new URL("../src", import.meta.url).pathname;
 const LONG = /[—–]/;
-const WORD_HYPHEN = /[A-Za-z]-[A-Za-z]/;
+const WORD_HYPHEN = /[A-Za-z0-9]-[A-Za-z]/;
 // a quoted string that is code, not words: class lists, css, paths, urls, keys, mime types, dates, regexes
 const CODE_STRING = /^(?:[a-z0-9_.:/#@?=&%-]+|[a-z][a-z0-9-]*(?:\s+[a-z][a-z0-9-]*)*|https?:\/\/\S+|\S+\/\S+|--[\w-]+|var\(.*\)|[\w-]+\s*:\s*.*;?)$/;
 // code that happens to sit in a quoted string: locale tags, CSS (including inline styles in email HTML), file names,
@@ -23,7 +25,7 @@ const NOT_WORDS = /\ben-US\b|var\(--|\dpx solid|^\s*\.[a-z][\w-]*\s*,|\.(json|cs
 // dropped, so "Follow-up requires X-Request-Id" is still caught for "Follow-up".
 const isCode = (t) => NOT_WORDS.test(t) || /^\.[a-z][\w-]*,?$/.test(t);
 const wordsOnly = (s) => s.replace(/\$\{[^}]*\}/g, "X").replace(/\d+px solid(?=\s|$|[;,"')])/g, " ").split(/\s+/).filter((t) => !isCode(t)).join(" ");
-const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*$/;
+const LABEL_PROPS = /\b(title|label|placeholder|aria-label|alt|description|hint|help|message|text|heading|subtitle|empty|cta|button|confirmLabel|cancelLabel)\s*[:=]\s*\{?\s*$/;
 
 function files(dir) {
   return readdirSync(dir).flatMap((n) => {
@@ -38,6 +40,30 @@ function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")).replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
 }
 
+// JSX text on a line of its own, inside an element that spans lines:
+//   <p>
+//     Uses a server-side token.
+//   </p>
+// A line is text when it follows an opening tag (a line ending in ">", but not "=>" or "/>") or more such text, and
+// reads as words: it doesn't start a tag, an expression or a statement, and holds no code punctuation. What sits
+// inside tags or braces on the line is taken out before it is checked.
+const JS_LINE = /^(?:[<{})\]?:&|+*/.,;]|return\b|const\b|let\b|var\b|if\b|else\b|import\b|export\b|function\b|case\b|default\b)|=>|[;=]\s*$|&&|\|\||\b[\w.]+\(|^\w+:\s|[=!]==/;
+function jsxTextLines(lines) {
+  const out = [];
+  let inText = false;
+  lines.forEach((line, i) => {
+    const t = line.trim();
+    if (!t) return;
+    const textual = inText && !JS_LINE.test(t);
+    // only the text before the first tag or brace and after the last one: text between tags is checked above
+    if (textual) out.push([i, /[<>{}]/.test(t) ? `${t.split(/[<{]/)[0]} ${t.split(/[>}]/).pop()}`.trim() : t]);
+    // the next line is text when this one opens an element, or is text that the element doesn't close
+    const opens = /[^=/-]>$/.test(t) && !/^[)}]/.test(t) && !/^<\/[\w.]*>$/.test(t);
+    inText = opens || (textual && !/<\/[\w.]*>$/.test(t) && !/\/>$/.test(t));
+  });
+  return out;
+}
+
 const found = [];
 // the email catalogue lives with the edge functions; its wording is text people read too
 const EXTRA = rootArg > 0 ? [] : [new URL("../supabase/functions/_shared/businessEmails.js", import.meta.url).pathname];
@@ -46,8 +72,10 @@ for (const f of [...files(ROOT), ...EXTRA]) {
   lines.forEach((line, i) => {
     const where = `${f.startsWith(ROOT) ? relative(ROOT, f) : f.slice(f.indexOf("supabase/"))}:${i + 1}`;
     if (LONG.test(line)) { found.push([where, "long dash", line.trim()]); return; }
-    // JSX text between tags
-    for (const m of line.matchAll(/>([^<>{}]*[A-Za-z][^<>{}]*)</g)) {
+    // JSX text between tags, and between an expression and the next tag or expression ("{n} follow-ups sent"); the
+    // second kind holds no code punctuation, so props and calls after a "}" are left alone
+    const between = [...line.matchAll(/(?<!=)>([^<>{}]*[A-Za-z][^<>{}]*)[<{]/g), ...line.matchAll(/\}([^<>{}=[\]"`\\:;]*[A-Za-z][^<>{}=[\]"`\\:;]*)[<{]/g)];
+    for (const m of between) {
       if (WORD_HYPHEN.test(wordsOnly(m[1])) && !/=>/.test(m[1])) found.push([where, "hyphen in text", m[1].trim()]);
     }
     // quoted strings
@@ -68,6 +96,12 @@ for (const f of [...files(ROOT), ...EXTRA]) {
       found.push([where, "hyphen in text", s]);
     }
   });
+  if (/\.[jt]sx$/.test(f)) {
+    for (const [i, words] of jsxTextLines(lines)) {
+      if (LONG.test(lines[i]) || !WORD_HYPHEN.test(wordsOnly(words))) continue;   // a long dash is reported above
+      found.push([`${f.startsWith(ROOT) ? relative(ROOT, f) : f}:${i + 1}`, "hyphen in text", words]);
+    }
+  }
 }
 
 if (process.argv.includes("--list")) for (const [w, k, t] of found) console.log(`${w}  ${k}: ${t.slice(0, 140)}`);
