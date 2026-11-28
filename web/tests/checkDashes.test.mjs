@@ -295,3 +295,11 @@ test("an expression left open after a tag is code, and a tag with a callback sti
   assert.equal(after.code, 1);
   assert.match(after.out, /A follow-up line/);
 });
+
+test("an element nested in an open expression holds text again", () => {
+  const nested = check("export const A = ({ ready }) => (\n  <div>{\n    ready && (\n      <p>\n        Send a follow-up.\n      </p>\n    )\n  }</div>\n);\n");
+  assert.equal(nested.code, 1);
+  assert.match(nested.out, /Sample\.jsx:5 {2}hyphen in text: Send a follow-up\./);
+  const maths = check("export const B = ({ a, b, ok }) => (\n  <div>{\n    ok && (\n      <p>{a}</p>\n    )\n  }{\n    a-b\n  }</div>\n);\n");
+  assert.equal(maths.code, 0, maths.out);
+});

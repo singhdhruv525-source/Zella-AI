@@ -99,7 +99,10 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
       if (t.error) { setBusy(false); onChanged(); return setError(`Callback closed, but the follow up task failed: ${explain(t.error)}`); }
     }
     setBusy(false);
-    onNotice("Callback finished.");
+    // a follow up needs a known person; say so rather than finish as if the task was added
+    onNotice(fin.next.startsWith("follow_up") && !cb.customer_id
+      ? "Callback finished. No follow up task was added: this callback isn't linked to a customer."
+      : "Callback finished.");
     onChanged();
     onClose();
   }
@@ -162,7 +165,7 @@ function CallbackDetail({ cb, person, last, roster, workspace, startFinishing, o
             {finishing && (
               <form className="ba-form-grid ba-finish" onSubmit={finish}>
                 <Field label="What happened?"><select value={fin.outcome} onChange={(e) => setFin({ ...fin, outcome: e.target.value })}>{OUTCOMES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
-                <Field label="What's next?" hint={!cb.customer_id && fin.next !== "none" ? "Follow up tasks need a known person. Link the call to a customer first." : undefined}>
+                <Field label="What's next?" hint={!cb.customer_id && fin.next !== "none" ? "Follow up tasks need a known person. This callback isn't linked to one, so no task will be added." : undefined}>
                   <select value={fin.next} onChange={(e) => setFin({ ...fin, next: e.target.value })}>{NEXT.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
                 </Field>
                 <div className="full ba-form-actions">
