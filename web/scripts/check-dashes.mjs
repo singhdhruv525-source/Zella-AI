@@ -90,8 +90,16 @@ function jsxTextLines(lines) {
     // the next line is text when this one opens an element, or is text (or a child) inside an element still open
     const endsTag = /(^|[^=/-])>$/.test(t) && !/^[)}]/.test(t) && !closeOnly;
     const opens = endsTag && (netTags(t) > 0 || (tagOpen && !/<[A-Za-z]/.test(t)));
+    // an opening tag with text after it on the same line ("<p className="x">Some words"): the element stays open, its
+    // words on this line are checked, and the lines after it are read as its text
+    const opensWithText = !endsTag && !inText && /^<[A-Za-z]/.test(t) && netTags(t) > 0 && !UNCLOSED_TAG.test(t) && !/[;,]$|=>|\)$/.test(t);
+    if (opensWithText) {
+      const rest = t.split(/[>}]/).pop().trim();
+      if (rest && !CODE_BITS.test(rest)) out.push([i, rest]);
+    }
     tagOpen = UNCLOSED_TAG.test(t) || (tagOpen && !/\/?>$/.test(t));
-    if (opens) depth = (inText ? depth : 0) + Math.max(1, netTags(t));   // a ">" alone ends a tag begun above
+    if (opensWithText) depth = netTags(t);
+    else if (opens) depth = (inText ? depth : 0) + Math.max(1, netTags(t));   // a ">" alone ends a tag begun above
     else if (inText && (child || textual || closeOnly)) depth += closeOnly ? -1 : netTags(t);
     else depth = 0;
     inText = depth > 0;

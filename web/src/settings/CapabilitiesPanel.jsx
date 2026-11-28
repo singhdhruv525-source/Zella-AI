@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
 import { Banner, Card, LoadState, Pill, Table, Toggle, useAsync } from "./SettingsKit";
+import { CALL_ACCESS_UNKNOWN, callAccessState } from "./callAccess";
 
 // Settings > Industry and workflows > What your business does. The kinds of work this business does (zella_capabilities):
 // the industry decides what's supported and what starts on; owners and admins switch the optional ones. Turning one
@@ -110,8 +111,11 @@ export function CallContentAccess({ w }) {
     <LoadState state={state}>{(s) => (
       <Card title="Who can read transcripts and play recordings" sub="Owners, admins and managers always can. View only members never can.">
         <Banner tone="error">{error}</Banner>
-        {s.sensitive === null ? (
-          <p className="zs-muted">This choice isn't switched on for your workspace yet. Ask the Zella Voice team.</p>
+        {callAccessState(s.sensitive) === "unknown" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }} role="status">
+            <span className="zs-muted">{CALL_ACCESS_UNKNOWN}</span>
+            <button type="button" className="zs-btn sm" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+          </div>
         ) : s.sensitive ? (
           <p className="zs-muted">Calls in your industry often include health, legal, financial or children's details, so staff can't be given access.</p>
         ) : (

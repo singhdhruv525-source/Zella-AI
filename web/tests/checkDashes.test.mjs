@@ -104,6 +104,24 @@ test("a > on its own line, after props spread over lines, opens the text", () =>
   assert.match(r.out, /Sample\.jsx:6 {2}hyphen in text: Showing them needs a server-side token\./);
 });
 
+test("an opening tag with text after it on the same line keeps the text going onto the next lines", () => {
+  const r = check([
+    "export const A = () => (",
+    "  <p className=\"note\">Calls go to the",
+    "    on-call person after hours.",
+    "  </p>",
+    ");", "",
+  ].join("\n"));
+  assert.equal(r.code, 1);
+  assert.match(r.out, /Sample\.jsx:3 {2}hyphen in text: on-call person after hours\./);
+  // the words on the tag's own line are checked too
+  const same = check(["export const B = () => (", "  <p>A follow-up note", "    and more.", "  </p>", ");", ""].join("\n"));
+  assert.equal(same.code, 1);
+  assert.match(same.out, /Sample\.jsx:2 {2}hyphen in text: A follow-up note/);
+  // a tag left open at the end of the line (props follow) is not text
+  assert.equal(check(["export const C = () => (", "  <Focus><div", "    className=\"x-y\"", "  >", "  </div></Focus>", ");", ""].join("\n")).code, 0);
+});
+
 test("a comparison ending in > opens no text; a > that closes props spread over lines still does", () => {
   const cmp = check([
     "export function big(first, pass, limit) {",
