@@ -22,7 +22,11 @@ type Answer = Record<string, unknown> | Error | null;
 type Db = { checkout: Record<string, unknown> | null; payment: Record<string, unknown>; start?: Record<string, unknown> | Error;
   invoice?: Answer; invoiceStart?: Answer; refs?: Answer; packAct?: Answer; pack?: Answer; prefill?: unknown; autopay?: AutoPay;
   limited?: boolean; noMigration?: boolean; reopened?: Record<string, unknown>[]; checkoutAutopay?: unknown[]; hosted?: string[]; expired?: string[];
-  startSeq?: Record<string, unknown>[]; packBuys?: Record<string, unknown>[]; cardChecks?: Record<string, unknown>[] };
+  startSeq?: Record<string, unknown>[]; packBuys?: Record<string, unknown>[]; cardChecks?: Record<string, unknown>[];
+  // the attempts clear (review round 3): how many agreements the database cleared, and what Pay now's start answers after
+  cleared?: number; afterClear?: Answer;
+  // stored outbox commands for a checkout (its expiry), claimed and resulted as the database would
+  commands?: { id: string; idempotency_key: string; method: "POST"; path: string; body: Record<string, unknown>; attempts: number; status: string; checkout_id: string }[] };
 // what the database's start answers by default: the amount it computed and the figures of the agreement's words
 const START_FIGURES = { amount_minor: 29900, renewal_minor: 29900, autopay: true, addons: [] as string[], addons_minor: 0, mode: "pay", currency: "usd" };
 const CATALOG = [{ code: "minutes_100", resource: "minutes", quantity: 100, price_cents: 2900, currency: "usd" }, { code: "texts_500", resource: "texts", quantity: 500, price_cents: 1800, currency: "usd" }];
@@ -86,6 +90,10 @@ globalThis.fetch = async (input: Request | URL | string, init?: RequestInit) => 
     return json(rows);
   }
   if (ap && fn === "zella_stripe_apply_event") { ap.applied.add(args.p_event_id); ap.on = args.p_object.collection_method !== "send_invoice"; return json("applied"); }
+  if (fn === "zella_billing_invoice_attempts_clear") { const n = db.cleared ?? 1; if (n > 0 && db.afterClear !== undefined) db.invoiceStart = db.afterClear; return json(n); }
+  if (db.commands && fn === "zella_billing_checkout_next_command") return json(db.commands.find((c) => c.checkout_id === args.p_checkout_id && c.status === "pending")?.id ?? null);
+  if (db.commands && fn === "zella_billing_outbox_claim") { const c = db.commands.find((x) => x.id === args.p_id && x.status === "pending"); if (c) c.status = "sending"; return json(c ? [c] : []); }
+  if (db.commands && fn === "zella_billing_outbox_result") { const c = db.commands.find((x) => x.id === args.p_id)!; c.status = args.p_ok ? "sent" : "retry_wait"; return json(c.status); }
   if (fn === "zella_billing_events_claim" || fn.startsWith("zella_billing_")) return json(null);
   if (fn === "zella_platform_alert") return json(null);
   return json(null);
@@ -302,11 +310,15 @@ Deno.test("the saved card: brand and last 4 from Stripe, or nothing", async () =
   fake.completeCheckout(s.id);
   const sub = fake.objects.get(fake.objects.get(s.id)!.subscription)!;
   db = { checkout: null, payment: {}, refs: { customer: sub.customer, subscription: sub.id } };
-  assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: { brand: "visa", last4: "4242", issuer: "Test Bank" } });
+  assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: { brand: "visa", last4: "4242" } }, "brand and last 4 only, no issuer");
   db = { checkout: null, payment: {}, refs: { customer: "cus_someone_else", subscription: sub.id } };
   assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: null }, "another customer's subscription shows nothing");
   db = { checkout: null, payment: {}, refs: { customer: null, subscription: null } };
   assertEquals((await act({ action: "card_summary", business_id: BIZ })).body, { card: null });
+  // Stripe's lookup fails: an error, never "no card" (review round 3)
+  db = { checkout: null, payment: {}, refs: { customer: sub.customer, subscription: "sub_missing0001" } };
+  const failedLookup = await act({ action: "card_summary", business_id: BIZ });
+  assert(failedLookup.status >= 500 && !("card" in failedLookup.body), JSON.stringify(failedLookup));
 });
 
 Deno.test("Update card: Stripe's Customer Portal, card update only, back to the Payments page; none before a first payment", async () => {
@@ -553,13 +565,24 @@ Deno.test("add ons: the pack page's words come from the catalogue; an add on agr
 });
 
 Deno.test("add ons at onboarding: a changed selection expires the open session first (its stored command), then starts again", async () => {
-  const sess = await newSession();
-  db = { checkout: openRow(sess.id), payment: {}, startSeq: [{ checkout_id: "99999999-9999-4999-8999-999999999999", status: "expiring", amount_minor: 29900, mode: "pay", currency: "usd" }] };
+  const old = await newSession(), sess = await newSession();
+  const OLD = "99999999-9999-4999-8999-999999999999", CMD = "77777777-7777-4777-8777-777777777777";
+  // the old checkout's stored expiry command (review round 3: a real command, sent to the fake Stripe)
+  db = { checkout: openRow(sess.id), payment: {}, startSeq: [{ checkout_id: OLD, status: "expiring", amount_minor: 29900, mode: "pay", currency: "usd" }],
+    commands: [{ id: CMD, idempotency_key: `checkoutexpire:${OLD}`, method: "POST", path: `/v1/checkout/sessions/${old.id}/expire`, body: {}, attempts: 1, status: "pending", checkout_id: OLD }] };
   calls.length = 0;
   const r = await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "select-key-0001", packs: [] });
   assertEquals(r.status, 200, JSON.stringify(r.body));
   assertEquals(calls.filter((c) => c.fn === "zella_owner_billing_checkout_start").length, 2, "asked again once the old one is being expired");
-  assertEquals(calls.find((c) => c.fn === "zella_billing_checkout_next_command")?.args.p_checkout_id, "99999999-9999-4999-8999-999999999999", "the old checkout's expiry is sent");
+  assertEquals(calls.find((c) => c.fn === "zella_billing_checkout_next_command")?.args.p_checkout_id, OLD, "the old checkout's expiry is sent");
+  assertEquals([fake.objects.get(old.id)!.status, db.commands![0].status], ["expired", "sent"], "Stripe expired the old session, and the command is recorded as sent");
+  const order = calls.map((c) => c.fn);
+  assert(order.indexOf("zella_billing_outbox_result") < order.lastIndexOf("zella_owner_billing_checkout_start"), "the new checkout is asked for only after the expiry succeeded");
+  assertEquals([r.body.status, r.body.client_secret], ["open", sess.client_secret], "then the replacement session opens");
+  // Stripe refuses the expiry (the old session is gone): the replacement stays unavailable
+  db = { checkout: openRow(sess.id), payment: {}, startSeq: [{ checkout_id: OLD, status: "expiring" }, { checkout_id: OLD, status: "expiring" }],
+    commands: [{ id: CMD, idempotency_key: `checkoutexpire:${OLD}`, method: "POST", path: "/v1/checkout/sessions/cs_missing/expire", body: {}, attempts: 1, status: "pending", checkout_id: OLD }] };
+  assertEquals((await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "select-key-0004" })).body.code, "CHECKOUT_NOT_READY", "no expiry, no replacement");
   db = { checkout: openRow(sess.id), payment: {}, startSeq: [{ checkout_id: CHECKOUT, status: "expiring" }, { checkout_id: CHECKOUT, status: "expiring" }] };
   assertEquals((await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "select-key-0002" })).body.code, "CHECKOUT_NOT_READY", "never two open sessions");
   assertEquals((await act({ action: "checkout_start", business_id: BIZ, idempotency_key: "select-key-0003", packs: ["Minutes 100"] })).body.code, "INVALID_INPUT");
@@ -608,25 +631,45 @@ Deno.test("review: while our record is still open, Pay now's return says whether
   assertEquals((await act({ action: "invoice_pay_return", invoice_id: INVOICE })).body.invoice.processing, true, "Stripe has it: confirming, never Pay again");
 });
 
-Deno.test("review round 2: Pay in a second tab with other add ons waits while the first tab's payment may be in flight", async () => {
+Deno.test("review rounds 2 and 3: Pay in a second tab with other add ons waits while the first tab's payment may be in flight; a clear is bound to the failed attempt", async () => {
   const { customer, sub, inv } = await pastDue();
   const si = await stripe.get(`/v1/invoices/${inv.id}`, { expand: ["payments"] }) as Record<string, any>;
-  const pi = fake.objects.get(String(si.payments.data[0].payment.payment_intent))!;
-  db = { checkout: null, payment: {}, invoiceStart: new Error("ADDONS_IN_PROGRESS"), refs: { customer, subscription: sub },
-    invoice: { invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, status: "open", payable: true } };
+  const piId = String(si.payments.data[0].payment.payment_intent);
+  const pi = fake.objects.get(piId)!;
+  const busy = () => ({ checkout: null, payment: {}, invoiceStart: new Error("ADDONS_IN_PROGRESS"), refs: { customer, subscription: sub },
+    invoice: { invoice_id: INVOICE, business_id: BIZ, stripe_invoice_id: inv.id, status: "open", payable: true } }) as Db;
+  const hash = await hashOf({ kind: "invoice", todayMinor: inv.amount_due, autopay: true, renewalMinor: 29900, addonsMinor: 0 });
+  const pay = () => act({ action: "invoice_pay_start", invoice_id: INVOICE, submit: true, consent: true, consent_hash: hash });
+  const clears = () => calls.filter((c) => c.fn === "zella_billing_invoice_attempts_clear");
   // the first tab's confirm may be on its way: the intent shows no failed attempt
-  pi.status = "requires_confirmation"; pi.last_payment_error = null;
+  db = busy(); pi.status = "requires_confirmation"; pi.last_payment_error = null; pi.latest_charge = null;
   calls.length = 0;
-  const r = await act({ action: "invoice_pay_start", invoice_id: INVOICE, submit: true, consent: true, consent_hash: "c".repeat(64) });
+  const r = await pay();
   assertEquals([r.status, r.body.code], [409, "ADDONS_IN_PROGRESS"]);
-  assert(!calls.some((c) => c.fn === "zella_billing_invoice_attempts_clear"), "nothing is cleared while it may be paying");
+  assertEquals(clears().length, 0, "nothing is cleared while it may be paying");
   assertEquals(calls.find((c) => c.fn === "zella_owner_invoice_pay_start")?.args.p_submit, true, "the Pay press is marked as such");
-  // the first attempt failed at Stripe (declined on the invoice's intent): cleared, then asked again
-  pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" };
+  // a payment error with no failed charge to date it: not known when it failed, so nothing is cleared
+  db = busy(); pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" }; pi.latest_charge = null;
   calls.length = 0;
-  await act({ action: "invoice_pay_start", invoice_id: INVOICE, submit: true, consent: true, consent_hash: "c".repeat(64) });
-  assertEquals(calls.filter((c) => c.fn === "zella_billing_invoice_attempts_clear").map((c) => c.args.p_invoice_id), [INVOICE]);
+  assertEquals((await pay()).body.code, "ADDONS_IN_PROGRESS");
+  assertEquals(clears().length, 0, "no failure time from Stripe: nothing cleared");
+  // the first attempt failed at Stripe (a declined charge on the invoice's own intent): cleared up to that moment, then
+  // the second tab's Pay goes through with the payment form
+  pi.status = "requires_confirmation";
+  const failed = fake.confirmIntent(piId, "decline") as Record<string, any>;
+  const ch = fake.objects.get(String(failed.latest_charge))!;
+  db = { ...busy(), afterClear: invRow(inv) };
+  calls.length = 0;
+  const ok = await pay();
+  assertEquals([ok.status, ok.body.status, String(ok.body.client_secret).split("_secret_")[0]], [200, "open", piId], JSON.stringify(ok.body));
+  assertEquals(clears().map((c) => [c.args.p_invoice_id, c.args.p_payment_intent, c.args.p_failed_at]), [[INVOICE, piId, new Date(ch.created * 1000).toISOString()]],
+    "the clear names this intent and when its attempt failed");
   assertEquals(calls.filter((c) => c.fn === "zella_owner_invoice_pay_start").length, 2, "asked again once Stripe says the earlier attempt failed");
+  // the database cleared nothing (a Pay pressed after that failure, or the invoice is paid): still refused
+  db = { ...busy(), cleared: 0, afterClear: invRow(inv) };
+  calls.length = 0;
+  assertEquals((await pay()).body.code, "ADDONS_IN_PROGRESS");
+  assertEquals(calls.filter((c) => c.fn === "zella_owner_invoice_pay_start").length, 1, "not asked again when nothing was cleared");
 });
 
 Deno.test("review: the fake Stripe models a 3D Secure challenge, and refuses a redirect method without return_url", async () => {

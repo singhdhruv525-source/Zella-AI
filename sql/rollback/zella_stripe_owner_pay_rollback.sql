@@ -97,7 +97,7 @@ do $$
 declare s text;
   owned constant jsonb := '{
     "public.zella_owner_invoice_pay_status(uuid)": "def8331d20227467d2553700d98e459d",
-    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)": "bad903805be54d7f02e80e2b35fe4db8",
+    "public.zella_owner_invoice_pay_start(uuid,boolean,jsonb,text,boolean)": "3505734881de90a958cd1bbe1de3c4b8",
     "public.zella_owner_billing_access(uuid,boolean)": "5738697783e8f82adc1872bea88bbf86",
     "public.zella_billing_stripe_refs(uuid,boolean)": "f850df5700bfb546c084e41d4267fab9",
     "public.zella_owner_pack_status(uuid,uuid)": "6e71430a8f8331ba81fce4300d15dfa7",
@@ -118,10 +118,10 @@ declare s text;
     "public.zella_billing_terms_version()": "45054b7849bdfb9e4d5e8ddde39a9a2f",
     "public.zella_billing_consent_text(text,bigint,boolean,bigint,bigint)": "f71e539ac33a7aa48dfeee485e83d15d",
     "public.zella_billing_consent_check(text,text)": "d85ebeb30fb344fa1675fc928f61ef1d",
-    "public.zella_billing_consent_record(uuid,text,uuid,text,text,bigint,boolean,bigint,jsonb)": "4db22aff67c22da2ce64fa7d7a86972d",
+    "public.zella_billing_consent_record(uuid,text,uuid,text,text,bigint,boolean,bigint,jsonb)": "6567947a4f7b20d20743f42281308f1e",
     "public.zella_owner_addon_catalog(uuid)": "89b1e2c913c527a6ea27377bdac1da9b",
     "public.zella_billing_card_checked(uuid,text)": "108b36e936fec7fc8b3386d9d576d87b",
-    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "fe0bb81b54e241cbd33608cf013a8956",
+    "public.zella_owner_pack_buy(uuid,text,text,text,uuid)": "21934591b0e48de02f90e75df435136f",
     "public.zella_billing_checkout_addon_codes(uuid)": "d0ec4062ffbf554269af24efc6e08841",
     "public.zella_billing_checkout_addon_lines(uuid,boolean)": "ddae63c27e07df49902c33ef00a1d0c1",
     "public.zella_billing_checkout_addon_price(uuid,text)": "e502357e2cc991ad5424017a3abb6def",
@@ -129,8 +129,8 @@ declare s text;
     "public.zella_stripe_failed_addon_price(billing_outbox)": "2485145a3aaee43c7f0c993a5e55365e",
     "public.zella_billing_checkout_addons_bind(billing_checkouts,jsonb)": "4a92accd70e9463aac14bbb16c57f4a3",
     "public.zella_billing_checkout_addons_grant(billing_checkouts,billing_periods)": "c66d31d7939007d7cf37bcce11241b60",
-    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "78a6c8eba502c2b0a5e47d220ec62acf",
-    "public.zella_billing_invoice_attempts_clear(uuid)": "016b5d244d62683ecb79c0dd3d01be93",
+    "public.zella_owner_billing_checkout_start(uuid,text,text[],boolean,text)": "ef2df08aa30563a2569dcd4a6c267864",
+    "public.zella_billing_invoice_attempts_clear(uuid,text,timestamp with time zone)": "403d3484ce63b1a0a3dd0ca388c5e209",
     "public.zella_stripe_on_customer_updated(billing_events,jsonb)": "787f60b347bef56d98b4c40e99748295"
   }';
 begin
@@ -165,10 +165,13 @@ begin
   end if;
   -- the record of what owners agreed to, and of the add ons sold, is never deleted by a rollback
   if to_regclass('public.billing_checkout_addons') is not null then
+    execute 'lock table public.billing_checkout_addons in exclusive mode';
     execute 'select exists (select 1 from public.billing_checkout_addons)' into v;
     if not v then drop table public.billing_checkout_addons; end if;
   end if;
   if to_regclass('public.billing_payment_consents') is not null then
+    -- no agreement can be written between the check and the drop (review round 3)
+    execute 'lock table public.billing_payment_consents in exclusive mode';
     execute 'select exists (select 1 from public.billing_payment_consents)' into v;
     if not v then drop table public.billing_payment_consents; end if;
   end if;

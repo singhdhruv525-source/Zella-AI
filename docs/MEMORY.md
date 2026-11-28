@@ -147,6 +147,12 @@ inactive, except `zella_usage_thresholds` and `zella_billing_reconcile` (checked
   not offered separately; (4) **`docs/BACKEND_SCHEMA.md` must be regenerated before PR #148 merges**: it can't be
   done in the build session (it needs an isolated copy of the production schema); the generator already has the
   purposes of the three new tables (`billing_owner_requests`, `billing_payment_consents`, `billing_checkout_addons`).
+  **CodeRabbit round 3 (28 Nov 2026):** agreements bound to their exact add ons, keys and prices; the attempts clear
+  bound to the failed attempt's intent and time; one catalogue read per onboarding start; cancelled pack purchases
+  final with Try again (owner decision: "This add on wasn't bought. You weren't charged."); the pack page's card
+  lookup failure is its own state; Checkout's `paymentFailed` mapped to the decline words. `tests/stripe_e2e/journey_test.ts`
+  now sends the agreement but was not run here (it needs the `zprod3` production schema copy, not on the build server):
+  run it before merge.
 - **Card problems (owner question, 27 Nov 2026):** no screen of ours for the bank's code: live, Stripe.js opens the
   bank's own check in Stripe's overlay; the page waits ("Waiting for your bank to confirm") and shows the outcome. Wrong
   details inline, declines by Stripe's `decline_code` (lost and stolen read as generic), Try another card on the same

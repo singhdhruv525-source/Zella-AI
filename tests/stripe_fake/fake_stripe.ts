@@ -427,7 +427,12 @@ export function startFakeStripe(opts: { port?: number; livemode?: boolean } = {}
       if (pi.status === "succeeded") return clone(pi);
       // "auth": the bank asks for 3D Secure again (an authentication challenge, nothing taken); any other card is declined
       if (card === "auth") { pi.status = "requires_action"; pi.last_payment_error = { code: "authentication_required" }; emit("payment_intent.requires_action", pi); return clone(pi); }
-      if (card !== "ok") { pi.status = "requires_payment_method"; pi.last_payment_error = { code: "card_declined" }; emit("payment_intent.payment_failed", pi); return clone(pi); }
+      if (card !== "ok") {
+        // as at Stripe, a declined attempt leaves a failed charge on the intent (its time is when the attempt failed)
+        const failed = put({ id: id("ch"), object: "charge", status: "failed", amount: pi.amount, amount_refunded: 0, refunded: false, payment_intent: pi.id, customer: pi.customer, livemode, created: clock });
+        pi.status = "requires_payment_method"; pi.latest_charge = failed.id; pi.last_payment_error = { code: "card_declined", charge: failed.id };
+        emit("payment_intent.payment_failed", pi); return clone(pi);
+      }
       const ch = put({ id: id("ch"), object: "charge", amount: pi.amount, amount_refunded: 0, refunded: false, payment_intent: pi.id, customer: pi.customer, livemode, created: clock });
       // the card the customer used in the form: only what Stripe returns about it (Stripe's public test card)
       const pm = put({ id: id("pm"), object: "payment_method", type: "card", customer: pi.customer, livemode, created: clock, card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2028, issuer: "Test Bank" } });

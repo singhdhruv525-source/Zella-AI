@@ -176,6 +176,14 @@ export async function mountCardFields(slots, { kind, clientSecret, publishableKe
         stripe_type: typeof error?.type === "string" ? error.type : undefined });
   };
   const unknown = () => fail("UNKNOWN_OUTCOME", "We couldn't tell whether the payment went through.");
+  // a Checkout Session's confirm answers in its own shape (review round 3): { code: "paymentFailed", paymentFailed: {
+  // declineCode } } is the bank's definite decline, mapped to the same decline contract as a PaymentIntent's card_error;
+  // any other error code is not known to have failed, so it stays unknown
+  const checkoutRefused = (error) => {
+    if (error?.code !== "paymentFailed") return unknown();
+    const dc = typeof error?.paymentFailed?.declineCode === "string" ? error.paymentFailed.declineCode : undefined;
+    return refused({ type: "card_error", code: "card_declined", decline_code: dc, message: error?.message });
+  };
   current = instance;
   return {
     destroy: () => { if (current === instance) destroyCurrent(); else instance.destroy(); },
@@ -192,7 +200,7 @@ export async function mountCardFields(slots, { kind, clientSecret, publishableKe
         try { r = await a.actions.confirm({ paymentMethod: method.id, redirect: "if_required", returnUrl,
           ...(billing.address ? { billingAddress: { name: billing.name.trim().slice(0, 80), address: addr } } : {}) }); }
         catch { throw unknown(); }
-        if (r.type !== "success") throw refused(r.error);
+        if (r?.type !== "success") throw checkoutRefused(r?.error);
         onComplete?.();
         return;
       }

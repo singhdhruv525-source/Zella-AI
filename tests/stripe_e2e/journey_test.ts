@@ -1,7 +1,7 @@
 // The whole Stripe journey end to end, locally, through the fake Stripe (never Stripe, never production):
 //   tests/stripe_pipeline/flow.sh tests/stripe_e2e/journey_test.ts zella_owner_onboarding zella_stripe_checkout zella_stripe_embedded_checkout \
 //     zella_stripe_renewals zella_stripe_packs zella_stripe_refunds zella_stripe_cancel zella_stripe_invoices \
-//     zella_stripe_disputes zella_stripe_emails zella_stripe_reconcile
+//     zella_stripe_disputes zella_stripe_emails zella_stripe_reconcile zella_stripe_owner_pay
 // plan saved -> Checkout (billing-api, the owner's own token) -> signed webhook -> payment confirmed -> go live gate
 // passes; then a renewal, a failed payment and the 5 day pause, recovery, a pack on the saved card, a refund approved by
 // the Zella Voice owner, invoice rows, billing emails held in the outbox, and a reconciliation with no differences.
@@ -9,6 +9,7 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import { startFakeStripe } from "../stripe_fake/fake_stripe.ts";
 import { stripeClient } from "../../web/supabase/functions/_shared/stripe.ts";
 import { rpcClient, runWorkerOnce } from "../../web/supabase/functions/_shared/billingWorker.ts";
+import { consentHash, consentText } from "../../web/supabase/functions/_shared/paymentConsent.js";
 import { ANON_KEY, atPaymentStep, BACKEND, newBusiness, savePlan, SERVER_KEY, sql, tokenFor } from "../stripe_pipeline/helpers.ts";
 
 const SECRET = "whsec_journey_test_only";
@@ -25,6 +26,9 @@ const api = async (token: string, body: Record<string, unknown>) => {
   const r = await billingApi(new Request("http://fn", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) }));
   return { status: r.status, body: await r.json() };
 };
+// the owner's agreement as the page sends it (review round 3): the words billing-api and the database rebuild from their
+// own figures, and their sha256 (the shared helpers billing-api uses)
+const agreement = async (f: Parameters<typeof consentText>[0]) => ({ consent: true, consent_hash: await consentHash(consentText(f)!) });
 const asUser = async (token: string, fn: string, args: Record<string, unknown>) => {
   const r = await fetch(`${BACKEND}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(args) });
   return { status: r.status, body: await r.json() };
@@ -45,7 +49,10 @@ Deno.test("the whole journey through the fake Stripe", async () => {
   const token = await tokenFor(owner);
 
   // 1. Checkout -> signed webhook -> payment confirmed -> the go live gate's payment check passes
-  const start = await api(token, { action: "checkout_start", business_id: business, idempotency_key: "journey-key-0001" });
+  // the checkout's figures as the database computes them: the plan and its setup fee today, the plan each renewal (Auto pay on)
+  const [planMinor, setupMinor] = String(await sql(`select price_cents || ' ' || setup_fee_cents from public.business_plans where business_id = '${business}' order by version desc limit 1`)).split(" ").map(Number);
+  const start = await api(token, { action: "checkout_start", business_id: business, idempotency_key: "journey-key-0001",
+    ...(await agreement({ kind: "plan", todayMinor: planMinor + setupMinor, autopay: true, renewalMinor: planMinor, addonsMinor: 0 })) });
   assertEquals(start.status, 200, JSON.stringify(start.body));
   assertEquals([start.body.status, typeof start.body.client_secret], ["open", "string"]);   // Embedded Checkout
   fake.completeCheckout(await sql(`select stripe_session_id from public.billing_checkouts where business_id = '${business}'`));
@@ -82,7 +89,9 @@ Deno.test("the whole journey through the fake Stripe", async () => {
   assertEquals(await sql(`select status from public.subscriptions where business_id = '${business}'`), "active");
 
   // 4. A pack on the saved card
-  const pack = await api(token, { action: "pack_buy", business_id: business, pack_code: "minutes_100", idempotency_key: "journey-pack-0001", amount: 1 });
+  const packPrice = Number(await sql(`select price_cents from public.billing_pack_catalog where code = 'minutes_100'`));
+  const pack = await api(token, { action: "pack_buy", business_id: business, pack_code: "minutes_100", idempotency_key: "journey-pack-0001", amount: 1,
+    ...(await agreement({ kind: "pack", todayMinor: packPrice })) });
   assertEquals(pack.status, 200, JSON.stringify(pack.body));
   await settle();
   assertEquals(await sql(`select status from public.pack_purchases where id = '${pack.body.purchase_id}'`), "granted");

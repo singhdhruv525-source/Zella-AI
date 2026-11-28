@@ -257,11 +257,61 @@ t1b=$(as "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'tab
 q "insert into public.billing_invoices (id, business_id, stripe_invoice_id, status, number, total_minor, amount_due_minor) values ('00000000-0000-4000-8000-00000000f002', '$b', 'in_tabs2', 'open', 'ZV-0010', 24900, 24900)" > /dev/null
 T2='00000000-0000-4000-8000-00000000f002'
 as "$u" aal2 "select public.zella_owner_invoice_pay_start('$T2', true, '$A1'::jsonb, '$H1', true)" > /dev/null
-q "set role service_role; select public.zella_billing_invoice_attempts_clear('$T2')" > /dev/null
+q "set role service_role; select public.zella_billing_invoice_attempts_clear('$T2', 'pi_T2first', now())" > /dev/null
 [ "$(as "$u" aal2 "select jsonb_array_length(x -> 'addons') from public.zella_owner_invoice_pay_start('$T2', true, '$A2'::jsonb, '$H2', true) x")" = "1" ] \
   && [ "$(as "$u" aal1 "select (select string_agg(a ->> 'code', ',') from jsonb_array_elements(x -> 'addons') a) from public.zella_owner_invoice_pay_status('$T2') x")" = "texts_500" ] \
   && ok "once Stripe says the first attempt failed, the new choice goes ahead and is the one bought" || bad "attempt cleared"
-[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_invoice_attempts_clear(uuid)', 'execute')")" = "f" ] && ok "clearing an attempt is server only" || bad "clear grant"
+[ "$(q "select has_function_privilege('authenticated', 'public.zella_billing_invoice_attempts_clear(uuid,text,timestamptz)', 'execute')")" = "f" ] && ok "clearing an attempt is server only" || bad "clear grant"
+
+# ---- review round 3: an agreement is its exact add ons, keys and prices, not only its words ----
+q "update public.pack_purchases set status = 'granted' where business_id = '$b' and status = 'pending';
+   insert into public.billing_pack_catalog values ('texts_900', 'texts', 900, 2900, true)" > /dev/null
+q "insert into public.billing_invoices (id, business_id, stripe_invoice_id, status, number, total_minor, amount_due_minor) values ('00000000-0000-4000-8000-00000000f003', '$b', 'in_tabs3', 'open', 'ZV-0011', 24900, 24900)" > /dev/null
+T3='00000000-0000-4000-8000-00000000f003'
+R1='[{"code": "minutes_100", "key": "r3-one-key-0001"}]'; R3='[{"code": "texts_900", "key": "r3-three-key-01"}]'   # the same total: the same words
+as "$u" aal2 "select public.zella_owner_invoice_pay_start('$T3', true, '$R1'::jsonb, '$H1', true)" > /dev/null   # tab one presses Pay
+as "$u" aal2 "select public.zella_owner_invoice_pay_start('$T3', true, '$R3'::jsonb, '$H1')" > /dev/null         # tab three opens the form
+[ "$(err "$u" aal2 "select public.zella_owner_invoice_pay_start('$T3', true, '$R3'::jsonb, '$H1', true)")" = "ADDONS_IN_PROGRESS" ] \
+  && [ "$(q "select count(*) || ',' || count(*) filter (where submitted_at is not null) from public.billing_payment_consents where payment_kind = 'invoice' and payment_id = '$T3'")" = "2,1" ] \
+  && [ "$(q "select addons ->> 0 from public.billing_payment_consents where payment_kind = 'invoice' and payment_id = '$T3' and submitted_at is not null")" = '{"key": "r3-one-key-0001", "code": "minutes_100", "quantity": 100, "resource": "minutes", "price_cents": 2900}' ] \
+  && ok "other add ons with the same total (the same words) are their own agreement: they never reuse or overwrite the first, and wait while it may be paying" || bad "same total: $(q "select count(*) from public.billing_payment_consents where payment_id = '$T3'")"
+as "$u" aal2 "select public.zella_owner_invoice_pay_start('$T3', true, '$R1'::jsonb, '$H1', true)" > /dev/null
+[ "$(q "select count(*) from public.billing_payment_consents where payment_kind = 'invoice' and payment_id = '$T3'")" = "2" ] && ok "the same payload again (a retry) reaches its own agreement, nothing new" || bad "retry agreement"
+q "update public.billing_invoices set status = 'paid', amount_due_minor = 0, paid_at = now() where id = '$T3'" > /dev/null
+[ "$(err "$u" aal2 "select public.zella_owner_pack_buy('$b', 'texts_900', 'r3-three-key-01', '$H1', '$T3')")" = "CONSENT_MISMATCH" ] \
+  && ok "the same words can't buy the add ons of the agreement that didn't pay" || bad "same words other pack"
+q "update public.billing_pack_catalog set price_cents = 3100 where code = 'minutes_100'" > /dev/null
+[ "$(err "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'r3-one-key-0001', '$H1', '$T3')")" = "CONSENT_MISMATCH" ] \
+  && [ "$(q "select count(*) from public.pack_purchases where idempotency_key = 'r3-one-key-0001'")" = "0" ] && ok "a pack whose price changed since the agreement is not bought at the new price" || bad "price binding"
+q "update public.billing_pack_catalog set price_cents = 2900 where code = 'minutes_100'" > /dev/null
+[ -n "$(as "$u" aal2 "select public.zella_owner_pack_buy('$b', 'minutes_100', 'r3-one-key-0001', '$H1', '$T3') ->> 'purchase_id'")" ] && ok "at the agreed price, the agreed pack and key are bought" || bad "agreed pack"
+# the clear is bound to the failed attempt: the invoice's own intent, and only Pay presses up to its failure
+q "update public.pack_purchases set status = 'granted' where business_id = '$b' and status = 'pending';
+   insert into public.billing_invoices (id, business_id, stripe_invoice_id, status, number, total_minor, amount_due_minor, payment_intent) values ('00000000-0000-4000-8000-00000000f004', '$b', 'in_tabs4', 'open', 'ZV-0012', 24900, 24900, 'pi_T4')" > /dev/null
+T4='00000000-0000-4000-8000-00000000f004'
+as "$u" aal2 "select public.zella_owner_invoice_pay_start('$T4', true, '$A1'::jsonb, '$H1', true)" > /dev/null
+[ "$(q "set role service_role; select public.zella_billing_invoice_attempts_clear('$T4', 'pi_T4', now() - interval '1 hour')")" = "0" ] \
+  && [ "$(err "$u" aal2 "select public.zella_owner_invoice_pay_start('$T4', true, '$A2'::jsonb, '$H2', true)")" = "ADDONS_IN_PROGRESS" ] \
+  && ok "a Pay pressed after the failed attempt (a retry that may be paying) is never cleared" || bad "clear after failure"
+[ "$(q "set role service_role; select public.zella_billing_invoice_attempts_clear('$T4', 'pi_other', now())")" = "0" ] && ok "another intent than the invoice's clears nothing" || bad "clear other intent"
+[ "$(q "set role service_role; select public.zella_billing_invoice_attempts_clear('$T4', 'pi_T4', now())")" = "1" ] \
+  && [ -n "$(as "$u" aal2 "select public.zella_owner_invoice_pay_start('$T4', true, '$A2'::jsonb, '$H2', true) ->> 'invoice_id'")" ] \
+  && ok "the invoice's own intent, failed after that Pay: cleared, and the new choice goes ahead" || bad "bound clear"
+q "update public.billing_invoices set status = 'paid' where id = '$T4'" > /dev/null
+[ "$(q "set role service_role; select public.zella_billing_invoice_attempts_clear('$T4', 'pi_T4', now())")" = "0" ] && ok "a paid invoice: nothing cleared" || bad "clear paid"
+[ "$("${P[@]}" -d "$DB" -c "set role service_role; select public.zella_billing_invoice_attempts_clear('$T4', null, now())" 2>&1 | grep -c 'INVALID_INPUT')" = "1" ] && ok "a clear names its intent and its failure time" || bad "clear input"
+# the onboarding checkout reads the selected packs once: a price changed before the start is refused with the old words, nothing made
+biz "Add Ons Snapshot" 0
+HS=$(hx "$(ctext "'plan', 27800, true, 24900, 2900")")
+q "update public.billing_pack_catalog set price_cents = 3100 where code = 'minutes_100'" > /dev/null
+[ "$(start_e key-snap-000001 '{minutes_100}' true "'$HS'")" = "CONSENT_MISMATCH" ] \
+  && [ "$(q "select count(*) from public.billing_checkouts where business_id = '$B'")|$(q "select count(*) from public.billing_checkout_addons where business_id = '$B'")" = "0|0" ] \
+  && ok "the catalogue's price changed since the owner agreed: the checkout is refused before any Stripe session, nothing created" || bad "snapshot refused"
+cS=$(start key-snap-000001 '{minutes_100}' "$(hx "$(ctext "'plan', 28000, true, 24900, 3100")")")
+[ -n "$cS" ] && [ "$(q "select c.first_amount_minor || ',' || a.price_cents || ',' || k.amount_today_minor from public.billing_checkouts c join public.billing_checkout_addons a on a.checkout_id = c.id join public.billing_payment_consents k on k.payment_id = c.id where c.id = '$cS'")" = "28000,3100,28000" ] \
+  && ok "the total, the add on line and the agreement all come from the same read of the catalogue" || bad "snapshot same: $cS"
+q "update public.billing_pack_catalog set price_cents = 2900 where code = 'minutes_100'; delete from public.billing_pack_catalog where code = 'texts_900';
+   update public.billing_checkouts set status = 'expired' where id = '$cS'" > /dev/null
 
 # ---- rollback refusals added in this round ----
 q "update public.billing_checkouts set status = 'open' where id = '$cC'" > /dev/null

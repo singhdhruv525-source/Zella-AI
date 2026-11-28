@@ -266,3 +266,116 @@ test("CRM stand in, two tabs with different add ons: the second tab's Pay waits 
   assert.deepEqual([st.addons_consent, st.addons.map((a) => a.code)], [h1, ["minutes_100"]], "the add ons listed are the paying tab's");
   delete globalThis.sessionStorage;
 });
+
+// ---- CodeRabbit review round 3 ----
+test("review round 3: a Checkout Session's paymentFailed is the decline contract (its decline code); other errors and a lost answer stay unknown", async () => {
+  const element = (type) => { const on = {}; return { type, mount: () => {}, destroy: () => {}, on: (ev, fn) => { on[ev] = fn; }, fire: (ev, e) => on[ev]?.(e) }; };
+  let answer;
+  const made = [];
+  globalThis.Stripe = () => ({ elements: () => ({ create: (t) => { const el = element(t); made.push(el); return el; } }),
+    initCheckout: async () => ({ loadActions: async () => ({ type: "success", actions: { confirm: async () => answer() } }) }),
+    createPaymentMethod: async () => ({ paymentMethod: { id: "pm_1", card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2028 } } }) });
+  const { mountCardFields, destroyCurrent } = await import("../src/billing/stripeEmbedded.js");
+  const { declineOf } = await import("../src/billing/declines.js");
+  let completed = 0;
+  const h = await mountCardFields({ number: {}, expiry: {}, cvc: {} }, { kind: "checkout", clientSecret: "cs_test_1_secret_x", publishableKey: "pk_test_abc", livemode: false, onEvent: () => {}, onComplete: () => { completed++; } });
+  for (const t of ["cardNumber", "cardExpiry", "cardCvc"]) made.find((m) => m.type === t).fire("change", { complete: true, empty: false, brand: "visa" });
+  await new Promise((r) => setTimeout(r, 0));
+  answer = async () => ({ type: "error", error: { code: "paymentFailed", message: "Your card has insufficient funds.", paymentFailed: { declineCode: "insufficient_funds" } } });
+  const e1 = await h.submit().catch((e) => e);
+  assert.deepEqual([e1.code, e1.decline_code, e1.stripe_type], ["DECLINED", "insufficient_funds", "card_error"]);
+  assert.equal(declineOf(e1).title, "This card doesn't have enough funds", "the owner sees why, and can try another card");
+  answer = async () => ({ type: "error", error: { code: "paymentFailed", message: "Declined.", paymentFailed: { declineCode: null } } });
+  assert.equal(declineOf(await h.submit().catch((e) => e)).title, "Your card was declined", "no decline code: a generic decline");
+  answer = async () => ({ type: "error", error: { code: null, message: "Something else" } });
+  assert.equal((await h.submit().catch((e) => e)).code, "UNKNOWN_OUTCOME", "another error code is not known to have failed");
+  answer = async () => { throw new Error("network"); };
+  assert.equal((await h.submit().catch((e) => e)).code, "UNKNOWN_OUTCOME", "a lost answer stays unknown");
+  assert.equal(completed, 0);
+  answer = async () => ({ type: "success", session: {} });
+  await h.submit();
+  assert.equal(completed, 1, "success still completes");
+  destroyCurrent();
+  delete globalThis.Stripe;
+});
+
+test("review round 3: a cancelled pack purchase is final: its own words and Try again, never processing; Try again buys it as a new purchase", async () => {
+  const { packAnswer } = await import("../src/billing/payState.js");
+  const a = packAnswer({ status: "cancelled" });
+  assert.equal(a.stopped, "pack_cancelled");
+  assert.notEqual(a.payment.reason, "processing");
+  assert.ok(ERROR_KINDS.includes("pack_cancelled"));
+  assert.deepEqual([ERROR_WORDS.pack_cancelled.label, ERROR_WORDS.pack_cancelled.body, ERROR_WORDS.pack_cancelled.action], ["This add on wasn't bought", "You weren't charged.", "Try again"]);
+  const stopped = reduce({ state: "confirming" }, { type: "STOPPED", kind: "pack_cancelled" });
+  assert.deepEqual([stopped.state, stopped.kind], ["error", "pack_cancelled"]);
+  assert.equal(reduce(stopped, { type: "RETRY" }).state, "idle", "Try again goes back to Pay");
+  globalThis.sessionStorage = memory();
+  const api = createFakeBillingApi({ scenario: "packcancelled", delay: 0 });
+  const hash = await consentHash(packConsent(2900));
+  const first = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-cancel-key-1", { consentHash: hash });
+  await api.packStatus(FAKE_BUSINESS, first.purchase_id);
+  assert.equal(packAnswer((await api.packStatus(FAKE_BUSINESS, first.purchase_id)).purchase).stopped, "pack_cancelled");
+  assert.equal((await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-cancel-key-1", { consentHash: hash })).purchase_id, first.purchase_id, "the old key only shows the cancelled purchase again");
+  const second = await api.packBuy(FAKE_BUSINESS, "minutes_100", "pack-cancel-key-2", { consentHash: hash });
+  assert.notEqual(second.purchase_id, first.purchase_id);
+  await api.packStatus(FAKE_BUSINESS, second.purchase_id);
+  assert.equal((await api.packStatus(FAKE_BUSINESS, second.purchase_id)).purchase.status, "granted", "a new key: a new purchase, confirmed by the server");
+  delete globalThis.sessionStorage;
+});
+
+test("review round 3: the server's granted wins over a local failure; Auto pay unknown shows only the amount and date", async () => {
+  const { addonRows } = await import("../src/billing/addons.js");
+  const local = { minutes_100: { step: "failed", words: "We couldn't confirm this pack. Try again uses the same payment, never a second charge." } };
+  const [granted] = addonRows([{ code: "minutes_100", purchase_id: "p1", status: "granted" }], local);
+  assert.deepEqual([granted.step, granted.words], ["added", undefined]);
+  const [waiting] = addonRows([{ code: "minutes_100", purchase_id: "p1", status: "pending" }], local);
+  assert.deepEqual([waiting.step, waiting.words], ["failed", local.minutes_100.words], "unresolved: the uncertainty stays");
+  assert.equal(addonRows([{ code: "texts_500" }], local)[0].step, "todo");
+  const { nextPaymentLine } = await import("../src/billing/payState.js");
+  const f = { amount: "$249", date: "Dec 20", due: "Dec 23" };
+  assert.equal(nextPaymentLine({ ...f, apKnown: false, apOn: false }), "Next payment: $249 on Dec 20.");
+  assert.equal(nextPaymentLine({ ...f, apKnown: true, apOn: true }), "Next payment: $249 on Dec 20. Auto pay is on.");
+  assert.equal(nextPaymentLine({ ...f, apKnown: true, apOn: false }), "Next payment: $249 on Dec 20. Auto pay is off, so you'll pay it here by Dec 23.");
+});
+
+test("review round 3: the stand in's bank preview keeps focus inside, gives it back on close, and closes when the form is taken down", async () => {
+  const { mountStandInCard } = await import("../src/billing/standinForm.js");
+  const doc = { activeElement: null, body: null, createElement: null };
+  const el = () => {
+    const on = {}, kids = [];
+    const node = { kids, on, connected: false, className: "", textContent: "", dataset: {}, attrs: {}, classList: { remove() {}, add() {}, contains: () => false },
+      setAttribute(k, v) { node.attrs[k] = v; }, append(...c) { kids.push(...c); for (const k of c) k.connected = true; }, replaceChildren(...c) { kids.length = 0; kids.push(...c); },
+      addEventListener(ev, fn) { on[ev] = fn; }, remove() { node.connected = false; }, focus() { doc.activeElement = node; }, get isConnected() { return node.connected; }, ownerDocument: doc };
+    return node;
+  };
+  doc.createElement = el; doc.body = el(); doc.body.connected = true;
+  const payButton = el(); payButton.connected = true; payButton.focus();
+  const slot = () => { const s = el(); return s; };
+  let paid = 0, completed = 0;
+  const h = mountStandInCard({ number: slot(), expiry: slot(), cvc: slot() }, { onEvent: () => {}, onComplete: () => { completed++; } }, { speed: 0, outcomes: ["verify"], onPay: () => { paid++; } });
+  await h.demo();
+  const shade = () => doc.body.kids.find((k) => k.className === "zgc-bank-preview" && k.connected);
+  const buttons = () => shade().kids[0].kids.find((k) => k.className === "zgc-bank-preview-actions").kids;
+  // Escape closes it and focus goes back to Pay
+  let run = h.submit().catch((e) => e);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(shade(), "the preview is open");
+  assert.equal(doc.activeElement.textContent, "Approve", "focus starts on Approve");
+  const keys = (key, shiftKey = false) => shade().on.keydown({ key, shiftKey, preventDefault() {} });
+  keys("Tab"); assert.equal(doc.activeElement.textContent, "Fail");
+  keys("Tab"); keys("Tab"); assert.equal(doc.activeElement.textContent, "Approve", "Tab wraps inside the dialog");
+  keys("Tab", true); assert.equal(doc.activeElement.textContent, "Close", "Shift+Tab wraps backwards");
+  keys("Escape");
+  assert.equal((await run).code, "BANK_FAILED");
+  assert.equal(doc.activeElement, payButton, "focus is back where it was");
+  // the form is taken down while the preview is open: it closes, the wait settles, nothing is paid
+  run = h.submit().catch((e) => e);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(shade());
+  h.destroy();
+  const gone = await run;
+  assert.equal(gone.code, "LOCAL_CHECK");
+  assert.ok(!shade(), "the preview closed");
+  assert.deepEqual([paid, completed], [0, 0], "nothing paid after the form was taken down");
+  void buttons;
+});

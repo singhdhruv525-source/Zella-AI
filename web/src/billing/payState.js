@@ -8,6 +8,14 @@ export function autopayWords(emailLive, card = "this card") {
   return { onText: `We'll charge ${card} on each renewal date.`, offText: "You'll pay each bill yourself." };
 }
 
+// The Billing overview's "Next payment" line (review round 3): with Auto pay unknown (its lookup failed) only the amount
+// and the date, never "off" or a deadline.
+export function nextPaymentLine({ amount, date, apKnown, apOn, due }) {
+  const head = `Next payment: ${amount} on ${date}.`;
+  if (!apKnown) return head;
+  return apOn ? `${head} Auto pay is on.` : `${head} Auto pay is off, so you'll pay it here by ${due}.`;
+}
+
 export function invoiceAsPayment(inv) {
   if (inv?.status === "paid") return { status: "confirmed" };
   // Stripe already has a payment for it (a reload, another tab, Auto pay at the same moment): confirming, never Pay again
@@ -29,5 +37,7 @@ export function packAnswer(purchase) {
     if (purchase.can_act) { const d = savedCardDecline(purchase.failure_reason); return { payment: { status: "waiting" }, stopped: "card_declined", stoppedWords: `${d.title}. ${d.body}` }; }
     return { payment: { status: "waiting" }, stopped: "no_card" };
   }
+  // cancelled: a final answer, never "processing" (review round 3); Try again buys it again as a new purchase
+  if (purchase?.status === "cancelled") return { payment: { status: "waiting" }, stopped: "pack_cancelled" };
   return { payment: { status: "waiting", reason: "processing" } };
 }

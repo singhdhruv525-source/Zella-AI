@@ -371,9 +371,19 @@ export async function handle(req: Request): Promise<Response> {
         const si = /^in_[A-Za-z0-9_]{1,250}$/.test(String(seen?.stripe_invoice_id ?? "")) ? await stripe.get(`/v1/invoices/${seen.stripe_invoice_id}`, { expand: ["payments"] }).catch(() => null) as Record<string, any> | null : null;
         const piId = si ? invoicePaymentIntent(si) : null;
         const pi = piId ? await stripe.get(`/v1/payment_intents/${piId}`).catch(() => null) as Record<string, any> | null : null;
-        const failed = pi && (pi.status === "canceled" || (pi.status === "requires_payment_method" && pi.last_payment_error));
-        if (!failed) return refuse("ADDONS_IN_PROGRESS", 409);
-        await rpc("zella_billing_invoice_attempts_clear", { p_invoice_id: invoiceId });
+        // when that attempt failed, as Stripe says (review round 3): the cancellation's time, or the failed charge's. Only
+        // agreements submitted up to then are cleared, for this intent, so a Pay pressed after the failure (a retry that
+        // may be paying now) is never cleared; no time from Stripe, nothing cleared
+        let failedAt: number | null = null;
+        if (pi?.id === piId && pi.status === "canceled" && Number.isInteger(pi.canceled_at)) failedAt = pi.canceled_at;
+        else if (pi?.id === piId && pi.status === "requires_payment_method" && pi.last_payment_error) {
+          const chId = String(pi.last_payment_error.charge ?? pi.latest_charge ?? "");
+          const ch = /^ch_[A-Za-z0-9_]{1,250}$/.test(chId) ? await stripe.get(`/v1/charges/${chId}`).catch(() => null) as Record<string, any> | null : null;
+          if (ch?.id === chId && ch.payment_intent === piId && ch.status === "failed" && Number.isInteger(ch.created)) failedAt = ch.created;
+        }
+        if (failedAt === null) return refuse("ADDONS_IN_PROGRESS", 409);
+        const cleared = await rpc("zella_billing_invoice_attempts_clear", { p_invoice_id: invoiceId, p_payment_intent: piId, p_failed_at: new Date(failedAt * 1000).toISOString() });
+        if (!Number(cleared)) return refuse("ADDONS_IN_PROGRESS", 409);
         inv = await asOwner(url, anon, jwt, "zella_owner_invoice_pay_start", payArgs) as Record<string, any>;
       }
       business = String(inv.business_id);
@@ -426,8 +436,11 @@ export async function handle(req: Request): Promise<Response> {
       await asOwner(url, anon, jwt, "zella_owner_billing_access", { p_business_id: business, p_write: false });
       const ref = await refs(business);
       if (!ref?.subscription || !ref.customer) return reply({ card: null });
-      const sub = await stripe.get(`/v1/subscriptions/${ref.subscription}`, { expand: ["default_payment_method"] }).catch(() => null) as Record<string, any> | null;
-      return reply({ card: sub && sub.customer === ref.customer ? cardSummary(sub.default_payment_method) : null });
+      // a failed lookup is an error, never "no card" (review round 3): the page says so and offers Try again
+      const sub = await stripe.get(`/v1/subscriptions/${ref.subscription}`, { expand: ["default_payment_method"] }) as Record<string, any>;
+      const c = sub && sub.customer === ref.customer ? cardSummary(sub.default_payment_method) : null;
+      // brand and last 4 only here; the issuer is shown only for a confirmed payment's card (review round 3)
+      return reply({ card: c ? { brand: c.brand, last4: c.last4 } : null });
     }
     if (action === "card_update_start") {
       // Stripe's Customer Portal, card update only (docs/PAYMENTS_ARCHITECTURE.md §16.1, §16.2): a short lived page, no

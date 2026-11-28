@@ -528,6 +528,35 @@ async function shot(page, look, width, state, axeSource) {
       && (await k.page.locator(".zgc-status p").first().innerText().catch(() => "")).startsWith("This card doesn't have enough funds.") && await k.page.isVisible("button:has-text('Pay with another card')"));
     await shot(k.page, look, W, "pack-declined", axe);
     await k.ctx.close();
+    // the saved card lookup failed (review round 3): its own error with Try again, never "your saved card"; then the pack page
+    const cf = await open(browser, look, W.viewport, `/app/settings/billing/pack/minutes_100?scenario=cardfail`);
+    await cf.page.waitForSelector(".zob-state.error", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: pack: a failed card lookup says so, with Try again, and no Pay`, (await cf.page.locator(".zob-state.error strong").innerText().catch(() => "")) === "We couldn't load your saved card"
+      && !(await cf.page.isVisible(".zgc")) && await cf.page.isVisible(".zob-state.error button:has-text('Try again')"));
+    await cf.page.click(".zob-state.error button:has-text('Try again')");
+    await cf.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    check(`${look.name}: pack: Try again loads the saved card`, await cf.page.isVisible(".zgc") && (await cf.page.locator(".zgc").innerText().catch(() => "")).includes("4242"));
+    await cf.ctx.close();
+    // a pack purchase that ended cancelled (owner, review round 3): final, nothing charged, Try again buys it as a new purchase
+    const q = await open(browser, look, W.viewport, `/app/settings/billing/pack/minutes_100?scenario=packcancelled`);
+    await q.page.waitForSelector(".zgc", { timeout: 10000 }).catch(() => {});
+    await agree(q.page);
+    await q.page.click(".zgc-pay-foot button:has-text('Pay $29')");
+    await q.page.waitForSelector(".zgc.is-error", { timeout: 15000 }).catch(() => {});
+    check(`${look.name}: pack cancelled: "This add on wasn't bought. You weren't charged." with Try again, not processing`,
+      (await q.page.locator("#zgc-status").innerText().catch(() => "")) === "This add on wasn't bought"
+      && (await q.page.locator(".zgc-status p").first().innerText().catch(() => "")) === "You weren't charged."
+      && await q.page.isVisible(".zgc-status button:has-text('Try again'), .zgc button:has-text('Try again')"));
+    const firstPurchase = new URL(q.page.url()).searchParams.get("purchase");
+    await shot(q.page, look, W, "pack-cancelled", axe);
+    await q.page.click(".zgc button:has-text('Try again')");
+    await agree(q.page).catch(() => {});
+    await q.page.click(".zgc-pay-foot button:has-text('Pay $29')").catch(() => {});
+    await q.page.waitForSelector(".zgc.is-confirmed", { timeout: 15000 }).catch(() => {});
+    const secondPurchase = new URL(q.page.url()).searchParams.get("purchase");
+    check(`${look.name}: pack cancelled: Try again makes a new purchase that the server confirms`,
+      (await q.page.locator("#zgc-status").innerText().catch(() => "")) === "100 AI minutes added" && Boolean(firstPurchase) && Boolean(secondPurchase) && firstPurchase !== secondPurchase);
+    await q.ctx.close();
   }
   // the other decline codes, and Stripe not answering (unknown: never "nothing was charged"), in the Zella Voice look
   for (const [scenario, title] of [["insufficient", "This card doesn't have enough funds"], ["cvc", "The security code is incorrect"], ["lost", "Your card was declined"]]) {

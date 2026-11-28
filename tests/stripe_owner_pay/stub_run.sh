@@ -47,7 +47,7 @@ q "do \$\$ begin
    create table public.audit_logs (id bigserial, business_id uuid, user_id uuid, action text, entity_type text, entity_id uuid, old_data jsonb, new_data jsonb);
    create table public.billing_invoices (id uuid primary key default gen_random_uuid(), business_id uuid, stripe_invoice_id text, kind text default 'renewal', status text, number text,
      currency text default 'usd', total_minor bigint, amount_due_minor bigint, amount_paid_minor bigint default 0, period_start timestamptz, period_end timestamptz,
-     hosted_invoice_url text, invoice_pdf text, livemode boolean default false, stripe_created_at timestamptz, paid_at timestamptz, created_at timestamptz default now());
+     hosted_invoice_url text, invoice_pdf text, payment_intent text, livemode boolean default false, stripe_created_at timestamptz, paid_at timestamptz, created_at timestamptz default now());
    create table public.pack_purchases (id uuid primary key default gen_random_uuid(), business_id uuid, pack_code text, resource text, quantity int, price_cents bigint,
      status text, source text, failure_reason text, stripe_payment_intent text, settled_at timestamptz, period_id uuid, reason text, idempotency_key text, created_by uuid, purchased_at timestamptz default clock_timestamp(),
      unique (business_id, idempotency_key));

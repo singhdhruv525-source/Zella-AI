@@ -60,8 +60,12 @@ function drawAddress(slot, prefill) {
 
 // The bank's own check (3D Secure), as a clearly labelled PREVIEW: live, Stripe.js opens the bank's real page (a code or
 // an app approval) in Stripe's overlay and we never draw it. Approve, Fail or Close: resolves "approve" | "fail" | "cancel".
+// A modal dialog (review round 3): Tab and Shift+Tab stay inside it, and focus goes back to where it was whenever it
+// closes (a button, Escape, or the form being taken down, which settles the wait as "cancel").
 function bankPreview(doc) {
-  return new Promise((resolve) => {
+  let settle = () => {};
+  const promise = new Promise((resolve) => {
+    const before = doc.activeElement ?? null;
     const shade = doc.createElement("div");
     shade.className = "zgc-bank-preview";
     const box = doc.createElement("div");
@@ -71,13 +75,29 @@ function bankPreview(doc) {
     const h = doc.createElement("h2"); h.id = "zgc-bank-preview-t"; h.textContent = "Preview of your bank's verification";
     const p = doc.createElement("p"); p.textContent = "Live, your bank shows its own check here, in Stripe's secure window: a code by text or an approval in your banking app. Zella Voice never sees it.";
     const row = doc.createElement("div"); row.className = "zgc-bank-preview-actions";
-    const btn = (label, cls, value) => { const b = doc.createElement("button"); b.type = "button"; b.className = `ba-btn ${cls}`; b.textContent = label; b.addEventListener("click", () => { shade.remove(); resolve(value); }); return b; };
-    const ok = btn("Approve", "primary", "approve");
-    row.append(ok, btn("Fail", "", "fail"), btn("Close", "", "cancel"));
+    let open = true;
+    settle = (value) => {
+      if (!open) return;
+      open = false;
+      shade.remove();
+      try { if (before && typeof before.focus === "function" && before.isConnected !== false) before.focus(); } catch { /* gone */ }
+      resolve(value);
+    };
+    const btn = (label, cls, value) => { const b = doc.createElement("button"); b.type = "button"; b.className = `ba-btn ${cls}`; b.textContent = label; b.addEventListener("click", () => settle(value)); return b; };
+    const buttons = [btn("Approve", "primary", "approve"), btn("Fail", "", "fail"), btn("Close", "", "cancel")];
+    row.append(...buttons);
     box.append(badge, h, p, row); shade.append(box); doc.body.append(shade);
-    shade.addEventListener("keydown", (e) => { if (e.key === "Escape") { shade.remove(); resolve("cancel"); } });
-    ok.focus();
+    shade.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault?.(); settle("cancel"); return; }
+      if (e.key !== "Tab") return;
+      const at = buttons.indexOf(doc.activeElement);
+      const to = e.shiftKey ? (at <= 0 ? buttons.length - 1 : at - 1) : (at === -1 || at === buttons.length - 1 ? 0 : at + 1);
+      e.preventDefault?.();
+      buttons[to].focus();
+    });
+    buttons[0].focus();
   });
+  return { promise, close: () => settle("cancel") };
 }
 
 // outcomes: what each Pay does, in order (stand in scenarios), the last one repeating: "ok", "verify" (the bank's
@@ -97,7 +117,7 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
     boxes[field] = span;
   }
   const done = { number: false, expiry: false, cvc: false, address: !address };
-  let alive = true, preview = null;
+  let alive = true, preview = null, bank = null;   // bank: the bank preview while it is open
   // the billing address mock: the name typed letter by letter (mirrored on the card), the rest as prefilled
   const typeName = async () => {
     if (!address) return;
@@ -147,7 +167,8 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
     onEvent?.({ type: "blur", field });
   };
   return {
-    destroy: () => { alive = false; Object.values(slots).forEach((s) => s.replaceChildren()); },
+    // taken down: an open bank preview closes and its wait settles; nothing is paid after this (review round 3)
+    destroy: () => { alive = false; bank?.close(); bank = null; Object.values(slots).forEach((s) => s.replaceChildren()); },
     // plays the test card being typed, field by field (the CVC turns the card over), then Stripe's preview
     demo: async () => {
       await type("number", "4242 4242 4242 4242", { brandAt: 0 });
@@ -186,13 +207,19 @@ export function mountStandInCard(slots, { onEvent, onComplete, prefill }, { onPa
       await wait(speed * 4);
       if (outcome.startsWith("declined:")) throw failWith("DECLINED", { decline_code: outcome.slice(9), stripe_type: "card_error", stripe_code: "card_declined" });
       if (outcome === "unknown") throw failWith("UNKNOWN_OUTCOME");
+      const gone = () => failWith("LOCAL_CHECK", { message: "The card form was closed." });
+      if (!alive) throw gone();
       if (outcome === "verify") {
         onEvent?.({ type: "bank", waiting: true });
-        const answer = await bankPreview(doc);
+        bank = bankPreview(doc);
+        const answer = await bank.promise;
+        bank = null;
+        if (!alive) throw gone();
         onEvent?.({ type: "bank", waiting: false });
         if (answer !== "approve") throw failWith("BANK_FAILED", { stripe_code: "payment_intent_authentication_failure" });
       }
       await onPay?.();
+      if (!alive) return;
       onComplete?.();
     },
   };

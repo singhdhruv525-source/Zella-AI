@@ -63,6 +63,15 @@ export function addonKeys(storeKey, codes, storage = globalThis.sessionStorage) 
 //   adding   bought, Stripe is taking it
 //   added    granted
 //   failed   not added: Try again for this pack only (a declined card opens its own pack page)
+// The add on rows shown after Pay now: the server's list, with this page's own failures (and their words) on top. The
+// server's "granted" always wins (a lost answer for a purchase that went through; review round 3); otherwise a local
+// failure stays until the server says otherwise.
+export function addonRows(list, local = {}) {
+  return (Array.isArray(list) ? list : []).map((a) => (addonStep(a) === "added"
+    ? { ...a, step: "added", words: undefined }
+    : { ...a, step: local[a.code]?.step ?? addonStep(a), words: local[a.code]?.words }));
+}
+
 export function addonStep(a) {
   if (!a?.purchase_id) return "todo";
   if (a.status === "granted") return "added";

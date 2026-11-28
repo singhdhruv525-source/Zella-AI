@@ -998,10 +998,23 @@ same glass checkout (`GlassCheckout.jsx`) and its motion; "paid" shows only when
   `submit: true`, marking that agreement as the one that went to Stripe; a second Pay with other add ons while that one
   may be paying (10 minutes) is refused (`ADDONS_IN_PROGRESS`), unless Stripe says the earlier attempt failed (its
   intent has a payment error or was cancelled), when billing-api clears it (`zella_billing_invoice_attempts_clear`).
-  Add ons are bought only under the submitted agreement. (Refusing was chosen over binding to the attempt: the invoice
+  Add ons are bought only under the submitted agreement. **Review round 3:** an agreement is its words (their sha256,
+  the proof of the wording) AND its exact add ons, keys and prices (`billing_payment_consents` is unique on kind,
+  payment, sha256 and add ons): two selections with the same total are two agreements, the same payload again reaches
+  its own row, and a different one can never reuse or overwrite it; `zella_owner_pack_buy` buys only the pack, key and
+  price the submitted agreement names (a price changed since: `CONSENT_MISMATCH`). The clear is bound to the failed
+  attempt: billing-api passes the intent it read and when Stripe says it failed (the failed charge's `created`, or
+  `canceled_at`), and only agreements submitted up to then are cleared, for the invoice's own intent, never once it is
+  paid; with no failure time from Stripe nothing is cleared. The onboarding checkout reads the selected packs once
+  (held `for share`), and the total, the agreement's words and the add on lines all come from that one read, so a price
+  changed since the owner agreed is refused before any Stripe session. (Refusing was chosen over binding to the attempt: the invoice
   has ONE PaymentIntent, so two tabs confirm the same intent and Stripe can't say which tab paid.) A pack that fails says "Plan paid. 100 minutes not added"
   with Try again for that pack only (a declined card opens that pack's own page on THAT purchase: "Pay with another
-  card"); the invoice is never charged again. **Note for the owner:** these packs are charged to the saved card (the
+  card"); the invoice is never charged again. A pack purchase that ends **cancelled** is final (owner, review round 3):
+  "This add on wasn't bought. You weren't charged." with Try again, which buys it as a new purchase with a new key.
+  If the saved card can't be looked up, the pack page says "We couldn't load your saved card" with Try again (never
+  "your saved card"); `card_summary` returns only the brand and last 4 (the issuer is shown only for a confirmed
+  payment's card) and a failed Stripe lookup is an error, not "no card". **Note for the owner:** these packs are charged to the saved card (the
   pack path), not necessarily the card typed for the invoice; see `docs/MEMORY.md`.
 - **The card's issuing bank** (owner, 27 Nov 2026) is shown after a confirmed payment only as Stripe's own
   `card.issuer` on the PaymentMethod the payment used (`checkout_return`, `invoice_pay_return`, `pack_status`), as

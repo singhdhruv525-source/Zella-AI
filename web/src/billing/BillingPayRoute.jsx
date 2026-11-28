@@ -96,20 +96,33 @@ function BuyPack({ api, workspace, code, onTitle, onDone, returned }) {
   const [done, setDone] = useState(false);
   const update = useCardUpdate(api, workspace.id);
   const validCode = CODE.test(code);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     if (!validCode) return undefined;
-    Promise.all([api.overview(workspace.id), api.cardSummary(workspace.id).catch(() => null)]).then(([o, card]) => {
+    // the saved card: null only when the server says there is none; a lookup that failed is its own state, with Try
+    // again, never read as "your saved card" (review round 3)
+    const FAILED = Symbol("failed");
+    Promise.all([api.overview(workspace.id), api.cardSummary(workspace.id).catch(() => FAILED)]).then(([o, card]) => {
       if (!alive) return;
       const pack = Array.isArray(o?.packs) ? o.packs.find((p) => p.code === code) : null;
       if (pack) onTitle(`Buy ${Number(pack.quantity).toLocaleString("en-US")} ${RES[pack.resource] ?? pack.resource}`);
-      setState(pack ? { status: "ok", pack, card } : { status: "missing" });
+      setState(!pack ? { status: "missing" } : card === FAILED ? { status: "card_error", pack } : { status: "ok", pack, card });
     }, () => { if (alive) setState({ status: "missing" }); });
     return () => { alive = false; };
-  }, [api, workspace.id, code, validCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, workspace.id, code, validCode, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!validCode) return <NotFound what="pack" />;
   if (state.status === "loading") return <p className="zpay-loading" role="status">Loading…</p>;
   if (state.status === "missing") return <NotFound what="pack" />;
+  if (state.status === "card_error") {
+    return (
+      <div className="zob-state zob-state-box error" role="alert"><Icon name="error" /><div>
+        <strong>We couldn't load your saved card</strong>
+        <p>You weren't charged. Please try again.</p>
+        <button type="button" className="ba-btn sm" onClick={() => { setState({ status: "loading" }); setAttempt((n) => n + 1); }}>Try again</button>
+      </div></div>
+    );
+  }
   return (
     <>
       <PackCheckout api={api} businessId={workspace.id} pack={state.pack} card={state.card} onUpdateCard={update.run} onSettled={() => setDone(true)}

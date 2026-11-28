@@ -19,6 +19,8 @@
 //   bankverify the bank's own check (a labelled preview: Approve, Fail or Close); demo: declined, then the bank's check
 //   unknown    Stripe doesn't answer the confirm: the page checks with the server and says the payment wasn't taken
 //   packdeclined buying a pack: the saved card is declined for insufficient funds
+//   cardfail   the pack page's saved card lookup fails once: an error with Try again, never "your saved card"
+//   packcancelled buying a pack: the first purchase ends cancelled ("This add on wasn't bought"); Try again buys it as a new purchase
 // Like the server, every payment start checks the owner's agreement: the sha256 of the words for the stand in's own
 // figures (paymentConsent.js), refused without it (CONSENT_REQUIRED) or with other words (CONSENT_MISMATCH).
 import { mountStandInCard } from "./standinForm.js";
@@ -108,7 +110,11 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       setTimeout(() => { st.autopay.on = on; st.autopay.desired = null; }, delay * 3);
       return autopayOut();
     },
-    cardSummary: async (id) => { await wait(delay); owner(id); return scenario === "nocard" ? null : CARD; },
+    cardSummary: async (id) => {
+      await wait(delay); owner(id);
+      if (scenario === "cardfail" && !st.cardAsked) { st.cardAsked = true; throw refuse("ERROR", "Something went wrong"); }   // the first lookup fails
+      return scenario === "nocard" ? null : { brand: CARD.brand, last4: CARD.last4 };   // as card_summary: brand and last 4 only
+    },
     cardUpdateStart: async (id) => {
       await wait(delay); owner(id);
       if (!live) throw refuse("PAYMENTS_NOT_LIVE", "Payments aren't switched on yet. You weren't charged.");
@@ -178,7 +184,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       if (existing) return { purchase_id: existing.purchase_id, status: existing.status };
       const purchase_id = `00000000-0000-4000-8000-${String(st.purchases.size + 1).padStart(12, "0")}`;
       st.purchases.set(purchase_id, { purchase_id, key, pack_code: code, resource: pack.resource, quantity: pack.quantity, price_cents: pack.price_cents,
-        status: "pending", looks: 0, outcome: scenario === "packauth" ? "authentication_required" : scenario === "packdeclined" ? "insufficient_funds" : scenario === "addonfail" && code.startsWith("texts") ? "card_declined" : "ok" });
+        status: "pending", looks: 0, outcome: scenario === "packcancelled" && ![...st.purchases.values()].some((x) => x.outcome === "cancelled") ? "cancelled" : scenario === "packauth" ? "authentication_required" : scenario === "packdeclined" ? "insufficient_funds" : scenario === "addonfail" && code.startsWith("texts") ? "card_declined" : "ok" });
       st.buys = (st.buys ?? 0) + 1;
       persist();
       return { purchase_id, status: "pending" };
@@ -189,6 +195,7 @@ export function createFakeBillingApi({ scenario = "", delay = 120 } = {}) {
       if (!p) throw refuse("NOT_FOUND");
       if (p.status === "pending" && ++p.looks >= 2) {
         if (p.outcome === "ok") p.status = "granted";
+        else if (p.outcome === "cancelled") p.status = "cancelled";
         else { p.status = "failed"; p.failure_reason = p.outcome; p.can_act = true; }
         persist();
       }

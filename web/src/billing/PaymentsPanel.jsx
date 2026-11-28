@@ -3,9 +3,9 @@ import { useCardUpdate } from "./useCardUpdate";
 import { Icon, Modal } from "../BusinessUI";
 import GlassCheckout from "./GlassCheckout";
 import { cardWords, formatMoney, keyIsSpent } from "./checkoutMachine";
-import { autopayWords, invoiceAsPayment, packAnswer } from "./payState.js";
+import { autopayWords, invoiceAsPayment, nextPaymentLine, packAnswer } from "./payState.js";
 import { mountCardFields } from "./stripeEmbedded";
-import { addonKeys, addonStep, addonsTotal, consentHash, invoiceConsent, offerFrom, packConsent, toggle } from "./addons.js";
+import { addonKeys, addonRows, addonStep, addonsTotal, consentHash, invoiceConsent, offerFrom, packConsent, toggle } from "./addons.js";
 import { AddonProgress } from "./ReceiptExtras";
 import { fromServer } from "./checkoutMachine";
 import "./payments.css";
@@ -108,7 +108,8 @@ export default function PaymentsPanel({ api, businessId, cardReturned = false, o
   const openInvoices = invoices.filter((i) => i.payable);
   const nextAmount = overview?.plan?.price_cents;
   const nextLine = active && !openInvoices.length && Number.isFinite(Number(nextAmount))
-    ? `Next payment: ${formatMoney(nextAmount, overview?.plan?.currency ?? "usd")} on ${day(sub.current_period_end)}. ${apOn ? "Auto pay is on." : `Auto pay is off, so you'll pay it here by ${due}.`}`
+    // Auto pay not known (the lookup failed): the amount and date only, never "off" or a deadline (review round 3)
+    ? nextPaymentLine({ amount: formatMoney(nextAmount, overview?.plan?.currency ?? "usd"), date: day(sub.current_period_end), apKnown, apOn, due })
     : null;
   return (
     <div className="zpay">
@@ -246,7 +247,7 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
   const [buying, setBuying] = useState(false);
   const run = useRef(false);   // one run at a time (a double click on Try again, a reload's resume and the confirmation together)
   const consentFor = useRef(null);
-  const fromList = (list, local = {}) => (Array.isArray(list) ? list : []).map((a) => ({ ...a, step: local[a.code]?.step ?? addonStep(a), words: local[a.code]?.words }));
+  const fromList = addonRows;   // the server's "granted" wins over a local failure (review round 3)
   async function settleAddons(only = null) {
     if (run.current) return;
     run.current = true; setBuying(true);
@@ -255,11 +256,14 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
       let fresh = await api.invoiceStatus(invoiceId);
       consentFor.current = fresh?.addons_consent ?? consentFor.current;
       if (fresh?.status !== "paid" || !Array.isArray(fresh?.addons) || !fresh.addons.length) { setItems(fromList(fresh?.addons)); return; }
+      // the business the server named for this invoice (the status just read), then the page's own; the server checks
+      // the owner either way (review round 3)
+      const biz = (typeof fresh?.business_id === "string" && /^[0-9a-f-]{36}$/i.test(fresh.business_id) ? fresh.business_id : null) ?? businessOf ?? businessId;
       for (const a of fresh.addons) {
         if (only && a.code !== only) continue;
         const step = addonStep(a);
         if (step !== "todo" && !(only && step === "failed")) continue;
-        try { await api.packBuy(businessOf ?? businessId, a.code, a.key, { invoiceId, consentHash: consentFor.current }); }
+        try { await api.packBuy(biz, a.code, a.key, { invoiceId, consentHash: consentFor.current }); }
         catch (err) {
           // a lost answer: the same key is kept and reaches the same purchase on Try again (never a second charge)
           local[a.code] = { step: "failed", words: /fetch|network|load failed/i.test(String(err?.message ?? "")) || err?.status === undefined && !err?.code
@@ -274,7 +278,7 @@ export function InvoiceCheckout({ api, invoiceId, onBack, onUpdateCard, backLabe
         if (!waiting.length && !now.some((a) => a.step === "todo")) break;
         await new Promise((r) => setTimeout(r, 900 * (i + 1)));
         // each pack's own status (the server applies Stripe's events there), as the pack page asks
-        for (const a of waiting) await api.packStatus(businessOf ?? businessId, a.purchase_id).catch(() => null);
+        for (const a of waiting) await api.packStatus(biz, a.purchase_id).catch(() => null);
       }
       fresh = await api.invoiceStatus(invoiceId);
       setItems(fromList(fresh?.addons, local));
@@ -397,7 +401,12 @@ export function PackCheckout({ api, businessId, pack, card, onBack, onUpdateCard
           catch (err) { if (keyIsSpent(err)) key.current = newKey(); throw err; }
         }}
         actStart={async () => api.packActStart(businessId, purchase.current, { consentHash: await consentHash(consent) })}
-        confirm={async () => { const r = await api.packStatus(businessId, purchase.current); return { ...packAnswer(r.purchase), card: r.card }; }}
+        confirm={async () => {
+          const r = await api.packStatus(businessId, purchase.current);
+          // a cancelled purchase is final: Try again makes a new one with a new key (the old key would only show it again)
+          if (r?.purchase?.status === "cancelled") key.current = newKey();
+          return { ...packAnswer(r.purchase), card: r.card };
+        }}
         onPayment={(p) => { if (p?.status === "confirmed") onSettled?.(); }} returned={returned}
         kind="intent" saveNote="This card is used for this add on only."
         mount={(slots, opts) => (api.mountPayment ? api.mountPayment(slots, { ...opts, purchaseId: purchase.current }) : mountCardFields(slots, opts))} />

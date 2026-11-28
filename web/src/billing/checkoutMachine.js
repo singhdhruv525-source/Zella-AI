@@ -20,7 +20,7 @@ export const STATES = ["off", "locked", "idle", "submitting", "loading", "ready"
 // For payments from the CRM also: needs_action (the bank wants to confirm), card_declined (the saved card was
 // declined), no_card, not_payable, not_found, refused (the server's own words).
 // not_taken: the server says the invoice is still payable and Stripe has no payment for it (the owner can pay again).
-export const ERROR_KINDS = ["expired", "network", "stripe_load", "server", "misconfigured", "needs_action", "card_declined", "no_card", "not_payable", "not_found", "refused", "not_taken"];
+export const ERROR_KINDS = ["expired", "network", "stripe_load", "server", "misconfigured", "needs_action", "card_declined", "no_card", "not_payable", "not_found", "refused", "not_taken", "pack_cancelled"];
 
 // The server's payment state (zella_owner_onboarding_payment_status) as a starting point.
 export function fromServer(payment) {
@@ -150,6 +150,8 @@ export const ERROR_WORDS = {
   not_found: { label: "We couldn't find this", body: "Check you're signed in as the business owner.", action: null },
   refused: { label: "This can't go ahead yet", body: "You weren't charged.", action: "Try again" },
   not_taken: { label: "The payment didn't go through", body: "You weren't charged. You can pay again now.", action: "Pay again" },
+  // a pack purchase that ended without a charge (cancelled): final, and buying again starts a new purchase (owner, round 3)
+  pack_cancelled: { label: "This add on wasn't bought", body: "You weren't charged.", action: "Try again" },
 };
 
 // Money as the server sent it: integer minor units and the plan's currency.
