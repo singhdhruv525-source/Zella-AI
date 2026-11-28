@@ -20,7 +20,7 @@ export const SAY = {
   HOURS_OVERLAP: "Two time ranges on the same day overlap.",
   BAD_DATES: "Check the dates: the last day can't be before the first, and at most a year apart.",
   IN_THE_PAST: "That date has already passed.",
-  NO_PHONE: "Add your mobile number under My account first.",
+  NO_PHONE: "Add your mobile number in My profile first.",
 };
 export const say = (error) => {
   const code = Object.keys(SAY).find((k) => (error?.message ?? "").includes(k));

@@ -696,7 +696,7 @@ function CalendarConnections({ w }) {
 function AppointmentSettings({ onGo }) {
   return (
     <>
-      <LinkRows rows={[{ title: "Opening hours and holidays", detail: "Business profile > Business hours", onClick: () => onGo("settings/profile/hours") },
+      <LinkRows rows={[{ title: "Opening hours and holidays", detail: "Business profile, Business hours", onClick: () => onGo("settings/profile/hours") },
         { title: "Who can be booked, and when", detail: "Team and access, Staff availability", onClick: () => onGo("settings/team/availability") },
         { title: "Reminders, confirmations, follow ups", detail: "Automations", onClick: () => onGo("settings/automations/library") }]} />
       <Needs title="Default length, buffers, minimum notice and booking horizon aren't settings yet." have="Each booking sets its own length; the calendar prevents overlaps with appointments and blocked times." />

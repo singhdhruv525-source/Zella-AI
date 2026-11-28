@@ -329,7 +329,7 @@ export function Provisioning({ openBusiness }) {
     <>
       <Card title="How a new business is set up" sub="The setup wizard creates one isolated workspace per business. No sample customers, calls or appointments are added.">
         <Facts rows={[["Workspace", "Created with the business record"], ["Industry defaults", "Words, modules and starter automations from the chosen industry"],
-          ["AI receptionist", "Created in the AI step"], ["Telephony", "Assigned under Voice, telephony & usage"], ["Repeats", "Saving a step again updates it; it never makes a second business or member"]]} />
+          ["AI receptionist", "Created in the AI step"], ["Telephony", "Assigned in Settings under Voice and numbers"], ["Repeats", "Saving a step again updates it; it never makes a second business or member"]]} />
       </Card>
       <LoadState state={state}>{(d) => {
         const failed = d.rows.filter((b) => b.failed_steps.length);
@@ -561,7 +561,7 @@ export function Subscriptions() {
 export function TrialsPromotions({ onNavigate, onGo }) {
   return (
     <>
-      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Discount type and value, start and end, redemption limits, eligibility and approval: on the Offers & promotions page.", onClick: () => onNavigate("Offers & promotions") },
+      <LinkRows rows={[{ title: "Promotion codes and discounts", detail: "Set discounts, dates, redemption limits, eligibility and approval on the Offers & promotions page.", onClick: () => onNavigate("Offers & promotions") },
         { title: "Offer automation rules", detail: "Starting and ending on time, approval limits, unpaid claim hold and alerts.", onClick: () => onGo("offers/rules") },
         { title: "Trial ending notices", detail: "When owners are told a trial is ending.", onClick: () => onGo("general/operations") }]} />
       <Needs title="Trial length and eligible plans aren't configurable yet." have="Trials come from the payment provider's subscription (trial start and end dates are stored). Trial ending notices use the trial notice setting above." />
@@ -747,7 +747,7 @@ export function AgentRegistry({ onNavigate }) {
       <LinkRows rows={[{ title: "All AI receptionists", detail: "Every business's AI receptionist, its status and setup.", onClick: () => onNavigate("AI receptionists") }]} />
       <LoadState state={state}>{(d) => (
         <Card title="Agents">
-          <Table rowKey={(a) => a.agentId} rows={d.agents ?? []} empty="No agents yet." columns={[["Agent", (a) => a.name], ["Business", (a) => a.businessName ?? "None"],
+          <Table rowKey={(a) => a.agentId} rows={d.agents ?? []} empty="No AI receptionists yet." columns={[["AI receptionist", (a) => a.name], ["Business", (a) => a.businessName ?? "None"],
             ["Industry", (a) => a.industry ?? "None"], ["Status", (a) => words(a.status)], ["Setup checks", (a) => `${a.ready} of ${Object.keys(a.checks ?? {}).length}`]]} />
         </Card>
       )}</LoadState>
@@ -771,7 +771,7 @@ export function AgentConfiguration({ onNavigate }) {
 }
 
 export function AiTesting() {
-  return <Needs title="AI evaluation results aren't shown here yet" have="Each business can store test questions with expected answers (ai_eval_cases), and the database can run them (zella_brain_run_evals). Tool calls record whether their result was verified (ai_tool_calls.verified).">An admin view needs a server action that runs and stores evaluations across businesses with a defined pass rule (expected text present, nothing invented).</Needs>;
+  return <Needs title="AI evaluation results aren't shown here yet" have="Each business can store test questions with expected answers, and the database can run them. Tool calls record whether their result was verified.">An admin view needs a server action that runs and stores evaluations across businesses with a defined pass rule (expected text present, nothing invented).</Needs>;
 }
 
 export function AiGuardrails() {
@@ -779,7 +779,7 @@ export function AiGuardrails() {
     <Card title="Guardrails in place" sub="These are built into the AI receptionist's tools and Zella Voice's checks, not settings.">
       <Facts rows={[["Knowledge", "Answers only from knowledge the business approved; otherwise says it doesn't know and logs the question"],
         ["Bookings", "Never says booked until the calendar confirms; checks free time first"], ["Transfers", "Only to a number the business set, only when someone is reachable; otherwise a callback is created"],
-        ["Actions", "Every tool call is recorded with its result (ai_tool_calls)"], ["Sensitive data", "Recordings and transcripts are for managers and above; secrets in instructions are rejected"],
+        ["Actions", "Every tool call is recorded with its result"], ["Sensitive data", "Recordings and transcripts are for managers and above; secrets in instructions are rejected"],
         ["Prompt injection", "Tool inputs are checked by the database, never run as instructions"]]} />
     </Card>
   );
@@ -798,7 +798,7 @@ export function TelephonyProviders() {
             <Facts rows={[["Telnyx (numbers, texts)", n.telnyx ? "Key configured" : "Key not set"], ["Vapi (AI voice)", n.vapi ? "Key configured" : "Key not set"],
               ["Numbers in Zella Voice", n.rows.length], ["Outbound calls", <span key="c" title={switchHint("calls_live")}>{val("calls_live") === true ? "On" : "Off until go live"}</span>], ["Inbound routing", "Vapi answers each assigned number with that business's AI receptionist"]]} />
           </Card>
-          <Needs title="Buying numbers and provider error logs are off until the keys are added" have="Voice & numbers > Providers: an admin asks, a Zella Voice owner approves, then Telnyx and Vapi are called. Numbers are assigned to businesses under Numbers.">
+          <Needs title="Buying numbers and provider error logs are off until the keys are added" have="Settings, Voice and numbers, Telephony providers: an admin asks, a Zella Voice owner approves, then Telnyx and Vapi are called. Numbers are assigned to businesses under Numbers.">
             Both keys, and number_orders_enabled switched on by a Zella Voice owner, are needed before anything is bought or released.
           </Needs>
         </>
@@ -817,7 +817,7 @@ export function PhoneNumbers({ me }) {
       <>
         <Card title="Phone numbers" actions={manage && <button type="button" className="zs-btn sm primary" onClick={() => setEdit({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button>}>
           <Table rows={n.rows} empty={<>No numbers yet.{manage && <> <button type="button" className="zs-btn sm" onClick={() => setEdit({ e164: "", businessId: "", vapiPhoneNumberId: "", label: "" })}>Assign a number</button></>}</>} columns={[
-            ["Number", (r) => r.e164], ["Business", (r) => r.business_name ?? "None"], ["Label", (r) => r.label ?? "None"], ["Provider id", (r) => r.vapi_phone_number_id ? <code>{r.vapi_phone_number_id}</code> : "None"],
+            ["Number", (r) => r.e164], ["Business", (r) => r.business_name ?? "None"], ["Label", (r) => r.label ?? "None"], ["Vapi phone number ID", (r) => r.vapi_phone_number_id ? <code>{r.vapi_phone_number_id}</code> : "None"],
             ["Status", (r) => <Pill tone={r.status === "active" ? "success" : ""}>{words(r.status)}</Pill>], ["Added", (r) => when(r.created_at)],
             ["", (r) => manage && <span className="zs-actions">
               <button type="button" className="zs-btn sm" onClick={() => setEdit({ id: r.id, e164: r.e164, businessId: r.business_id, vapiPhoneNumberId: r.vapi_phone_number_id ?? "", label: r.label ?? "" })}>Reassign</button>
@@ -829,7 +829,7 @@ export function PhoneNumbers({ me }) {
           <div className="zs-grid">
             <Field label="Number" hint="With country code"><input value={edit.e164} onChange={(e) => setEdit({ ...edit, e164: e.target.value })} disabled={Boolean(edit.id)} /></Field>
             <Field label="Business"><select value={edit.businessId} onChange={(e) => setEdit({ ...edit, businessId: e.target.value })}><option value="">Choose…</option>{t.rows.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>
-            <Field label="Vapi phone number id" hint="From the Vapi dashboard"><input value={edit.vapiPhoneNumberId} onChange={(e) => setEdit({ ...edit, vapiPhoneNumberId: e.target.value })} /></Field>
+            <Field label="Vapi phone number ID" hint="From the Vapi dashboard"><input value={edit.vapiPhoneNumberId} onChange={(e) => setEdit({ ...edit, vapiPhoneNumberId: e.target.value })} /></Field>
             <Field label="Label"><input value={edit.label} onChange={(e) => setEdit({ ...edit, label: e.target.value })} placeholder="Main line" /></Field>
           </div>
           {edit.id && <p className="zs-muted">Calls to this number will reach the new business's AI receptionist once Vapi is updated.</p>}
@@ -916,7 +916,7 @@ export function UsageLimits() {
   return (
     <>
       <Card title="Usage limits" sub="Allowances come from each plan; each business owner chooses what happens past them.">
-        <Facts rows={[["Included allowances", "Plans, subscriptions & entitlements > Plan entitlements"], ["Business choice", "Stop, pay as you go, or automatic top up, with a spending limit (the owner authorizes it)"],
+        <Facts rows={[["Included allowances", "Settings, Plans and limits, Plan entitlements"], ["Business choice", "Stop, pay as you go, or automatic top up, with a spending limit (the owner authorizes it)"],
           ["Notices", "80% and 100% to the owners"], ["Additional usage rates", "Voice cost configuration"]]} />
       </Card>
       <Needs title="Charging for extra usage and cutting off calls aren't available yet." have="Choices and limits are saved and audited; nothing is ever charged from Zella Voice today." />
@@ -1082,7 +1082,7 @@ export function AutomationMonitoring({ openBusiness }) {
         <Card title="Recent failures">
           <Table rows={a.failures} empty="No failed runs." columns={[["When", (f) => when(f.started_at)], ["Workflow", (f) => f.workflow_key],
             ["Business", (f) => (f.business_name ? <button type="button" className="zs-link" onClick={() => openBusiness(f.business_id)}>{f.business_name}</button> : "None")],
-            ["Retries", (f) => f.retry_count], ["Error", (f) => [f.error_category, f.error_message].filter(Boolean).join(": ") || "None"], ["Correlation id", (f) => <code>{String(f.correlation_id ?? "").slice(0, 8)}</code>]]} />
+            ["Retries", (f) => f.retry_count], ["Error", (f) => [f.error_category, f.error_message].filter(Boolean).join(": ") || "None"], ["Correlation ID", (f) => <code>{String(f.correlation_id ?? "").slice(0, 8)}</code>]]} />
         </Card>
       </>
     )}</LoadState>
@@ -1186,7 +1186,7 @@ export function PrivacyControls({ onGo }) {
         <Card title="Customer data requests" sub="Each business logs and handles its own (export, correct, stop use, erase), within 30 days.">
           <Facts rows={[["Open", p.requests.open], ["Overdue", p.requests.overdue]]} />
         </Card>
-        <LinkRows rows={[{ title: "Privacy policy, recording consent and acceptance records", detail: "Legal, policy & platform documents", onClick: () => onGo("legal/documents") }]} />
+        <LinkRows rows={[{ title: "Privacy policy, recording consent and acceptance records", detail: "Legal, Legal documents", onClick: () => onGo("legal/documents") }]} />
       </>
     )}</LoadState>
   );
@@ -1233,7 +1233,7 @@ export function NotificationChannels() {
   return (
     <LoadState state={state}>{(c) => (
       <Card title="Channels">
-        <Facts rows={[["In the dashboard", "Notification history"], ["Email", c.email.live && c.email.from ? `On, from ${c.email.from}` : "Off until email_live is on and a sender is set"]]} />
+        <Facts rows={[["In the dashboard", "Notification history"], ["Email", c.email.live && c.email.from ? `On, from ${c.email.from}` : "Off until email sending is switched on and a sender is set"]]} />
       </Card>
     )}</LoadState>
   );
@@ -1404,7 +1404,7 @@ export function LegalVersioning({ me }) {
 export function PolicyConfig({ me, onGo }) {
   return (
     <>
-      <LinkRows rows={[{ title: "Retention", detail: "Security & privacy > Data retention", onClick: () => onGo("security/retention") },
+      <LinkRows rows={[{ title: "Retention", detail: "Security and privacy, Data retention", onClick: () => onGo("security/retention") },
         { title: "Recording and consent text", detail: "Publish it as the Recording and consent document", onClick: () => onGo("legal/documents") }]} />
       <RecordingPolicy me={me} />
     </>
@@ -1414,7 +1414,7 @@ export function PolicyConfig({ me, onGo }) {
 /* ---------------- 15. Developer ---------------- */
 
 export function ApiManagement() {
-  return <Needs title="There's no public API yet" have="The apps talk to Supabase with each person's sign in; partners use the webhooks listed under Webhook management.">API applications need keys with scopes, owned by a business, stored hashed, with last used tracking and revocation.</Needs>;
+  return <Needs title="There's no public API yet" have="The apps talk to Supabase with each person's sign in; partners use the webhooks listed in Settings under Integrations, then Webhooks.">API applications need keys with scopes, owned by a business, stored hashed, with last used tracking and revocation.</Needs>;
 }
 
 export function Environment() {
@@ -1437,7 +1437,7 @@ export function SystemConfig() {
   return (
     <LoadState state={state}>{(d) => (
       <>
-        <Card title="Feature switches" sub="Read only here. They're switched on at go live in order (n8n/GO LIVE.md).">
+        <Card title="Feature switches" sub="Read only here. They're switched on at go live in order (the go live guide, n8n/GO-LIVE.md).">
           <Table rowKey={(f) => f.key} rows={d.flags} columns={[["Switch", (f) => <code>{f.key}</code>], ["State", (f) => <Pill tone={f.on ? "success" : ""}>{f.on ? "On" : "Off"}</Pill>], ["Changed", (f) => when(f.updated_at)]]} />
         </Card>
         <Card title="Change history">
@@ -1460,7 +1460,7 @@ const FULL_ADMIN = ["zella_owner", "super_admin"];
 const OFFER_STATUS = [["active", "Active"], ["pending_approval", "Waiting for approval"], ["scheduled", "Scheduled"], ["paused", "Paused"], ["draft", "Drafts"], ["expired", "Ended"], ["archived", "Archived"]];
 const OFFER_CAPS = [
   ["billing", "Payments", "Claims become Paid when a real payment arrives from the payment provider."],
-  ["checkout", "self serve checkout", "Needed for checkout prices and abandoned checkout reminders."],
+  ["checkout", "Self serve checkout", "Needed for checkout prices and abandoned checkout reminders."],
   ["referral_tracking", "Referral links", "Needed for referral rewards."],
   ["promo_sending", "Promotional sending", "Needed for promotional emails and win back."],
 ];
