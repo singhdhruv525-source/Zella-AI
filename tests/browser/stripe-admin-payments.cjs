@@ -34,7 +34,7 @@ const check = (n, ok, d = "") => { console.log(`${ok ? "PASS" : "FAIL"} ${n}${d 
     await page.click('button[type="submit"]');
     await page.waitForTimeout(2500);
     if (viewport.width < 800) { const menu = await page.$('button[aria-label*="menu" i]'); if (menu) { await menu.click(); await page.waitForTimeout(300); } }
-    await page.click("text=Plans & Subscriptions").catch(() => {});
+    await page.click("text=Plans & subscriptions").catch(() => {});
     await page.waitForSelector("text=Payments", { timeout: 10000 }).catch(() => {});
     await page.waitForTimeout(800);
     check(`${name}: the Payments panel lists the invoices with amounts from cents`, await page.isVisible("text=ZV-0001") && await page.isVisible("text=$898.00"));

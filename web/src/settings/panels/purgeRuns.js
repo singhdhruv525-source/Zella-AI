@@ -3,7 +3,7 @@
 
 export const RUN_STATUS = {
   requested: ["Waiting for approvals", "warning"], approved: ["Approved by two people", "accent"], running: ["Running", "accent"],
-  files_pending: ["Removing files", "accent"], done: ["Done", "success"], failed: ["Not finished", "danger"], cancelled: ["Cancelled", ""],
+  files_pending: ["Removing files", "accent"], done: ["Done", "success"], failed: ["Not finished", "danger"], cancelled: ["Canceled", ""],
 };
 
 export function runActions(run, { you, owner, manage, purgeEnabled }) {

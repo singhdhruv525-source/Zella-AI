@@ -280,7 +280,7 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
         <>
           <Facts rows={[["Business", <button key="b" type="button" className="ao-link" onClick={() => onOpenBusiness(c.business_id)}>{c.business_name}</button>],
             ["Direction", words(c.direction)], ["From", phone(c.from)], ["To", phone(c.to)], ["Status", <Pill key="s" tone={statusTone(c.status)}>{words(c.status)}</Pill>],
-            ["Answered by AI", c.ai_handled ? "Yes" : "No"], ["Outcome", c.outcome ? words(c.outcome) : "Not recorded"], ["Outcome note", c.outcome_note],
+            ["Answered by AI receptionist", c.ai_handled ? "Yes" : "No"], ["Outcome", c.outcome ? words(c.outcome) : "Not recorded"], ["Outcome note", c.outcome_note],
             ["Transfer", c.transfer_status ? words(c.transfer_status) : null], ["Length", duration(c.duration_seconds, "Not recorded")],
             c.needs_human ? ["Needs a person", c.escalation_reason ?? "Yes"] : null, c.escalation_resolved_at ? ["Resolved", when(c.escalation_resolved_at)] : null,
             c.failure_reason ? ["Error", c.failure_reason] : null, ["Provider call id", c.provider_call_id ? <code key="p">{c.provider_call_id}</code> : null]]} />
@@ -288,9 +288,9 @@ function CallDrawer({ id, onClose, onOpenBusiness }) {
           <ol className="ao-timeline">
             {[["Created", c.created_at], ["Started", c.started_at], ["Answered", c.answered_at], ["Escalated", c.escalated_at], ["Ended", c.ended_at]]
               .filter(([, t]) => t).map(([l, t]) => <li key={l}><strong>{l}</strong><span>{when(t)}</span></li>)}
-            {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? `: ${t.error}` : ""} · {when(t.at)}</span></li>)}
-            {d.data.messages.map((m, i) => <li key={`m${i}`}><strong>Message taken ({words(m.kind)})</strong><span>{words(m.status)} · {when(m.at)}</span></li>)}
-            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? ` · due ${whenText(k.due_at)}` : ""}</span></li>)}
+            {d.data.tools.map((t, i) => <li key={`t${i}`}><strong>Tool: {words(t.tool)}</strong><span>{words(t.status)}{t.error ? `: ${t.error}` : ""}, {when(t.at)}</span></li>)}
+            {d.data.messages.map((m, i) => <li key={`m${i}`}><strong>Message taken ({words(m.kind)})</strong><span>{words(m.status)}, {when(m.at)}</span></li>)}
+            {d.data.callbacks.map((k, i) => <li key={`k${i}`}><strong>Callback</strong><span>{words(k.status)}{k.due_at ? `, due ${whenText(k.due_at)}` : ""}</span></li>)}
           </ol>
           {d.data.usage.length > 0 && <Facts rows={d.data.usage.map((u, i) => [`Usage ${i + 1}`, `${words(u.kind)}: ${u.billable_seconds ?? 0} s (${words(u.status)})`])} />}
           <h3 className="ao-h3">Summary, transcript and recording</h3>
@@ -336,7 +336,7 @@ function MissingRouting({ onOpen, refresh = 0 }) {
   return (
     <section className="ao-section" aria-label="Missing routing" data-missing-routing={list.data?.total ?? ""}>
       <h3 className="ao-h3">Missing routing{list.data ? ` (${numText(list.data.total)})` : ""}</h3>
-      <p className="op-muted">Businesses with an AI receptionist and no number to put callers through to, or no fallback number. Cancelled businesses aren't listed.</p>
+      <p className="op-muted">Businesses with an AI receptionist and no number to put callers through to, or no fallback number. Canceled businesses aren't listed.</p>
       <ErrorNote error={list.error} onRetry={list.reload} />
       <DataTable error={list.error} loading={list.loading} rows={list.data?.rows} rowKey={(r) => r.business_id} onRow={open}
         empty={!list.data || !Number.isFinite(Number(list.data.total)) ? "Couldn't read Missing routing."
@@ -376,7 +376,7 @@ function RoutingForm({ businessId, manage, say, onSaved }) {
         <label className="ao-filter ao-check"><input type="checkbox" checked={v.transfer_open_hours_only} disabled={!manage} onChange={(e) => set("transfer_open_hours_only", e.target.checked)} /><span>{label.transfer_open_hours_only}</span></label>
       </div>
       <Facts rows={[["Time zone", r.timezone ? <span title={r.timezone}>{formatTimeZone(r.timezone)}</span> : null], ["Opening hours set", r.has_hours ? "Yes" : "No. Outside hours rules can't apply"],
-        ["On call rota", r.on_call?.enabled ? `On (${words(r.on_call.scope)})` : "Off"]]} />
+        ["On call schedule", r.on_call?.enabled ? `On (${words(r.on_call.scope)})` : "Off"]]} />
       {manage ? (
         <div className="ao-drawer-actions">
           <button type="button" className="owner-secondary-button" disabled={!changes.length} onClick={() => setForm(null)}>Undo changes</button>

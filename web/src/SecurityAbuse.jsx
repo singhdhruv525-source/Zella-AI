@@ -25,7 +25,7 @@ const riskText = (level, score) => `${String(level ?? "").charAt(0).toUpperCase(
 const ACTION = { allowed: "Allowed", flagged: "Flagged", held: "Held for review", screened: "Screened", restricted: "Restricted", blocked: "Blocked" };
 const REASON = {
   blocklisted: "On a block list", allowlisted: "On the allow list", repeat_contact: "Repeated contact", flood: "Flooding", suspicious_link: "Suspicious link", many_links: "Many links",
-  spam_phrase: "Spam wording", ai_manipulation: "Tried to manipulate the AI", provider_flag: "Flagged by provider", no_caller_id: "No caller ID",
+  spam_phrase: "Spam wording", ai_manipulation: "Tried to manipulate the AI receptionist", provider_flag: "Flagged by provider", no_caller_id: "No caller ID",
   booking_limit: "Too many bookings",
 };
 const POLICY = [
@@ -177,7 +177,7 @@ function Overview({ data, onOpenBusiness }) {
             {data.top.map((b) => (
               <li key={b.business_id}>
                 <button type="button" className="vq-link" onClick={() => onOpenBusiness(b.business_id)}>{b.name}</button>
-                <span className="op-muted">{b.high} high · {b.open} open</span>
+                <span className="op-muted">{b.high} high, {b.open} open</span>
                 <strong>{b.total}</strong>
               </li>
             ))}
@@ -193,7 +193,7 @@ function Overview({ data, onOpenBusiness }) {
               <li key={a.id} className="sa-alert">
                 <span>
                   <strong>{a.title}</strong>
-                  <small className="op-muted">{a.business_name ? `${a.business_name} · ` : ""}{a.detail} · {when(a.last_seen_at)}</small>
+                  <small className="op-muted">{a.business_name ? `${a.business_name}, ` : ""}{a.detail}, {when(a.last_seen_at)}</small>
                 </span>
                 <Pill tone={a.status === "open" ? "warning" : "neutral"}>{a.status}</Pill>
               </li>
@@ -271,7 +271,7 @@ function Incidents({ days, onOpenBusiness }) {
       {pages > 1 && (
         <div className="sa-pager">
           <button type="button" className="owner-secondary-button" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
-          <span className="op-muted">Page {page + 1} of {pages} · {res.total} incidents</span>
+          <span className="op-muted">Page {page + 1} of {pages}, {res.total} incidents</span>
           <button type="button" className="owner-secondary-button" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>Next</button>
         </div>
       )}
@@ -312,7 +312,7 @@ function IncidentDrawer({ id, onClose, onOpenBusiness }) {
               {!inc.reasons?.length && <li className="op-muted">No signals recorded.</li>}
             </ul>
             <p className="op-muted">
-              {inc.occurrences} contact{inc.occurrences === 1 ? "" : "s"} · first {when(inc.first_seen_at)} · last {when(inc.last_seen_at)}
+              {inc.occurrences} contact{inc.occurrences === 1 ? "" : "s"}, first {when(inc.first_seen_at)}, last {when(inc.last_seen_at)}
             </p>
             <h4>History</h4>
             <ol className="sa-history">
@@ -321,7 +321,7 @@ function IncidentDrawer({ id, onClose, onOpenBusiness }) {
                   <strong>{EVENT[e.kind] ?? e.kind}</strong>
                   {e.to_status && <> → {(STATUS[e.to_status] ?? [null, e.to_status])[1]}</>}
                   {e.detail?.list && <> ({e.detail.list} list, {e.detail.channel})</>}
-                  <small className="op-muted"> · {e.by_team ? "by the business team" : "automatic"} · {when(e.created_at)}{e.has_note ? " · note kept private to the business" : ""}</small>
+                  <small className="op-muted">, {e.by_team ? "by the business team" : "automatic"}, {when(e.created_at)}{e.has_note ? ", note kept private to the business" : ""}</small>
                 </li>
               ))}
             </ol>
@@ -365,7 +365,7 @@ function Coverage({ rows, onOpenBusiness }) {
                   </div>
                 </td>
                 <td><Pill tone={r.protection === "off" ? "danger" : "success"}>{r.protection === "off" ? "Off" : r.protection === "on" ? "On" : "On by default"}</Pill></td>
-                <td>{r.call_screening === "screen" ? "Screened by the AI" : "Flagged for review"}</td>
+                <td>{r.call_screening === "screen" ? "Screened by the AI receptionist" : "Flagged for review"}</td>
                 <td>{when(r.updated_at)}</td>
               </tr>
             ))}
@@ -550,7 +550,7 @@ function Automation({ info, canSave, onSaved }) {
   const [confirmLive, setConfirmLive] = useState(false);
   const [reason, setReason] = useState("");
   if (!info?.available) {
-    return <section className="owner-panel sa-panel"><p className="op-muted">The automation columns come with the current <strong>sql/zella_spam_protection.sql</strong>. Apply it (after a backup) to see the queue here.</p></section>;
+    return <section className="owner-panel sa-panel"><p className="op-muted" title="Needs the current sql/zella_spam_protection.sql, applied after a backup">The spam automation queue isn't switched on for Zella Voice yet.</p></section>;
   }
   async function save(patch, message) {
     setBusy(true);
@@ -589,7 +589,7 @@ function Automation({ info, canSave, onSaved }) {
           {canSave && <button type="button" className="owner-secondary-button" disabled={busy} onClick={() => (info.ai_live ? save({ ai_live: false }, "AI second opinion switched off.") : setConfirmAi(true))}>{info.ai_live ? "Switch off" : "Switch on"}</button>}
         </li>
         <li>
-          <span className="sa-stack"><strong>n8n</strong><small className="op-muted">{info.n8n_connected ? (info.last_run ? `Last called ${when(info.last_run)} · ${info.runs_total} runs in total` : "Address set; not called yet") : "No n8n address set: the workflow can't be called"}</small></span>
+          <span className="sa-stack"><strong>n8n</strong><small className="op-muted">{info.n8n_connected ? (info.last_run ? `Last called ${when(info.last_run)}, ${info.runs_total} runs in total` : "Address set; not called yet") : "No n8n address set: the workflow can't be called"}</small></span>
           <Pill tone={info.n8n_connected ? (info.last_run ? "success" : "warning") : "danger"}>{info.n8n_connected ? (info.last_run ? "Connected" : "Waiting") : "Not connected"}</Pill>
         </li>
       </ul>

@@ -108,7 +108,7 @@ export default function IndustryRecords({ industryId, industryName }) {
                   <span className="ir-icon"><Icon name={t.icon || "folder"} /></span>
                   <span className="ir-type-title">
                     <strong>{t.plural || "New record type"}</strong>
-                    <small>{t.fields.length} field{t.fields.length === 1 ? "" : "s"} · {t.statuses.length} status{t.statuses.length === 1 ? "" : "es"}{t.isNew ? " · not saved yet" : ` · key ${t.key}`}</small>
+                    <small>{t.fields.length} field{t.fields.length === 1 ? "" : "s"}, {t.statuses.length} status{t.statuses.length === 1 ? "" : "es"}{t.isNew ? ", not saved yet" : `, key ${t.key}`}</small>
                   </span>
                   <span className="ir-chevron" aria-hidden="true">›</span>
                 </button>

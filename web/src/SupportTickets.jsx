@@ -231,7 +231,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
           <section aria-label="Tickets">
             {tickets.length > 0 && <p className="pn-hint"><Icon name="swipe_left" />Swipe a ticket left to assign it to you or resolve it</p>}
             {!tickets.length ? (loading && !data ? <Skeleton label="Loading tickets" /> : (
-              <div className="op-empty">{overdueUnknown ? "Overdue tracking is unavailable until reply times are recorded (a database update is needed)." : emptyIsCurrent ? "No tickets here." : loading ? "Loading tickets..." : "Couldn't load this list. Pull down to try again, or reload the page."}</div>
+              <div className="op-empty">{overdueUnknown ? "Overdue tracking isn't switched on yet. It needs reply times to be recorded." : emptyIsCurrent ? "No tickets here." : loading ? "Loading tickets…" : "Tickets didn't load. Reload the page to try again."}</div>
             )) : (
               <ul className="pn-list pn-swipes">
                 {tickets.map((t) => {
@@ -245,7 +245,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
                     <SwipeRow key={t.id} actions={actions}>
                       <div className="pn-row">
                         <button type="button" className="pn-item" aria-pressed={t.id === selectedId} onClick={() => { if (t.id !== selectedId) selectTicket(t.id); else document.querySelector(".st-detail")?.scrollIntoView({ block: "start" }); setCreating(false); }}>
-                          <span className="pn-main"><strong>{t.subject}</strong><small>{t.business_name} · {t.assignee ?? "Unassigned"} · {timeAgo(t.created_at)}</small></span>
+                          <span className="pn-main"><strong>{t.subject}</strong><small>{t.business_name}, {t.assignee ?? "Unassigned"}, {timeAgo(t.created_at)}</small></span>
                           <span className={`pn-meta ${!waiting && timesKnown && t.overdue === true ? "late" : ""}`}>{waiting ? "Saving" : timesKnown && t.overdue === true ? "No reply yet" : label(STATUSES, t.status)}</span>
                         </button>
                         <button type="button" className="pn-more" aria-label={`More for ${t.subject}`} aria-haspopup="dialog" onClick={() => setRowMenu(t)}><Icon name="more_horiz" /></button>
@@ -270,8 +270,8 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
                         <div className="st-ticket-cell">
                           <button type="button" className="st-title owner-table-primary" title={t.subject} aria-pressed={t.id === selectedId} onClick={(e) => { e.stopPropagation(); open(); }}>{t.subject}</button>
                           <span className="owner-table-secondary st-sub">
-                            <span className="st-sub-business">{t.business_name} · </span>
-                            {t.category ? `${categoryText(t.category)} · ` : ""}{timeAgo(t.created_at)}
+                            <span className="st-sub-business">{t.business_name}, </span>
+                            {t.category ? `${categoryText(t.category)}, ` : ""}{timeAgo(t.created_at)}
                           </span>
                         </div>
                       </td>
@@ -348,7 +348,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
                 <h3>{selected.subject}</h3>
                 <p>
                   <button type="button" className="op-link" onClick={() => onOpenBusiness(selected.business_id)}>{selected.business_name}</button>
-                  {" · "}opened {formatDateTime(selected.created_at)}
+                  {", "}opened {formatDateTime(selected.created_at)}
                   {selected.creator && <> by <span className="owner-cell-truncate st-creator" title={selected.creator}>{selected.creator}</span></>}
                 </p>
               </div>
@@ -395,7 +395,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
                   {selected.messages.map((m, i) => (
                     <li key={i}>
                       <p>{m.text}</p>
-                      <span>{m.side === "zella" ? `Zella Voice (${m.author ?? "support"})` : selected.business_name} · {formatDateTime(m.created_at)}</span>
+                      <span>{m.side === "zella" ? `Zella Voice (${m.author ?? "support"})` : selected.business_name}, {formatDateTime(m.created_at)}</span>
                     </li>
                   ))}
                 </ul>
@@ -417,7 +417,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
                   {selected.notes.map((n, i) => (
                     <li key={i}>
                       <p>{n.text}</p>
-                      <span>{n.author ?? "Unknown"} · {formatDateTime(n.created_at)}</span>
+                      <span>{n.author ?? "Unknown"}, {formatDateTime(n.created_at)}</span>
                     </li>
                   ))}
                 </ul>
@@ -431,7 +431,7 @@ export default function SupportTickets({ onOpenBusiness, myEmail, refreshRef }) 
         )}
       </div>
       {rowMenu && (
-        <BottomSheet title={rowMenu.subject} description={`${rowMenu.business_name} · ${label(STATUSES, rowMenu.status)}`} size="fit" onClose={() => setRowMenu(null)}>
+        <BottomSheet title={rowMenu.subject} description={`${rowMenu.business_name}, ${label(STATUSES, rowMenu.status)}`} size="fit" onClose={() => setRowMenu(null)}>
           <div className="pn-menu-list">
             <button type="button" className="pn-row-link" onClick={() => { const t = rowMenu; setRowMenu(null); selectTicket(t.id); setCreating(false); }}><Icon name="open_in_new" /><span>Open ticket</span></button>
             {store.has(rowMenu.id) && <p className="pn-hint" role="status"><Icon name="schedule" />A change to this ticket is about to be saved. Undo it from the message, or wait a moment.</p>}

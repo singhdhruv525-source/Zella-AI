@@ -23,7 +23,7 @@ export default function AgentDeliveries({ agent, onClose, asOf }) {
     <Drawer title={`Calls served: ${agent.businessName}`} icon="call_log" onClose={onClose}>
       <p className="op-muted">{asOf ? `Summary as of ${timeAgo(asOf)}, when the list was loaded. Recent calls below are read now.` : "Summary from when the list was loaded. Recent calls below are read now."}</p>
       <Facts rows={[
-        ["Last 7 days", d ? `${d.served7d} served · ${d.notReady7d} not ready · ${d.unknownNumber7d} unknown number · ${d.forwardedUsage7d} over its limit` : "Not available"],
+        ["Last 7 days", d ? `${d.served7d} served, ${d.notReady7d} not ready, ${d.unknownNumber7d} unknown number, ${d.forwardedUsage7d} over its limit` : "Not available"],
         ["Version", versionText(d)],
         d?.syncError && ["Last check said", d.syncError],
         d?.lastProblems?.length && ["Last problem", `${d.lastProblems.map(problemText).join("; ")} (${timeAgo(d.lastProblemAt)})`],
@@ -41,8 +41,8 @@ export default function AgentDeliveries({ agent, onClose, asOf }) {
                   <Pill tone={outcomePill(x.outcome)[0]}>{outcomePill(x.outcome)[1]}</Pill>
                   <strong>{timeAgo(x.at)}</strong>
                   <span>
-                    {x.version != null ? `Version ${x.version}` : "No version"}{x.call ? ` · call ${x.call}` : ""}
-                    {Array.isArray(x.problems) && x.problems.length > 0 && ` · ${x.problems.map(problemText).join("; ")}`}
+                    {x.version != null ? `Version ${x.version}` : "No version"}{x.call ? `, call ${x.call}` : ""}
+                    {Array.isArray(x.problems) && x.problems.length > 0 && `, ${x.problems.map(problemText).join("; ")}`}
                   </span>
                 </div>
               </li>

@@ -84,7 +84,7 @@ export default function Onboarding({ me, openSetup, openBusiness }) {
         document.body,
       )}
       <Needs title="Automatic retry runs only once the owner switches it on" have="Every setup step is recorded. Modules, the AI receptionist and automations can be retried here with Retry step; the owner invitation email with Send owner invite; anything else with Continue setup.">
-        The timed retry (zella_provisioning_retry) retries those three internal steps at most 3 times each, and is off until the owner turns it on. Steps that reach a provider or send an email are never retried on their own.
+        The timed retry retries those three internal steps at most 3 times each, and is off until the owner turns it on. Steps that reach a provider or send an email are never retried on their own.
       </Needs>
     </>
   );

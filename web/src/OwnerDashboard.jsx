@@ -49,20 +49,20 @@ const NAVIGATION = [
   { label: "Overview", icon: "space_dashboard", path: "/", group: null, perm: "businesses.view" },
   { label: "Businesses", icon: "storefront", path: "/businesses", group: "Businesses", perm: "businesses.view" },
   { label: "Verification", icon: "verified_user", path: "/verification", group: "Businesses", perm: "businesses.manage" },
-  { label: "Industry Configuration", title: "Industry configuration", icon: "category", path: "/industries", group: "Configuration", perm: "businesses.view" },
-  { label: "Modules & Features", title: "Modules & features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
-  { label: "Plans & Subscriptions", title: "Plans & subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
-  { label: "Offers & Promotions", title: "Offers & promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
-  { label: "AI Agents", title: "AI receptionists", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
+  { label: "Industry configuration", icon: "category", path: "/industries", group: "Configuration", perm: "businesses.view" },
+  { label: "Modules & features", icon: "widgets", path: "/modules", group: "Configuration", perm: "businesses.view" },
+  { label: "Plans & subscriptions", icon: "credit_card", path: "/plans", group: "Configuration", perm: "billing.view" },
+  { label: "Offers & promotions", icon: "sell", path: "/offers", group: "Configuration", perm: "billing.view" },
+  { label: "AI receptionists", icon: "smart_toy", path: "/agents", group: "AI & communications", perm: "businesses.view" },
   { label: "Voice & numbers", icon: "call", path: "/voice", tabs: true, group: "AI & communications", perm: "businesses.view" },
   { label: "Messaging", icon: "forum", path: "/messaging", tabs: true, group: "AI & communications", perm: "businesses.view" },
-  { label: "Platform Operations", title: "Platform operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
+  { label: "Platform operations", icon: "monitor_heart", path: "/operations", group: "Operations", perm: "businesses.view" },
   { label: "Automations", icon: "bolt", path: "/automations", tabs: true, group: "Operations", perm: "businesses.view" },
   { label: "Integrations", icon: "hub", path: "/integrations", group: "Operations", perm: "businesses.view" },
   { label: "Support", icon: "support_agent", path: "/support", group: "Operations", perm: "support.manage" },
-  { label: "Security & Abuse", title: "Security & abuse", icon: "gpp_maybe", path: "/security-abuse", group: "Operations", perm: "security.view" },
-  { label: "Users & Access", title: "Users & access", icon: "group", path: "/users", group: "Administration", perm: "security.view" },
-  { label: "Audit Logs", title: "Audit logs", icon: "history", path: "/audit-logs", group: "Administration", perm: "audit.view" },
+  { label: "Security & abuse", icon: "gpp_maybe", path: "/security-abuse", group: "Operations", perm: "security.view" },
+  { label: "Users & access", icon: "group", path: "/users", group: "Administration", perm: "security.view" },
+  { label: "Audit logs", icon: "history", path: "/audit-logs", group: "Administration", perm: "audit.view" },
   { label: "Settings", icon: "settings", path: "/settings", group: "Administration", perm: null },
 ];
 const NAV_GROUPS = [null, "Businesses", "Configuration", "AI & communications", "Operations", "Administration"];
@@ -258,7 +258,7 @@ export default function OwnerDashboard({ onSignOut }) {
   useTabScroll(phone, tabKey, tabMemory, phoneTabbed);
   const signals = useAdminSignals({ enabled: phone && authorized, can });
   // only with businesses.view (platform incidents are part of it); a failed read says so, never looks calm
-  const strip = phone && authorized && can("businesses.view") && activePage !== "Platform Operations" ? adminStripFor(signals.incidents) : null;
+  const strip = phone && authorized && can("businesses.view") && activePage !== "Platform operations" ? adminStripFor(signals.incidents) : null;
   const action = phoneTabbed && ["Overview", "Businesses"].includes(activePage) && can("businesses.manage")
     ? { label: "Create business", icon: "add", onClick: () => setWizard({ businessId: null }) } : null;
   useRootFlag("pn-has-action", Boolean(action));
@@ -278,7 +278,7 @@ export default function OwnerDashboard({ onSignOut }) {
     if (key === activePage && phoneTabbed) { scrollToTop(); return; }
     goTo(key);
   };
-  const countOf = (key) => (key === "Support" ? signalCount(signals.tickets) : key === "Platform Operations" ? signalCount(signals.alerts) : { count: 0, state: "ok" });
+  const countOf = (key) => (key === "Support" ? signalCount(signals.tickets) : key === "Platform operations" ? signalCount(signals.alerts) : { count: 0, state: "ok" });
   const countFor = (key) => countOf(key).count;
   const nounFor = (key) => (key === "Support" ? "open" : countFor(key) === 1 ? "open alert" : "open alerts");
   const tabView = (label) => (
@@ -301,9 +301,9 @@ export default function OwnerDashboard({ onSignOut }) {
         onSetup={(id) => setWizard({ businessId: id })}
       />
     ) : label === "Support" ? <SupportTickets onOpenBusiness={setDetailId} myEmail={email} refreshRef={supportRefresh} />
-      : label === "Platform Operations" ? <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
+      : label === "Platform operations" ? <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
         : label === "Verification" ? <VerificationQueue onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
-          : label === "Audit Logs" ? <AuditLogs onOpenBusiness={setDetailId} /> : null
+          : label === "Audit logs" ? <AuditLogs onOpenBusiness={setDetailId} /> : null
   );
   const sheetRow = bizSheet ? businessList.list?.rows?.find((r) => r.id === bizSheet) : null;
 
@@ -326,7 +326,7 @@ export default function OwnerDashboard({ onSignOut }) {
 
         {navList(goTo)}
 
-        {can("businesses.view") && <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform Operations")}
+        {can("businesses.view") && <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => goTo("Platform operations")}
           aria-label="Platform status: view system health" title="Platform status">
           <div className="owner-status-dot" />
           <div>
@@ -344,7 +344,7 @@ export default function OwnerDashboard({ onSignOut }) {
             <span><strong>Zella Voice Platform</strong><small>{me?.roleLabel ?? (access.state === ACCESS.LOADING ? "Loading role…" : "Role not loaded")}</small></span>
           </div>
           {authorized && navList((label) => { setNavOpenAt(null); goTo(label); })}
-          {can("businesses.view") && <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => { setNavOpenAt(null); goTo("Platform Operations"); }}
+          {can("businesses.view") && <button type="button" className="owner-sidebar-bottom op-status-link" onClick={() => { setNavOpenAt(null); goTo("Platform operations"); }}
             aria-label="Platform status: view system health">
             <div className="owner-status-dot" />
             <div><strong>Platform status</strong><span>View system health</span></div>
@@ -368,7 +368,7 @@ export default function OwnerDashboard({ onSignOut }) {
                   <Icon name={searchOpen ? "close" : "search"} />
                 </button>
               )}
-              {can("businesses.view") && <AdminAlertsBell onOpenMonitoring={() => goTo("Platform Operations")} />}
+              {can("businesses.view") && <AdminAlertsBell onOpenMonitoring={() => goTo("Platform operations")} />}
             </>}
             search={(
               <div className="owner-search">
@@ -415,12 +415,12 @@ export default function OwnerDashboard({ onSignOut }) {
               />
               <kbd>⌘ K</kbd>
             </div>}
-            {can("businesses.view") && <AdminAlertsBell onOpenMonitoring={() => goTo("Platform Operations")} />}
+            {can("businesses.view") && <AdminAlertsBell onOpenMonitoring={() => goTo("Platform operations")} />}
             <button className="owner-icon-button" type="button" aria-label="Appearance and theme" title="Appearance and theme"
               onClick={() => navigate("/settings/profile/appearance")}>
               <Icon name="palette" />
             </button>
-            <div className="owner-avatar" title={[email, me?.roleLabel].filter(Boolean).join(" · ") || "Platform admin"}>
+            <div className="owner-avatar" title={[email, me?.roleLabel].filter(Boolean).join(", ") || "Platform admin"}>
               {(email || "A").slice(0, 1).toUpperCase()}
             </div>
             <button className="owner-signout" type="button" onClick={signOut}>
@@ -505,30 +505,30 @@ export default function OwnerDashboard({ onSignOut }) {
             />
           ) : activePage === "Verification" ? (
             <VerificationQueue onOpenBusiness={setDetailId} onOpenSetup={(id) => setWizard({ businessId: id })} />
-          ) : activePage === "Security & Abuse" ? (
+          ) : activePage === "Security & abuse" ? (
             <SecurityAbuse permissions={me?.permissions ?? []} onOpenBusiness={setDetailId} />
-          ) : activePage === "Audit Logs" ? (
+          ) : activePage === "Audit logs" ? (
             <AuditLogs onOpenBusiness={setDetailId} />
-          ) : activePage === "Industry Configuration" ? (
+          ) : activePage === "Industry configuration" ? (
             <IndustryConfiguration />
-          ) : activePage === "AI Agents" ? (
+          ) : activePage === "AI receptionists" ? (
             <AIAgents
               onOpenBusiness={setDetailId}
               onOpenSetup={(id) => setWizard({ businessId: id })}
             />
-          ) : activePage === "Modules & Features" ? (
+          ) : activePage === "Modules & features" ? (
             <ModulesPage onNavigate={goTo} />
-          ) : activePage === "Users & Access" ? (
+          ) : activePage === "Users & access" ? (
             <UsersAccess />
           ) : activePage === "Integrations" ? (
             <IntegrationsPage onOpenBusiness={setDetailId} />
           ) : activePage === "Support" ? (
             <SupportTickets onOpenBusiness={setDetailId} myEmail={email} />
-          ) : activePage === "Plans & Subscriptions" ? (
+          ) : activePage === "Plans & subscriptions" ? (
             <PlansPage onOpenBusiness={setDetailId} />
-          ) : activePage === "Offers & Promotions" ? (
+          ) : activePage === "Offers & promotions" ? (
             <OffersPage onOpenBusiness={setDetailId} />
-          ) : activePage === "Platform Operations" ? (
+          ) : activePage === "Platform operations" ? (
             <PlatformOperations onNavigate={goTo} onOpenBusiness={setDetailId} />
           ) : activePage === "Voice & numbers" ? (
             <VoiceNumbersPage me={me} sub={sub} onOpenBusiness={setDetailId} />
@@ -570,7 +570,7 @@ export default function OwnerDashboard({ onSignOut }) {
       {phone && (
         <PhoneBottom hidden={panelOpen}
           action={action && <button type="button" className="owner-primary-button" onClick={action.onClick}><Icon name={action.icon} />{action.label}</button>}
-          strip={strip && <LiveStrip {...strip} onAction={() => goTo("Platform Operations")} />}
+          strip={strip && <LiveStrip {...strip} onAction={() => goTo("Platform operations")} />}
           bar={tabs.length > 0 && (
             <BottomBar label="Admin" tabs={tabs.map((t) => ({ ...t, count: countFor(t.key), countState: countOf(t.key).state, countNoun: nounFor(t.key) }))}
               selected={panelOpen ? "more" : selectedTab(tabs, phoneTabbed || detailId || wizard ? activePage : null)} onSelect={selectTab}

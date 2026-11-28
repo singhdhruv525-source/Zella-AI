@@ -198,7 +198,7 @@ export default function VerificationQueue({ onOpenBusiness, onOpenSetup }) {
                         <td>
                           <div className="owner-business-cell">
                             <strong>{KIND[doc.kind] ?? doc.kind}</strong>
-                            <span>{doc.file_name} · {Math.max(1, Math.round(doc.size_bytes / 1024))} KB</span>
+                            <span>{doc.file_name}, {Math.max(1, Math.round(doc.size_bytes / 1024))} KB</span>
                           </div>
                         </td>
                         <td>{when(doc.created_at)}</td>

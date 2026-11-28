@@ -82,13 +82,13 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
       <div className="owner-stat-grid">
         <Metric label="Businesses" value={show(s?.totalBusinesses)} note={`${show(s?.live)} active`} />
         <Metric label="Setups in progress" value={show(s?.setupsInProgress)} note={`${show(s?.setupComplete)} setup complete`} />
-        <Metric label="Owner invitations" value={show(s?.pendingInvitations)} note={`Pending · ${show(s?.acceptedInvitations)} accepted`} />
+        <Metric label="Owner invitations" value={show(s?.pendingInvitations)} note={`Pending, ${show(s?.acceptedInvitations)} accepted`} />
         {/* the one server definition (docs/PRODUCT.md §9.1): live and answering are separate states */}
         <Metric label="AI receptionists live" value={show(s?.receptionistsLive)} note={typeof s?.receptionistsAnswering === "number" ? `${count(s.receptionistsAnswering)} answered a call in 7 days` : "Answering not available"} />
       </div>
 
       <div className="owner-stat-grid">
-        <Metric label="Calls, last 30 days" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI`} />
+        <Metric label="Calls, last 30 days" value={show(s?.callsLast30Days)} note={`${show(s?.aiCallsLast30Days)} handled by AI receptionists`} />
         <Metric label="Open support tickets" value={show(s?.openTickets)} note="Open or in progress" />
         <Metric label="Needs attention" value={show(list("attention")?.length)} note="Failed invites, errors" />
         <Metric label="Suspended / canceling" value={r.status === "loading" ? "…" : `${show(s?.suspended)} / ${show(s?.cancelling)}`} note={`${show(s?.cancelled)} canceled`} />
@@ -152,7 +152,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
                 <li key={b.id}>
                   <div>
                     <button type="button" className="op-name" onClick={() => onOpenBusiness(b.id)}>{b.name}</button>
-                    <span>{b.industry} · {stageLabel(b.status)} · updated {timeAgo(b.updatedAt)}</span>
+                    <span>{b.industry}, {stageLabel(b.status)}, updated {timeAgo(b.updatedAt)}</span>
                   </div>
                   {onContinueSetup ? (
                     <button type="button" className="owner-secondary-button op-small" onClick={() => onContinueSetup(b.id)}>
@@ -173,7 +173,7 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
           title="Recent activity"
           description="Latest admin actions"
           action={
-            <button type="button" className="owner-secondary-button" onClick={() => onNavigate("Audit Logs")}>
+            <button type="button" className="owner-secondary-button" onClick={() => onNavigate("Audit logs")}>
               Audit logs
             </button>
           }
@@ -185,8 +185,8 @@ export default function OwnerOverview({ onCreateBusiness, onOpenBusiness, onCont
                   <div>
                     <strong>{actionLabel(log.action)}</strong>
                     <span>
-                      {log.business_name ? `${log.business_name} · ` : ""}
-                      {log.actor ?? "Unknown user"} · {timeAgo(log.created_at)}
+                      {log.business_name ? `${log.business_name}, ` : ""}
+                      {log.actor ?? "Unknown user"}, {timeAgo(log.created_at)}
                     </span>
                   </div>
                 </li>

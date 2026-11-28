@@ -152,7 +152,7 @@ function AdminApp() {
         // invitation's password step the expired-link guidance below already covers it
         if (sessionError && !LANDING.setup) {
           if (/refresh[ _-]?token/i.test(`${sessionError.code ?? ""} ${sessionError.message ?? sessionError}`)) {
-            throw new Error("Your saved session could not be restored. Please sign in again.");
+            throw new Error("Your saved session couldn't be restored. Please sign in again.");
           }
           throw sessionError;
         }
@@ -180,7 +180,7 @@ function AdminApp() {
           await beginMfaSetup();
         } else if (isOwner === "unavailable") {
           setMessageType("error");
-          setMessage("Admin access could not be checked. Please try signing in again.");
+          setMessage("Admin access couldn't be checked. Please try signing in again.");
         } else if (isOwner) {
           setIsAuthorized(true);
         } else {
@@ -232,7 +232,7 @@ function AdminApp() {
       await finishMfaEnrollment(mfaSetup.factorId, code);
       const access = await hasAdminAccess();
       if (mine !== flow.current) return;   // signed out or switched account meanwhile
-      if (access !== true) throw new Error("Two step sign in is set up, but admin access could not be checked. Please sign in again.");
+      if (access !== true) throw new Error("Two step sign in is set up, but admin access couldn't be checked. Please sign in again.");
       setMfaSetup(null);
       setCode("");
       setIsAuthorized(true);
@@ -303,7 +303,7 @@ function AdminApp() {
       setPassword("");
       setConfirmPassword("");
       const access = await hasAdminAccess();
-      if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
+      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Please try again.");
       if (!access) {
         await supabase.auth.signOut();
         setMode("signin");
@@ -334,7 +334,7 @@ function AdminApp() {
         throw new Error("Please enter a new authenticator code.");
       }
       const access = await hasAdminAccess();
-      if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
+      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Please try again.");
       if (access === "setup") { await beginMfaSetup(); return; }
       if (!access) {
         await supabase.auth.signOut();
@@ -390,7 +390,7 @@ function AdminApp() {
         return;
       }
       const access = await hasAdminAccess();
-      if (access === "unavailable") throw new Error("Admin access could not be checked. Please try again.");
+      if (access === "unavailable") throw new Error("Admin access couldn't be checked. Please try again.");
       if (access === "setup") { setPassword(""); await beginMfaSetup(); return; }
       if (!access) {
         await supabase.auth.signOut();
@@ -398,7 +398,7 @@ function AdminApp() {
       }
 
       setMessageType("success");
-      setMessage(`Signed in successfully as ${data.user.email}.`);
+      setMessage(`Signed in as ${data.user.email}.`);
       setIsAuthorized(true);
     } catch (error) {
       setMessageType("error");
@@ -435,43 +435,12 @@ function AdminApp() {
           <div className="brand-message">
             <div className="eyebrow">
               <span className="eyebrow-dot" />
-              PLATFORM CONTROL CENTER
+              Platform administration
             </div>
-            <h1>
-              Every business.
-              <br />
-              One <span>intelligent</span>
-              <br />
-              platform.
-            </h1>
+            <h1>Zella Voice admin</h1>
             <p>
-              Your central command for managing Zella Voice businesses,
-              AI receptionists, subscriptions and operations.
+              Sign in to manage businesses, AI receptionists, plans and operations.
             </p>
-
-            <div className="feature-list">
-              <div className="feature">
-                <span className="feature-icon"><Icon name="auto_awesome" size="sm" /></span>
-                <div>
-                  <strong>AI powered operations</strong>
-                  <span>Manage your platform from one workspace.</span>
-                </div>
-              </div>
-              <div className="feature">
-                <span className="feature-icon"><Icon name="tune" size="sm" /></span>
-                <div>
-                  <strong>Centralized control</strong>
-                  <span>One secure place for platform administration.</span>
-                </div>
-              </div>
-              <div className="feature">
-                <span className="feature-icon"><Icon name="domain" size="sm" /></span>
-                <div>
-                  <strong>Built to scale</strong>
-                  <span>A unified foundation for multiple industries.</span>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="brand-footer">
@@ -500,7 +469,7 @@ function AdminApp() {
                   : mode === "mfasetup"
                     ? "Every Zella Voice admin signs in with a password and a code from an authenticator app (Google Authenticator, 1Password, Authy and similar). Scan the code below with the app, then enter the six digit code it shows."
                   : mode === "mfa"
-                    ? mfaVerified ? "Your code was verified. Retry checking your admin access." : "Open your authenticator app and enter the six digit code for Zella Voice."
+                    ? mfaVerified ? "Your code was verified. Check your admin access again." : "Open your authenticator app and enter the six digit code for Zella Voice."
                     : platform.login_headline || "Sign in to your Zella Voice platform workspace."}
             </p>
 
@@ -601,7 +570,7 @@ function AdminApp() {
                 {mode === "mfasetup"
                   ? loading ? "Checking…" : mfaSetup ? "Turn on and continue" : "Try again"
                   : mode === "mfa"
-                  ? loading ? "Checking…" : mfaVerified ? "Retry access check" : "Verify and continue"
+                  ? loading ? "Checking…" : mfaVerified ? "Check access again" : "Verify and continue"
                   : mode === "setpassword"
                   ? loading ? "Saving…" : "Save password and continue"
                   : mode === "reset"

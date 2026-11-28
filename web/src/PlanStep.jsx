@@ -186,7 +186,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
               {bad("languages") && <small style={{ color: "var(--zella-danger)" }}>Choose at least one language.</small>}
             </div>
             <div className="bp-trial">
-              <div><strong>Free trial</strong><span>{s.trial_days ?? 5} days · {s.trial_minutes ?? 20} min · {s.trial_texts ?? 5} texts · {s.trial_emails ?? 5} emails. Saved as the plan's choice; taking a card needs online payments, which aren't built yet.</span></div>
+              <div><strong>Free trial</strong><span>{s.trial_days ?? 5} days, {s.trial_minutes ?? 20} min, {s.trial_texts ?? 5} texts, {s.trial_emails ?? 5} emails. Saved as the plan's choice; taking a card needs online payments, which aren't built yet.</span></div>
               <Toggle checked={form.trial_enabled} label="Offer the free trial" disabled={readOnly} onChange={(on) => set("trial_enabled")(on)} />
             </div>
           </div>
@@ -196,7 +196,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
 
       <aside className="bp-card bp-summary" aria-label="Plan summary">
         <div>
-          <p className="bp-muted">{form.tier ? (form.tier === "pro" ? "Pro" : "Base") : "Choose a label"} · {yearly ? "billed yearly" : "billed monthly"}</p>
+          <p className="bp-muted">{form.tier ? (form.tier === "pro" ? "Pro" : "Base") : "Choose a label"}, {yearly ? "billed yearly" : "billed monthly"}</p>
           <div className="bp-price"><strong>{Number.isNaN(values.price_cents) ? "Not set" : money(values.price_cents)}</strong><span>{yearly ? "/ year" : "/ month"}</span></div>
           {values.setup_fee_cents > 0 && <p className="bp-sub">+ {money(values.setup_fee_cents)} setup fee</p>}
         </div>
@@ -234,7 +234,7 @@ export default function PlanStep({ businessId, info, onSaved, onDirty, Section, 
           <div>
             <p className="bp-muted" style={{ marginBottom: 6 }}>Saved versions</p>
             <ul className="bp-versions">
-              {info.versions.map((v) => <li key={v.version}><b>v{v.version} · {v.tier === "pro" ? "Pro" : "Base"} · {money(v.price_cents)}</b><span>{new Date(v.saved_at).toLocaleDateString()}</span></li>)}
+              {info.versions.map((v) => <li key={v.version}><b>v{v.version}, {v.tier === "pro" ? "Pro" : "Base"}, {money(v.price_cents)}</b><span>{new Date(v.saved_at).toLocaleDateString()}</span></li>)}
             </ul>
           </div>
         )}

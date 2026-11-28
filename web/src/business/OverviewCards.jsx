@@ -53,10 +53,10 @@ export function PlanCard({ plan }) {
     <Card title="Plan" description="This business's own plan, saved in Plan & pricing.">
       {p ? (
         <dl className="op-facts">
-          <div><dt>Plan</dt><dd>{humanize(p.tier)} · {humanize(p.billing_interval)} · version {p.version}</dd></div>
+          <div><dt>Plan</dt><dd>{humanize(p.tier)}, {humanize(p.billing_interval)}, version {p.version}</dd></div>
           {plan.pricesShown && <div><dt>Price</dt><dd>{money(p.price_cents) ?? "Not set"}</dd></div>}
-          <div><dt>Included each month</dt><dd>{p.minutes} minutes · {p.texts} texts · {p.emails} emails</dd></div>
-          <div><dt>Seats and numbers</dt><dd>{p.team_seats} seats · {p.phone_numbers} numbers · {p.locations} locations</dd></div>
+          <div><dt>Included each month</dt><dd>{p.minutes} minutes, {p.texts} texts, {p.emails} emails</dd></div>
+          <div><dt>Seats and numbers</dt><dd>{p.team_seats} seats, {p.phone_numbers} numbers, {p.locations} locations</dd></div>
           {!plan.pricesShown && <div><dt>Price</dt><dd className="op-muted">Shown to admins who can see billing</dd></div>}
         </dl>
       ) : <Empty>No plan saved yet. A billing admin saves one in Plan & pricing.</Empty>}
@@ -75,7 +75,7 @@ export function UsageCard({ usage, action }) {
           {rows.map(([resource, t]) => (
             <div key={resource}>
               <dt>{humanize(resource)}</dt>
-              <dd>{t.used} used of {t.granted} · {t.remaining} left{t.reserve ? ` · reserve ${t.reserveRemaining} of ${t.reserve}` : ""}</dd>
+              <dd>{t.used} used of {t.granted}, {t.remaining} left{t.reserve ? `, reserve ${t.reserveRemaining} of ${t.reserve}` : ""}</dd>
             </div>
           ))}
         </dl>
@@ -99,7 +99,7 @@ export function NumbersCard({ numbers, title = "Phone numbers", canAssign, busin
       {numbers.rows.length ? (
         <ul className="op-list">
           {numbers.rows.map((n) => (
-            <li key={n.id}><div><strong>{n.e164}</strong><span>{n.label || "No label"} · {humanize(n.status)}</span></div></li>
+            <li key={n.id}><div><strong>{n.e164}</strong><span>{n.label || "No label"}, {humanize(n.status)}</span></div></li>
           ))}
           {fallbackRow}
         </ul>
@@ -125,7 +125,7 @@ export function AlertsCard({ alerts }) {
             <li key={a.id}>
               <div>
                 <strong>{a.title}</strong>
-                <span><Pill tone={a.severity === "urgent" ? "danger" : "warning"}>{humanize(a.severity)}</Pill> · {formatDateTime(a.last_seen_at)}{a.occurrences > 1 ? ` · ${a.occurrences} times` : ""}</span>
+                <span><Pill tone={a.severity === "urgent" ? "danger" : "warning"}>{humanize(a.severity)}</Pill>, {formatDateTime(a.last_seen_at)}{a.occurrences > 1 ? `, ${a.occurrences} times` : ""}</span>
               </div>
             </li>
           ))}

@@ -91,7 +91,7 @@ const PERSONALITIES = [
   ["friendly", "Friendly", "Upbeat and approachable"],
   ["warm", "Warm", "Caring and reassuring"],
   ["casual", "Casual", "Relaxed and conversational"],
-  ["premium", "Premium", "Polished, concierge-style"],
+  ["premium", "Premium", "Polished, like a concierge"],
 ];
 
 const LANGUAGES = [
@@ -609,7 +609,7 @@ function TerminologyStep({ value, onChange }) {
             </div>
           ))}
         </div>
-        <p className="wiz-hint">Leave a box empty to use the industry default shown in grey.</p>
+        <p className="wiz-hint">Leave a box empty to use the industry default shown in gray.</p>
       </Section>
 
       <aside className="wiz-preview">
@@ -839,10 +839,10 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
         </div>
       </Section>
 
-      <Section title="What the AI can do">
+      <Section title="What the AI receptionist can do">
         <CheckGrid options={CAPABILITIES} values={value.capabilities} onChange={(capabilities) => onChange({ ...value, capabilities })} />
         <Field label={`${termFor(terminology, "appointment")} booking notes`} full>
-          <textarea value={value.bookingNotes} onChange={set("bookingNotes")} placeholder="e.g. New patients need a 60-minute slot." />
+          <textarea value={value.bookingNotes} onChange={set("bookingNotes")} placeholder="e.g. New patients need a 60 minute slot." />
         </Field>
       </Section>
 
@@ -878,7 +878,7 @@ function ReceptionistStep({ value, onChange, terminology, showErrors, faqPrompts
         </div>
       </Section>
 
-      <Section title="Things the AI must never say or do" description="One per line.">
+      <Section title="Things the AI receptionist must never say or do" description="One per line.">
         <textarea
           className="wiz-textarea"
           value={value.restrictions}
@@ -941,7 +941,7 @@ function IntegrationsStep({ value, onChange, showErrors }) {
           >
             <input inputMode="numeric" maxLength={3} value={value.phone.areaCode} onChange={(e) => setPhone({ areaCode: e.target.value.replace(/\D/g, "") })} />
           </Field>
-          <Field label="Call transfer number" hint="Where the AI sends calls it shouldn't handle" bare>
+          <Field label="Call transfer number" hint="Where the AI receptionist sends calls it shouldn't handle" bare>
             <PhoneField value={value.transferNumber} onChange={(transferNumber) => onChange({ ...value, transferNumber })} showErrors={showErrors} label="Call transfer number" />
           </Field>
           <Field label="Fallback number (required)" hint="Where calls go whenever the AI receptionist can't take them: paused, unavailable or out of minutes. Use a line a person answers, not the number that forwards to Zella Voice." bare>
@@ -950,10 +950,10 @@ function IntegrationsStep({ value, onChange, showErrors }) {
         </div>
       </Section>
 
-      <Section title="Voice agent (Vapi)">
+      <Section title="AI receptionist (Vapi)">
         <div className="wiz-connection">
           <div>
-            <strong>AI receptionist voice agent</strong>
+            <strong>AI receptionist</strong>
             <span>Created from this business's AI receptionist settings when it goes live.</span>
           </div>
           <Badge>Not created</Badge>
@@ -1362,7 +1362,7 @@ function DocumentsSection({ businessId, documents, available, onChange }) {
                 <span className="wiz-doc-icon" aria-hidden="true"><Icon name={k.kind === "owner_identity" ? "badge" : "description"} /></span>
                 <div>
                   <strong>{k.label}{k.required ? " *" : ""}</strong>
-                  <small>{doc ? `${doc.file_name} · ${Math.max(1, Math.round(doc.size_bytes / 1024))} KB` : k.hint}</small>
+                  <small>{doc ? `${doc.file_name}, ${Math.max(1, Math.round(doc.size_bytes / 1024))} KB` : k.hint}</small>
                   {doc?.status === "rejected" && doc.review_note && <small className="wiz-doc-note">Rejected: {doc.review_note}</small>}
                 </div>
                 <Badge tone={tone}>{label}</Badge>
@@ -1433,7 +1433,7 @@ function OperationsStep({ value, onChange, config, terminology, industryName }) 
 
   return (
     <>
-      <Section title="Opening hours" description="Used everywhere: when the AI books, when it says you're closed, and when follow ups are allowed to go out.">
+      <Section title="Opening hours" description="Used everywhere: when the AI receptionist books, when it says you're closed, and when follow ups are allowed to go out.">
         <div className="wiz-hours">
           {DAYS.map(([day, label]) => {
             const h = value.hours[day];
@@ -1468,7 +1468,7 @@ function OperationsStep({ value, onChange, config, terminology, industryName }) 
       </Section>
 
       {config.appointments && (
-        <Section title={`${termFor(terminology, "appointment")} preferences`} description="How the AI and the online booking offer times.">
+        <Section title={`${termFor(terminology, "appointment")} preferences`} description="How the AI receptionist and the online booking offer times.">
           <div className="owner-form-grid">
             <Field label={`Usual length of a ${termFor(terminology, "appointment").toLowerCase()}`}>
               <select value={value.booking.defaultMinutes} onChange={(e) => setBooking("defaultMinutes", Number(e.target.value))}>
@@ -1507,7 +1507,7 @@ function OperationsStep({ value, onChange, config, terminology, industryName }) 
           emptyText={`No ${services.toLowerCase()} added yet. The AI won't describe ones that aren't listed.`}
           fields={[
             { key: "name", label: "Name", required: true },
-            { key: "price", label: "Price", placeholder: "Leave empty if the AI shouldn't quote it" },
+            { key: "price", label: "Price", placeholder: "Leave empty if the AI receptionist shouldn't quote it" },
             { key: "duration", label: "Duration", placeholder: "e.g. 45 minutes" },
             { key: "description", label: "Description", full: true, multiline: true },
           ]}
@@ -1667,7 +1667,7 @@ function SpamSection({ value, onChange, modules, config, available }) {
   if (!available) {
     return (
       <Section title="Spam protection" description="Screens spam calls, texts, emails and fake bookings.">
-        <div className="wiz-note">Spam protection isn't set up on Zella Voice yet (apply sql/zella_spam_protection.sql). Zella Voice's platform limits still apply.</div>
+        <div className="wiz-note" title="Needs sql/zella_spam_protection.sql">Spam protection isn't switched on for Zella Voice yet. Zella Voice's platform limits still apply.</div>
       </Section>
     );
   }
@@ -1682,16 +1682,16 @@ function SpamSection({ value, onChange, modules, config, available }) {
         <>
           {has.call && (
             <div className="wiz-spam-row">
-              <div><strong>Suspicious callers</strong><small>Repeated calls, withheld numbers and blocked numbers are checked before the AI helps them.</small></div>
+              <div><strong>Suspicious callers</strong><small>Repeated calls, withheld numbers and blocked numbers are checked before the AI receptionist helps them.</small></div>
               <select value={value.call_screening} onChange={(e) => set("call_screening", e.target.value)} aria-label="Suspicious callers">
                 <option value="flag">Answer and flag for review</option>
-                <option value="screen">Screen: the AI doesn't help them</option>
+                <option value="screen">Screen: the AI receptionist doesn't help them</option>
               </select>
             </div>
           )}
           {has.call && value.call_screening === "screen" && (
             <div className="wiz-spam-row">
-              <div><strong>When a call is screened, the AI</strong><small>Blocked numbers are always ended politely.</small></div>
+              <div><strong>When a call is screened, the AI receptionist</strong><small>Blocked numbers are always ended politely.</small></div>
               <select value={value.ai_spam_handling} onChange={(e) => set("ai_spam_handling", e.target.value)} aria-label="When screened">
                 <option value="end_politely">Ends the call politely</option>
                 <option value="take_message">Takes a short message only</option>
@@ -1742,25 +1742,25 @@ function reviewRows(setup, industries, config, docsReady, voice) {
 
   const rows = [
     { key: "business", title: "Business", ok: Boolean(setup.business.name && industry), required: true,
-      detail: [setup.business.name, industry?.name, setup.business.city, setup.business.timezone].filter(Boolean).join(" · ") },
+      detail: [setup.business.name, industry?.name, setup.business.city, setup.business.timezone].filter(Boolean).join(", ") },
     { key: "owner", title: "Owner", ok: Boolean(setup.owner.name && setup.owner.email), required: true,
-      detail: setup.owner.email ? `${setup.owner.name} · ${setup.owner.email}` : "Not added" },
+      detail: setup.owner.email ? `${setup.owner.name}, ${setup.owner.email}` : "Not added" },
     { key: "owner", title: "Verification documents", ok: docsReady, required: setup.documentsAvailable,
       detail: !setup.documentsAvailable ? "Document storage not set up yet (apply sql/zella_onboarding.sql)"
-        : docs.map((d) => `${d.label}: ${d.doc ? ({ pending_review: "waiting for review", verified: "verified", rejected: "rejected" })[d.doc.status] : "missing"}`).join(" · ") },
+        : docs.map((d) => `${d.label}: ${d.doc ? ({ pending_review: "waiting for review", verified: "verified", rejected: "rejected" })[d.doc.status] : "missing"}`).join(", ") },
     { key: "operations", title: "Hours & services", ok: openDays > 0 && missing.length === 0, required: true,
-      detail: `${openDays} open day${openDays === 1 ? "" : "s"} · ${o.services.length} ${termFor(setup.terminology, o.services.length === 1 ? "service" : "services").toLowerCase()}${missing.length ? ` · missing ${missing.join(", ")}` : ""}` },
+      detail: `${openDays} open day${openDays === 1 ? "" : "s"}, ${o.services.length} ${termFor(setup.terminology, o.services.length === 1 ? "service" : "services").toLowerCase()}${missing.length ? `, missing ${missing.join(", ")}` : ""}` },
     { key: "team", title: termFor(setup.terminology, "staff_plural"), ok: setup.team.length > 0,
       detail: setup.team.length ? setup.team.map((m) => m.name).join(", ") : config.team === "recommended" ? "None yet (recommended)" : "None (optional)" },
     { key: "receptionist", title: "AI receptionist", ok: r.faqs.length > 0 || o.services.length > 0,
-      detail: `${r.name} · voice ${voice?.state === "error" ? (r.voiceId ? "saved, list unavailable" : "not checked, list unavailable") : voice?.state === "ok" ? voiceSummary(r.voiceId, voice.data) : "checking…"} · ${r.faqs.length} FAQs · ${r.capabilities.length} abilities` },
+      detail: `${r.name}, voice ${voice?.state === "error" ? (r.voiceId ? "saved, list unavailable" : "not checked, list unavailable") : voice?.state === "ok" ? voiceSummary(r.voiceId, voice.data) : "checking…"}, ${r.faqs.length} FAQs, ${r.capabilities.length} abilities` },
     { key: "integrations", title: "Phone & integrations", ok: true,
-      detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella Voice number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`} · calendar ${setup.integrations.calendar} · leads ${leads.length ? leads.join(", ") : "none"}` },
+      detail: `${setup.integrations.phone.mode === "new_number" ? "New Zella Voice number" : `Call forwarding from ${setup.integrations.phone.existingNumber || "number not set"}`}, calendar ${setup.integrations.calendar}, leads ${leads.length ? leads.join(", ") : "none"}` },
     { key: "integrations", title: "Spam protection", ok: true,
-      detail: !setup.spamAvailable ? "Not set up on Zella Voice yet" : setup.spam.enabled ? `On · suspicious callers ${setup.spam.call_screening === "screen" ? "screened" : "flagged"}` : "Off (platform rules still apply)" },
+      detail: !setup.spamAvailable ? "Not set up on Zella Voice yet" : setup.spam.enabled ? `On, suspicious callers ${setup.spam.call_screening === "screen" ? "screened" : "flagged"}` : "Off (platform rules still apply)" },
     { key: "automations", title: "Automations", ok: true, detail: `${enabledAutomations} turned on (paused until go live)` },
     { key: "crm", title: "CRM setup", ok: enabledModules.length > 0,
-      detail: `${enabledModules.length} modules · ${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "appointments")}` },
+      detail: `${enabledModules.length} modules, ${termFor(setup.terminology, "customers")}, ${termFor(setup.terminology, "appointments")}` },
     // REQ-BIL-57: the owner is invited only after a billing admin has reviewed and saved the plan (checked again by the server)
     { key: "plan", title: "Plan & pricing", ok: setup.planStatus?.state === "ok" && setup.planStatus.saved, required: true,
       detail: !setup.planStatus || setup.planStatus.state === "loading" ? "Checking the saved plan…"
@@ -1841,7 +1841,7 @@ function ReviewStep({ businessId, setup, industries, goTo, config, docsReady, on
       <div className="wiz-note">
         Finishing makes the workspace active with its industry's modules and words, and emails the owner their invitation.
         {setup.documentsAvailable && !verified && <> The documents stay <strong>waiting for review</strong> until an admin marks them verified.</>}
-        {" "}The AI receptionist stays <strong>off</strong> until its phone number and voice agent are connected and tested,
+        {" "}The AI receptionist stays <strong>off</strong> until its phone number and AI receptionist are connected and tested,
         and automations stay paused until the business goes live.
       </div>
     </>
@@ -2248,7 +2248,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
   }
 
   if (result) {
-    const INVITATION_WORDS = { sent: "Sent", accepted: "Accepted", failed: "Not sent", closed: "Cancelled meanwhile" };
+    const INVITATION_WORDS = { sent: "Sent", accepted: "Accepted", failed: "Not sent", closed: "Canceled meanwhile" };
     const sent = result.invitationStatus === "sent" || result.invitationStatus === "accepted";
     // completed is false when the owner's email couldn't go out (or the invitation was cancelled meanwhile): the
     // server then leaves the workspace inactive, so nothing here may say it's set up.
@@ -2259,7 +2259,7 @@ export default function CreateBusinessWizard({ businessId: initialBusinessId, in
           <div className={`wiz-done-icon ${completed && sent ? "" : "warn"}`}><Icon name={completed && sent ? "check" : "priority_high"} /></div>
           <h2>{completed ? `${setup.business.name} is set up` : `${setup.business.name} isn't finished yet`}</h2>
           <p>{completed
-            ? "The workspace is active. The AI receptionist stays off until its phone number and voice agent are connected."
+            ? "The workspace is active. The AI receptionist stays off until its phone number and voice provider are connected."
             : "The owner's invitation couldn't be sent, so the workspace was not activated. Everything you entered is saved. Fix the problem below and choose Try again."}</p>
           <div className="wiz-done-grid">
             <div><span>Workspace</span><Badge tone={completed ? "success" : "neutral"}>{completed ? "Active" : "Not active yet"}</Badge></div>

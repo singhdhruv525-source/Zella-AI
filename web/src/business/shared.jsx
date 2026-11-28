@@ -20,7 +20,7 @@ export const LABELS = {
   reschedule_appointments: "Reschedule appointments", cancel_appointments: "Cancel appointments",
   collect_customer_info: "Collect customer details", follow_up_leads: "Follow up with leads",
   take_messages: "Take messages",
-  customer_requests_human: "Customer asks for a person", unknown_answer: "AI doesn't know the answer",
+  customer_requests_human: "Customer asks for a person", unknown_answer: "AI receptionist doesn't know the answer",
   upset_customer: "Customer is upset", emergency: "Emergency", sensitive_issue: "Sensitive issue",
   complex_request: "Complex request", billing_question: "Billing question",
   owner: "Business owner", manager: "Manager", team_member: "Team member", phone_number: "Phone number",
@@ -51,7 +51,7 @@ export function describeSettings(settings = {}) {
   if (settings.retry_after_hours) parts.push(`retry after ${settings.retry_after_hours} h`);
   if (settings.channel) parts.push(`by ${settings.channel.replace("sms_and_call", "text and call").replace("sms", "text")}`);
   if (settings.fallback_sms) parts.push("text if unanswered");
-  return parts.join(" · ") || "Default settings";
+  return parts.join(", ") || "Default settings";
 }
 
 export function Facts({ items }) {

@@ -30,7 +30,7 @@ export function adminStrip(incidents = [], now = Date.now()) {
   const open = incidents.filter((i) => i && i.status === "open");
   if (!open.length) return null;
   const oldest = [...open].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))[0];
-  const more = open.length > 1 ? ` · ${open.length} open incidents` : "";
+  const more = open.length > 1 ? `, ${open.length} open incidents` : "";
   return { title: oldest.title || "Incident open", sub: `Incident open for ${waitLabel(oldest.created_at, now)}${more}`, action: "View" };
 }
 
@@ -56,7 +56,7 @@ export function adminStripFor(state, now = Date.now()) {
   if (state.status === "failed") return { title: "Incidents couldn't be checked", sub: "Open Platform operations for the latest", action: "View" };
   const strip = adminStrip(state.value ?? [], now);
   if (state.status === "ok") return strip;
-  return strip ? { ...strip, sub: `${strip.sub} · may be out of date` } : { title: "Incidents couldn't be refreshed", sub: "Open Platform operations for the latest", action: "View" };
+  return strip ? { ...strip, sub: `${strip.sub}, may be out of date` } : { title: "Incidents couldn't be refreshed", sub: "Open Platform operations for the latest", action: "View" };
 }
 
 // "Needs you now" at the top of Today (P14): callers waiting, overdue tasks, calls to review in Spam protection.

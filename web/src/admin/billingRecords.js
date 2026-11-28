@@ -5,7 +5,7 @@ export const usd = (cents) => (cents === null || cents === undefined || String(c
   ? "Not available" : (Number(cents) / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }));
 
 export const INVOICE_STATUS = { draft: ["Draft", "neutral"], open: ["Open", "info"], paid: ["Paid", "success"], payment_failed: ["Payment failed", "danger"],
-  void: ["Cancelled", "neutral"], uncollectible: ["Not collected", "warning"] };
+  void: ["Canceled", "neutral"], uncollectible: ["Not collected", "warning"] };
 export const REFUND_STATUS = { requested: ["Waiting for approval", "warning"], sending: ["Sending", "info"], processed: ["Refunded", "success"],
   failed: ["Failed", "danger"], rejected: ["Declined", "neutral"], uncertain: ["Held for a person", "warning"] };
 export const DISPUTE_STATUS = { open: ["Open", "danger"], won: ["Won", "success"], lost: ["Lost", "danger"], warning_closed: ["Closed, no chargeback", "neutral"], closed: ["Closed", "neutral"] };

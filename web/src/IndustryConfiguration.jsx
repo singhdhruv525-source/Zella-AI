@@ -71,7 +71,7 @@ function ModuleRow({ module, users, onChange, onRemove }) {
           <>
             <span className="op-muted">
               {module.isActive ? "Offered" : "Not offered"}
-              {users !== undefined && ` · ${users ? `on for ${businessWord(users)}` : "no business has it on"}`}
+              {users !== undefined && `, ${users ? `on for ${businessWord(users)}` : "no business has it on"}`}
             </span>
             <button
               type="button"
@@ -357,7 +357,7 @@ export default function IndustryConfiguration() {
                   >
                     <strong>{industry.name}{!industry.is_active && <> <Pill tone="warning">Inactive</Pill></>}</strong>
                     <span>
-                      {businessWord(industry.businessCount)} ·{" "}
+                      {businessWord(industry.businessCount)},{" "}
                       {industry.modules.filter((m) => m.is_active).length} modules
                     </span>
                   </button>
@@ -457,8 +457,8 @@ export default function IndustryConfiguration() {
                   </h2>
                   <p className="ic-detail-meta">
                     {businessWord(selected.businessCount)}
-                    {selected.configUpdatedAt ? ` · Updated ${formatDate(selected.configUpdatedAt)}` : ""}
-                    {!selected.is_active && " · Not offered when a business is created"}
+                    {selected.configUpdatedAt ? `, Updated ${formatDate(selected.configUpdatedAt)}` : ""}
+                    {!selected.is_active && ", Not offered when a business is created"}
                   </p>
                 </div>
                 {!selected.is_active && (

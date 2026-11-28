@@ -12,7 +12,7 @@ function Row({ log }) {
     <li>
       <div>
         <strong>{actionLabel(log.action, log.entity_type)}</strong>
-        <span>{log.actor ?? (log.user_id ? "Someone not shown here" : "Zella Voice system")} · {formatDateTime(log.created_at)} ({timeAgo(log.created_at)})</span>
+        <span>{log.actor ?? (log.user_id ? "Someone not shown here" : "Zella Voice system")}, {formatDateTime(log.created_at)} ({timeAgo(log.created_at)})</span>
         {lines.length > 0 && <ul className="bd-changes">{lines.map((l) => <li key={l}>{l}</li>)}</ul>}
       </div>
     </li>

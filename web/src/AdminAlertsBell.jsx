@@ -98,7 +98,7 @@ export default function AdminAlertsBell({ onOpenMonitoring }) {
                   <div>
                     <strong>{a.title}</strong>
                     {a.detail && <small>{a.detail}</small>}
-                    <small>{LABEL[a.severity] ?? a.severity} · {ago(a.last_seen_at)}{a.occurrences > 1 ? ` · ${a.occurrences} times` : ""}</small>
+                    <small>{LABEL[a.severity] ?? a.severity}, {ago(a.last_seen_at)}{a.occurrences > 1 ? `, ${a.occurrences} times` : ""}</small>
                   </div>
                   <button type="button" className="owner-bell-ack" disabled={busy} onClick={() => acknowledge(a)} title="Acknowledge">Got it</button>
                 </li>

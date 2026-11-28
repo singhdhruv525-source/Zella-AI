@@ -40,8 +40,8 @@ export function CallersGetCard({ deliveries }) {
     <Card title="What callers get" description="The receptionist settings calls were last given, compared with what the next call gets now.">
       <Facts items={[
         ["Settings for the next call", !statusOk ? unknown : st.current_config_hash ? `Configuration ${String(st.current_config_hash).slice(0, 8)}` : "Not worked out"],
-        ["Last call served", !statusOk ? unknown : last ? `${formatDateTime(last.at)} · ${last.is_current ? "same settings as now" : "older settings"}` : "No call served yet"],
-        ["Published version", !statusOk ? unknown : st.version ? `${humanize(st.version.sync_status ?? "saved")} · ${formatDateTime(st.version.published_at)}` : "None published"],
+        ["Last call served", !statusOk ? unknown : last ? `${formatDateTime(last.at)}, ${last.is_current ? "same settings as now" : "older settings"}` : "No call served yet"],
+        ["Published version", !statusOk ? unknown : st.version ? `${humanize(st.version.sync_status ?? "saved")}, ${formatDateTime(st.version.published_at)}` : "None published"],
         ["Last time a call couldn't be served", !statusOk ? unknown : st.last_problem ? `${formatDateTime(st.last_problem.at)}: ${(st.last_problem.problems ?? []).map(humanize).join(", ") || "no reason given"}` : "Never"],
         [`Not ready in the last ${deliveries.lastDays} days`, counts ? String(counts.not_ready) : "Not known"],
       ]} />

@@ -80,7 +80,7 @@ export default function DataRetention({ me }) {
               <Field label="Legal review"><select value={dialog.legalStatus} onChange={(e) => setDialog({ ...dialog, legalStatus: e.target.value })}>
                 <option value="pending_legal_review">Pending legal review</option><option value="approved">Approved by legal</option></select></Field>
             </div>
-            {dialog.legalStatus === "approved" && <Banner tone="warn">Only after counsel has approved this period. A manual purge run of an approved kind still needs two people to approve it; while purges are switched on, the daily job also removes approved recordings and transcripts past their period, and approving the cancelled business period lets it purge confirmed account deletions that are due.</Banner>}
+            {dialog.legalStatus === "approved" && <Banner tone="warn">Only after counsel has approved this period. A manual purge run of an approved kind still needs two people to approve it; while purges are switched on, the daily job also removes approved recordings and transcripts past their period, and approving the canceled business period lets it purge confirmed account deletions that are due.</Banner>}
           </Confirm>
         )}
         {dialog && "switchOn" in dialog && (
