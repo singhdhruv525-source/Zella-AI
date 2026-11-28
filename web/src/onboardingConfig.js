@@ -15,7 +15,7 @@ const GENERAL = {
   appointments: true,          // takes bookings, so booking preferences are asked
   team: "optional",           // "optional" | "recommended": staff list step
   teamHint: "Add the people customers can book with. The AI only offers times when one of them is working.",
-  servicesHint: "What customers can ask about or book. Leave a price empty if the AI shouldn't quote it.",
+  servicesHint: "What customers can ask about or book. Leave a price empty if your AI receptionist shouldn't quote it.",
   defaultLength: 30,
   details: [
     f("service_area", "Area served", "text", { placeholder: "e.g. Austin and nearby towns" }),
@@ -31,15 +31,15 @@ const DINING = {
   spamBookingLimit: 2,
   team: "optional",
   teamHint: "Optional. Restaurants usually book tables, not people, so you can skip this.",
-  servicesHint: "Menus, set menus, private dining or catering the AI can describe. Prices are optional.",
+  servicesHint: "Menus, set menus, private dining or catering your AI receptionist can describe. Prices are optional.",
   defaultLength: 90,
   details: [
     f("seating_capacity", "Seats", "number", { required: true, min: 1, max: 5000 }),
-    f("max_party_size", "Largest party the AI may book", "number", { required: true, min: 1, max: 100, hint: "Bigger groups are passed to the team." }),
-    f("walk_ins", "walk ins welcome", "yesno"),
+    f("max_party_size", "Largest party your AI receptionist may book", "number", { required: true, min: 1, max: 100, hint: "Bigger groups are passed to the team." }),
+    f("walk_ins", "Walk ins welcome", "yesno"),
     f("large_party_deposit", "Deposit for large groups", "text", { placeholder: "e.g. $10 per person for 8 or more" }),
     f("dietary_options", "Dietary options", "list", { placeholder: "e.g. vegetarian, vegan, gluten free" }),
-    f("takeaway_delivery", "Takeaway or delivery", "select", { options: [["none", "Neither"], ["takeaway", "Takeaway"], ["delivery", "Delivery"], ["both", "Both"]] }),
+    f("takeaway_delivery", "Takeout or delivery", "select", { options: [["none", "Neither"], ["takeaway", "Takeout"], ["delivery", "Delivery"], ["both", "Both"]] }),
   ],
   faqPrompts: ["Do you have vegetarian options?", "Can I bring my own cake?", "Is there parking nearby?", "Do you host private events?"],
   capabilities: ["answer_questions", "answer_calls", "collect_customer_info", "take_messages", "book_appointments", "reschedule_appointments", "cancel_appointments"],
@@ -54,8 +54,8 @@ const LODGING = {
   defaultLength: 60,
   details: [
     f("room_count", "Rooms", "number", { required: true, min: 1, max: 5000 }),
-    f("check_in_time", "check in from", "time", { required: true }),
-    f("check_out_time", "check out by", "time", { required: true }),
+    f("check_in_time", "Check in from", "time", { required: true }),
+    f("check_out_time", "Check out by", "time", { required: true }),
     f("parking", "Parking", "text", { placeholder: "e.g. Free on site, valet $25 a night" }),
     f("pets_allowed", "Pets allowed", "yesno"),
     f("amenities", "Amenities", "list", { placeholder: "e.g. pool, gym, restaurant" }),
@@ -68,7 +68,7 @@ const CLINIC = {
   kind: "clinic",
   spamBookingLimit: 2,
   team: "recommended",
-  teamHint: "Add the providers patients book with, so the AI only offers their real availability.",
+  teamHint: "Add the providers patients book with, so your AI receptionist only offers their real availability.",
   servicesHint: "Treatments and visit types. Leave prices empty if they depend on an exam.",
   defaultLength: 30,
   details: [
@@ -114,10 +114,10 @@ const BEAUTY = {
   kind: "beauty",
   team: "recommended",
   teamHint: "Add the stylists or therapists clients book with.",
-  servicesHint: "Services with their usual length and price, so the AI books the right amount of time.",
+  servicesHint: "Services with their usual length and price, so your AI receptionist books the right amount of time.",
   defaultLength: 45,
   details: [
-    f("walk_ins", "walk ins welcome", "yesno"),
+    f("walk_ins", "Walk ins welcome", "yesno"),
     f("deposit_policy", "Deposit", "text", { placeholder: "e.g. $20 deposit for color appointments" }),
     f("cancellation_notice_hours", "Cancellation notice needed (hours)", "number", { min: 0, max: 168 }),
   ],
@@ -160,7 +160,7 @@ const PROPERTY_MGMT = {
   details: [
     f("areas_covered", "Areas covered", "list", { required: true }),
     f("units_managed", "Units managed", "number", { min: 0, max: 100000 }),
-    f("maintenance_emergency", "Emergency maintenance line", "text", { placeholder: "e.g. 24/7 on (555) 010-0200" }),
+    f("maintenance_emergency", "Emergency maintenance line", "text", { placeholder: "e.g. 24/7 on (555) 010 0200" }),
   ],
   faqPrompts: ["How do I report a repair?", "When is rent due?", "Are pets allowed?"],
 };
@@ -243,7 +243,7 @@ const ECOMMERCE = {
   appointments: false,
   team: "optional",
   teamHint: "Optional. Add support agents if customers are passed to a person.",
-  servicesHint: "Product ranges the AI can talk about.",
+  servicesHint: "Product ranges your AI receptionist can talk about.",
   details: [
     f("returns_window_days", "Returns accepted for (days)", "number", { required: true, min: 0, max: 365 }),
     f("shipping_regions", "Ships to", "list", { required: true, placeholder: "e.g. United States, Canada" }),
@@ -281,7 +281,7 @@ export const ONBOARDING_BY_INDUSTRY = {
 export const onboardingFor = (slug) => ONBOARDING_BY_INDUSTRY[slug] ?? GENERAL;
 export const LENGTH_OPTIONS = LENGTHS;
 // how times are offered to callers: an exact time, or an arrival window of this many minutes
-export const ARRIVAL_WINDOW_OPTIONS = [[0, "An exact time"], [60, "A 1-hour arrival window"], [120, "A 2-hour arrival window"], [180, "A 3-hour arrival window"], [240, "A 4-hour arrival window"]];
+export const ARRIVAL_WINDOW_OPTIONS = [[0, "An exact time"], [60, "A 1 hour arrival window"], [120, "A 2 hour arrival window"], [180, "A 3 hour arrival window"], [240, "A 4 hour arrival window"]];
 
 // Documents an admin collects to verify the business and the person registering it.
 export const DOCUMENT_KINDS = [

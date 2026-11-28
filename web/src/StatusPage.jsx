@@ -49,8 +49,8 @@ export default function StatusPage() {
             <strong>{state.error ? "We can't reach Zella Voice right now" : OVERALL[overall] ?? "Status not available yet"}</strong>
           </div>
         )}
-        {state.error && <p>The app or its database isn't answering. This page checks again every minute.</p>}
-        {!state.error && overall === "partial" && <p>Nothing we check is reporting a problem. The parts marked Not monitored yet aren't checked yet.</p>}
+        {state.error && <p>Zella Voice isn't answering. This page checks again every minute.</p>}
+        {!state.error && overall === "partial" && <p>Nothing we check is reporting a problem.</p>}
         {d && (
           <>
             <ul className="stp-list">
@@ -73,7 +73,7 @@ export default function StatusPage() {
                     <strong>{partLabel(d.components, i.component)}</strong>
                     <span className={`stp-state ${i.status === "open" ? "warn" : "ok"}`}>{i.status === "open" ? "Ongoing" : "Fixed"}</span>
                     {i.message && <p>{i.message}</p>}
-                    <small>Started {when(i.started_at)}{i.resolved_at ? ` · fixed ${when(i.resolved_at)}` : ""}</small>
+                    <small>Started {when(i.started_at)}{i.resolved_at ? `, fixed ${when(i.resolved_at)}` : ""}</small>
                   </li>
                 ))}
               </ul>
