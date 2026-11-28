@@ -2202,7 +2202,7 @@ Knowledge, Automations, Reports, Team, Settings.
 | D-51 | Stripe account for the Wyoming LLC: verified (EIN, the owner's identity, business address, a US bank account for USD payouts), Billing enabled, sandbox keys made; then the sandbox proofs in `docs/PAYMENTS_ARCHITECTURE.md` §16.8 | owner |
 | D-54 | ~~Variable charges in USD~~ **Closed 13 Nov 2026 with the move to Stripe:** auto-reload and yearly pay as you go are off-session charges on the saved card; monthly pay as you go is an invoice item on the renewal invoice (`docs/PAYMENTS_ARCHITECTURE.md` §6.4, §6.9) | — |
 | D-52 | Inbound call routing when a call's number and Vapi phone ID match two different businesses' rows (each is unique on its own): proposed, route only when both agree, otherwise treat as an unknown number | owner |
-| D-53 | Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only (`sql/zella_workflow_alert_email.sql`, merged, not applied) | owner |
+| D-53 | ~~Whether n8n workflow failures are emailed to platform admins once email is live, or shown in the dashboard only~~ **Closed 28 Nov 2026 (owner):** the separate migration was dropped; the `workflow_failed` alert rule decides (destination bell keeps it out of email, urgent alerts always email) | owner |
 | D-35 | Whether a business may ever override a resource conflict (default: never) | owner |
 | D-38 | Platform contact-ceiling values (maximum attempts per sequence, unprompted messages per day) that no plan can exceed | owner |
 | D-39 | WhatsApp, Instagram and Messenger as messaging channels: in launch scope or later (the current code has Meta workers; not yet a decision) | owner + counsel |
